@@ -1,0 +1,1617 @@
+{
+  "description": "Synthetic consistency vectors only; tokens/times do not prove issuance and bytes were not read. Digests independently constructed with Python SHA256. Original admitted components remain in admitted-proof-v1.json.",
+  "valid": [
+    {
+      "name": "Vision with description",
+      "admitted_vector_index": 0,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+          "assignment_digest": "7ec85b94e0a1e6d49061d72a4a7587f65219d93eda0edd367ea7b1973140b89e",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "4e03363914b06fef60fa31239f387bba84704fac4081d0ae92b389e7f358a5f8",
+          "outcome_digest": "817d51a25d6de31c93bb0992c47ef532a16dee964a3c734e8a1a28706018b744",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+            "anchor_ms": 1046001,
+            "cutoffs": {
+              "admission": 1056001,
+              "copy": 1081001,
+              "protocol_margin": 1126001,
+              "reconciliation": 1121001,
+              "transfer": 1111001,
+              "verification": 1101001,
+              "verification_claim": 1086001,
+              "verification_settlement": 1106001
+            },
+            "handoff_installation_digest": "8150d6ad48652a8b36f8bf52fe18981b4f501c78e1ad0d9ab99912077b5a14b4",
+            "handoff_profile_digest": "12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "d5994689fc8ab57b34309ee44d5a6950e3bc19efe750c306683487281fddc425",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "f3d44bc946071c038fb9445452eea2a0cb3f7bcdde47014f2d6fc77a0331ae79",
+          "version": 2
+        },
+        "admission_receipt_digest": "2a180114ef04926c69ded51135eaf5bdd9645966a1f1884a109e24de2100a466",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000001",
+        "issued_at_ms": 1081002
+      },
+      "claim_digest": "8d3ebf381e8ceaf30e07d0ebd10ce2fb728b2d6b9d5c26aaa3dbc97d5cbd9aeb",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+            "assignment_digest": "7ec85b94e0a1e6d49061d72a4a7587f65219d93eda0edd367ea7b1973140b89e",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "4e03363914b06fef60fa31239f387bba84704fac4081d0ae92b389e7f358a5f8",
+            "outcome_digest": "817d51a25d6de31c93bb0992c47ef532a16dee964a3c734e8a1a28706018b744",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+              "anchor_ms": 1046001,
+              "cutoffs": {
+                "admission": 1056001,
+                "copy": 1081001,
+                "protocol_margin": 1126001,
+                "reconciliation": 1121001,
+                "transfer": 1111001,
+                "verification": 1101001,
+                "verification_claim": 1086001,
+                "verification_settlement": 1106001
+              },
+              "handoff_installation_digest": "8150d6ad48652a8b36f8bf52fe18981b4f501c78e1ad0d9ab99912077b5a14b4",
+              "handoff_profile_digest": "12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "d5994689fc8ab57b34309ee44d5a6950e3bc19efe750c306683487281fddc425",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "f3d44bc946071c038fb9445452eea2a0cb3f7bcdde47014f2d6fc77a0331ae79",
+            "version": 2
+          },
+          "admission_receipt_digest": "2a180114ef04926c69ded51135eaf5bdd9645966a1f1884a109e24de2100a466",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000001",
+          "issued_at_ms": 1081002
+        },
+        "claim_digest": "8d3ebf381e8ceaf30e07d0ebd10ce2fb728b2d6b9d5c26aaa3dbc97d5cbd9aeb",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100000",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1101002
+      },
+      "verification_receipt_digest": "02f32d044003cf124b72bcc38c1075a862ef6c38c1e1812a9740f6abfdb8d89e",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "2a180114ef04926c69ded51135eaf5bdd9645966a1f1884a109e24de2100a466",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+              "assignment_digest": "7ec85b94e0a1e6d49061d72a4a7587f65219d93eda0edd367ea7b1973140b89e",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "4e03363914b06fef60fa31239f387bba84704fac4081d0ae92b389e7f358a5f8",
+              "outcome_digest": "817d51a25d6de31c93bb0992c47ef532a16dee964a3c734e8a1a28706018b744",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000100",
+                "anchor_ms": 1046001,
+                "cutoffs": {
+                  "admission": 1056001,
+                  "copy": 1081001,
+                  "protocol_margin": 1126001,
+                  "reconciliation": 1121001,
+                  "transfer": 1111001,
+                  "verification": 1101001,
+                  "verification_claim": 1086001,
+                  "verification_settlement": 1106001
+                },
+                "handoff_installation_digest": "8150d6ad48652a8b36f8bf52fe18981b4f501c78e1ad0d9ab99912077b5a14b4",
+                "handoff_profile_digest": "12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "d5994689fc8ab57b34309ee44d5a6950e3bc19efe750c306683487281fddc425",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "f3d44bc946071c038fb9445452eea2a0cb3f7bcdde47014f2d6fc77a0331ae79",
+              "version": 2
+            },
+            "admission_receipt_digest": "2a180114ef04926c69ded51135eaf5bdd9645966a1f1884a109e24de2100a466",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000001",
+            "issued_at_ms": 1081002
+          },
+          "claim_digest": "8d3ebf381e8ceaf30e07d0ebd10ce2fb728b2d6b9d5c26aaa3dbc97d5cbd9aeb",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100000",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1101002
+        },
+        "verification_receipt_digest": "02f32d044003cf124b72bcc38c1075a862ef6c38c1e1812a9740f6abfdb8d89e",
+        "authorized_at_ms": 1106002
+      },
+      "transfer_receipt_digest": "ae10475d866026b98e9fa085fb7e85b1a06ccde30c9f8ef9c4bfc02af5ed8e42"
+    },
+    {
+      "name": "Multimodal photo",
+      "admitted_vector_index": 1,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+          "assignment_digest": "0559019e02de1682b437487393732d71728d2f3242bfbe5ee8592d2184920b98",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "be60d99a0dc016be6c6197420e4accbb86c6e7e4207bfd57f07e43f3a9d717d8",
+          "outcome_digest": "dad11c6609b67df0fba57efe66d4b49c71e3cd5e721785055de8e8d2742707f8",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+            "anchor_ms": 1046001,
+            "cutoffs": {
+              "admission": 1056001,
+              "copy": 1081001,
+              "protocol_margin": 1126001,
+              "reconciliation": 1121001,
+              "transfer": 1111001,
+              "verification": 1101001,
+              "verification_claim": 1086001,
+              "verification_settlement": 1106001
+            },
+            "handoff_installation_digest": "25697ae7f8306c3d2ca6fa45b71d089ce7100a3b4d187e529c0851c6cf6354e0",
+            "handoff_profile_digest": "f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "23f7cd8beeabd7766272067dc335f4197bdb3cdf2133440ddffd9b7b321f74d3",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "d39f58309d369fe9c747998133d02ee7727d7a46cebac3ca82efcfaa07991c8f",
+          "version": 2
+        },
+        "admission_receipt_digest": "bd85f52d9ed4568ed5b8eaa41ff09d6dfd4c57b3baf1e0cfe12cd37a641a9420",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000002",
+        "issued_at_ms": 1081002
+      },
+      "claim_digest": "34dff757b6916af9b2eca1ac5b417a56c344a690add3165c99bd1c9fc8176123",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+            "assignment_digest": "0559019e02de1682b437487393732d71728d2f3242bfbe5ee8592d2184920b98",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "be60d99a0dc016be6c6197420e4accbb86c6e7e4207bfd57f07e43f3a9d717d8",
+            "outcome_digest": "dad11c6609b67df0fba57efe66d4b49c71e3cd5e721785055de8e8d2742707f8",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+              "anchor_ms": 1046001,
+              "cutoffs": {
+                "admission": 1056001,
+                "copy": 1081001,
+                "protocol_margin": 1126001,
+                "reconciliation": 1121001,
+                "transfer": 1111001,
+                "verification": 1101001,
+                "verification_claim": 1086001,
+                "verification_settlement": 1106001
+              },
+              "handoff_installation_digest": "25697ae7f8306c3d2ca6fa45b71d089ce7100a3b4d187e529c0851c6cf6354e0",
+              "handoff_profile_digest": "f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "23f7cd8beeabd7766272067dc335f4197bdb3cdf2133440ddffd9b7b321f74d3",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "d39f58309d369fe9c747998133d02ee7727d7a46cebac3ca82efcfaa07991c8f",
+            "version": 2
+          },
+          "admission_receipt_digest": "bd85f52d9ed4568ed5b8eaa41ff09d6dfd4c57b3baf1e0cfe12cd37a641a9420",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000002",
+          "issued_at_ms": 1081002
+        },
+        "claim_digest": "34dff757b6916af9b2eca1ac5b417a56c344a690add3165c99bd1c9fc8176123",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100020",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1101002
+      },
+      "verification_receipt_digest": "3873d21337fd8360858ee33b8de90daefe383ef2149ca8e35c181e84a9641527",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "bd85f52d9ed4568ed5b8eaa41ff09d6dfd4c57b3baf1e0cfe12cd37a641a9420",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+              "assignment_digest": "0559019e02de1682b437487393732d71728d2f3242bfbe5ee8592d2184920b98",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "be60d99a0dc016be6c6197420e4accbb86c6e7e4207bfd57f07e43f3a9d717d8",
+              "outcome_digest": "dad11c6609b67df0fba57efe66d4b49c71e3cd5e721785055de8e8d2742707f8",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000101",
+                "anchor_ms": 1046001,
+                "cutoffs": {
+                  "admission": 1056001,
+                  "copy": 1081001,
+                  "protocol_margin": 1126001,
+                  "reconciliation": 1121001,
+                  "transfer": 1111001,
+                  "verification": 1101001,
+                  "verification_claim": 1086001,
+                  "verification_settlement": 1106001
+                },
+                "handoff_installation_digest": "25697ae7f8306c3d2ca6fa45b71d089ce7100a3b4d187e529c0851c6cf6354e0",
+                "handoff_profile_digest": "f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "23f7cd8beeabd7766272067dc335f4197bdb3cdf2133440ddffd9b7b321f74d3",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "d39f58309d369fe9c747998133d02ee7727d7a46cebac3ca82efcfaa07991c8f",
+              "version": 2
+            },
+            "admission_receipt_digest": "bd85f52d9ed4568ed5b8eaa41ff09d6dfd4c57b3baf1e0cfe12cd37a641a9420",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000002",
+            "issued_at_ms": 1081002
+          },
+          "claim_digest": "34dff757b6916af9b2eca1ac5b417a56c344a690add3165c99bd1c9fc8176123",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100020",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1101002
+        },
+        "verification_receipt_digest": "3873d21337fd8360858ee33b8de90daefe383ef2149ca8e35c181e84a9641527",
+        "authorized_at_ms": 1106002
+      },
+      "transfer_receipt_digest": "e786150a8064be4fa6c9c1bb0dd9b98bcc308193c608cb8ed58320e80bdc3366"
+    },
+    {
+      "name": "Multimodal audio",
+      "admitted_vector_index": 2,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+          "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "6caa6e65bdf3cd483aef12c145bd2ca362b0a727381b4757746e216279dd18b3",
+          "outcome_digest": "5489b5fea547354552c5362bbd47d467654d80aa29619ea9f946ae18cb645da1",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+            "anchor_ms": 1046001,
+            "cutoffs": {
+              "admission": 1056001,
+              "copy": 1081001,
+              "protocol_margin": 1126001,
+              "reconciliation": 1121001,
+              "transfer": 1111001,
+              "verification": 1101001,
+              "verification_claim": 1086001,
+              "verification_settlement": 1106001
+            },
+            "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+            "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "e02a192c3560c484ae6fc90be46c47054ae62b2313bd1c98fe2fd09b312fb1e2",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+          "version": 2
+        },
+        "admission_receipt_digest": "caf8dcaa5dd5f37f08b5fccd5e7a26db2e7c537b496bd88c9f2dbd60c1229f35",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000003",
+        "issued_at_ms": 1081002
+      },
+      "claim_digest": "5d246dcec64f0314bf74c62dad02596f75ef2ff8a6505f87a46059b9f408a103",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+            "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "6caa6e65bdf3cd483aef12c145bd2ca362b0a727381b4757746e216279dd18b3",
+            "outcome_digest": "5489b5fea547354552c5362bbd47d467654d80aa29619ea9f946ae18cb645da1",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+              "anchor_ms": 1046001,
+              "cutoffs": {
+                "admission": 1056001,
+                "copy": 1081001,
+                "protocol_margin": 1126001,
+                "reconciliation": 1121001,
+                "transfer": 1111001,
+                "verification": 1101001,
+                "verification_claim": 1086001,
+                "verification_settlement": 1106001
+              },
+              "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+              "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "e02a192c3560c484ae6fc90be46c47054ae62b2313bd1c98fe2fd09b312fb1e2",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+            "version": 2
+          },
+          "admission_receipt_digest": "caf8dcaa5dd5f37f08b5fccd5e7a26db2e7c537b496bd88c9f2dbd60c1229f35",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000003",
+          "issued_at_ms": 1081002
+        },
+        "claim_digest": "5d246dcec64f0314bf74c62dad02596f75ef2ff8a6505f87a46059b9f408a103",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100040",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1101002
+      },
+      "verification_receipt_digest": "0dceeb7332ec13c9493f3b94ae4d3225e9e3ac994b1de5c3dd838f7dafba5e39",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "caf8dcaa5dd5f37f08b5fccd5e7a26db2e7c537b496bd88c9f2dbd60c1229f35",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+              "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "6caa6e65bdf3cd483aef12c145bd2ca362b0a727381b4757746e216279dd18b3",
+              "outcome_digest": "5489b5fea547354552c5362bbd47d467654d80aa29619ea9f946ae18cb645da1",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000102",
+                "anchor_ms": 1046001,
+                "cutoffs": {
+                  "admission": 1056001,
+                  "copy": 1081001,
+                  "protocol_margin": 1126001,
+                  "reconciliation": 1121001,
+                  "transfer": 1111001,
+                  "verification": 1101001,
+                  "verification_claim": 1086001,
+                  "verification_settlement": 1106001
+                },
+                "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+                "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "e02a192c3560c484ae6fc90be46c47054ae62b2313bd1c98fe2fd09b312fb1e2",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+              "version": 2
+            },
+            "admission_receipt_digest": "caf8dcaa5dd5f37f08b5fccd5e7a26db2e7c537b496bd88c9f2dbd60c1229f35",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000003",
+            "issued_at_ms": 1081002
+          },
+          "claim_digest": "5d246dcec64f0314bf74c62dad02596f75ef2ff8a6505f87a46059b9f408a103",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100040",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1101002
+        },
+        "verification_receipt_digest": "0dceeb7332ec13c9493f3b94ae4d3225e9e3ac994b1de5c3dd838f7dafba5e39",
+        "authorized_at_ms": 1106002
+      },
+      "transfer_receipt_digest": "348d567d21db2ee4903072e2ef8fce097271bf04aaa030ecc01efa2c608f45f3"
+    },
+    {
+      "name": "Multimodal blended",
+      "admitted_vector_index": 3,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+          "assignment_digest": "5edead5b85d46514fae0110d1b32be087d451644d7d5a95cab8ad07bf8873366",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "3573d60e2d8cf3fe176ff9592f73d6e7a81e20a24ed38088e54119e178df7cd6",
+          "outcome_digest": "1a4050e2d82f03b91796628b08615739199c4477bf977fb67a2de1e5fa500a44",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+            "anchor_ms": 1047001,
+            "cutoffs": {
+              "admission": 1057001,
+              "copy": 1082001,
+              "protocol_margin": 1127001,
+              "reconciliation": 1122001,
+              "transfer": 1112001,
+              "verification": 1102001,
+              "verification_claim": 1087001,
+              "verification_settlement": 1107001
+            },
+            "handoff_installation_digest": "41f73b98e0f08d10d508dabc159dce622dfbba9e902d3c26d22b886e16d27198",
+            "handoff_profile_digest": "bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "a3f2e1dacc76d42ec6d2e84e105c78a4133151171a7c35f329c60a02470e74bc",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "ce70efcdd962a38fa308e5cc58f47eaf4450fb09455b275ce8be3d089cc102fb",
+          "version": 2
+        },
+        "admission_receipt_digest": "815ca676a62b1a5692a1f4afc622327537b8e5c42adb2d6933fccc13f4dfa8f4",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000004",
+        "issued_at_ms": 1082002
+      },
+      "claim_digest": "34536a680d8511bf8b514482834b80f5f03c3c3b1071ef5024057b1a0abd4764",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+            "assignment_digest": "5edead5b85d46514fae0110d1b32be087d451644d7d5a95cab8ad07bf8873366",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "3573d60e2d8cf3fe176ff9592f73d6e7a81e20a24ed38088e54119e178df7cd6",
+            "outcome_digest": "1a4050e2d82f03b91796628b08615739199c4477bf977fb67a2de1e5fa500a44",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+              "anchor_ms": 1047001,
+              "cutoffs": {
+                "admission": 1057001,
+                "copy": 1082001,
+                "protocol_margin": 1127001,
+                "reconciliation": 1122001,
+                "transfer": 1112001,
+                "verification": 1102001,
+                "verification_claim": 1087001,
+                "verification_settlement": 1107001
+              },
+              "handoff_installation_digest": "41f73b98e0f08d10d508dabc159dce622dfbba9e902d3c26d22b886e16d27198",
+              "handoff_profile_digest": "bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "a3f2e1dacc76d42ec6d2e84e105c78a4133151171a7c35f329c60a02470e74bc",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "ce70efcdd962a38fa308e5cc58f47eaf4450fb09455b275ce8be3d089cc102fb",
+            "version": 2
+          },
+          "admission_receipt_digest": "815ca676a62b1a5692a1f4afc622327537b8e5c42adb2d6933fccc13f4dfa8f4",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000004",
+          "issued_at_ms": 1082002
+        },
+        "claim_digest": "34536a680d8511bf8b514482834b80f5f03c3c3b1071ef5024057b1a0abd4764",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100060",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100062",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1102002
+      },
+      "verification_receipt_digest": "8300b872b5229453154a564a3ff3e80a6e5c703b6ad52b12618e55731bce5981",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "815ca676a62b1a5692a1f4afc622327537b8e5c42adb2d6933fccc13f4dfa8f4",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+              "assignment_digest": "5edead5b85d46514fae0110d1b32be087d451644d7d5a95cab8ad07bf8873366",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "3573d60e2d8cf3fe176ff9592f73d6e7a81e20a24ed38088e54119e178df7cd6",
+              "outcome_digest": "1a4050e2d82f03b91796628b08615739199c4477bf977fb67a2de1e5fa500a44",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000103",
+                "anchor_ms": 1047001,
+                "cutoffs": {
+                  "admission": 1057001,
+                  "copy": 1082001,
+                  "protocol_margin": 1127001,
+                  "reconciliation": 1122001,
+                  "transfer": 1112001,
+                  "verification": 1102001,
+                  "verification_claim": 1087001,
+                  "verification_settlement": 1107001
+                },
+                "handoff_installation_digest": "41f73b98e0f08d10d508dabc159dce622dfbba9e902d3c26d22b886e16d27198",
+                "handoff_profile_digest": "bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "a3f2e1dacc76d42ec6d2e84e105c78a4133151171a7c35f329c60a02470e74bc",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "ce70efcdd962a38fa308e5cc58f47eaf4450fb09455b275ce8be3d089cc102fb",
+              "version": 2
+            },
+            "admission_receipt_digest": "815ca676a62b1a5692a1f4afc622327537b8e5c42adb2d6933fccc13f4dfa8f4",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000004",
+            "issued_at_ms": 1082002
+          },
+          "claim_digest": "34536a680d8511bf8b514482834b80f5f03c3c3b1071ef5024057b1a0abd4764",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100060",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100062",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1102002
+        },
+        "verification_receipt_digest": "8300b872b5229453154a564a3ff3e80a6e5c703b6ad52b12618e55731bce5981",
+        "authorized_at_ms": 1107002
+      },
+      "transfer_receipt_digest": "4c4ca402fec8d20fba5128dcd0bc3f03cb1173d45e3f7a99737fa62e5ed73461"
+    },
+    {
+      "name": "frames",
+      "admitted_vector_index": 4,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+          "assignment_digest": "296b01b1097bda2fcee6251692b659d16225ab32a709ca47cdc597d25c842a49",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "cf839697ad7e72029524a3c8b510476199c49a95736092141ac962636ad126cb",
+          "outcome_digest": "631e3da45c6d49516a4a21e0d635de2178317e4a0d993e9956da4474ce5220a6",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+            "anchor_ms": 1047001,
+            "cutoffs": {
+              "admission": 1057001,
+              "copy": 1082001,
+              "protocol_margin": 1127001,
+              "reconciliation": 1122001,
+              "transfer": 1112001,
+              "verification": 1102001,
+              "verification_claim": 1087001,
+              "verification_settlement": 1107001
+            },
+            "handoff_installation_digest": "bfcdeada2a7373c0ce1edae1159b3a2fbabaea5040917c6a42faf260d2b85d1b",
+            "handoff_profile_digest": "37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "1811b02d4b5241a78b20f2f84d27c015cb34d413965235cb111506f4254192df",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "e9dcd28615900cb6bb9e2f7f886678c0d48dcf18d1a7ad687deda523db197767",
+          "version": 2
+        },
+        "admission_receipt_digest": "6dea4623f582a88925ee6817dba6f31773f419ee4d30a7c6066a6c34f9e47968",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000005",
+        "issued_at_ms": 1082002
+      },
+      "claim_digest": "bcc01d093f684fe582fbcac6992307fdca6bcfba5a35f43d984cc345a6409f13",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+            "assignment_digest": "296b01b1097bda2fcee6251692b659d16225ab32a709ca47cdc597d25c842a49",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "cf839697ad7e72029524a3c8b510476199c49a95736092141ac962636ad126cb",
+            "outcome_digest": "631e3da45c6d49516a4a21e0d635de2178317e4a0d993e9956da4474ce5220a6",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+              "anchor_ms": 1047001,
+              "cutoffs": {
+                "admission": 1057001,
+                "copy": 1082001,
+                "protocol_margin": 1127001,
+                "reconciliation": 1122001,
+                "transfer": 1112001,
+                "verification": 1102001,
+                "verification_claim": 1087001,
+                "verification_settlement": 1107001
+              },
+              "handoff_installation_digest": "bfcdeada2a7373c0ce1edae1159b3a2fbabaea5040917c6a42faf260d2b85d1b",
+              "handoff_profile_digest": "37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "1811b02d4b5241a78b20f2f84d27c015cb34d413965235cb111506f4254192df",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "e9dcd28615900cb6bb9e2f7f886678c0d48dcf18d1a7ad687deda523db197767",
+            "version": 2
+          },
+          "admission_receipt_digest": "6dea4623f582a88925ee6817dba6f31773f419ee4d30a7c6066a6c34f9e47968",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000005",
+          "issued_at_ms": 1082002
+        },
+        "claim_digest": "bcc01d093f684fe582fbcac6992307fdca6bcfba5a35f43d984cc345a6409f13",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100080",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100082",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 24,
+            "content_type": "video/mp4",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1102002
+      },
+      "verification_receipt_digest": "a41756c563b68fc6d14a474a1e59e9e16aa29f2127a3773b6ffcbfa1f69f04ea",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "6dea4623f582a88925ee6817dba6f31773f419ee4d30a7c6066a6c34f9e47968",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+              "assignment_digest": "296b01b1097bda2fcee6251692b659d16225ab32a709ca47cdc597d25c842a49",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "cf839697ad7e72029524a3c8b510476199c49a95736092141ac962636ad126cb",
+              "outcome_digest": "631e3da45c6d49516a4a21e0d635de2178317e4a0d993e9956da4474ce5220a6",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000104",
+                "anchor_ms": 1047001,
+                "cutoffs": {
+                  "admission": 1057001,
+                  "copy": 1082001,
+                  "protocol_margin": 1127001,
+                  "reconciliation": 1122001,
+                  "transfer": 1112001,
+                  "verification": 1102001,
+                  "verification_claim": 1087001,
+                  "verification_settlement": 1107001
+                },
+                "handoff_installation_digest": "bfcdeada2a7373c0ce1edae1159b3a2fbabaea5040917c6a42faf260d2b85d1b",
+                "handoff_profile_digest": "37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "1811b02d4b5241a78b20f2f84d27c015cb34d413965235cb111506f4254192df",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "e9dcd28615900cb6bb9e2f7f886678c0d48dcf18d1a7ad687deda523db197767",
+              "version": 2
+            },
+            "admission_receipt_digest": "6dea4623f582a88925ee6817dba6f31773f419ee4d30a7c6066a6c34f9e47968",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000005",
+            "issued_at_ms": 1082002
+          },
+          "claim_digest": "bcc01d093f684fe582fbcac6992307fdca6bcfba5a35f43d984cc345a6409f13",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100080",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100082",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 24,
+              "content_type": "video/mp4",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1102002
+        },
+        "verification_receipt_digest": "a41756c563b68fc6d14a474a1e59e9e16aa29f2127a3773b6ffcbfa1f69f04ea",
+        "authorized_at_ms": 1107002
+      },
+      "transfer_receipt_digest": "749581381f026d82b2ceeb5f26272ae1ee58f877d4d076d65396ce66273d72d9"
+    },
+    {
+      "name": "video audio",
+      "admitted_vector_index": 5,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+          "assignment_digest": "21ecf7b3b8d543907c575fa488003c41ab121206f33bc795d5ad6f4087c3a74d",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "af88308da0b860616cffce86419e59b8251acdfc298c452b6ff233526638b148",
+          "outcome_digest": "476e879d1732fd444fddfe76b044d4348643ceb04f7228bcf743e28d579cb970",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+            "anchor_ms": 1048001,
+            "cutoffs": {
+              "admission": 1058001,
+              "copy": 1083001,
+              "protocol_margin": 1128001,
+              "reconciliation": 1123001,
+              "transfer": 1113001,
+              "verification": 1103001,
+              "verification_claim": 1088001,
+              "verification_settlement": 1108001
+            },
+            "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+            "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "6d37eefaf318516bfa1c8ded19b7a832a3285312edda0173b18f877e28fec0b4",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "63df403fd579b57cd102ffa7e1af26a282eb43aa19d40b24fe745b340db24daf",
+          "version": 2
+        },
+        "admission_receipt_digest": "ee913ef7575fcaac6a2d50ee7f3ea3d7841dea08c22fd5e21e849be79f6aaa35",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000006",
+        "issued_at_ms": 1083002
+      },
+      "claim_digest": "9dd02249697695c3e505b8a05d733e82fd200de261d1514a982cec7ebf727c3f",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+            "assignment_digest": "21ecf7b3b8d543907c575fa488003c41ab121206f33bc795d5ad6f4087c3a74d",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "af88308da0b860616cffce86419e59b8251acdfc298c452b6ff233526638b148",
+            "outcome_digest": "476e879d1732fd444fddfe76b044d4348643ceb04f7228bcf743e28d579cb970",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+              "anchor_ms": 1048001,
+              "cutoffs": {
+                "admission": 1058001,
+                "copy": 1083001,
+                "protocol_margin": 1128001,
+                "reconciliation": 1123001,
+                "transfer": 1113001,
+                "verification": 1103001,
+                "verification_claim": 1088001,
+                "verification_settlement": 1108001
+              },
+              "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+              "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "6d37eefaf318516bfa1c8ded19b7a832a3285312edda0173b18f877e28fec0b4",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "63df403fd579b57cd102ffa7e1af26a282eb43aa19d40b24fe745b340db24daf",
+            "version": 2
+          },
+          "admission_receipt_digest": "ee913ef7575fcaac6a2d50ee7f3ea3d7841dea08c22fd5e21e849be79f6aaa35",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000006",
+          "issued_at_ms": 1083002
+        },
+        "claim_digest": "9dd02249697695c3e505b8a05d733e82fd200de261d1514a982cec7ebf727c3f",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100100",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100102",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100104",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 24,
+            "content_type": "video/mp4",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1103002
+      },
+      "verification_receipt_digest": "3b0b2d23ccad99d99d47949e67b818b32d240a4939374c0b1aa14471a39fcc64",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "ee913ef7575fcaac6a2d50ee7f3ea3d7841dea08c22fd5e21e849be79f6aaa35",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+              "assignment_digest": "21ecf7b3b8d543907c575fa488003c41ab121206f33bc795d5ad6f4087c3a74d",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "af88308da0b860616cffce86419e59b8251acdfc298c452b6ff233526638b148",
+              "outcome_digest": "476e879d1732fd444fddfe76b044d4348643ceb04f7228bcf743e28d579cb970",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000105",
+                "anchor_ms": 1048001,
+                "cutoffs": {
+                  "admission": 1058001,
+                  "copy": 1083001,
+                  "protocol_margin": 1128001,
+                  "reconciliation": 1123001,
+                  "transfer": 1113001,
+                  "verification": 1103001,
+                  "verification_claim": 1088001,
+                  "verification_settlement": 1108001
+                },
+                "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+                "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "6d37eefaf318516bfa1c8ded19b7a832a3285312edda0173b18f877e28fec0b4",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "63df403fd579b57cd102ffa7e1af26a282eb43aa19d40b24fe745b340db24daf",
+              "version": 2
+            },
+            "admission_receipt_digest": "ee913ef7575fcaac6a2d50ee7f3ea3d7841dea08c22fd5e21e849be79f6aaa35",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000006",
+            "issued_at_ms": 1083002
+          },
+          "claim_digest": "9dd02249697695c3e505b8a05d733e82fd200de261d1514a982cec7ebf727c3f",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100100",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100102",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100104",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 24,
+              "content_type": "video/mp4",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1103002
+        },
+        "verification_receipt_digest": "3b0b2d23ccad99d99d47949e67b818b32d240a4939374c0b1aa14471a39fcc64",
+        "authorized_at_ms": 1108002
+      },
+      "transfer_receipt_digest": "673a0320921a5a593382be742aca5377c5373a1e2190daa38ad47c815c36ee48"
+    },
+    {
+      "name": "maximum supported video profile: five frames, one audio, one raw video",
+      "admitted_vector_index": 6,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+          "assignment_digest": "2b29873299ca394963e0a9ca738ca0543795c4830a5800cf00eeb892317abc45",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "981855dd995402045332d76fd2998761ba3f87eea1fcc66e28fa52a2da24804c",
+          "outcome_digest": "5e08ab7f01f998a950d072ed5b78c0e470fa7aa89f9b0018d0d83ae66011339d",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+            "anchor_ms": 1052001,
+            "cutoffs": {
+              "admission": 1062001,
+              "copy": 1087001,
+              "protocol_margin": 1132001,
+              "reconciliation": 1127001,
+              "transfer": 1117001,
+              "verification": 1107001,
+              "verification_claim": 1092001,
+              "verification_settlement": 1112001
+            },
+            "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+            "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "32910f4fca92e4e61ac61322385fade1ba384fc9124d54959b48bd4b297de0cc",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "3b353a68ffcce4d8fb31f7d784548d9cda350cf64c4c4853375f274bb6e33f7b",
+          "version": 2
+        },
+        "admission_receipt_digest": "1b2382c00461d60106eae9ec2f7989cd1316a7a475aca400ec5a9104798e8ab4",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000007",
+        "issued_at_ms": 1087002
+      },
+      "claim_digest": "f2438e8b11bd9514548167ba9918cad32a66132e082f7fff989a2324a59fa5e7",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+            "assignment_digest": "2b29873299ca394963e0a9ca738ca0543795c4830a5800cf00eeb892317abc45",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "981855dd995402045332d76fd2998761ba3f87eea1fcc66e28fa52a2da24804c",
+            "outcome_digest": "5e08ab7f01f998a950d072ed5b78c0e470fa7aa89f9b0018d0d83ae66011339d",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+              "anchor_ms": 1052001,
+              "cutoffs": {
+                "admission": 1062001,
+                "copy": 1087001,
+                "protocol_margin": 1132001,
+                "reconciliation": 1127001,
+                "transfer": 1117001,
+                "verification": 1107001,
+                "verification_claim": 1092001,
+                "verification_settlement": 1112001
+              },
+              "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+              "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "32910f4fca92e4e61ac61322385fade1ba384fc9124d54959b48bd4b297de0cc",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "3b353a68ffcce4d8fb31f7d784548d9cda350cf64c4c4853375f274bb6e33f7b",
+            "version": 2
+          },
+          "admission_receipt_digest": "1b2382c00461d60106eae9ec2f7989cd1316a7a475aca400ec5a9104798e8ab4",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000007",
+          "issued_at_ms": 1087002
+        },
+        "claim_digest": "f2438e8b11bd9514548167ba9918cad32a66132e082f7fff989a2324a59fa5e7",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100120",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100122",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100124",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100126",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100128",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 68,
+            "content_type": "image/png",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100130",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100132",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 24,
+            "content_type": "video/mp4",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1107002
+      },
+      "verification_receipt_digest": "8c4aed97d9378873cb454d9b117b64cfee033f4bbdc2c9dbdb2137e848741595",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "1b2382c00461d60106eae9ec2f7989cd1316a7a475aca400ec5a9104798e8ab4",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+              "assignment_digest": "2b29873299ca394963e0a9ca738ca0543795c4830a5800cf00eeb892317abc45",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "981855dd995402045332d76fd2998761ba3f87eea1fcc66e28fa52a2da24804c",
+              "outcome_digest": "5e08ab7f01f998a950d072ed5b78c0e470fa7aa89f9b0018d0d83ae66011339d",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000106",
+                "anchor_ms": 1052001,
+                "cutoffs": {
+                  "admission": 1062001,
+                  "copy": 1087001,
+                  "protocol_margin": 1132001,
+                  "reconciliation": 1127001,
+                  "transfer": 1117001,
+                  "verification": 1107001,
+                  "verification_claim": 1092001,
+                  "verification_settlement": 1112001
+                },
+                "handoff_installation_digest": "923967944f0fdf4867921dfc1995131b7ec1b3b75cd43c8c0ed7f007086521ee",
+                "handoff_profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "32910f4fca92e4e61ac61322385fade1ba384fc9124d54959b48bd4b297de0cc",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "3b353a68ffcce4d8fb31f7d784548d9cda350cf64c4c4853375f274bb6e33f7b",
+              "version": 2
+            },
+            "admission_receipt_digest": "1b2382c00461d60106eae9ec2f7989cd1316a7a475aca400ec5a9104798e8ab4",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000007",
+            "issued_at_ms": 1087002
+          },
+          "claim_digest": "f2438e8b11bd9514548167ba9918cad32a66132e082f7fff989a2324a59fa5e7",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100120",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100122",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100124",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100126",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100128",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 68,
+              "content_type": "image/png",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100130",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100132",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 24,
+              "content_type": "video/mp4",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1107002
+        },
+        "verification_receipt_digest": "8c4aed97d9378873cb454d9b117b64cfee033f4bbdc2c9dbdb2137e848741595",
+        "authorized_at_ms": 1112002
+      },
+      "transfer_receipt_digest": "6a3843373ca64f0af24802fc7e79fb16eb59dcfb2b9391911a2b1b06e3d08aa6"
+    },
+    {
+      "name": "distinct audio output with equal bytes aliases",
+      "admitted_vector_index": 7,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+          "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "8c2dd08fbdb190822ae23b91bbfe3ae47c6b52d2dbc923f0010c9e2e325a9fec",
+          "outcome_digest": "0950908570c2320174ba77f3cdd8ae83d75d5fed7ac51a7524146f515e9ddc50",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+            "anchor_ms": 1046001,
+            "cutoffs": {
+              "admission": 1056001,
+              "copy": 1081001,
+              "protocol_margin": 1126001,
+              "reconciliation": 1121001,
+              "transfer": 1111001,
+              "verification": 1101001,
+              "verification_claim": 1086001,
+              "verification_settlement": 1106001
+            },
+            "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+            "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "040e454ac3cc5f74a80d1ebce6ade221533e8c268bf4e3c0b15fe369b4c50e2a",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+          "version": 2
+        },
+        "admission_receipt_digest": "d64e062dac807a58b3479f42718b3e8e1b9201d6fb2132eb3d1d0cb98db32678",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000008",
+        "issued_at_ms": 1081002
+      },
+      "claim_digest": "306d724e03b84d51e23564c4d71e088b53e172c8fe0a73fd4466bd8ff306317f",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+            "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "8c2dd08fbdb190822ae23b91bbfe3ae47c6b52d2dbc923f0010c9e2e325a9fec",
+            "outcome_digest": "0950908570c2320174ba77f3cdd8ae83d75d5fed7ac51a7524146f515e9ddc50",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+              "anchor_ms": 1046001,
+              "cutoffs": {
+                "admission": 1056001,
+                "copy": 1081001,
+                "protocol_margin": 1126001,
+                "reconciliation": 1121001,
+                "transfer": 1111001,
+                "verification": 1101001,
+                "verification_claim": 1086001,
+                "verification_settlement": 1106001
+              },
+              "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+              "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "040e454ac3cc5f74a80d1ebce6ade221533e8c268bf4e3c0b15fe369b4c50e2a",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+            "version": 2
+          },
+          "admission_receipt_digest": "d64e062dac807a58b3479f42718b3e8e1b9201d6fb2132eb3d1d0cb98db32678",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000008",
+          "issued_at_ms": 1081002
+        },
+        "claim_digest": "306d724e03b84d51e23564c4d71e088b53e172c8fe0a73fd4466bd8ff306317f",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100140",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "authorized_at_ms": 1101002
+      },
+      "verification_receipt_digest": "0c4d962f96cce205319005a04f072b18156cb8cd3e26d603907364905058508a",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "d64e062dac807a58b3479f42718b3e8e1b9201d6fb2132eb3d1d0cb98db32678",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+              "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "8c2dd08fbdb190822ae23b91bbfe3ae47c6b52d2dbc923f0010c9e2e325a9fec",
+              "outcome_digest": "0950908570c2320174ba77f3cdd8ae83d75d5fed7ac51a7524146f515e9ddc50",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000107",
+                "anchor_ms": 1046001,
+                "cutoffs": {
+                  "admission": 1056001,
+                  "copy": 1081001,
+                  "protocol_margin": 1126001,
+                  "reconciliation": 1121001,
+                  "transfer": 1111001,
+                  "verification": 1101001,
+                  "verification_claim": 1086001,
+                  "verification_settlement": 1106001
+                },
+                "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+                "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "040e454ac3cc5f74a80d1ebce6ade221533e8c268bf4e3c0b15fe369b4c50e2a",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "90a8709aafd942e4a56573555c6ba24e0116c53574e4b1a6e466905eb269659c",
+              "version": 2
+            },
+            "admission_receipt_digest": "d64e062dac807a58b3479f42718b3e8e1b9201d6fb2132eb3d1d0cb98db32678",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000008",
+            "issued_at_ms": 1081002
+          },
+          "claim_digest": "306d724e03b84d51e23564c4d71e088b53e172c8fe0a73fd4466bd8ff306317f",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100140",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "authorized_at_ms": 1101002
+        },
+        "verification_receipt_digest": "0c4d962f96cce205319005a04f072b18156cb8cd3e26d603907364905058508a",
+        "authorized_at_ms": 1106002
+      },
+      "transfer_receipt_digest": "bc712d67116c7acfa0b9c79824d0c361f64345552785ce434d2971f56d4219ac"
+    },
+    {
+      "name": "distinct audio output with different bytes stays separate",
+      "admitted_vector_index": 8,
+      "claim": {
+        "version": 2,
+        "binding": {
+          "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+          "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+          "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+          "mapping_digest": "fd139c4cb4812476bdefdde97697c4930fb512faaba7b241b36121a3ecffe3c9",
+          "outcome_digest": "0eb4b04904cd6a944b1f6dbf4bb6b4024e47d7d81ada9ce89ec2218d670897e8",
+          "owner_id": "00000000-0000-4000-8000-000000000001",
+          "phase_window": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+            "anchor_ms": 1046001,
+            "cutoffs": {
+              "admission": 1056001,
+              "copy": 1081001,
+              "protocol_margin": 1126001,
+              "reconciliation": 1121001,
+              "transfer": 1111001,
+              "verification": 1101001,
+              "verification_claim": 1086001,
+              "verification_settlement": 1106001
+            },
+            "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+            "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+            "original_expires_at_ms": 1300000,
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "version": 1
+          },
+          "phase_window_digest": "6cac04e468473bf3c99c99fb3cd43550370798bca6a741f0fbcd74b9b162d225",
+          "scan_id": "00000000-0000-4000-8000-000000001002",
+          "submission_digest": "834ebc7ee9fcba2a33d21ddd3753c4467b560bc1a491959dd9bd4b74055e638b",
+          "version": 2
+        },
+        "admission_receipt_digest": "4977298557a2a6ef3d65518c6f28fdc6a72e7182f40850acced6dbae30b81ab4",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000009",
+        "issued_at_ms": 1081002
+      },
+      "claim_digest": "9b8c842d046e1914aad69f323465e4ab8c31d69c06a0a97918268c88d0f5ab7e",
+      "verification_receipt": {
+        "version": 2,
+        "claim": {
+          "version": 2,
+          "binding": {
+            "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+            "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+            "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "mapping_digest": "fd139c4cb4812476bdefdde97697c4930fb512faaba7b241b36121a3ecffe3c9",
+            "outcome_digest": "0eb4b04904cd6a944b1f6dbf4bb6b4024e47d7d81ada9ce89ec2218d670897e8",
+            "owner_id": "00000000-0000-4000-8000-000000000001",
+            "phase_window": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+              "anchor_ms": 1046001,
+              "cutoffs": {
+                "admission": 1056001,
+                "copy": 1081001,
+                "protocol_margin": 1126001,
+                "reconciliation": 1121001,
+                "transfer": 1111001,
+                "verification": 1101001,
+                "verification_claim": 1086001,
+                "verification_settlement": 1106001
+              },
+              "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+              "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+              "original_expires_at_ms": 1300000,
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "version": 1
+            },
+            "phase_window_digest": "6cac04e468473bf3c99c99fb3cd43550370798bca6a741f0fbcd74b9b162d225",
+            "scan_id": "00000000-0000-4000-8000-000000001002",
+            "submission_digest": "834ebc7ee9fcba2a33d21ddd3753c4467b560bc1a491959dd9bd4b74055e638b",
+            "version": 2
+          },
+          "admission_receipt_digest": "4977298557a2a6ef3d65518c6f28fdc6a72e7182f40850acced6dbae30b81ab4",
+          "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000009",
+          "issued_at_ms": 1081002
+        },
+        "claim_digest": "9b8c842d046e1914aad69f323465e4ab8c31d69c06a0a97918268c88d0f5ab7e",
+        "objects": [
+          {
+            "object_id": "00000000-0000-4000-8000-000000100160",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "object_id": "00000000-0000-4000-8000-000000100161",
+            "backend_generation": "00000000-0000-4000-8000-00000000b002",
+            "byte_count": 32044,
+            "content_type": "audio/wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "authorized_at_ms": 1101002
+      },
+      "verification_receipt_digest": "bdaff200d9310f539ab5a883ac97d93d4a741e5ab7f2b331f3c39c3ace0a7e1b",
+      "transfer_receipt": {
+        "version": 1,
+        "admission_receipt_digest": "4977298557a2a6ef3d65518c6f28fdc6a72e7182f40850acced6dbae30b81ab4",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "verification_receipt": {
+          "version": 2,
+          "claim": {
+            "version": 2,
+            "binding": {
+              "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+              "assignment_digest": "ca306a4278cbc37a73856b592fc4ef4bba5cdd57c0947e303a6135f4f46efd77",
+              "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "mapping_digest": "fd139c4cb4812476bdefdde97697c4930fb512faaba7b241b36121a3ecffe3c9",
+              "outcome_digest": "0eb4b04904cd6a944b1f6dbf4bb6b4024e47d7d81ada9ce89ec2218d670897e8",
+              "owner_id": "00000000-0000-4000-8000-000000000001",
+              "phase_window": {
+                "admission_receipt_id": "00000000-0000-4000-8000-000000000108",
+                "anchor_ms": 1046001,
+                "cutoffs": {
+                  "admission": 1056001,
+                  "copy": 1081001,
+                  "protocol_margin": 1126001,
+                  "reconciliation": 1121001,
+                  "transfer": 1111001,
+                  "verification": 1101001,
+                  "verification_claim": 1086001,
+                  "verification_settlement": 1106001
+                },
+                "handoff_installation_digest": "ced279a47a06a6ab0573436949d202fc4dd3ebd59f5556199fd4b151128d9bf0",
+                "handoff_profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+                "original_expires_at_ms": 1300000,
+                "owner_id": "00000000-0000-4000-8000-000000000001",
+                "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+                "scan_id": "00000000-0000-4000-8000-000000001002",
+                "version": 1
+              },
+              "phase_window_digest": "6cac04e468473bf3c99c99fb3cd43550370798bca6a741f0fbcd74b9b162d225",
+              "scan_id": "00000000-0000-4000-8000-000000001002",
+              "submission_digest": "834ebc7ee9fcba2a33d21ddd3753c4467b560bc1a491959dd9bd4b74055e638b",
+              "version": 2
+            },
+            "admission_receipt_digest": "4977298557a2a6ef3d65518c6f28fdc6a72e7182f40850acced6dbae30b81ab4",
+            "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "claim_token": "eeeeeeee-eeee-eeee-eeee-000000000009",
+            "issued_at_ms": 1081002
+          },
+          "claim_digest": "9b8c842d046e1914aad69f323465e4ab8c31d69c06a0a97918268c88d0f5ab7e",
+          "objects": [
+            {
+              "object_id": "00000000-0000-4000-8000-000000100160",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "object_id": "00000000-0000-4000-8000-000000100161",
+              "backend_generation": "00000000-0000-4000-8000-00000000b002",
+              "byte_count": 32044,
+              "content_type": "audio/wav",
+              "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            }
+          ],
+          "authorized_at_ms": 1101002
+        },
+        "verification_receipt_digest": "bdaff200d9310f539ab5a883ac97d93d4a741e5ab7f2b331f3c39c3ace0a7e1b",
+        "authorized_at_ms": 1106002
+      },
+      "transfer_receipt_digest": "e4dc220bbc64fcd44174e09c70e9492ca05ba552699b056c3d1735094235a117"
+    }
+  ]
+}

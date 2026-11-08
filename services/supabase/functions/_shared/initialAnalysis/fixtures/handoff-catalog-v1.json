@@ -1,0 +1,868 @@
+{
+  "qualification": "synthetic declarations only; not installed or qualified",
+  "source_backend": {
+    "generation": "00000000-0000-4000-8000-00000000b001",
+    "provider": "r2",
+    "direct_endpoint": "https://00000000000000000000000000000000.r2.cloudflarestorage.com",
+    "private_bucket": "synthetic-only",
+    "namespace": "initial-preparation/v2",
+    "credential_profile": "synthetic_only",
+    "storage_protocol": "conditional_create_permanent_same_key_marker_v1"
+  },
+  "source_backend_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+  "destination_backend": {
+    "generation": "00000000-0000-4000-8000-00000000b002",
+    "provider": "r2",
+    "direct_endpoint": "https://00000000000000000000000000000000.r2.cloudflarestorage.com",
+    "private_bucket": "synthetic-only",
+    "namespace": "initial-analysis/v1",
+    "credential_profile": "synthetic_only"
+  },
+  "destination_canonical": "{\"credential_profile\":\"synthetic_only\",\"direct_endpoint\":\"https://00000000000000000000000000000000.r2.cloudflarestorage.com\",\"generation\":\"00000000-0000-4000-8000-00000000b002\",\"namespace\":\"initial-analysis/v1\",\"private_bucket\":\"synthetic-only\",\"provider\":\"r2\"}",
+  "destination_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+  "protocol_artifact": {
+    "version": 1,
+    "input_projection": {
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "schema_version": 1
+    },
+    "m1_mapping": {
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "schema_version": 2
+    },
+    "m2_codec": {
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "schema_version": 2
+    },
+    "transfer_validator": {
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "schema_version": 1
+    },
+    "deadline_protocol": {
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "schema_version": 1
+    },
+    "response_codec": {
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "schema_version": 2
+    }
+  },
+  "protocol_canonical": "{\"deadline_protocol\":{\"schema_version\":1,\"sha256\":\"5555555555555555555555555555555555555555555555555555555555555555\"},\"input_projection\":{\"schema_version\":1,\"sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"m1_mapping\":{\"schema_version\":2,\"sha256\":\"2222222222222222222222222222222222222222222222222222222222222222\"},\"m2_codec\":{\"schema_version\":2,\"sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\"},\"response_codec\":{\"schema_version\":2,\"sha256\":\"6666666666666666666666666666666666666666666666666666666666666666\"},\"transfer_validator\":{\"schema_version\":1,\"sha256\":\"4444444444444444444444444444444444444444444444444444444444444444\"},\"version\":1}",
+  "protocol_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+  "valid": [
+    {
+      "name": "Vision with description",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_0",
+          "profile_version": 1,
+          "input_profile": "vision_compat_v1",
+          "route": "identify",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 2048,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "123f86939a543d9f5458e28393297ecca0f8cd92efcef2489db2af0585123170",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"123f86939a543d9f5458e28393297ecca0f8cd92efcef2489db2af0585123170\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"vision_compat_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_0\",\"profile_version\":1,\"route\":\"identify\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":2048,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "94aa22332fccf708ef6514d402c156614b08e872f793242e57b05909107d1232",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000001",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "prepared_content_type": "image/png"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"image\",\"prepared_content_type\":\"image/png\",\"source_content_type\":\"image/png\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000001\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000001",
+        "profile_digest": "12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "94aa22332fccf708ef6514d402c156614b08e872f793242e57b05909107d1232",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"94aa22332fccf708ef6514d402c156614b08e872f793242e57b05909107d1232\",\"profile_digest\":\"12974ed97b1e07938706c216c17f44de479145b0f56ed21329de7f594182293c\",\"profile_generation\":\"00000000-0000-4000-8000-000000000001\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "c2b3c8c53c2083a32cd21e387aece7e7386501f1ef29c9b552455505db09d116"
+    },
+    {
+      "name": "Multimodal photo",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_1",
+          "profile_version": 1,
+          "input_profile": "multimodal_photo_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 2048,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "a0892f16702863a3f0ad4a645575f211bca66ea82f47d6122f046ab272260856",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"a0892f16702863a3f0ad4a645575f211bca66ea82f47d6122f046ab272260856\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_photo_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_1\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":2048,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "d0cc56ccc194f5ef38c36b7b5e0e198177614e392fb7783e30c8d9a454cefe07",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000002",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "prepared_content_type": "image/png"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"image\",\"prepared_content_type\":\"image/png\",\"source_content_type\":\"image/png\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000002\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000002",
+        "profile_digest": "f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "d0cc56ccc194f5ef38c36b7b5e0e198177614e392fb7783e30c8d9a454cefe07",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"d0cc56ccc194f5ef38c36b7b5e0e198177614e392fb7783e30c8d9a454cefe07\",\"profile_digest\":\"f6c4eec346961d18e5a79df1021c9062359060494d2ad6c22b5bb5fca96ff715\",\"profile_generation\":\"00000000-0000-4000-8000-000000000002\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "2c476fe1584c78c9c6fe1a7f7f771615423d81588f4c9d74819b14daf8142e92"
+    },
+    {
+      "name": "Multimodal audio",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_2",
+          "profile_version": 1,
+          "input_profile": "multimodal_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "recording",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 4096,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "3da54ee9397e3c345703a46765df944df1342d42ee7d7a47e05019282d81f7b2",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"3da54ee9397e3c345703a46765df944df1342d42ee7d7a47e05019282d81f7b2\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_audio_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_2\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":4096,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":2,\"preserve_short_video_context\":false,\"role\":\"recording\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "84a0c2ddf3bb18b7c1667d1af8318aff7f5445babf76949b3caf908f1fabb1e3",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000003",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "prepared_content_type": "audio/wav"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"audio\",\"prepared_content_type\":\"audio/wav\",\"source_content_type\":\"audio/wav\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000003\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000003",
+        "profile_digest": "612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "84a0c2ddf3bb18b7c1667d1af8318aff7f5445babf76949b3caf908f1fabb1e3",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"84a0c2ddf3bb18b7c1667d1af8318aff7f5445babf76949b3caf908f1fabb1e3\",\"profile_digest\":\"612e2b3576ccd3f420abeebf9d1ad764ba20e235fdbb07090a45e93b3dbeb5d2\",\"profile_generation\":\"00000000-0000-4000-8000-000000000003\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "5a3301abc93e38e3c40ed184e42748b4cc31cdb74da209652a0b467c851b7c9b"
+    },
+    {
+      "name": "Multimodal blended",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_3",
+          "profile_version": 1,
+          "input_profile": "multimodal_photo_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 2048,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            },
+            {
+              "role": "recording",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 4096,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "537b8ff256b09bbf909f07b8e8f1c14f987fe0cd6e4a9b91325091aeeb8452c9",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"537b8ff256b09bbf909f07b8e8f1c14f987fe0cd6e4a9b91325091aeeb8452c9\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_photo_audio_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_3\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":2048,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":4096,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":2,\"preserve_short_video_context\":false,\"role\":\"recording\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "1b7b6e0fd6ef8b7582253a9edcb57beaf6af14f74da0913aa33f7da18123fdd9",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000004",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "prepared_content_type": "image/png"
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "prepared_content_type": "audio/wav"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"image\",\"prepared_content_type\":\"image/png\",\"source_content_type\":\"image/png\"},{\"kind\":\"audio\",\"prepared_content_type\":\"audio/wav\",\"source_content_type\":\"audio/wav\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000004\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000004",
+        "profile_digest": "bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "1b7b6e0fd6ef8b7582253a9edcb57beaf6af14f74da0913aa33f7da18123fdd9",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"1b7b6e0fd6ef8b7582253a9edcb57beaf6af14f74da0913aa33f7da18123fdd9\",\"profile_digest\":\"bcbe53b3325af1864dae6c2fe26cd3690baf2ccdf6f2605d15e28c20640f6644\",\"profile_generation\":\"00000000-0000-4000-8000-000000000004\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "ccefb54160281c0614c82722bd0d5cccab1e59a40c9d7cb7693b4a2fdbef5e20"
+    },
+    {
+      "name": "frames",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_4",
+          "profile_version": 1,
+          "input_profile": "multimodal_video_frames_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "raw_video",
+              "source_types": [
+                "video/mp4"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 1,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 0,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            },
+            {
+              "role": "video_frame",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "video_frame_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 2048,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "f89c3bc5d7c9caa1417c7b38fba9155ae89e300ea999c31fba4a50876ea69c59",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"f89c3bc5d7c9caa1417c7b38fba9155ae89e300ea999c31fba4a50876ea69c59\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_video_frames_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_4\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":0,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":1,\"preserve_short_video_context\":null,\"role\":\"raw_video\",\"source_types\":[\"video/mp4\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":2048,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"video_frame\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"video_frame_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "bd398e785a335fbc97524792d835baa4c922b8e13ed0092a8e21a60835a23a4f",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000005",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "prepared_content_type": null
+            },
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "prepared_content_type": "image/png"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"video\",\"prepared_content_type\":null,\"source_content_type\":\"video/mp4\"},{\"kind\":\"image\",\"prepared_content_type\":\"image/png\",\"source_content_type\":\"image/png\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000005\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000005",
+        "profile_digest": "37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "bd398e785a335fbc97524792d835baa4c922b8e13ed0092a8e21a60835a23a4f",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"bd398e785a335fbc97524792d835baa4c922b8e13ed0092a8e21a60835a23a4f\",\"profile_digest\":\"37197cb44d27dc77af32a54b301b5303752eb2e308a2578c538819a4c8ec174f\",\"profile_generation\":\"00000000-0000-4000-8000-000000000005\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "1a0a5d6beec4e9e9ebb7930a7cfa62433a0e1d578a37137d0b7643a5e8fe5fd5"
+    },
+    {
+      "name": "video audio",
+      "preparation": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_5",
+          "profile_version": 1,
+          "input_profile": "multimodal_video_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "raw_video",
+              "source_types": [
+                "video/mp4"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 1,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 0,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            },
+            {
+              "role": "video_audio",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": true,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 4096,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            },
+            {
+              "role": "video_frame",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "video_frame_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 2048,
+                "output_bytes": 2048,
+                "cpu_ms": 10,
+                "heap_bytes": 4096,
+                "wall_ms": 1000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 1048576,
+            "output_bytes": 1048576,
+            "cpu_ms": 1000,
+            "heap_bytes": 1048576,
+            "wall_ms": 20000
+          }
+        },
+        "qualification": {
+          "spec_digest": "efb65fdb6f850709ba37faaa96d68b9ce2f5117e48e31725995fc492891c3805",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "preparation_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"efb65fdb6f850709ba37faaa96d68b9ce2f5117e48e31725995fc492891c3805\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_video_audio_v1\",\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":1048576,\"source_bytes\":1048576,\"wall_ms\":20000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_5\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":0,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":1,\"preserve_short_video_context\":null,\"role\":\"raw_video\",\"source_types\":[\"video/mp4\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":4096,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":2,\"preserve_short_video_context\":true,\"role\":\"video_audio\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"},{\"limits\":{\"cpu_ms\":10,\"heap_bytes\":4096,\"output_bytes\":2048,\"source_bytes\":2048,\"wall_ms\":1000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"video_frame\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"video_frame_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "preparation_digest": "0dc47007cf49c20d9e8f7491691e3e6e41936e8ded68ea0cf6a3c17174e022d5",
+      "handoff": {
+        "version": 1,
+        "generation": "00000000-0000-4000-8000-000000000006",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "source_backend_config_digest": "9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "destination_backend_config_digest": "61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "cohort_limits": {
+          "max_ordinals": 8,
+          "max_unique_objects": 10,
+          "max_unique_bytes": 28625792,
+          "content_type_pairs": [
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "prepared_content_type": null
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "prepared_content_type": "audio/wav"
+            },
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "prepared_content_type": "image/png"
+            }
+          ],
+          "alias_policy": "same_ordinal_exact_bytes_only",
+          "video_policy": "source_only"
+        },
+        "phase_ms": {
+          "admission": 10000,
+          "copy": 25000,
+          "verification_claim": 5000,
+          "verification": 15000,
+          "verification_settlement": 5000,
+          "transfer": 5000,
+          "reconciliation": 10000,
+          "protocol_margin": 5000
+        },
+        "total_ms": 80000,
+        "execution_model": "sequential_whole_cohort"
+      },
+      "handoff_canonical": "{\"cohort_limits\":{\"alias_policy\":\"same_ordinal_exact_bytes_only\",\"content_type_pairs\":[{\"kind\":\"video\",\"prepared_content_type\":null,\"source_content_type\":\"video/mp4\"},{\"kind\":\"audio\",\"prepared_content_type\":\"audio/wav\",\"source_content_type\":\"audio/wav\"},{\"kind\":\"image\",\"prepared_content_type\":\"image/png\",\"source_content_type\":\"image/png\"}],\"max_ordinals\":8,\"max_unique_bytes\":28625792,\"max_unique_objects\":10,\"video_policy\":\"source_only\"},\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_config_digest\":\"61feeb96c669da704f2b8bf0202bcd90ff929589cb2013d65dd05eb9d6d953a7\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"execution_model\":\"sequential_whole_cohort\",\"generation\":\"00000000-0000-4000-8000-000000000006\",\"phase_ms\":{\"admission\":10000,\"copy\":25000,\"protocol_margin\":5000,\"reconciliation\":10000,\"transfer\":5000,\"verification\":15000,\"verification_claim\":5000,\"verification_settlement\":5000},\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"source_backend_config_digest\":\"9e5a79bd5260f1702ecdc8d4c7ede937f1997258e354f66f1b1e866b33deb82f\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"total_ms\":80000,\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "handoff_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+      "installation": {
+        "version": 1,
+        "profile_generation": "00000000-0000-4000-8000-000000000006",
+        "profile_digest": "0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9",
+        "protocol_artifact_digest": "b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53",
+        "copy_adapter_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "verification_adapter_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "preparation_profile_digest": "0dc47007cf49c20d9e8f7491691e3e6e41936e8ded68ea0cf6a3c17174e022d5",
+        "source_backend_generation": "00000000-0000-4000-8000-00000000b001",
+        "destination_backend_generation": "00000000-0000-4000-8000-00000000b002",
+        "qualification_harness_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "reviewed_source_revision": "8888888888888888888888888888888888888888",
+        "evidence_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "installer_protocol": "reviewed_database_owner_install_v1"
+      },
+      "installation_canonical": "{\"copy_adapter_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"destination_backend_generation\":\"00000000-0000-4000-8000-00000000b002\",\"evidence_digest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"installer_protocol\":\"reviewed_database_owner_install_v1\",\"preparation_profile_digest\":\"0dc47007cf49c20d9e8f7491691e3e6e41936e8ded68ea0cf6a3c17174e022d5\",\"profile_digest\":\"0ad0cda0d5e1ea395b9255531b4b5fc3a621b236e217b3a59620a4c9c38588b9\",\"profile_generation\":\"00000000-0000-4000-8000-000000000006\",\"protocol_artifact_digest\":\"b4c50d2dda319599a9e9968582e077d52c0cf8b391799d10724aa1dce1f3dc53\",\"qualification_harness_digest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"reviewed_source_revision\":\"8888888888888888888888888888888888888888\",\"source_backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"verification_adapter_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+      "installation_digest": "a95bef138c979a3e12a20f73b4ab558a8e448b979190c7ea42849a9eed7e075d"
+    }
+  ]
+}

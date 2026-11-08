@@ -108,6 +108,18 @@ $$;
 CREATE FUNCTION pg_temp.prepare_photo_execution(owner_id UUID,observation UUID,receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT internal.prepare_publication_photo_execution(owner_id,observation,(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt));
 $$;
+
+-- Reconstruct pre-guard admitted rows for compatibility/capacity tests only.
+CREATE FUNCTION pg_temp.legacy_publication_intake(owner_id UUID, request JSONB, ip TEXT) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM internal.prepare_observation_publication_intent(owner_id,request);
+ INSERT INTO internal.observation_publication_operations(operation_id,observation_id,owner_id,ip_hash,receipt)
+ VALUES((request->>'operation_id')::UUID,(request->>'observation_id')::UUID,owner_id,ip,
+ jsonb_build_object('schema_version',1,'operation_id',request->'operation_id','observation_id',request->'observation_id',
+ 'analysis_id',request->'analysis_id','status','accepted','admitted_at',clock_timestamp()));
+END;
+$$;
+
 -- END PHOTO MODERATION HELPERS
 UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';
 UPDATE internal.observation_history_rollout SET media_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,reader_enabled=TRUE,media_reader_enabled=TRUE,state_reader_enabled=TRUE,rejection_api_enabled=TRUE,publication_intent_enabled=TRUE,publication_operation_enabled=TRUE,publication_execution_enabled=TRUE,publication_moderation_enabled=TRUE;
@@ -117,7 +129,7 @@ CREATE TEMP TABLE outcomes_work(operation UUID PRIMARY KEY,token UUID,attempt JS
 CREATE FUNCTION pg_temp.new_work(op UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
 DECLARE work JSONB;
 BEGIN
- PERFORM public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ee01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee21',op,'00000000-0000-4000-8000-00000000ee31'),repeat('b',64));
+ PERFORM pg_temp.legacy_publication_intake('00000000-0000-4000-8000-00000000ee01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee21',op,'00000000-0000-4000-8000-00000000ee31'),repeat('b',64));
  work:=public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op);
  INSERT INTO outcomes_work VALUES(op,(work->>'work_token')::UUID,NULL);
 END;

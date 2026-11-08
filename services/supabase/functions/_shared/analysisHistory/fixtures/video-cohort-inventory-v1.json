@@ -1,0 +1,166 @@
+[
+  {
+    "items": [
+      {
+        "role": "source",
+        "index": null,
+        "media_id": "00000000-0000-4000-8000-000000000003",
+        "content_type": "video/mp4",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 0,
+        "media_id": "00000000-0000-4000-8000-000000000004",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 1,
+        "media_id": "00000000-0000-4000-8000-000000000005",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 2,
+        "media_id": "00000000-0000-4000-8000-000000000006",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 3,
+        "media_id": "00000000-0000-4000-8000-000000000007",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 4,
+        "media_id": "00000000-0000-4000-8000-000000000008",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "audio",
+        "index": null,
+        "media_id": "00000000-0000-4000-8000-000000000009",
+        "content_type": "audio/wav",
+        "byte_count": 176444,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  {
+    "items": [
+      {
+        "role": "source",
+        "index": null,
+        "media_id": "00000000-0000-4000-8000-000000000003",
+        "content_type": "video/mp4",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 0,
+        "media_id": "00000000-0000-4000-8000-000000000004",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 1,
+        "media_id": "00000000-0000-4000-8000-000000000005",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 2,
+        "media_id": "00000000-0000-4000-8000-000000000006",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 3,
+        "media_id": "00000000-0000-4000-8000-000000000007",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 4,
+        "media_id": "00000000-0000-4000-8000-000000000008",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  {
+    "items": [
+      {
+        "role": "source",
+        "index": null,
+        "media_id": "00000000-0000-4000-8000-000000000003",
+        "content_type": "video/mp4",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 0,
+        "media_id": "00000000-0000-4000-8000-000000000004",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 1,
+        "media_id": "00000000-0000-4000-8000-000000000005",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 2,
+        "media_id": "00000000-0000-4000-8000-000000000006",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 3,
+        "media_id": "00000000-0000-4000-8000-000000000007",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "role": "frame",
+        "index": 4,
+        "media_id": "00000000-0000-4000-8000-000000000008",
+        "content_type": "image/jpeg",
+        "byte_count": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  }
+]

@@ -1,0 +1,280 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "variant": {
+      "type": "string",
+      "max_bytes": 24,
+      "enum": [
+        "client_prepared_photo"
+      ]
+    },
+    "candidate_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "content_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scan_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "package_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "created_at_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8639999998200000
+    },
+    "expires_at_ms": {
+      "type": "integer",
+      "minimum": 1800001,
+      "maximum": 8640000000000000
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "route": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "identify",
+            "identify-multimodal"
+          ]
+        },
+        "operation": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "scan_identification"
+          ]
+        },
+        "effective_plan": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "free",
+            "pro_trial",
+            "pro_paid",
+            "pro_complimentary"
+          ]
+        },
+        "effective_tier": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "free",
+            "pro"
+          ]
+        },
+        "flash_fallback_used": {
+          "type": "boolean"
+        },
+        "quota_model": {
+          "type": "string",
+          "max_bytes": 128
+        },
+        "policy_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "provider": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "gemini",
+            "openai"
+          ]
+        },
+        "binding": {
+          "type": "string",
+          "max_bytes": 128
+        },
+        "processor_permission": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "google_gemini",
+            "openai"
+          ]
+        },
+        "input_profile": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "vision_compat_v1",
+            "multimodal_photo_v1"
+          ]
+        },
+        "provider_model": {
+          "type": "string",
+          "max_bytes": 128,
+          "nullable": true
+        },
+        "effective_model": {
+          "type": "string",
+          "max_bytes": 128
+        },
+        "minimum_client_protocol": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "accepted_client_protocol": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 3
+        },
+        "minimum_identification_protocol": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "accepted_identification_protocol": {
+          "type": "integer",
+          "minimum": 6,
+          "maximum": 6
+        },
+        "asset_manifest_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "retention_owner": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "initial_engine_release_archive"
+          ]
+        },
+        "resolver_id": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "git_blob_sha256_v1"
+          ]
+        },
+        "output_language": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+        }
+      }
+    },
+    "preparation": {
+      "type": "object",
+      "properties": {
+        "resource_profile": {
+          "type": "string",
+          "max_bytes": 5,
+          "enum": [
+            "P1-L1"
+          ]
+        },
+        "composition_policy": {
+          "type": "string",
+          "max_bytes": 32,
+          "enum": [
+            "cpm_photo_contexts_v1"
+          ]
+        },
+        "profile_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "installation_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selector_generation": {
+          "type": "string",
+          "max_bytes": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "backend_generation": {
+          "type": "string",
+          "max_bytes": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "backend_installation_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "verifier_build_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "role_mapping": {
+          "type": "array",
+          "max_items": 6,
+          "items": {
+            "type": "object",
+            "properties": {
+              "photo_ordinal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "role": {
+                "type": "string",
+                "max_bytes": 7,
+                "enum": [
+                  "source",
+                  "ai",
+                  "display"
+                ]
+              },
+              "object_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "declaration": {
+                "type": "object",
+                "properties": {
+                  "reference_id": {
+                    "type": "string",
+                    "max_bytes": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "byte_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 33554432
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "max_bytes": 64,
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "declared_content_type": {
+                    "type": "string",
+                    "max_bytes": 128,
+                    "pattern": "^[\\s\\S]+$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

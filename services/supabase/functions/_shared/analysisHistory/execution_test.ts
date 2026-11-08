@@ -11,6 +11,7 @@ import {
   type SavedAnalysisOutcome,
 } from "./execution.ts";
 import { parseExecutableAnalysisInput } from "./analysisInput.ts";
+import { identificationUsageFacts } from "../ai/identificationUsage.ts";
 import { analysisAuthority } from "./production.ts";
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -277,4 +278,47 @@ Deno.test("history execution rejects HEIC and excessive photo context before res
       },
     })
   );
+});
+
+Deno.test("saved photo and audio outcomes recover exact persisted evidence without another provider call", async () => {
+  for (const version of [2, 3]) {
+    const f = setup();
+    const manifest = {
+      schema_version: version,
+      items: [{
+        kind: version === 2 ? "image" : "audio",
+        media_id: id(30),
+        content_type: version === 2 ? "image/jpeg" : "audio/wav",
+        byte_count: 46,
+        sha256: "b".repeat(64),
+      }],
+    };
+    const persisted = JSON.stringify({
+      ...input,
+      schema_version: version,
+      history_protocol: version === 2 ? 8 : 9,
+      evidence_manifest: manifest,
+    });
+    f.work.input = JSON.parse(persisted);
+    f.work.state = "dispatched";
+    f.work.provider_outcome = {
+      schema_version: 1,
+      provenance: identificationProvenance(f.snapshot),
+      outcome: { kind: "draft", result: original.result },
+      usage: identificationUsageFacts(f.outcome),
+    };
+    const advance = f.deps.advance;
+    f.deps.advance = (op, payload) => {
+      if (op === "draft") {
+        const draft = payload.draft as Record<string, unknown>;
+        assertEquals(draft.schema_version, version);
+        assertEquals(draft.evidence_manifest, manifest);
+        assertEquals(draft.request_digest, input.request_digest);
+      }
+      return advance(op, payload);
+    };
+    assertEquals(await executeObservationAnalysis(f.work, f.deps), "complete");
+    assertEquals(f.calls, ["taxonomy", "draft", "complete", "release"]);
+    assertEquals(JSON.stringify(f.work.input), persisted);
+  }
 });

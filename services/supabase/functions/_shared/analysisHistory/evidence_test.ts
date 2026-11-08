@@ -377,3 +377,32 @@ Deno.test("history provider materialization rejects mismatched digest and oversi
     );
   }
 });
+
+Deno.test("private erasure propagates cancellation before PUT, before HEAD and after HEAD", async () => {
+  const f = await fixture();
+  for (const phase of ["before", "PUT", "HEAD"]) {
+    const controller = new AbortController(), calls: string[] = [];
+    if (phase === "before") controller.abort();
+    const storage = new PrivateHistoryEvidenceStorage(
+      () => f.config,
+      () => f.config,
+      (req) => {
+        calls.push(req.method);
+        assert(!req.signal.aborted);
+        if (req.method === phase) controller.abort();
+        return Promise.resolve(
+          new Response(null, {
+            headers: { "Content-Length": "0", "x-amz-meta-erased": "true" },
+          }),
+        );
+      },
+    );
+    await assertRejects(() =>
+      storage.erase(f.receipt.object_id, controller.signal)
+    );
+    assertEquals(
+      calls,
+      phase === "before" ? [] : phase === "PUT" ? ["PUT"] : ["PUT", "HEAD"],
+    );
+  }
+});

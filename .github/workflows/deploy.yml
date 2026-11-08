@@ -23,6 +23,10 @@ env:
     apps/ios/Merian/Core/Network/SupabaseManager.swift
     apps/ios/Merian/Core/Network/MerianNetworkClient.swift
     apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift
+    apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift
+    apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationSourceReservation.swift
+    apps/ios/Merian/Core/Network/Transport/ObservationSourceReservationTransport.swift
+    apps/ios/Merian/Core/Network/Transport/ObservationVideoEvidenceTransport.swift
     apps/ios/Merian/Core/Network/Auth/**
     apps/ios/Merian/Core/Security/**
     services/supabase/**
@@ -488,7 +492,7 @@ jobs:
           case "$migration_mode" in
             normal) ;;
             reviewed-backfill)
-              echo "Applying the reviewed Explore report-visibility migration gap."
+              echo "Applying the digest-pinned reviewed migration gaps."
               push_args+=(--include-all)
               ;;
             *) echo "Invalid migration preflight result." >&2; exit 1 ;;
@@ -1155,6 +1159,7 @@ jobs:
             species-discovery-search
             resolve-species-dictionary
             confirm-observation-analysis
+            retire-observation-analysis
             confirm-scan-species
             review-scan-identification
             request-community-identification

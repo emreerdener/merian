@@ -46,51 +46,49 @@ export function identificationUsageFacts(result: AIExecutionOutcome) {
   };
 }
 
-export function prepareAccountedIdentification<
-  Reservation extends AIQuotaReservation,
->(
+/** A trusted composition dependency, never decoded from a request. */
+export interface IdentificationAccountingPort {
+  commit(): Promise<
+    | { kind: "fresh"; invocationId: string }
+    | { kind: "held" }
+  >;
+  report(
+    invocationId: string,
+    result: AIExecutionOutcome | null,
+  ): Promise<void>;
+}
+
+function ordinaryIdentificationAccounting(
   client: SupabaseClient,
   userId: string,
-  reservation: Reservation,
+  reservation: AIQuotaReservation,
   execution: PreparedAIExecution,
-) {
+): IdentificationAccountingPort {
   const provenance = identificationProvenance(execution.snapshot);
-  let invocationId: string | null = null;
-  let invoked = false;
-  const lease = createAIProviderQuotaLease(
-    client,
-    userId,
-    reservation,
-    async () => {
-      try {
-        const { data, error } = await client.rpc(
-          "commit_identification_invocation",
-          {
-            p_reservation_id: reservation.id,
-            p_user_id: userId,
-            p_lease_token: reservation.leaseToken,
-            p_attempt_count: reservation.attemptCount,
-            p_provenance: provenance,
-          },
-        ).abortSignal(AbortSignal.timeout(5_000));
-        if (error || !Array.isArray(data) || data.length !== 1) return false;
-        const row = data[0];
-        if (
-          !row || row.may_dispatch !== true ||
-          typeof row.invocation_id !== "string" ||
-          !UUID.test(row.invocation_id)
-        ) return false;
-        invocationId = row.invocation_id;
-        return true;
-      } catch {
-        // An ambiguous commit is not permission to dispatch. Database ownership
-        // remains authoritative and its outbox records unknown if it committed.
-        return false;
+  return {
+    async commit() {
+      const { data, error } = await client.rpc(
+        "commit_identification_invocation",
+        {
+          p_reservation_id: reservation.id,
+          p_user_id: userId,
+          p_lease_token: reservation.leaseToken,
+          p_attempt_count: reservation.attemptCount,
+          p_provenance: provenance,
+        },
+      ).abortSignal(AbortSignal.timeout(5_000));
+      if (error || !Array.isArray(data) || data.length !== 1) {
+        return { kind: "held" };
       }
+      const row = data[0];
+      if (
+        !row || row.may_dispatch !== true ||
+        typeof row.invocation_id !== "string" ||
+        !UUID.test(row.invocation_id)
+      ) return { kind: "held" };
+      return { kind: "fresh", invocationId: row.invocation_id };
     },
-  );
-  async function report(result: AIExecutionOutcome | null): Promise<void> {
-    try {
+    async report(invocationId, result) {
       const { data, error } = await client.rpc(
         "complete_identification_invocation",
         {
@@ -104,6 +102,52 @@ export function prepareAccountedIdentification<
       if (error || typeof data !== "string" || !UUID.test(data)) {
         throw new Error("usage_report_unavailable");
       }
+    },
+  };
+}
+
+export function prepareAccountedIdentification<
+  Reservation extends AIQuotaReservation,
+>(
+  client: SupabaseClient,
+  userId: string,
+  reservation: Reservation,
+  execution: PreparedAIExecution,
+  accounting: IdentificationAccountingPort = ordinaryIdentificationAccounting(
+    client,
+    userId,
+    reservation,
+    execution,
+  ),
+) {
+  let invocationId: string | null = null;
+  let invoked = false;
+  const lease = createAIProviderQuotaLease(
+    client,
+    userId,
+    reservation,
+    async () => {
+      try {
+        const committed = await accounting.commit();
+        if (
+          committed.kind !== "fresh" ||
+          typeof committed.invocationId !== "string" ||
+          !UUID.test(committed.invocationId)
+        ) return false;
+        invocationId = committed.invocationId;
+        return true;
+      } catch {
+        // An ambiguous commit is not permission to dispatch. Database ownership
+        // remains authoritative and its outbox records unknown if it committed.
+        return false;
+      }
+    },
+  );
+  async function report(result: AIExecutionOutcome | null): Promise<void> {
+    try {
+      // invoke captures ownership before calling either provider or reporter.
+      if (!invocationId) throw new Error("identification_invocation_not_owned");
+      await accounting.report(invocationId, result);
     } catch {
       // Persisted witness survives this worker. Reconciliation appends exactly
       // one unknown/unpriced event; accounting never causes a second model call.

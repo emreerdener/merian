@@ -275,7 +275,8 @@ for (
               [copy!.object_id],
             );
             await first.queryArray(
-              "SELECT internal.claim_publication_photo_erasure()",
+              "SELECT internal.claim_publication_photo_erasure($1)",
+              [copy!.object_id],
             );
           }
           const pending = settle(bind(second));
@@ -401,7 +402,10 @@ for (
           assert(!retry.ok);
           const claim = (await observer.queryObject<
             { receipt: { object_id: string; claim_token: string } }
-          >("SELECT internal.claim_publication_photo_erasure() AS receipt"))
+          >(
+            "SELECT internal.claim_publication_photo_erasure($1) AS receipt",
+            [copy!.object_id],
+          ))
             .rows[0].receipt;
           assertEquals(claim.object_id, copy!.object_id);
           assertEquals(
@@ -415,17 +419,21 @@ for (
           await first.queryArray("ROLLBACK");
           await second.queryArray("ROLLBACK");
           await abandon(observer);
-          // Other permanent registries from earlier cases are already erased.
+          // Target this fixture: earlier suites retain permanent retirement rows.
           await first.queryArray("BEGIN");
           const claim = (await first.queryObject<
             { receipt: { object_id: string; claim_token: string } }
-          >("SELECT internal.claim_publication_photo_erasure() AS receipt"))
+          >(
+            "SELECT internal.claim_publication_photo_erasure($1) AS receipt",
+            [copy!.object_id],
+          ))
             .rows[0].receipt;
           assertEquals(claim.object_id, copy!.object_id);
           if (scenario === "cleanup skip locked") {
             assertEquals(
               (await second.queryObject<{ receipt: unknown }>(
-                "SELECT internal.claim_publication_photo_erasure() AS receipt",
+                "SELECT internal.claim_publication_photo_erasure($1) AS receipt",
+                [copy!.object_id],
               )).rows[0].receipt,
               null,
             );
@@ -438,7 +446,8 @@ for (
             );
             const next =
               (await second.queryObject<{ receipt: { claim_token: string } }>(
-                "SELECT internal.claim_publication_photo_erasure() AS receipt",
+                "SELECT internal.claim_publication_photo_erasure($1) AS receipt",
+                [copy!.object_id],
               )).rows[0].receipt;
             assert(next.claim_token !== claim.claim_token);
             assertEquals(

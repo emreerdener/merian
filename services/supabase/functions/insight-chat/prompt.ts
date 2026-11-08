@@ -7,7 +7,7 @@ import {
   SpeciesDictionaryContext,
 } from "./types.ts";
 
-const CONTEXT_CACHE_ANCHOR = `
+export const CONTEXT_CACHE_ANCHOR = `
 Naturebook Insight Follow-up Chat Operating Manual:
 You are Naturebook's field education assistant inside a saved scan Insight sheet. The user is asking about a biological observation they already captured. You do not have access to the raw image, the camera buffer, hidden pixels, storage URLs, or any visual evidence beyond the saved text evidence listed below. You must not imply that you can inspect the photo again. Use the scan metadata, species dictionary, and initial AI reasoning as the supplied context, distinguishing observation evidence from general species facts.
 
@@ -30,7 +30,7 @@ Safety and scope rules:
 
 `;
 
-const CHAT_RESPONSE_FORMAT = `
+export const CHAT_RESPONSE_FORMAT = `
 [RESPONSE FORMAT]
 Return JSON with exactly:
 {

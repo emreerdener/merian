@@ -1,0 +1,1186 @@
+{
+  "valid": [
+    {
+      "name": "Vision with description",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify",
+          "ordered_descriptions": [
+            "Synthetic photo context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 0
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"Synthetic photo context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"media\"},{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify\",\"schema_version\":1,\"sources\":[{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "3cc7181684bf006e6a7c6d84f789123d52e443834851661ccfd2401525a89e3f"
+    },
+    {
+      "name": "Multimodal photo",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1,\"sources\":[{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "f9cd42d5f45f8abc6d0d2bfbfde6ebd4ddcf1b4dca206887a62920134e1a30f4"
+    },
+    {
+      "name": "Multimodal audio",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": false
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1,\"sources\":[{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "dea3d62576c33fc19ba315c6da2517655867ca709b513386f0a1128ca8ce4294"
+    },
+    {
+      "name": "Multimodal blended",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 1
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": false
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1,\"sources\":[{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null},{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "50bc212364ee71ec3d440fea5b53b84a741d26db3c16c056e03721d6fe9655f1"
+    },
+    {
+      "name": "frames",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": true,
+            "video_clip_count": 1,
+            "declared_video_frame_count": 1,
+            "video_inference_frame_count": 1
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": 0,
+              "focus_region": null,
+              "transform": "video_frame_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "source_byte_count": 24,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": null,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":1,\"has_video\":true,\"video_clip_count\":1,\"video_inference_frame_count\":1},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[],\"owner_timeline\":[{\"index\":1,\"kind\":\"media\"}],\"route\":\"identify-multimodal\",\"schema_version\":1,\"sources\":[{\"clip_index\":0,\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null},{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "27f4fd9a350bd625a458733203acc0f778ab9c0b8fb4c0196ea239214dda21d5"
+    },
+    {
+      "name": "video audio",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 2
+            }
+          ],
+          "capture": {
+            "has_video": true,
+            "video_clip_count": 1,
+            "declared_video_frame_count": 1,
+            "video_inference_frame_count": 1
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": 0,
+              "focus_region": null,
+              "transform": "video_frame_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": true
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "source_byte_count": 24,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": null,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "canonical": "{\"source_plan\":{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":1,\"has_video\":true,\"video_clip_count\":1,\"video_inference_frame_count\":1},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[],\"owner_timeline\":[{\"index\":2,\"kind\":\"media\"}],\"route\":\"identify-multimodal\",\"schema_version\":1,\"sources\":[{\"clip_index\":0,\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null},{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":true,\"target_sample_rate\":16000}},{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}]},\"variant\":\"media_sources\",\"version\":2}",
+      "digest": "f512c40fce438e31f5bd2e196137397e5d17078e2ed65db5d35da04dd858d2c2"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "wrong variant",
+      "base": 0,
+      "path": [
+        "variant"
+      ],
+      "value": "no_media"
+    },
+    {
+      "name": "wrong version",
+      "base": 0,
+      "path": [
+        "version"
+      ],
+      "value": 1
+    },
+    {
+      "name": "caller profile",
+      "base": 0,
+      "path": [
+        "profile"
+      ],
+      "value": "synthetic-profile"
+    },
+    {
+      "name": "caller backend",
+      "base": 0,
+      "path": [
+        "backend_generation"
+      ],
+      "value": "synthetic-backend"
+    },
+    {
+      "name": "caller assignment",
+      "base": 0,
+      "path": [
+        "assignment_digest"
+      ],
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "unknown plan key",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "url"
+      ],
+      "value": "https://example.invalid"
+    },
+    {
+      "name": "no sources",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources"
+      ],
+      "value": []
+    },
+    {
+      "name": "unsupported Describe",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "route"
+      ],
+      "value": "identify-describe"
+    },
+    {
+      "name": "experiment unsupported",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "experiment"
+      ],
+      "value": {
+        "kind": "audio_comparison",
+        "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "slot": 0
+      }
+    },
+    {
+      "name": "fabricated byte_count",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "byte_count"
+      ],
+      "value": 0
+    },
+    {
+      "name": "fabricated sha256",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "sha256"
+      ],
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "fabricated content_type",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "content_type"
+      ],
+      "value": "image/png"
+    },
+    {
+      "name": "fabricated destination",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "destination"
+      ],
+      "value": "synthetic-object"
+    },
+    {
+      "name": "invalid prepared state None",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "prepared_output"
+      ],
+      "value": null
+    },
+    {
+      "name": "invalid prepared state {}",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "prepared_output"
+      ],
+      "value": {}
+    },
+    {
+      "name": "invalid prepared state []",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "prepared_output"
+      ],
+      "value": []
+    },
+    {
+      "name": "invalid prepared state {'state': 'ready'}",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "prepared_output"
+      ],
+      "value": {
+        "state": "ready"
+      }
+    },
+    {
+      "name": "invalid prepared state {'state': 'unresolved', 'sha256': None}",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "prepared_output"
+      ],
+      "value": {
+        "state": "unresolved",
+        "sha256": null
+      }
+    },
+    {
+      "name": "bad source source_byte_count0",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_byte_count"
+      ],
+      "value": 0
+    },
+    {
+      "name": "bad source source_byte_count12582913",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_byte_count"
+      ],
+      "value": 12582913
+    },
+    {
+      "name": "bad source source_byte_count68",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_byte_count"
+      ],
+      "value": "68"
+    },
+    {
+      "name": "bad source source_sha256AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_sha256"
+      ],
+      "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "bad source source_sha256aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_sha256"
+      ],
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "bad source source_content_typeaudio/wav",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_content_type"
+      ],
+      "value": "audio/wav"
+    },
+    {
+      "name": "bad source input_index1",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "input_index"
+      ],
+      "value": 1
+    },
+    {
+      "name": "bad source source_index1",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_index"
+      ],
+      "value": 1
+    },
+    {
+      "name": "bad source frame_index0",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "frame_index"
+      ],
+      "value": 0
+    },
+    {
+      "name": "bad source transforminitial_audio_v1",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "transform"
+      ],
+      "value": "initial_audio_v1"
+    },
+    {
+      "name": "blank text",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "ordered_descriptions"
+      ],
+      "value": [
+        "﻿"
+      ]
+    },
+    {
+      "name": "untrimmed text",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "ordered_descriptions"
+      ],
+      "value": [
+        " Synthetic"
+      ]
+    },
+    {
+      "name": "duplicate timeline",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "owner_timeline"
+      ],
+      "value": [
+        {
+          "kind": "media",
+          "index": 0
+        },
+        {
+          "kind": "media",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "name": "missing timeline",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "owner_timeline"
+      ],
+      "value": []
+    },
+    {
+      "name": "wrong timeline index",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "owner_timeline",
+        "0",
+        "index"
+      ],
+      "value": 1
+    },
+    {
+      "name": "invalid focus bounds",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "focus_region"
+      ],
+      "value": {
+        "x": "0.9",
+        "y": "0",
+        "width": "0.2",
+        "height": "1",
+        "source": "vision_objectness"
+      }
+    },
+    {
+      "name": "invalid decimal spelling",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "context",
+        "zoom_factor"
+      ],
+      "value": "1.0"
+    },
+    {
+      "name": "audio source limit",
+      "base": 2,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "source_byte_count"
+      ],
+      "value": 2700001
+    },
+    {
+      "name": "audio missing options",
+      "base": 2,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "transform_parameters"
+      ],
+      "value": null
+    },
+    {
+      "name": "audio illegal fallback",
+      "base": 2,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "transform_parameters",
+        "preserve_short_video_context"
+      ],
+      "value": true
+    },
+    {
+      "name": "audio illegal rate",
+      "base": 2,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "transform_parameters",
+        "target_sample_rate"
+      ],
+      "value": 44100
+    },
+    {
+      "name": "video frame has no clip",
+      "base": 4,
+      "path": [
+        "source_plan",
+        "sources",
+        "0",
+        "clip_index"
+      ],
+      "value": null
+    },
+    {
+      "name": "video companion fallback absent",
+      "base": 5,
+      "path": [
+        "source_plan",
+        "sources",
+        "1",
+        "transform_parameters",
+        "preserve_short_video_context"
+      ],
+      "value": false
+    },
+    {
+      "name": "video frame timeline separately owned",
+      "base": 4,
+      "path": [
+        "source_plan",
+        "owner_timeline"
+      ],
+      "value": [
+        {
+          "kind": "media",
+          "index": 0
+        },
+        {
+          "kind": "media",
+          "index": 1
+        }
+      ]
+    },
+    {
+      "name": "video capture mismatch",
+      "base": 4,
+      "path": [
+        "source_plan",
+        "capture",
+        "video_inference_frame_count"
+      ],
+      "value": 2
+    },
+    {
+      "name": "too many photos",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources"
+      ],
+      "value": [
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 3000000,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 0,
+          "source_index": 0,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 3000000,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 1,
+          "source_index": 1,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 68,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 2,
+          "source_index": 2,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 68,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 3,
+          "source_index": 3,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 68,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 4,
+          "source_index": 4,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 68,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 5,
+          "source_index": 5,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        }
+      ]
+    },
+    {
+      "name": "aggregate image bytes",
+      "base": 0,
+      "path": [
+        "source_plan",
+        "sources"
+      ],
+      "value": [
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 3000000,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 0,
+          "source_index": 0,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        },
+        {
+          "kind": "image",
+          "source_content_type": "image/png",
+          "source_byte_count": 3000000,
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "input_index": 1,
+          "source_index": 1,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "identity_v1",
+          "transform_parameters": null,
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        }
+      ]
+    }
+  ]
+}

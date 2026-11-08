@@ -1,0 +1,150 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "outcome": {
+      "type": "string",
+      "max_bytes": 6,
+      "enum": [
+        "issued"
+      ]
+    },
+    "attempt_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "scan_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "assignment_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "object_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "backend_generation": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "backend_configuration_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "role": {
+      "type": "string",
+      "max_bytes": 7,
+      "enum": [
+        "source",
+        "ai",
+        "display"
+      ]
+    },
+    "byte_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 33554432
+    },
+    "content_type": {
+      "type": "string",
+      "max_bytes": 10,
+      "enum": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "created_at_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8640000000000000
+    },
+    "capability_expires_at_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8640000000000000
+    },
+    "signed_expires_at_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8640000000000000
+    },
+    "url": {
+      "type": "string",
+      "max_bytes": 4096
+    },
+    "method": {
+      "type": "string",
+      "max_bytes": 3,
+      "enum": [
+        "PUT"
+      ]
+    },
+    "headers": {
+      "type": "object",
+      "properties": {
+        "If-None-Match": {
+          "type": "string",
+          "max_bytes": 1,
+          "enum": [
+            "*"
+          ]
+        },
+        "Content-Type": {
+          "type": "string",
+          "max_bytes": 10,
+          "enum": [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/heic",
+            "image/heif"
+          ]
+        },
+        "Content-Length": {
+          "type": "string",
+          "max_bytes": 8,
+          "pattern": "^[1-9][0-9]{0,7}$"
+        },
+        "Cache-Control": {
+          "type": "string",
+          "max_bytes": 17,
+          "enum": [
+            "private, no-store"
+          ]
+        },
+        "x-amz-content-sha256": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provider_enforcement": {
+      "type": "string",
+      "max_bytes": 11,
+      "enum": [
+        "unqualified"
+      ]
+    }
+  }
+}

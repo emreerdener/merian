@@ -1,0 +1,50 @@
+{
+  "content": {
+    "contract": "client_prepared_media_v1",
+    "version": 1,
+    "kind": "initial_photo",
+    "resource_profile": "P1-L1",
+    "scan_id": "00000000-0000-4000-8000-000000000001",
+    "package_id": "00000000-0000-4000-8000-000000000002",
+    "photos": [
+      {
+        "ordinal": 0,
+        "source": {
+          "reference_id": "00000000-0000-4000-8000-000000000003",
+          "byte_count": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "declared_content_type": "image/jpeg"
+        },
+        "ai": {
+          "reference_id": "00000000-0000-4000-8000-000000000004",
+          "byte_count": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "declared_content_type": "image/jpeg"
+        },
+        "display": {
+          "reference_id": "00000000-0000-4000-8000-000000000005",
+          "byte_count": 1,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "declared_content_type": "image/jpeg"
+        },
+        "recipe": {
+          "format": "nativeStillImageV1",
+          "is_pro": false,
+          "crop_display_size_bits": null,
+          "quarter_turns": 0,
+          "scale_bits": "3ff0000000000000",
+          "offset_x_bits": "8000000000000000",
+          "offset_y_bits": "0000000000000000",
+          "camera_vertical_center_bits": null
+        }
+      }
+    ],
+    "contexts": [
+      {
+        "text_utf8_base64": "IO+7v2EAZcyB8J+mrQo="
+      }
+    ]
+  },
+  "canonical": "{\"contexts\":[{\"text_utf8_base64\":\"IO+7v2EAZcyB8J+mrQo=\"}],\"contract\":\"client_prepared_media_v1\",\"kind\":\"initial_photo\",\"package_id\":\"00000000-0000-4000-8000-000000000002\",\"photos\":[{\"ai\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000004\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"display\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000005\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"ordinal\":0,\"recipe\":{\"camera_vertical_center_bits\":null,\"crop_display_size_bits\":null,\"format\":\"nativeStillImageV1\",\"is_pro\":false,\"offset_x_bits\":\"8000000000000000\",\"offset_y_bits\":\"0000000000000000\",\"quarter_turns\":0,\"scale_bits\":\"3ff0000000000000\"},\"source\":{\"byte_count\":1,\"declared_content_type\":\"image/jpeg\",\"reference_id\":\"00000000-0000-4000-8000-000000000003\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}],\"resource_profile\":\"P1-L1\",\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"version\":1}",
+  "digest": "d75caa6fdc3c9f374149c666cb2bb3b153934bc6dc4040589fa418ee7e41c806"
+}

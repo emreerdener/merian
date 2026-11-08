@@ -1,0 +1,421 @@
+{
+  "admitted": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 8,
+        "enum": [
+          "admitted"
+        ]
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "admission_receipt_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "binding": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 2
+          },
+          "owner_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "scan_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "admission_receipt_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "submission_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "assignment_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "outcome_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mapping_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "destination_backend_generation": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "phase_window": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1
+              },
+              "owner_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "scan_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "admission_receipt_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "handoff_profile_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "handoff_installation_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "protocol_artifact_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "anchor_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "original_expires_at_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cutoffs": {
+                "type": "object",
+                "properties": {
+                  "admission": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "copy": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification_claim": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification_settlement": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "transfer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reconciliation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "protocol_margin": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            }
+          },
+          "phase_window_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "phase": {
+        "type": "string",
+        "max_bytes": 12,
+        "enum": [
+          "copy",
+          "verification",
+          "transfer",
+          "expired"
+        ]
+      }
+    }
+  },
+  "transferred": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 11,
+        "enum": [
+          "transferred"
+        ]
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "admission_receipt_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "binding": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 2
+          },
+          "owner_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "scan_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "admission_receipt_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "submission_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "assignment_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "outcome_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mapping_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "destination_backend_generation": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "phase_window": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1
+              },
+              "owner_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "scan_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "admission_receipt_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "handoff_profile_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "handoff_installation_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "protocol_artifact_digest": {
+                "type": "string",
+                "max_bytes": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "anchor_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "original_expires_at_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cutoffs": {
+                "type": "object",
+                "properties": {
+                  "admission": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "copy": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification_claim": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "verification_settlement": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "transfer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reconciliation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "protocol_margin": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            }
+          },
+          "phase_window_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "transfer_receipt_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  },
+  "held": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "held"
+        ]
+      },
+      "reason": {
+        "type": "string",
+        "max_bytes": 19,
+        "enum": [
+          "already_transferred"
+        ]
+      },
+      "transfer_receipt_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  }
+}

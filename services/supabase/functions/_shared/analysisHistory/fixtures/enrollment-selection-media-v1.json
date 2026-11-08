@@ -1,0 +1,102 @@
+[
+  {
+    "media": "audio",
+    "version": 4,
+    "pair": {
+      "schema_version": 1,
+      "baseline_sha256": "938b3c2a057d0b27c097137be1b64fa209f55f39afbfa96e8ea84804d5b4dd26",
+      "baseline_state": {
+        "schema_version": 1,
+        "owner_id": "00000000-0000-4000-8000-000000000003",
+        "observation_id": "00000000-0000-4000-8000-000000000001",
+        "state_revision": 8,
+        "selection_initialized": true,
+        "selected_analysis_id": "00000000-0000-4000-8000-000000000009",
+        "analysis": {
+          "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"completed_at_ms\":null,\"evidence_manifest\":{\"availability\":\"unavailable\",\"imported_at_ms\":1750000000000,\"origin\":\"saved_identification\",\"schema_version\":3},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":1,\"request_digest\":null,\"result\":{\"ai_confidence_score\":0.75,\"ai_reasoning\":\"Synthetic saved identification.\",\"candidates\":{},\"identification_provenance\":null,\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"pet_identification\":null,\"primary_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"species_id\":null},\"schema_version\":3,\"source_analysis_id\":null}",
+          "review_revision": 0,
+          "review_snapshot": {
+            "ai_identification_review": null,
+            "confirmed_species_identity": null,
+            "confirmed_species_identity_revision": 0,
+            "confirmed_species_id": null,
+            "user_identification_override": null,
+            "user_confirmed_identification": false,
+            "user_review_state": "unreviewed"
+          }
+        }
+      },
+      "selected_state": {
+        "schema_version": 1,
+        "owner_id": "00000000-0000-4000-8000-000000000003",
+        "observation_id": "00000000-0000-4000-8000-000000000001",
+        "state_revision": 8,
+        "selection_initialized": true,
+        "selected_analysis_id": "00000000-0000-4000-8000-000000000009",
+        "analysis": {
+          "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000009\",\"completed_at_ms\":1750000000000,\"evidence_manifest\":{\"schema_version\":3,\"items\":[{\"kind\":\"description\",\"text\":\"Synthetic audio context.\"},{\"kind\":\"audio\",\"media_id\":\"00000000-0000-4000-8000-000000000004\",\"content_type\":\"audio/wav\",\"byte_count\":46,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":2,\"request_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"result\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"blur_score\":0.2,\"candidates\":null,\"colors\":[],\"common_name\":\"Monarch Butterfly\",\"confidence_score\":0.87,\"estimated_size_cm\":8.5,\"extracted_visual_traits\":[\"orange wings\"],\"image_quality\":{\"diagnostic_utility\":9,\"framing\":7,\"overall_score\":82,\"sharpness\":8},\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"is_live_capture\":true,\"pet_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"scientific_name\":\"Danaus plexippus\"},\"schema_version\":4,\"source_analysis_id\":null}",
+          "review_revision": 0,
+          "review_snapshot": {
+            "ai_identification_review": null,
+            "confirmed_species_identity": null,
+            "confirmed_species_identity_revision": 0,
+            "confirmed_species_id": null,
+            "user_identification_override": null,
+            "user_confirmed_identification": false,
+            "user_review_state": "unreviewed"
+          }
+        }
+      }
+    }
+  },
+  {
+    "media": "video",
+    "version": 5,
+    "pair": {
+      "schema_version": 1,
+      "baseline_sha256": "938b3c2a057d0b27c097137be1b64fa209f55f39afbfa96e8ea84804d5b4dd26",
+      "baseline_state": {
+        "schema_version": 1,
+        "owner_id": "00000000-0000-4000-8000-000000000003",
+        "observation_id": "00000000-0000-4000-8000-000000000001",
+        "state_revision": 8,
+        "selection_initialized": true,
+        "selected_analysis_id": "00000000-0000-4000-8000-000000000020",
+        "analysis": {
+          "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"completed_at_ms\":null,\"evidence_manifest\":{\"availability\":\"unavailable\",\"imported_at_ms\":1750000000000,\"origin\":\"saved_identification\",\"schema_version\":3},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":1,\"request_digest\":null,\"result\":{\"ai_confidence_score\":0.75,\"ai_reasoning\":\"Synthetic saved identification.\",\"candidates\":{},\"identification_provenance\":null,\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"pet_identification\":null,\"primary_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"species_id\":null},\"schema_version\":3,\"source_analysis_id\":null}",
+          "review_revision": 0,
+          "review_snapshot": {
+            "ai_identification_review": null,
+            "confirmed_species_identity": null,
+            "confirmed_species_identity_revision": 0,
+            "confirmed_species_id": null,
+            "user_identification_override": null,
+            "user_confirmed_identification": false,
+            "user_review_state": "unreviewed"
+          }
+        }
+      },
+      "selected_state": {
+        "schema_version": 1,
+        "owner_id": "00000000-0000-4000-8000-000000000003",
+        "observation_id": "00000000-0000-4000-8000-000000000001",
+        "state_revision": 8,
+        "selection_initialized": true,
+        "selected_analysis_id": "00000000-0000-4000-8000-000000000020",
+        "analysis": {
+          "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000020\",\"completed_at_ms\":1750000000000,\"evidence_manifest\":{\"schema_version\":4,\"provenance\":{\"schema_version\":1,\"preprocessing_version\":\"retained_clip_v1\",\"source\":{\"media_id\":\"00000000-0000-4000-8000-000000000003\",\"content_type\":\"video/mp4\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"parameters\":{\"timescale\":600,\"frame_pipeline\":\"direct_inference_v1\",\"decode_long_edge\":2048,\"duration_ticks\":3000,\"sampling\":\"five_interior_v1\",\"preferred_track_transform\":true,\"crop\":\"square_v1\",\"crop_center_basis_points\":5000,\"inference_long_edge\":1024,\"encoding_quality_percent\":85},\"frames\":[{\"index\":0,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"requested_time_ticks\":300,\"actual_time_ticks\":300,\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000004\",\"content_type\":\"image/jpeg\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"index\":1,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"requested_time_ticks\":900,\"actual_time_ticks\":900,\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000005\",\"content_type\":\"image/jpeg\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"index\":2,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"requested_time_ticks\":1500,\"actual_time_ticks\":1500,\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000006\",\"content_type\":\"image/jpeg\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"index\":3,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"requested_time_ticks\":2100,\"actual_time_ticks\":2100,\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000007\",\"content_type\":\"image/jpeg\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"index\":4,\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"requested_time_ticks\":2700,\"actual_time_ticks\":2700,\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000008\",\"content_type\":\"image/jpeg\",\"byte_count\":100,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}],\"audio\":{\"source_media_id\":\"00000000-0000-4000-8000-000000000003\",\"track\":\"first_audio_track\",\"start_ticks\":600,\"end_ticks\":1800,\"sample_rate\":44100,\"sample_count\":88200,\"channels\":1,\"bits_per_sample\":16,\"encoding\":\"pcm_s16le\",\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000009\",\"content_type\":\"audio/wav\",\"byte_count\":176444,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}},\"descriptions\":[\"  synthetic first  \",\"\\ud83e\\udd8b e\\u0301\",\"\\u0085\"]},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":2,\"request_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"result\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"blur_score\":0.2,\"candidates\":null,\"colors\":[],\"common_name\":\"Monarch Butterfly\",\"confidence_score\":0.87,\"estimated_size_cm\":8.5,\"extracted_visual_traits\":[\"orange wings\"],\"image_quality\":{\"diagnostic_utility\":9,\"framing\":7,\"overall_score\":82,\"sharpness\":8},\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"is_live_capture\":true,\"pet_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"scientific_name\":\"Danaus plexippus\"},\"schema_version\":5,\"source_analysis_id\":\"00000000-0000-4000-8000-000000000002\"}",
+          "review_revision": 0,
+          "review_snapshot": {
+            "ai_identification_review": null,
+            "confirmed_species_identity": null,
+            "confirmed_species_identity_revision": 0,
+            "confirmed_species_id": null,
+            "user_identification_override": null,
+            "user_confirmed_identification": false,
+            "user_review_state": "unreviewed"
+          }
+        }
+      }
+    }
+  }
+]

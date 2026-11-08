@@ -1,0 +1,1450 @@
+{
+  "synthetic_only": true,
+  "valid": [
+    {
+      "name": "Vision with description",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify",
+          "ordered_descriptions": [
+            "Synthetic photo context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 0
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_0",
+          "profile_version": 1,
+          "input_profile": "vision_compat_v1",
+          "route": "identify",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 5242880,
+                "output_bytes": 5242880,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "666bf85d4996eab1ac4a393a376f0b78030820833951eea482eb4ab1c0e2d4e3",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"666bf85d4996eab1ac4a393a376f0b78030820833951eea482eb4ab1c0e2d4e3\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"vision_compat_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_0\",\"profile_version\":1,\"route\":\"identify\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":5242880,\"source_bytes\":5242880,\"wall_ms\":2000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "7c07c47c47b6937699ea6d67b112bc7e83cde59546c0a237dd9b499fa4dffcf7",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "3cc7181684bf006e6a7c6d84f789123d52e443834851661ccfd2401525a89e3f",
+        "route": "identify",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "vision_compat_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "7c07c47c47b6937699ea6d67b112bc7e83cde59546c0a237dd9b499fa4dffcf7",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000001",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "image",
+                "source_content_type": "image/png",
+                "source_byte_count": 68,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": 0,
+                "clip_index": null,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "identity_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "photo",
+              "object_id": "00000000-0000-4000-8000-000000001000",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "8151351142c9547b5a50c7229c7181d35b1efc25971acb9d5e7aedaa8f3b04fd"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"3cc7181684bf006e6a7c6d84f789123d52e443834851661ccfd2401525a89e3f\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"vision_compat_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"7c07c47c47b6937699ea6d67b112bc7e83cde59546c0a237dd9b499fa4dffcf7\",\"selector_generation\":\"00000000-0000-4000-8000-000000000001\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001000\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"photo\",\"source\":{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify\",\"source_plan_digest\":\"8151351142c9547b5a50c7229c7181d35b1efc25971acb9d5e7aedaa8f3b04fd\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "59aea56d4794f4c0ee864140dbc6245efb396777a7a37f7638617eb1dcd4f7a0"
+    },
+    {
+      "name": "Multimodal photo",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_1",
+          "profile_version": 1,
+          "input_profile": "multimodal_photo_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 5242880,
+                "output_bytes": 5242880,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "ae4c5e0e86673b0f74d1e28e1a1316e7aa94df26af2f953618ac4385f36ab18f",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"ae4c5e0e86673b0f74d1e28e1a1316e7aa94df26af2f953618ac4385f36ab18f\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_photo_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_1\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":5242880,\"source_bytes\":5242880,\"wall_ms\":2000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "335b929ad85d254e6cc9115392d3fd9c1a04180e0b24edf252de03c910a4acf7",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "f9cd42d5f45f8abc6d0d2bfbfde6ebd4ddcf1b4dca206887a62920134e1a30f4",
+        "route": "identify-multimodal",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "multimodal_photo_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "335b929ad85d254e6cc9115392d3fd9c1a04180e0b24edf252de03c910a4acf7",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000002",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "image",
+                "source_content_type": "image/png",
+                "source_byte_count": 68,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": 0,
+                "clip_index": null,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "identity_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "photo",
+              "object_id": "00000000-0000-4000-8000-000000001010",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "351be2df44dafc1e1575c81e60b9a8a65810706eb4f22ba8f9e547dc00fcb2e6"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"f9cd42d5f45f8abc6d0d2bfbfde6ebd4ddcf1b4dca206887a62920134e1a30f4\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"multimodal_photo_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"335b929ad85d254e6cc9115392d3fd9c1a04180e0b24edf252de03c910a4acf7\",\"selector_generation\":\"00000000-0000-4000-8000-000000000002\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001010\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"photo\",\"source\":{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-multimodal\",\"source_plan_digest\":\"351be2df44dafc1e1575c81e60b9a8a65810706eb4f22ba8f9e547dc00fcb2e6\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "84cd1f19f9dd532e3a41d6a2f3a6c4cff78cd9448c837a0557e6a8c920e7a255"
+    },
+    {
+      "name": "Multimodal audio",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": false
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_2",
+          "profile_version": 1,
+          "input_profile": "multimodal_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "recording",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2700000,
+                "output_bytes": 2700000,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "d878400bcc6ec4fa7943c574ef7159367b326d0f8d1fa269fb3910853b5c614c",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"d878400bcc6ec4fa7943c574ef7159367b326d0f8d1fa269fb3910853b5c614c\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_audio_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_2\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":2700000,\"source_bytes\":2700000,\"wall_ms\":2000},\"max_count\":2,\"preserve_short_video_context\":false,\"role\":\"recording\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "2e69c3628e3ffc031742849d45f82c86610dc5d776808913bcf0ac7810ef65b2",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "dea3d62576c33fc19ba315c6da2517655867ca709b513386f0a1128ca8ce4294",
+        "route": "identify-multimodal",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "multimodal_audio_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "2e69c3628e3ffc031742849d45f82c86610dc5d776808913bcf0ac7810ef65b2",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000003",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "audio",
+                "source_content_type": "audio/wav",
+                "source_byte_count": 32044,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": 0,
+                "clip_index": null,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "initial_audio_v1",
+                "transform_parameters": {
+                  "target_sample_rate": 16000,
+                  "preserve_short_video_context": false
+                },
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "recording",
+              "object_id": "00000000-0000-4000-8000-000000001020",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "2a8a52d0660ac1f2346ac9e38576f6163583182a3dc0c0c7cd0cbbcca66b1a8f"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"dea3d62576c33fc19ba315c6da2517655867ca709b513386f0a1128ca8ce4294\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"multimodal_audio_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"2e69c3628e3ffc031742849d45f82c86610dc5d776808913bcf0ac7810ef65b2\",\"selector_generation\":\"00000000-0000-4000-8000-000000000003\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001020\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"recording\",\"source\":{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-multimodal\",\"source_plan_digest\":\"2a8a52d0660ac1f2346ac9e38576f6163583182a3dc0c0c7cd0cbbcca66b1a8f\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "04cf62b7713f947ffecd5ee99edba83d5d5202a2253f3cab4a827fd7fd737e14"
+    },
+    {
+      "name": "Multimodal blended",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [
+            "First synthetic context",
+            "Second synthetic context"
+          ],
+          "owner_timeline": [
+            {
+              "kind": "description",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 0
+            },
+            {
+              "kind": "media",
+              "index": 1
+            },
+            {
+              "kind": "description",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": false,
+            "video_clip_count": 0,
+            "declared_video_frame_count": 0,
+            "video_inference_frame_count": 0
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": 0,
+              "clip_index": null,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": false
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_3",
+          "profile_version": 1,
+          "input_profile": "multimodal_photo_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "photo",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 5242880,
+                "output_bytes": 5242880,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            },
+            {
+              "role": "recording",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2700000,
+                "output_bytes": 2700000,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "0b895e673b704c3115fbbdf00b0754e4cdc57854cfb63aed1df4db399d4079e7",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"0b895e673b704c3115fbbdf00b0754e4cdc57854cfb63aed1df4db399d4079e7\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_photo_audio_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_3\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":5242880,\"source_bytes\":5242880,\"wall_ms\":2000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"photo\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":2700000,\"source_bytes\":2700000,\"wall_ms\":2000},\"max_count\":2,\"preserve_short_video_context\":false,\"role\":\"recording\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "2723c270466dd9c32af08058232c8983c6f549ff8f39c3c6c9fa59e51449c53e",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "50bc212364ee71ec3d440fea5b53b84a741d26db3c16c056e03721d6fe9655f1",
+        "route": "identify-multimodal",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "multimodal_photo_audio_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "2723c270466dd9c32af08058232c8983c6f549ff8f39c3c6c9fa59e51449c53e",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000004",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "image",
+                "source_content_type": "image/png",
+                "source_byte_count": 68,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": 0,
+                "clip_index": null,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "identity_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "photo",
+              "object_id": "00000000-0000-4000-8000-000000001030",
+              "prepared_destination": null
+            },
+            {
+              "ordinal": 1,
+              "source": {
+                "kind": "audio",
+                "source_content_type": "audio/wav",
+                "source_byte_count": 32044,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": 0,
+                "clip_index": null,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "initial_audio_v1",
+                "transform_parameters": {
+                  "target_sample_rate": 16000,
+                  "preserve_short_video_context": false
+                },
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "recording",
+              "object_id": "00000000-0000-4000-8000-000000001031",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "4d95b99be6b078ae64a833afa308c542e9ea203caac09045c68d1a372a97503b"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"50bc212364ee71ec3d440fea5b53b84a741d26db3c16c056e03721d6fe9655f1\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"multimodal_photo_audio_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"2723c270466dd9c32af08058232c8983c6f549ff8f39c3c6c9fa59e51449c53e\",\"selector_generation\":\"00000000-0000-4000-8000-000000000004\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001030\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"photo\",\"source\":{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}},{\"object_id\":\"00000000-0000-4000-8000-000000001031\",\"ordinal\":1,\"prepared_destination\":null,\"role\":\"recording\",\"source\":{\"clip_index\":null,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-multimodal\",\"source_plan_digest\":\"4d95b99be6b078ae64a833afa308c542e9ea203caac09045c68d1a372a97503b\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "c178e963c2f689d750d12233982a71f1c466508d6e22ddf6da129beacc384d53"
+    },
+    {
+      "name": "frames",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 1
+            }
+          ],
+          "capture": {
+            "has_video": true,
+            "video_clip_count": 1,
+            "declared_video_frame_count": 1,
+            "video_inference_frame_count": 1
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": 0,
+              "focus_region": null,
+              "transform": "video_frame_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "source_byte_count": 24,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": null,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_4",
+          "profile_version": 1,
+          "input_profile": "multimodal_video_frames_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "raw_video",
+              "source_types": [
+                "video/mp4"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 1,
+              "limits": {
+                "source_bytes": 12582912,
+                "output_bytes": 0,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            },
+            {
+              "role": "video_frame",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "video_frame_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 5242880,
+                "output_bytes": 5242880,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "7b60ab43aa7e50de12f61e32286a23ee4b79536b7d3964c5ce75e55e3381fc8e",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"7b60ab43aa7e50de12f61e32286a23ee4b79536b7d3964c5ce75e55e3381fc8e\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_video_frames_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_4\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":0,\"source_bytes\":12582912,\"wall_ms\":2000},\"max_count\":1,\"preserve_short_video_context\":null,\"role\":\"raw_video\",\"source_types\":[\"video/mp4\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":5242880,\"source_bytes\":5242880,\"wall_ms\":2000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"video_frame\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"video_frame_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "06b0f1a99c7996f093509ab9cf6a2e64fce2d34f6b750b30ac7e33fcfe7d6bdd",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "27f4fd9a350bd625a458733203acc0f778ab9c0b8fb4c0196ea239214dda21d5",
+        "route": "identify-multimodal",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "multimodal_video_frames_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "06b0f1a99c7996f093509ab9cf6a2e64fce2d34f6b750b30ac7e33fcfe7d6bdd",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000005",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "image",
+                "source_content_type": "image/png",
+                "source_byte_count": 68,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": null,
+                "clip_index": 0,
+                "frame_index": 0,
+                "focus_region": null,
+                "transform": "video_frame_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "video_frame",
+              "object_id": "00000000-0000-4000-8000-000000001040",
+              "prepared_destination": null
+            },
+            {
+              "ordinal": 1,
+              "source": {
+                "kind": "video",
+                "source_content_type": "video/mp4",
+                "source_byte_count": 24,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": null,
+                "source_index": null,
+                "clip_index": 0,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "identity_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "raw_video",
+              "object_id": "00000000-0000-4000-8000-000000001041",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "7d2e6d5cf8b84f68fb27e6261c9f635cd2d36a2a36bb8150a31dcdbb1bda3188"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"27f4fd9a350bd625a458733203acc0f778ab9c0b8fb4c0196ea239214dda21d5\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"multimodal_video_frames_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"06b0f1a99c7996f093509ab9cf6a2e64fce2d34f6b750b30ac7e33fcfe7d6bdd\",\"selector_generation\":\"00000000-0000-4000-8000-000000000005\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001040\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"video_frame\",\"source\":{\"clip_index\":0,\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null}},{\"object_id\":\"00000000-0000-4000-8000-000000001041\",\"ordinal\":1,\"prepared_destination\":null,\"role\":\"raw_video\",\"source\":{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-multimodal\",\"source_plan_digest\":\"7d2e6d5cf8b84f68fb27e6261c9f635cd2d36a2a36bb8150a31dcdbb1bda3188\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "f481315622c453b35b061a165dd32eaa5b9303b28cde1120d3ff7d8a77bf209c"
+    },
+    {
+      "name": "video audio",
+      "candidate": {
+        "version": 2,
+        "variant": "media_sources",
+        "source_plan": {
+          "schema_version": 1,
+          "route": "identify-multimodal",
+          "ordered_descriptions": [],
+          "owner_timeline": [
+            {
+              "kind": "media",
+              "index": 2
+            }
+          ],
+          "capture": {
+            "has_video": true,
+            "video_clip_count": 1,
+            "declared_video_frame_count": 1,
+            "video_inference_frame_count": 1
+          },
+          "context": {
+            "depth_scale_text": null,
+            "semantic_location": null,
+            "weather_condition": null,
+            "device_locale": null,
+            "device_time_zone": null,
+            "device_region": null,
+            "time_of_day": null,
+            "gps_latitude": null,
+            "gps_longitude": null,
+            "gps_elevation": null,
+            "zoom_factor": null,
+            "estimated_size_cm": null,
+            "weather_temperature_f": null,
+            "current_month": null
+          },
+          "options": {
+            "timestamp": null,
+            "geoprivacy": "private",
+            "public_location_label": null,
+            "preferred_goal": null,
+            "observation_context": null
+          },
+          "admission": {
+            "client_protocol": 3,
+            "identification_protocol": 6,
+            "expected_processor_permission": "google_gemini"
+          },
+          "experiment": null,
+          "sources": [
+            {
+              "kind": "image",
+              "source_content_type": "image/png",
+              "source_byte_count": 68,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": 0,
+              "focus_region": null,
+              "transform": "video_frame_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "audio",
+              "source_content_type": "audio/wav",
+              "source_byte_count": 32044,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": 0,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "initial_audio_v1",
+              "transform_parameters": {
+                "target_sample_rate": 16000,
+                "preserve_short_video_context": true
+              },
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            },
+            {
+              "kind": "video",
+              "source_content_type": "video/mp4",
+              "source_byte_count": 24,
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_index": null,
+              "source_index": null,
+              "clip_index": 0,
+              "frame_index": null,
+              "focus_region": null,
+              "transform": "identity_v1",
+              "transform_parameters": null,
+              "prepared_output": {
+                "state": "unresolved"
+              }
+            }
+          ]
+        }
+      },
+      "profile": {
+        "version": 1,
+        "spec": {
+          "profile_id": "synthetic_test_only_5",
+          "profile_version": 1,
+          "input_profile": "multimodal_video_audio_v1",
+          "route": "identify-multimodal",
+          "focus_policy": "input_v1_bounds",
+          "runtime": {
+            "engine": "deno",
+            "version": "2.9.4",
+            "platform": "synthetic",
+            "abi": "test_only",
+            "protocol": 1
+          },
+          "artifact": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byte_count": 1
+          },
+          "identities": {
+            "source": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validator": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transform": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "configuration": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "rules": [
+            {
+              "role": "raw_video",
+              "source_types": [
+                "video/mp4"
+              ],
+              "transform": "identity_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 1,
+              "limits": {
+                "source_bytes": 12582912,
+                "output_bytes": 0,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            },
+            {
+              "role": "video_audio",
+              "source_types": [
+                "audio/wav"
+              ],
+              "transform": "initial_audio_v1",
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": true,
+              "max_count": 2,
+              "limits": {
+                "source_bytes": 2700000,
+                "output_bytes": 2700000,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            },
+            {
+              "role": "video_frame",
+              "source_types": [
+                "image/png"
+              ],
+              "transform": "video_frame_v1",
+              "target_sample_rate": null,
+              "preserve_short_video_context": null,
+              "max_count": 5,
+              "limits": {
+                "source_bytes": 5242880,
+                "output_bytes": 5242880,
+                "cpu_ms": 1000,
+                "heap_bytes": 1048576,
+                "wall_ms": 2000
+              }
+            }
+          ],
+          "max_sources": 8,
+          "limits": {
+            "source_bytes": 20971520,
+            "output_bytes": 20971520,
+            "cpu_ms": 300000,
+            "heap_bytes": 1073741824,
+            "wall_ms": 300000
+          }
+        },
+        "qualification": {
+          "spec_digest": "77899834e7f432f008b77bfa92aaf636e4e33052527a1cc87bbdaca1a36f22ad",
+          "evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "harness_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "profile_canonical": "{\"qualification\":{\"evidence_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"harness_digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"source_revision\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"spec_digest\":\"77899834e7f432f008b77bfa92aaf636e4e33052527a1cc87bbdaca1a36f22ad\"},\"spec\":{\"artifact\":{\"byte_count\":1,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"focus_policy\":\"input_v1_bounds\",\"identities\":{\"configuration\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"transform\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"validator\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"input_profile\":\"multimodal_video_audio_v1\",\"limits\":{\"cpu_ms\":300000,\"heap_bytes\":1073741824,\"output_bytes\":20971520,\"source_bytes\":20971520,\"wall_ms\":300000},\"max_sources\":8,\"profile_id\":\"synthetic_test_only_5\",\"profile_version\":1,\"route\":\"identify-multimodal\",\"rules\":[{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":0,\"source_bytes\":12582912,\"wall_ms\":2000},\"max_count\":1,\"preserve_short_video_context\":null,\"role\":\"raw_video\",\"source_types\":[\"video/mp4\"],\"target_sample_rate\":null,\"transform\":\"identity_v1\"},{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":2700000,\"source_bytes\":2700000,\"wall_ms\":2000},\"max_count\":2,\"preserve_short_video_context\":true,\"role\":\"video_audio\",\"source_types\":[\"audio/wav\"],\"target_sample_rate\":16000,\"transform\":\"initial_audio_v1\"},{\"limits\":{\"cpu_ms\":1000,\"heap_bytes\":1048576,\"output_bytes\":5242880,\"source_bytes\":5242880,\"wall_ms\":2000},\"max_count\":5,\"preserve_short_video_context\":null,\"role\":\"video_frame\",\"source_types\":[\"image/png\"],\"target_sample_rate\":null,\"transform\":\"video_frame_v1\"}],\"runtime\":{\"abi\":\"test_only\",\"engine\":\"deno\",\"platform\":\"synthetic\",\"protocol\":1,\"version\":\"2.9.4\"}},\"version\":1}",
+      "profile_digest": "3d388f7b0f2befb3e0de6c2d576b55e18a9128c1941561494a292e11cecc3a2c",
+      "assignment": {
+        "version": 2,
+        "candidate_digest": "f512c40fce438e31f5bd2e196137397e5d17078e2ed65db5d35da04dd858d2c2",
+        "route": "identify-multimodal",
+        "operation": "scan_identification",
+        "effective_plan": "pro_complimentary",
+        "effective_tier": "pro",
+        "flash_fallback_used": false,
+        "quota_model": "gemini-2.5-pro",
+        "policy_version": 1,
+        "provider": "gemini",
+        "binding": "gemini_baseline_v1",
+        "processor_permission": "google_gemini",
+        "input_profile": "multimodal_video_audio_v1",
+        "provider_model": null,
+        "effective_model": "gemini-2.5-pro",
+        "minimum_client_protocol": 0,
+        "accepted_client_protocol": 3,
+        "minimum_identification_protocol": 0,
+        "accepted_identification_protocol": 6,
+        "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "retention_owner": "initial_engine_release_archive",
+        "resolver_id": "git_blob_sha256_v1",
+        "preparation": {
+          "kind": "media_sources",
+          "profile_digest": "3d388f7b0f2befb3e0de6c2d576b55e18a9128c1941561494a292e11cecc3a2c",
+          "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "selector_generation": "00000000-0000-4000-8000-000000000006",
+          "backend_generation": "00000000-0000-4000-8000-00000000b001",
+          "source_mapping": [
+            {
+              "ordinal": 0,
+              "source": {
+                "kind": "image",
+                "source_content_type": "image/png",
+                "source_byte_count": 68,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": null,
+                "clip_index": 0,
+                "frame_index": 0,
+                "focus_region": null,
+                "transform": "video_frame_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "video_frame",
+              "object_id": "00000000-0000-4000-8000-000000001050",
+              "prepared_destination": null
+            },
+            {
+              "ordinal": 1,
+              "source": {
+                "kind": "audio",
+                "source_content_type": "audio/wav",
+                "source_byte_count": 32044,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": 0,
+                "source_index": null,
+                "clip_index": 0,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "initial_audio_v1",
+                "transform_parameters": {
+                  "target_sample_rate": 16000,
+                  "preserve_short_video_context": true
+                },
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "video_audio",
+              "object_id": "00000000-0000-4000-8000-000000001051",
+              "prepared_destination": null
+            },
+            {
+              "ordinal": 2,
+              "source": {
+                "kind": "video",
+                "source_content_type": "video/mp4",
+                "source_byte_count": 24,
+                "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "input_index": null,
+                "source_index": null,
+                "clip_index": 0,
+                "frame_index": null,
+                "focus_region": null,
+                "transform": "identity_v1",
+                "transform_parameters": null,
+                "prepared_output": {
+                  "state": "unresolved"
+                }
+              },
+              "role": "raw_video",
+              "object_id": "00000000-0000-4000-8000-000000001052",
+              "prepared_destination": null
+            }
+          ]
+        },
+        "experiment": null,
+        "variant": "media_sources",
+        "source_plan_digest": "46e62da1b7a1f782c811d5912e1e9a307e2a68180a4b034bb2b7187f9f03a7d3"
+      },
+      "assignment_canonical": "{\"accepted_client_protocol\":3,\"accepted_identification_protocol\":6,\"asset_manifest_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"binding\":\"gemini_baseline_v1\",\"candidate_digest\":\"f512c40fce438e31f5bd2e196137397e5d17078e2ed65db5d35da04dd858d2c2\",\"effective_model\":\"gemini-2.5-pro\",\"effective_plan\":\"pro_complimentary\",\"effective_tier\":\"pro\",\"experiment\":null,\"flash_fallback_used\":false,\"input_profile\":\"multimodal_video_audio_v1\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0,\"operation\":\"scan_identification\",\"policy_version\":1,\"preparation\":{\"backend_generation\":\"00000000-0000-4000-8000-00000000b001\",\"backend_installation_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"installation_digest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"kind\":\"media_sources\",\"profile_digest\":\"3d388f7b0f2befb3e0de6c2d576b55e18a9128c1941561494a292e11cecc3a2c\",\"selector_generation\":\"00000000-0000-4000-8000-000000000006\",\"source_mapping\":[{\"object_id\":\"00000000-0000-4000-8000-000000001050\",\"ordinal\":0,\"prepared_destination\":null,\"role\":\"video_frame\",\"source\":{\"clip_index\":0,\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null}},{\"object_id\":\"00000000-0000-4000-8000-000000001051\",\"ordinal\":1,\"prepared_destination\":null,\"role\":\"video_audio\",\"source\":{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":true,\"target_sample_rate\":16000}}},{\"object_id\":\"00000000-0000-4000-8000-000000001052\",\"ordinal\":2,\"prepared_destination\":null,\"role\":\"raw_video\",\"source\":{\"clip_index\":0,\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"prepared_output\":{\"state\":\"unresolved\"},\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}}]},\"processor_permission\":\"google_gemini\",\"provider\":\"gemini\",\"provider_model\":null,\"quota_model\":\"gemini-2.5-pro\",\"resolver_id\":\"git_blob_sha256_v1\",\"retention_owner\":\"initial_engine_release_archive\",\"route\":\"identify-multimodal\",\"source_plan_digest\":\"46e62da1b7a1f782c811d5912e1e9a307e2a68180a4b034bb2b7187f9f03a7d3\",\"variant\":\"media_sources\",\"version\":2}",
+      "assignment_digest": "4ab94df2e4d69d64f9a4522474194ab2c6592fd3f50d21a87dd146be58f04a50"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "variant": {
+      "type": "string",
+      "max_bytes": 24,
+      "enum": [
+        "client_prepared_photo"
+      ]
+    },
+    "authority": {
+      "type": "string",
+      "max_bytes": 4,
+      "enum": [
+        "none"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "max_bytes": 10,
+      "enum": [
+        "unadmitted",
+        "admitted"
+      ]
+    },
+    "owner_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "scan_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "candidate_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "assignment_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "admission_receipt_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "nullable": true
+    },
+    "admission_receipt_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "nullable": true
+    }
+  }
+}

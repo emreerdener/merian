@@ -310,3 +310,131 @@ for (const reservationFirst of [true, false]) {
     },
   });
 }
+
+Deno.test({
+  name:
+    "Observation evidence upload DB concurrency - disjoint cohorts cannot share an analysis",
+  ignore: !databaseUrl,
+  async fn() {
+    assert(databaseUrl);
+    assert(
+      ["127.0.0.1", "localhost", "[::1]"].includes(
+        new URL(databaseUrl).hostname,
+      ),
+    );
+    const clients = [
+      new Client(databaseUrl),
+      new Client(databaseUrl),
+      new Client(databaseUrl),
+    ];
+    const [observer, first, second] = clients;
+    const owner = crypto.randomUUID(),
+      observation = crypto.randomUUID(),
+      analysis = crypto.randomUUID();
+    let oldGate = false;
+    const items = (media: string) =>
+      JSON.stringify([{
+        media_id: media,
+        content_type: "image/jpeg",
+        byte_count: 3,
+        sha256: "a".repeat(64),
+      }]);
+    const original = items(crypto.randomUUID());
+    const conflicting = items(crypto.randomUUID());
+    const reserve =
+      "SELECT public.reserve_owned_observation_evidence_cohort($1,$2,$3,$4::jsonb) AS receipts";
+    let object: string | undefined;
+    try {
+      for (const client of clients) await client.connect();
+      const source = await Deno.readTextFile(
+        new URL("../../tests/observation_analysis_append.sql", import.meta.url),
+      );
+      const helpers = source.split(
+        "-- BEGIN HISTORY APPEND SYNTHETIC HELPERS\n",
+      )[1]?.split("-- END HISTORY APPEND SYNTHETIC HELPERS")[0];
+      assert(helpers);
+      await observer.queryArray(helpers);
+      await observer.queryArray("SELECT pg_temp.seed_history_append($1,$2)", [
+        owner,
+        observation,
+      ]);
+      oldGate = (await observer.queryObject<{ media_enabled: boolean }>(
+        "SELECT media_enabled FROM internal.observation_history_rollout",
+      )).rows[0].media_enabled;
+      await observer.queryArray(
+        "UPDATE internal.observation_history_rollout SET media_enabled=TRUE",
+      );
+      for (const client of [first, second]) {
+        await client.queryArray("BEGIN");
+        await client.queryArray("SET LOCAL statement_timeout='10s'");
+      }
+      const blocker = (await first.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      )).rows[0].pid;
+      const waiter = (await second.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      )).rows[0].pid;
+      for (const client of [first, second]) {
+        await client.queryArray("SET LOCAL ROLE service_role");
+      }
+      const saved =
+        (await first.queryObject<{ receipts: { object_id: string }[] }>(
+          reserve,
+          [owner, observation, analysis, original],
+        )).rows[0].receipts;
+      object = saved[0].object_id;
+      const pending = settle(
+        second.queryObject(reserve, [
+          owner,
+          observation,
+          analysis,
+          conflicting,
+        ]),
+      );
+      await waitForBlock(observer, waiter, blocker);
+      await first.queryArray("COMMIT");
+      assertEquals((await pending).ok, false);
+      await second.queryArray("ROLLBACK");
+      const counts =
+        (await observer.queryObject<{ cohorts: number; receipts: number }>(
+          "SELECT (SELECT count(*)::int FROM internal.observation_evidence_upload_cohorts WHERE analysis_id=$1) cohorts,(SELECT count(*)::int FROM internal.observation_evidence_objects WHERE analysis_id=$1) receipts",
+          [analysis],
+        )).rows[0];
+      assertEquals(counts, { cohorts: 1, receipts: 1 });
+      await second.queryArray("BEGIN");
+      await second.queryArray("SET LOCAL ROLE service_role");
+      assertEquals(
+        (await second.queryObject<{ receipts: unknown }>(reserve, [
+          owner,
+          observation,
+          analysis,
+          original,
+        ])).rows[0].receipts,
+        saved,
+      );
+      await second.queryArray("ROLLBACK");
+    } finally {
+      for (const client of [first, second]) {
+        await client.queryArray("ROLLBACK").catch(() => {});
+      }
+      await observer.queryArray(
+        "UPDATE internal.observation_history_rollout SET media_enabled=$1",
+        [oldGate],
+      );
+      await observer.queryArray("DELETE FROM public.scans WHERE id=$1", [
+        observation,
+      ]);
+      await observer.queryArray("DELETE FROM public.users WHERE id=$1", [
+        owner,
+      ]);
+      await observer.queryArray("DELETE FROM auth.users WHERE id=$1", [owner]);
+      if (object) {
+        await observer.queryArray(
+          "DELETE FROM internal.observation_evidence_erasure WHERE object_id=$1",
+          [object],
+        );
+      }
+      await Promise.all(clients.map((client) => client.end()));
+    }
+  },
+});

@@ -1,0 +1,113 @@
+{
+  "destination_backend": {
+    "type": "object",
+    "properties": {
+      "generation": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "provider": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "r2"
+        ]
+      },
+      "direct_endpoint": {
+        "type": "string",
+        "max_bytes": 256,
+        "pattern": "^https://[0-9a-f]{32}\\.r2\\.cloudflarestorage\\.com$"
+      },
+      "private_bucket": {
+        "type": "string",
+        "max_bytes": 63,
+        "pattern": "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+      },
+      "namespace": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "initial-analysis/v1"
+        ]
+      },
+      "credential_profile": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      }
+    }
+  },
+  "installation": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "profile_generation": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "profile_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "protocol_artifact_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "copy_adapter_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "verification_adapter_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "preparation_profile_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "source_backend_generation": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "destination_backend_generation": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "qualification_harness_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "reviewed_source_revision": {
+        "type": "string",
+        "max_bytes": 40,
+        "pattern": "^[0-9a-f]{40}$"
+      },
+      "evidence_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "installer_protocol": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "reviewed_database_owner_install_v1"
+        ]
+      }
+    }
+  }
+}

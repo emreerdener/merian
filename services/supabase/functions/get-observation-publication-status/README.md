@@ -23,6 +23,8 @@ carries `Cache-Control: private, no-store`. Invalid requests receive 400;
 missing, foreign and deleted operations share the same opaque 404. Known
 operation/revision conflicts return 409; transport or invalid server responses
 return a sanitized 503. The RPC has a twelve-second client deadline and no
-internal retry. The prepared native wire caller is available; durable queue/UI
-delivery, deployment and activation remain separate. See the
+internal retry. The native durable delivery owner recovers this status before
+exact admission, keeps acknowledged operations status-only, and fences every
+response by the expected account and persisted claim. Ordinary UI delivery,
+deployment and activation remain separate. See the
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).

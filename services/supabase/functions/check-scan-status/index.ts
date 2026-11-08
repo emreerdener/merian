@@ -19,6 +19,7 @@ import {
   fetchScanStatusMedia,
 } from "./db.ts";
 import {
+  hasInitialRecoveryRequest,
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
@@ -91,8 +92,19 @@ async function buildScanStatusResponse(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    // A reserved phase header must not enter ordinary legacy repair, even when
+    // its body is malformed or lacks the reserved JSON marker.
+    if (req.headers.has("x-merian-initial-recovery")) {
+      return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
+    }
     const body = await parseJsonBody(req, { limit: "standard" });
     if (body instanceof Response) return body;
+
+    // The prepared native reader is not a legacy missing-scan repair request.
+    // Keep it unavailable until its separately reviewed serving branch exists.
+    if (hasInitialRecoveryRequest(body)) {
+      return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
+    }
 
     if (Array.isArray(body.scans)) {
       if (body.scans.length > 50) {

@@ -1,0 +1,1653 @@
+{
+  "version": 1,
+  "roots": [
+    "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/production.ts",
+    "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/media.ts",
+    "file:///initial-configuration-checkout/services/supabase/functions/identify-describe/provider.ts",
+    "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/audio.ts",
+    "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/provider.ts",
+    "file:///initial-configuration-checkout/services/supabase/functions/identify/provider.ts"
+  ],
+  "modules": [
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./identificationInput.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/identificationInput.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/admission.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contentRegistry.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/execution.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "code": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "../gemini.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/gemini.ts"
+          }
+        },
+        {
+          "specifier": "../aiUsage.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/aiUsage.ts"
+          }
+        },
+        {
+          "specifier": "./geminiContent.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/geminiContent.ts"
+          }
+        },
+        {
+          "specifier": "./geminiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/geminiRequest.ts"
+          }
+        },
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/gemini.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "code": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../taxonomy.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/taxonomy.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/geminiContent.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../../identify-multimodal/comparison/promptInstruction.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/comparison/promptInstruction.ts"
+          }
+        },
+        {
+          "specifier": "@google/genai",
+          "type": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../../identify-describe/schema.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-describe/schema.ts"
+          }
+        },
+        {
+          "specifier": "../../identify-multimodal/instructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/instructions.ts"
+          }
+        },
+        {
+          "specifier": "../../audio-spec/instructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/instructions.ts"
+          }
+        },
+        {
+          "specifier": "../identify/schema.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/schema.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/geminiRequest.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/identificationInput.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../outbound.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/outbound.ts"
+          }
+        },
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoModels.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoModels.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolRank.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolRank.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimary.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimary.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimaryContract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryContract.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoPrimary.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoPrimary.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoConfidence.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoConfidence.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoReasoning.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoReasoning.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoEvidence.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoEvidence.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openai.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./openaiRequest.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiConfidenceRules.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiLunaEvidenceLimits.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiNullFields.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        },
+        {
+          "specifier": "./openaiConfidenceRules.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiConfidenceRules.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        },
+        {
+          "specifier": "./openaiConfidenceRules.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiConfidenceRules.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoConfidence.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolRank.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolRank.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoEvidence.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        },
+        {
+          "specifier": "./openaiLunaEvidenceLimits.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiLunaEvidenceLimits.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoModels.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimaryContract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryContract.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimaryInstructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryInstructions.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoPrimary.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoReasoning.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../../identify-multimodal/instructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/instructions.ts"
+          }
+        },
+        {
+          "specifier": "../identify/schema.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/schema.ts"
+          }
+        },
+        {
+          "specifier": "../identify/contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        },
+        {
+          "specifier": "../mediaBudgets.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/mediaBudgets.ts"
+          }
+        },
+        {
+          "specifier": "./openaiNullFields.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiNullFields.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoModels.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoModels.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimaryContract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryContract.ts"
+          }
+        },
+        {
+          "specifier": "./openaiSolPrimaryInstructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryInstructions.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimary.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../identify/contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryContract.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolPrimaryInstructions.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhotoModels.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhotoModels.ts"
+          }
+        },
+        {
+          "specifier": "./openaiRequest.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiRequest.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiSolRank.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./execution.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/execution.ts"
+          }
+        },
+        {
+          "specifier": "./gemini.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/gemini.ts"
+          }
+        },
+        {
+          "specifier": "./registry.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/registry.ts"
+          }
+        },
+        {
+          "specifier": "./openai.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openai.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/production.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "./admission.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/admission.ts"
+          }
+        },
+        {
+          "specifier": "./identificationInput.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/identificationInput.ts"
+          }
+        },
+        {
+          "specifier": "../identify/thresholds.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/thresholds.ts"
+          }
+        },
+        {
+          "specifier": "./contentRegistry.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contentRegistry.ts"
+          }
+        },
+        {
+          "specifier": "./openaiPhoto.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/openaiPhoto.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/registry.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@supabase/supabase-js",
+          "code": {
+            "specifier": "npm:@supabase/supabase-js@2.117.2"
+          }
+        },
+        {
+          "specifier": "./edgeHandler.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/edgeHandler.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/aiUsage.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../audio-spec/wav.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/wav.ts"
+          }
+        },
+        {
+          "specifier": "../audio-spec/resample.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/resample.ts"
+          }
+        },
+        {
+          "specifier": "./encoding.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/encoding.ts"
+          }
+        },
+        {
+          "specifier": "./mediaBudgets.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/mediaBudgets.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/audioProcessing.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@supabase/supabase-js",
+          "code": {
+            "specifier": "npm:@supabase/supabase-js@2.117.2"
+          }
+        },
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        },
+        {
+          "specifier": "./outbound.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/outbound.ts"
+          }
+        },
+        {
+          "specifier": "./publishableKey.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/publishableKey.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/auth.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "aws4fetch",
+          "code": {
+            "specifier": "npm:aws4fetch@1.0.20"
+          }
+        },
+        {
+          "specifier": "./concurrency.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/concurrency.ts"
+          }
+        },
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/aws.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/capturedMediaContract.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/concurrency.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@supabase/supabase-js",
+          "code": {
+            "specifier": "npm:@supabase/supabase-js@2.117.2"
+          }
+        },
+        {
+          "specifier": "./auth.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/auth.ts"
+          }
+        },
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        },
+        {
+          "specifier": "./serviceRoleAuth.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/serviceRoleAuth.ts"
+          }
+        },
+        {
+          "specifier": "./serviceRoleClient.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/serviceRoleClient.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/edgeHandler.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/encoding.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "code": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/gemini.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/audioSubjectPolicy.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./types.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/types.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/context.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "type": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "./contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/googleSchema.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../aws.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/aws.ts"
+          }
+        },
+        {
+          "specifier": "../edgeHandler.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/edgeHandler.ts"
+          }
+        },
+        {
+          "specifier": "../encoding.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/encoding.ts"
+          }
+        },
+        {
+          "specifier": "../mediaBudgets.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/mediaBudgets.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/media.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "type": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "./contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        },
+        {
+          "specifier": "./googleSchema.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/googleSchema.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/schema.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/thresholds.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./encoding.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/encoding.ts"
+          }
+        },
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/mediaBudgets.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/outbound.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/publishableKey.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/serviceRoleAuth.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@supabase/supabase-js",
+          "code": {
+            "specifier": "npm:@supabase/supabase-js@2.117.2"
+          }
+        },
+        {
+          "specifier": "./outbound.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/outbound.ts"
+          }
+        },
+        {
+          "specifier": "./serviceRoleAuth.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/serviceRoleAuth.ts"
+          }
+        },
+        {
+          "specifier": "./http.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/http.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/serviceRoleClient.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/taxonomy.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/identify/audioSubjectPolicy.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/audioSubjectPolicy.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/instructions.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/resample.ts"
+    },
+    {
+      "kind": "esm",
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/audio-spec/wav.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/ai/contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../_shared/identify/context.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/context.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-describe/provider.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "@google/genai",
+          "type": {
+            "specifier": "npm:@google/genai@2.24.0"
+          }
+        },
+        {
+          "specifier": "../_shared/identify/contract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/contract.ts"
+          }
+        },
+        {
+          "specifier": "../_shared/identify/googleSchema.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/googleSchema.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-describe/schema.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/audioProcessing.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/audioProcessing.ts"
+          }
+        },
+        {
+          "specifier": "./capturedMedia.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/capturedMedia.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/audio.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/capturedMediaContract.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/capturedMediaContract.ts"
+          },
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/capturedMediaContract.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/capturedMedia.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../instructions.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/instructions.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/comparison/promptInstruction.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/identify/audioSubjectPolicy.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/audioSubjectPolicy.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/instructions.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/ai/contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../_shared/identify/context.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/context.ts"
+          }
+        },
+        {
+          "specifier": "./capturedMedia.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/capturedMedia.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify-multimodal/provider.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "../_shared/ai/contracts.ts",
+          "type": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/ai/contracts.ts"
+          }
+        },
+        {
+          "specifier": "../_shared/identify/context.ts",
+          "code": {
+            "specifier": "file:///initial-configuration-checkout/services/supabase/functions/_shared/identify/context.ts"
+          }
+        }
+      ],
+      "specifier": "file:///initial-configuration-checkout/services/supabase/functions/identify/provider.ts"
+    },
+    {
+      "kind": "npm",
+      "specifier": "npm:/@google/genai@2.24.0",
+      "npmPackage": "@google/genai@2.24.0"
+    },
+    {
+      "kind": "npm",
+      "specifier": "npm:/@supabase/supabase-js@2.117.2",
+      "npmPackage": "@supabase/supabase-js@2.117.2"
+    },
+    {
+      "kind": "npm",
+      "specifier": "npm:/aws4fetch@1.0.20",
+      "npmPackage": "aws4fetch@1.0.20"
+    }
+  ],
+  "redirects": {
+    "npm:@google/genai@2.24.0": "npm:/@google/genai@2.24.0",
+    "npm:@supabase/supabase-js@2.117.2": "npm:/@supabase/supabase-js@2.117.2",
+    "npm:aws4fetch@1.0.20": "npm:/aws4fetch@1.0.20"
+  },
+  "npmPackages": {
+    "@google/genai@2.24.0": {
+      "name": "@google/genai",
+      "version": "2.24.0",
+      "dependencies": [
+        "google-auth-library@10.9.1",
+        "p-retry@4.6.2",
+        "protobufjs@7.6.6",
+        "ws@8.22.0"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/aspromise@1.1.2": {
+      "name": "@protobufjs/aspromise",
+      "version": "1.1.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/base64@1.1.2": {
+      "name": "@protobufjs/base64",
+      "version": "1.1.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/codegen@2.0.5": {
+      "name": "@protobufjs/codegen",
+      "version": "2.0.5",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/eventemitter@1.1.1": {
+      "name": "@protobufjs/eventemitter",
+      "version": "1.1.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/fetch@1.1.1": {
+      "name": "@protobufjs/fetch",
+      "version": "1.1.1",
+      "dependencies": [
+        "@protobufjs/aspromise@1.1.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/float@1.0.2": {
+      "name": "@protobufjs/float",
+      "version": "1.0.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/path@1.1.2": {
+      "name": "@protobufjs/path",
+      "version": "1.1.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/pool@1.1.0": {
+      "name": "@protobufjs/pool",
+      "version": "1.1.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@protobufjs/utf8@1.1.2": {
+      "name": "@protobufjs/utf8",
+      "version": "1.1.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/auth-js@2.117.2": {
+      "name": "@supabase/auth-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "tslib@2.8.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/functions-js@2.117.2": {
+      "name": "@supabase/functions-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "tslib@2.8.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/phoenix@0.4.5": {
+      "name": "@supabase/phoenix",
+      "version": "0.4.5",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/postgrest-js@2.117.2": {
+      "name": "@supabase/postgrest-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "tslib@2.8.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/realtime-js@2.117.2": {
+      "name": "@supabase/realtime-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "@supabase/phoenix@0.4.5",
+        "tslib@2.8.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/storage-js@2.117.2": {
+      "name": "@supabase/storage-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "iceberg-js@0.8.1",
+        "tslib@2.8.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@supabase/supabase-js@2.117.2": {
+      "name": "@supabase/supabase-js",
+      "version": "2.117.2",
+      "dependencies": [
+        "@supabase/auth-js@2.117.2",
+        "@supabase/functions-js@2.117.2",
+        "@supabase/postgrest-js@2.117.2",
+        "@supabase/realtime-js@2.117.2",
+        "@supabase/storage-js@2.117.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@types/node@26.6.3": {
+      "name": "@types/node",
+      "version": "26.6.3",
+      "dependencies": [
+        "undici-types@8.9.0"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "@types/retry@0.12.0": {
+      "name": "@types/retry",
+      "version": "0.12.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "agent-base@7.1.4": {
+      "name": "agent-base",
+      "version": "7.1.4",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "aws4fetch@1.0.20": {
+      "name": "aws4fetch",
+      "version": "1.0.20",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "base64-js@1.5.1": {
+      "name": "base64-js",
+      "version": "1.5.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "bignumber.js@9.3.1": {
+      "name": "bignumber.js",
+      "version": "9.3.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "buffer-equal-constant-time@1.0.1": {
+      "name": "buffer-equal-constant-time",
+      "version": "1.0.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "core-util-is@1.0.3": {
+      "name": "core-util-is",
+      "version": "1.0.3",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "data-uri-to-buffer@4.0.1": {
+      "name": "data-uri-to-buffer",
+      "version": "4.0.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "debug@4.4.3": {
+      "name": "debug",
+      "version": "4.4.3",
+      "dependencies": [
+        "ms@2.1.3"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "ecdsa-sig-formatter@1.0.11": {
+      "name": "ecdsa-sig-formatter",
+      "version": "1.0.11",
+      "dependencies": [
+        "safe-buffer@5.1.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "extend@3.0.2": {
+      "name": "extend",
+      "version": "3.0.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "fetch-blob@3.2.0": {
+      "name": "fetch-blob",
+      "version": "3.2.0",
+      "dependencies": [
+        "node-domexception@1.0.0",
+        "web-streams-polyfill@3.3.3"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "formdata-polyfill@4.0.10": {
+      "name": "formdata-polyfill",
+      "version": "4.0.10",
+      "dependencies": [
+        "fetch-blob@3.2.0"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "gaxios@7.3.1": {
+      "name": "gaxios",
+      "version": "7.3.1",
+      "dependencies": [
+        "extend@3.0.2",
+        "https-proxy-agent@7.0.6",
+        "node-fetch@3.3.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "gcp-metadata@8.1.2": {
+      "name": "gcp-metadata",
+      "version": "8.1.2",
+      "dependencies": [
+        "gaxios@7.3.1",
+        "google-logging-utils@1.1.3",
+        "json-bigint@1.0.0"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "google-auth-library@10.9.1": {
+      "name": "google-auth-library",
+      "version": "10.9.1",
+      "dependencies": [
+        "base64-js@1.5.1",
+        "ecdsa-sig-formatter@1.0.11",
+        "gaxios@7.3.1",
+        "gcp-metadata@8.1.2",
+        "google-logging-utils@1.1.3",
+        "jws@4.0.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "google-logging-utils@1.1.3": {
+      "name": "google-logging-utils",
+      "version": "1.1.3",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "https-proxy-agent@7.0.6": {
+      "name": "https-proxy-agent",
+      "version": "7.0.6",
+      "dependencies": [
+        "agent-base@7.1.4",
+        "debug@4.4.3"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "iceberg-js@0.8.1": {
+      "name": "iceberg-js",
+      "version": "0.8.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "immediate@3.0.6": {
+      "name": "immediate",
+      "version": "3.0.6",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "inherits@2.0.4": {
+      "name": "inherits",
+      "version": "2.0.4",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "isarray@1.0.0": {
+      "name": "isarray",
+      "version": "1.0.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "jose@6.2.12": {
+      "name": "jose",
+      "version": "6.2.12",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "json-bigint@1.0.0": {
+      "name": "json-bigint",
+      "version": "1.0.0",
+      "dependencies": [
+        "bignumber.js@9.3.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "jszip@3.10.2": {
+      "name": "jszip",
+      "version": "3.10.2",
+      "dependencies": [
+        "lie@3.3.0",
+        "pako@1.0.11",
+        "readable-stream@2.3.8",
+        "setimmediate@1.0.5"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "jwa@2.0.1": {
+      "name": "jwa",
+      "version": "2.0.1",
+      "dependencies": [
+        "buffer-equal-constant-time@1.0.1",
+        "ecdsa-sig-formatter@1.0.11",
+        "safe-buffer@5.1.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "jws@4.0.1": {
+      "name": "jws",
+      "version": "4.0.1",
+      "dependencies": [
+        "jwa@2.0.1",
+        "safe-buffer@5.1.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "lie@3.3.0": {
+      "name": "lie",
+      "version": "3.3.0",
+      "dependencies": [
+        "immediate@3.0.6"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "long@5.3.2": {
+      "name": "long",
+      "version": "5.3.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "ms@2.1.3": {
+      "name": "ms",
+      "version": "2.1.3",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "node-domexception@1.0.0": {
+      "name": "node-domexception",
+      "version": "1.0.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "node-fetch@3.3.2": {
+      "name": "node-fetch",
+      "version": "3.3.2",
+      "dependencies": [
+        "data-uri-to-buffer@4.0.1",
+        "fetch-blob@3.2.0",
+        "formdata-polyfill@4.0.10"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "p-retry@4.6.2": {
+      "name": "p-retry",
+      "version": "4.6.2",
+      "dependencies": [
+        "@types/retry@0.12.0",
+        "retry@0.13.1"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "pako@1.0.11": {
+      "name": "pako",
+      "version": "1.0.11",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "postgres@3.4.7": {
+      "name": "postgres",
+      "version": "3.4.7",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "process-nextick-args@2.0.1": {
+      "name": "process-nextick-args",
+      "version": "2.0.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "protobufjs@7.6.6": {
+      "name": "protobufjs",
+      "version": "7.6.6",
+      "dependencies": [
+        "@protobufjs/aspromise@1.1.2",
+        "@protobufjs/base64@1.1.2",
+        "@protobufjs/codegen@2.0.5",
+        "@protobufjs/eventemitter@1.1.1",
+        "@protobufjs/fetch@1.1.1",
+        "@protobufjs/float@1.0.2",
+        "@protobufjs/path@1.1.2",
+        "@protobufjs/pool@1.1.0",
+        "@protobufjs/utf8@1.1.2",
+        "@types/node@26.6.3",
+        "long@5.3.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "readable-stream@2.3.8": {
+      "name": "readable-stream",
+      "version": "2.3.8",
+      "dependencies": [
+        "core-util-is@1.0.3",
+        "inherits@2.0.4",
+        "isarray@1.0.0",
+        "process-nextick-args@2.0.1",
+        "safe-buffer@5.1.2",
+        "string_decoder@1.1.1",
+        "util-deprecate@1.0.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "retry@0.13.1": {
+      "name": "retry",
+      "version": "0.13.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "safe-buffer@5.1.2": {
+      "name": "safe-buffer",
+      "version": "5.1.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "setimmediate@1.0.5": {
+      "name": "setimmediate",
+      "version": "1.0.5",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "string_decoder@1.1.1": {
+      "name": "string_decoder",
+      "version": "1.1.1",
+      "dependencies": [
+        "safe-buffer@5.1.2"
+      ],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "tslib@2.8.1": {
+      "name": "tslib",
+      "version": "2.8.1",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "undici-types@8.9.0": {
+      "name": "undici-types",
+      "version": "8.9.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "util-deprecate@1.0.2": {
+      "name": "util-deprecate",
+      "version": "1.0.2",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "web-streams-polyfill@3.3.3": {
+      "name": "web-streams-polyfill",
+      "version": "3.3.3",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    },
+    "ws@8.22.0": {
+      "name": "ws",
+      "version": "8.22.0",
+      "dependencies": [],
+      "registryUrl": "https://registry.npmjs.org/"
+    }
+  }
+}

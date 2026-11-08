@@ -11,10 +11,14 @@ execution before any hold; transcoding is not implicit.
 
 The response is exactly
 `{schema_version:1, observation_id, analysis_id, state}`, with 200 for
-`complete`/`failed_terminal`, otherwise 202. It is private/no-store. Clients
-retry the same immutable input and analysis ID after transport failure, then
-retrieve completed results through the owner history reader. A fresh analysis ID
-requests another analysis. Completion appends; it never selects.
+`complete`/`failed_terminal`, otherwise 202. It is private/no-store. Native
+callers persist a one-time analyze boundary before sending. Once consumed or
+uncertain, they use non-dispatching exact outcome recovery; reopening, absence
+or explicit retry cannot authorize another provider invocation. Earlier bound
+native requests without that evidence are recovery-only. Completed results come
+from the owner history reader. A fresh analysis ID is a separate user request,
+never automatic recovery of uncertain execution. Completion appends; it never
+selects.
 
 Immutable request-identity conflicts during admission return HTTP 409 with
 `analysis_history_operation_conflict`. The caller must recover the original
@@ -45,3 +49,25 @@ execution, private bucket provisioning, or activation is authorized by this
 source change. See the
 [canonical contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery)
 and [recovery worker](../recover-observation-analyses/README.md).
+
+The separate authenticated `get_owned_observation_reanalysis_preflight` RPC
+checks owner, parent, immutable source and proposed child before previewing the
+current photo recipient. Existing exact intents are recovery-only; legacy
+identity collisions cannot start another analysis. This read reserves neither
+quota nor complimentary funding. Native callers persist the qualified child and
+request, then let this endpoint own atomic funding/admission; a legacy child
+credit preclaim would conflict. See the canonical contract above for its exact
+3/6/8 request and eight-field response. The RPC remains behind the existing
+closed execution gates.
+
+## Non-dispatching execution status
+
+The separate authenticated reader-9 `get_owned_observation_analysis_execution`
+RPC reads the exact original parent/child/source/digest under owner/deletion
+locks. Its default-false `execution_status_api_enabled` gate is independent of
+provider admission. The response echoes identity and only `absent`, `admitted`,
+`dispatched`, `draft`, `complete` or `failed_terminal`. It is not an analyze
+replay: there is no quota, claim, provider call, refund or selection mutation.
+Absence is not a retirement or no-admission proof. Complete state still requires
+exact stored-result recovery; unknown dispatch remains non-dispatching.
+Retirement and user action integration require separate durable authority.

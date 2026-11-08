@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "variant": "client_prepared_photo",
+  "authority": "none",
+  "scan_id": "00000000-0000-4000-8000-000000000001",
+  "package_id": "00000000-0000-4000-8000-000000000002",
+  "candidate_digest": "d6386c57a8e3d67c5cb8566fc46dfa59378613ccd0494c85669905df25b2d57a",
+  "content_digest": "d75caa6fdc3c9f374149c666cb2bb3b153934bc6dc4040589fa418ee7e41c806",
+  "outcome": "allocated",
+  "assignment_digest": "eb616665a5a98638d564ef78f6aa08899551c0f09b4284fe36bf4c1afa0f7886",
+  "created_at_ms": 1793140000000,
+  "expires_at_ms": 1793141800000,
+  "role_mapping": [
+    {
+      "photo_ordinal": 0,
+      "role": "source",
+      "reference_id": "00000000-0000-4000-8000-000000000003",
+      "object_id": "00000000-0000-4000-8000-000000000200"
+    },
+    {
+      "photo_ordinal": 0,
+      "role": "ai",
+      "reference_id": "00000000-0000-4000-8000-000000000004",
+      "object_id": "00000000-0000-4000-8000-000000000201"
+    },
+    {
+      "photo_ordinal": 0,
+      "role": "display",
+      "reference_id": "00000000-0000-4000-8000-000000000005",
+      "object_id": "00000000-0000-4000-8000-000000000202"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import {
   effectiveIdentification,
   identificationIsBiological,
+  type SavedIdentificationFields,
 } from "../_shared/identify/effectiveIdentity.ts";
 import type { ChatScanContext, SpeciesDictionaryContext } from "./types.ts";
 
@@ -50,6 +51,16 @@ function selectedSpecies(
  * authenticated endpoint independently requires resolved, non-Human taxonomy.
  */
 export function isFieldChatEligibleScan(scan: ChatScanContext): boolean {
+  return isFieldChatEligibleIdentity(
+    scan,
+    selectedSpecies(scan)?.scientific_name,
+  );
+}
+/** Shared semantic policy; immutable callers supply only their frozen dictionary name. */
+export function isFieldChatEligibleIdentity(
+  scan: SavedIdentificationFields,
+  legacyScientificName: unknown,
+): boolean {
   if (scan.is_biological_subject === false) return false;
 
   const overrideName = normalizedIdentity(scan.user_identification_override);
@@ -63,7 +74,7 @@ export function isFieldChatEligibleScan(scan: ChatScanContext): boolean {
       );
   }
   const scientificName = normalizedIdentity(
-    selectedSpecies(scan)?.scientific_name,
+    legacyScientificName,
   );
   return !UNRESOLVED_SCIENTIFIC_NAMES.has(scientificName) &&
     !HUMAN_IDENTITIES.has(scientificName);

@@ -3,7 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AIQuotaReservation } from "../aiQuota.ts";
 import type { AIExecutionOutcome, PreparedAIExecution } from "./contracts.ts";
 import { openAIPhotoSnapshot } from "./openaiPhoto.ts";
-import { prepareAccountedIdentification } from "./identificationUsage.ts";
+import {
+  type IdentificationAccountingPort,
+  prepareAccountedIdentification,
+} from "./identificationUsage.ts";
 
 const id = "00000000-0000-4000-8000-000000000101";
 const snapshot = openAIPhotoSnapshot({
@@ -65,6 +68,7 @@ function setup(
     providerThrows?: boolean;
     kind?: AIExecutionOutcome["kind"];
     missing?: boolean;
+    accounting?: IdentificationAccountingPort;
   } = {},
 ) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
@@ -111,6 +115,7 @@ function setup(
       id,
       reservation,
       execution,
+      options.accounting,
     ),
   };
 }
@@ -183,4 +188,115 @@ Deno.test("unexpected adapter throw records uncertainty without exception conten
   await assertRejects(() => accounted.invoke());
   assertEquals(calls[1].args.p_outcome, "unknown_execution");
   assertEquals(calls[1].args.p_usage, {});
+});
+
+Deno.test("trusted accounting port commits before one provider call without ordinary RPCs", async () => {
+  const portEvents: string[] = [];
+  const reports: { invocationId: string; result: AIExecutionOutcome | null }[] =
+    [];
+  const { calls, events, accounted } = setup({
+    accounting: {
+      commit: () => {
+        portEvents.push("committed");
+        return Promise.resolve({ kind: "fresh", invocationId: id });
+      },
+      report: (invocationId, result) => {
+        portEvents.push("reported");
+        reports.push({ invocationId, result });
+        return Promise.resolve();
+      },
+    },
+  });
+  await assertRejects(() => accounted.invoke());
+  await accounted.lease.commit();
+  await accounted.lease.commit();
+  assertEquals(events, []);
+  assertEquals(portEvents, ["committed"]);
+  const first = accounted.invoke();
+  await assertRejects(() => accounted.invoke());
+  const result = await first;
+  assertEquals(events, ["provider"]);
+  assertEquals(portEvents, ["committed", "reported"]);
+  assertEquals(reports, [{ invocationId: id, result }]);
+  assertEquals(calls, []);
+});
+
+for (const decision of ["held", "ambiguous", "invalid_identity"] as const) {
+  Deno.test(`trusted accounting ${decision} never grants provider execution`, async () => {
+    let reports = 0;
+    const { calls, events, accounted } = setup({
+      accounting: {
+        commit: () => {
+          if (decision === "ambiguous") {
+            return Promise.reject(new Error("synthetic transport uncertainty"));
+          }
+          return Promise.resolve(
+            decision === "held"
+              ? { kind: "held" }
+              : { kind: "fresh", invocationId: "invalid" },
+          );
+        },
+        report: () => {
+          reports += 1;
+          return Promise.resolve();
+        },
+      },
+    });
+    await assertRejects(() => accounted.lease.commit());
+    await assertRejects(() => accounted.invoke());
+    assertEquals(events, []);
+    assertEquals(calls, []);
+    assertEquals(reports, 0);
+  });
+}
+
+Deno.test("trusted report failure preserves valid original result and does not retry provider", async () => {
+  let reports = 0;
+  const { calls, events, accounted } = setup({
+    accounting: {
+      commit: () => Promise.resolve({ kind: "fresh", invocationId: id }),
+      report: () => {
+        reports += 1;
+        return Promise.reject(new Error("synthetic reporting failure"));
+      },
+    },
+  });
+  await accounted.lease.commit();
+  assertEquals(await accounted.invoke(), outcome("draft"));
+  await assertRejects(() => accounted.invoke());
+  assertEquals(reports, 1);
+  assertEquals(events, ["provider"]);
+  assertEquals(calls, []);
+});
+
+Deno.test("trusted reporting is awaited and provider throw reports original uncertainty once", async () => {
+  const reported = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const reports: { invocationId: string; result: AIExecutionOutcome | null }[] =
+    [];
+  const { calls, events, accounted } = setup({
+    providerThrows: true,
+    accounting: {
+      commit: () => Promise.resolve({ kind: "fresh", invocationId: id }),
+      report: (invocationId, result) => {
+        reports.push({ invocationId, result });
+        reported.resolve();
+        return release.promise;
+      },
+    },
+  });
+  await accounted.lease.commit();
+  let returned = false;
+  const invocation = assertRejects(() => accounted.invoke(), Error, "provider")
+    .then(() => {
+      returned = true;
+    });
+  await reported.promise;
+  assertEquals(returned, false);
+  assertEquals(reports, [{ invocationId: id, result: null }]);
+  release.resolve();
+  await invocation;
+  await assertRejects(() => accounted.invoke());
+  assertEquals(events, ["provider"]);
+  assertEquals(calls, []);
 });

@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "authority": {
+      "type": "string",
+      "max_bytes": 4,
+      "enum": [
+        "none"
+      ]
+    },
+    "scan_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "assignment_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "object_id": {
+      "type": "string",
+      "max_bytes": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "attempt": {
+      "type": "object",
+      "nullable": true,
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "max_bytes": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "state": {
+          "type": "string",
+          "max_bytes": 15,
+          "enum": [
+            "bound",
+            "may_have_issued"
+          ]
+        },
+        "created_at_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8640000000000000
+        },
+        "capability_expires_at_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8640000000000000
+        },
+        "write_closed": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

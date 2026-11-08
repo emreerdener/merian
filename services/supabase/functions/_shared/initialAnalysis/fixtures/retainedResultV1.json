@@ -1,0 +1,72 @@
+{
+  "data": {
+    "scan_id": "00000000-0000-4000-8000-000000000101",
+    "is_biological_subject": true,
+    "is_live_capture": true,
+    "scientific_name": "Danaus plexippus",
+    "common_name": "Monarch Butterfly",
+    "confidence_score": 0.87,
+    "ai_reasoning": "Synthetic identification fixture.",
+    "extracted_visual_traits": [
+      "synthetic wings"
+    ],
+    "candidates": [
+      {
+        "scientific_name": "Danaus gilippus",
+        "confidence_score": 0.2,
+        "distinguishing_feature": "synthetic difference"
+      }
+    ],
+    "image_quality": {
+      "sharpness": 8,
+      "framing": 7,
+      "diagnostic_utility": 9,
+      "overall_score": 82
+    },
+    "pet_identification": null,
+    "inference_tier": "flash",
+    "blur_score": 0.2,
+    "colors": [],
+    "estimated_size_cm": 8.5,
+    "insight_data": {
+      "ai_reasoning": "Synthetic identification fixture.",
+      "hazard_type": "none"
+    },
+    "identification_provenance": {
+      "version": 2,
+      "provider": "openai",
+      "binding": "openai_photo_v1",
+      "model": "gpt-6-sol",
+      "variant": "multimodal",
+      "operation": "scan_identification",
+      "policy_version": 1,
+      "prompt": "openai_identify_vision_confidence_v1",
+      "schema": "merian_openai_identify_v1",
+      "confidence": "openai_unqualified_v1",
+      "diagnostic_trigger": null,
+      "prompt_diagnostic_trigger": null,
+      "safety": "openai_photo_moderation_v1",
+      "timeout_ms": 90000,
+      "generation": {
+        "max_output_tokens": 8192,
+        "reasoning_effort": "low",
+        "image_detail": "high"
+      }
+    }
+  },
+  "evidence": {
+    "reference": {
+      "owner_id": "00000000-0000-4000-8000-000000000101",
+      "scan_id": "00000000-0000-4000-8000-000000000101",
+      "invocation_id": "00000000-0000-4000-8000-000000000101",
+      "result_evidence_id": "00000000-0000-4000-8000-000000000102",
+      "submission_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "config_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "funding_binding_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "result_canonical": "{\"config_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"data\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"blur_score\":\"0.2\",\"candidates\":[{\"confidence_score\":\"0.2\",\"distinguishing_feature\":\"synthetic difference\",\"scientific_name\":\"Danaus gilippus\"}],\"colors\":[],\"common_name\":\"Monarch Butterfly\",\"confidence_score\":\"0.87\",\"estimated_size_cm\":\"8.5\",\"extracted_visual_traits\":[\"synthetic wings\"],\"identification_provenance\":{\"binding\":\"openai_photo_v1\",\"confidence\":\"openai_unqualified_v1\",\"diagnostic_trigger\":null,\"generation\":{\"image_detail\":\"high\",\"max_output_tokens\":8192,\"reasoning_effort\":\"low\"},\"model\":\"gpt-6-sol\",\"operation\":\"scan_identification\",\"policy_version\":1,\"prompt\":\"openai_identify_vision_confidence_v1\",\"prompt_diagnostic_trigger\":null,\"provider\":\"openai\",\"safety\":\"openai_photo_moderation_v1\",\"schema\":\"merian_openai_identify_v1\",\"timeout_ms\":90000,\"variant\":\"multimodal\",\"version\":2},\"image_quality\":{\"diagnostic_utility\":9,\"framing\":7,\"overall_score\":82,\"sharpness\":8},\"inference_tier\":\"flash\",\"insight_data\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"hazard_type\":\"none\"},\"is_biological_subject\":true,\"is_live_capture\":true,\"pet_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000101\",\"scientific_name\":\"Danaus plexippus\"},\"funding_binding_digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"invocation_id\":\"00000000-0000-4000-8000-000000000101\",\"provider_usage\":{\"cache_write_tokens\":null,\"cached_tokens\":null,\"candidate_tokens\":null,\"input_tokens\":null,\"modality_breakdown\":{},\"output_tokens\":null,\"service_tier\":null,\"thinking_tokens\":null,\"tool_tokens\":null,\"total_tokens\":null},\"scan_id\":\"00000000-0000-4000-8000-000000000101\",\"state\":\"validated_success\",\"submission_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"version\":1}",
+    "provenance_canonical": "{\"binding\":\"openai_photo_v1\",\"confidence\":\"openai_unqualified_v1\",\"diagnostic_trigger\":null,\"generation\":{\"image_detail\":\"high\",\"max_output_tokens\":8192,\"reasoning_effort\":\"low\"},\"model\":\"gpt-6-sol\",\"operation\":\"scan_identification\",\"policy_version\":1,\"prompt\":\"openai_identify_vision_confidence_v1\",\"prompt_diagnostic_trigger\":null,\"provider\":\"openai\",\"safety\":\"openai_photo_moderation_v1\",\"schema\":\"merian_openai_identify_v1\",\"timeout_ms\":90000,\"variant\":\"multimodal\",\"version\":2}",
+    "result_digest": "d01b36572dac7c19ec45fc8e3b600bcbb274389991d0dbcf97d5b23b87cbad9a",
+    "provenance_digest": "cf88ae85073248a1a0b0bc16f911cb327b12f54c267bebb32200b0538e820727"
+  }
+}

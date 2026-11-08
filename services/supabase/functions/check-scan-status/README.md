@@ -232,3 +232,26 @@ deno test --config services/supabase/functions/deno.json \
 The joined queue, persistence, Field Chat, Explore, rollout, and security
 contract is in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+## Prepared initial recovery (inactive)
+
+Current source rejects any `X-Merian-Initial-Recovery` header before ordinary
+parsing, and a reserved `initial_recovery` field with503 before any legacy
+single/bulk status or repair path. Mixed and unknown recovery requests also fail
+closed; ordinary legacy requests retain their existing behavior. This source
+change is not a deployment claim.
+
+`initialRecovery.ts` prepares a separate authenticated read coordinator but is
+not imported by the serving handler. It binds the request to the authenticated
+owner, calls only the fixed original admission/completion readers, and returns
+existing canonical acknowledgement or completion-status bytes. It has a shared
+five-second deadline and no retry, inference, settlement or repair path. Future
+`readInitialRecoveryHttp` now prepares bounded raw collection using exact
+`admission-v1`/`completion-v1` phase headers, actual-byte limits before parsing,
+fatal UTF-8 and body/header phase equality before reads. Malformed input,
+cancellation or failure returns only a generic503 with no-store headers. Its
+focused Request-to-private-reader checks passed; it remains unimported. Future
+serving integration requires reviewed private-RPC access before wiring native
+callers; do not enlarge the ordinary request limit or fall through after a
+recovery failure. API grants and feature activation remain absent. See the
+[canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).

@@ -1,0 +1,210 @@
+{
+  "create": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "action": {
+        "type": "string",
+        "max_bytes": 6,
+        "enum": [
+          "create"
+        ]
+      },
+      "candidate_canonical": {
+        "type": "string",
+        "max_bytes": 1048576
+      }
+    }
+  },
+  "status": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "action": {
+        "type": "string",
+        "max_bytes": 6,
+        "enum": [
+          "status"
+        ]
+      },
+      "candidate_canonical": {
+        "type": "string",
+        "max_bytes": 1048576
+      },
+      "saved_assignment_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "nullable": true
+      }
+    }
+  },
+  "allocated": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "variant": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "client_prepared_photo"
+        ]
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "package_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "candidate_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "content_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "allocated"
+        ]
+      },
+      "assignment_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "created_at_ms": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 8639999998200000
+      },
+      "expires_at_ms": {
+        "type": "integer",
+        "minimum": 1800001,
+        "maximum": 8640000000000000
+      },
+      "role_mapping": {
+        "type": "array",
+        "min_items": 3,
+        "max_items": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "photo_ordinal": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "role": {
+              "type": "string",
+              "max_bytes": 7,
+              "enum": [
+                "source",
+                "ai",
+                "display"
+              ]
+            },
+            "reference_id": {
+              "type": "string",
+              "max_bytes": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "object_id": {
+              "type": "string",
+              "max_bytes": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      }
+    }
+  },
+  "terminal_held": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 2
+      },
+      "variant": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "client_prepared_photo"
+        ]
+      },
+      "authority": {
+        "type": "string",
+        "max_bytes": 4,
+        "enum": [
+          "none"
+        ]
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "package_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "candidate_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "content_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "outcome": {
+        "type": "string",
+        "max_bytes": 24,
+        "enum": [
+          "terminal_held"
+        ]
+      },
+      "reason": {
+        "type": "string",
+        "max_bytes": 16,
+        "enum": [
+          "not_found",
+          "expired",
+          "cancelled"
+        ]
+      }
+    }
+  }
+}

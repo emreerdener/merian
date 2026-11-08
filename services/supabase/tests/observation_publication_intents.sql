@@ -77,7 +77,8 @@ CREATE FUNCTION pg_temp.seed_publication_intent(owner_id UUID,observation UUID,a
 BEGIN
  PERFORM pg_temp.seed_funded_history(owner_id,observation);
  PERFORM pg_temp.protected_ready(owner_id,observation,analysis,media);
- PERFORM internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat('a',64));
+ -- Keep replay identity stable while isolating synthetic owners' IP buckets.
+ PERFORM internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),encode(extensions.digest('publication-intent-fixture:' || owner_id::TEXT,'sha256'),'hex'));
  PERFORM pg_temp.funded_dispatch(owner_id,observation,analysis);
  PERFORM pg_temp.protected_draft(owner_id,observation,analysis);
  PERFORM internal.complete_observation_analysis(owner_id,observation,analysis);

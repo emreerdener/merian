@@ -952,6 +952,7 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       "species-discovery-search",
       "resolve-species-dictionary",
       "confirm-observation-analysis",
+      "retire-observation-analysis",
       "confirm-scan-species",
       "request-community-identification",
       "review-scan-identification",

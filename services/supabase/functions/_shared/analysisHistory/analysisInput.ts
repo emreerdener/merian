@@ -1,3 +1,4 @@
+import { parsePreparedAudioAdmission } from "./audioAdmission.ts";
 import { buildObservationAnalysisAdmission } from "./intent.ts";
 import {
   buildProtectedAnalysisAdmission,
@@ -22,6 +23,7 @@ export function parseExecutableAnalysisInput(
     "history_protocol",
     "expected_processor_permission",
   ]);
+  if (row.schema_version === 3) return parsePreparedAudioAdmission(row);
   const {
     evidence_manifest,
     entitlement_protocol,

@@ -1,0 +1,364 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 2
+    },
+    "candidate_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "route": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "identify",
+        "identify-multimodal"
+      ]
+    },
+    "operation": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "scan_identification"
+      ]
+    },
+    "effective_plan": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "free",
+        "pro_trial",
+        "pro_paid",
+        "pro_complimentary"
+      ]
+    },
+    "effective_tier": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "free",
+        "pro"
+      ]
+    },
+    "flash_fallback_used": {
+      "type": "boolean"
+    },
+    "quota_model": {
+      "type": "string",
+      "max_bytes": 128
+    },
+    "policy_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "provider": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "gemini",
+        "openai"
+      ]
+    },
+    "binding": {
+      "type": "string",
+      "max_bytes": 128
+    },
+    "processor_permission": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "google_gemini",
+        "openai"
+      ]
+    },
+    "input_profile": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "vision_compat_v1",
+        "multimodal_photo_v1",
+        "multimodal_audio_v1",
+        "multimodal_photo_audio_v1",
+        "multimodal_video_frames_v1",
+        "multimodal_video_audio_v1"
+      ]
+    },
+    "provider_model": {
+      "type": "string",
+      "max_bytes": 128,
+      "nullable": true
+    },
+    "effective_model": {
+      "type": "string",
+      "max_bytes": 128
+    },
+    "minimum_client_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "accepted_client_protocol": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 3
+    },
+    "minimum_identification_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "accepted_identification_protocol": {
+      "type": "integer",
+      "minimum": 6,
+      "maximum": 6
+    },
+    "asset_manifest_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "retention_owner": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "initial_engine_release_archive"
+      ]
+    },
+    "resolver_id": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "git_blob_sha256_v1"
+      ]
+    },
+    "preparation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "max_bytes": 128,
+          "enum": [
+            "media_sources"
+          ]
+        },
+        "profile_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "installation_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selector_generation": {
+          "type": "string",
+          "max_bytes": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "backend_generation": {
+          "type": "string",
+          "max_bytes": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "source_mapping": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 7
+              },
+              "source": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "audio",
+                      "video"
+                    ],
+                    "max_bytes": 128
+                  },
+                  "source_byte_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12582912
+                  },
+                  "source_sha256": {
+                    "type": "string",
+                    "max_bytes": 64,
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "input_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 63,
+                    "nullable": true
+                  },
+                  "source_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 63,
+                    "nullable": true
+                  },
+                  "clip_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 63,
+                    "nullable": true
+                  },
+                  "frame_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 149,
+                    "nullable": true
+                  },
+                  "focus_region": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "decimal",
+                        "minimum": "0",
+                        "maximum": "1",
+                        "max_bytes": 326
+                      },
+                      "y": {
+                        "type": "decimal",
+                        "minimum": "0",
+                        "maximum": "1",
+                        "max_bytes": 326
+                      },
+                      "width": {
+                        "type": "decimal",
+                        "minimum": "0",
+                        "maximum": "1",
+                        "max_bytes": 326
+                      },
+                      "height": {
+                        "type": "decimal",
+                        "minimum": "0",
+                        "maximum": "1",
+                        "max_bytes": 326
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "vision_objectness"
+                        ],
+                        "max_bytes": 128
+                      }
+                    },
+                    "nullable": true
+                  },
+                  "transform": {
+                    "type": "string",
+                    "enum": [
+                      "identity_v1",
+                      "initial_audio_v1",
+                      "video_frame_v1"
+                    ],
+                    "max_bytes": 128
+                  },
+                  "source_content_type": {
+                    "type": "string",
+                    "enum": [
+                      "image/jpeg",
+                      "image/png",
+                      "image/webp",
+                      "image/heic",
+                      "image/heif",
+                      "audio/wav",
+                      "video/mp4"
+                    ],
+                    "max_bytes": 128
+                  },
+                  "transform_parameters": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "target_sample_rate": {
+                        "type": "integer",
+                        "minimum": 16000,
+                        "maximum": 16000
+                      },
+                      "preserve_short_video_context": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "prepared_output": {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "unresolved"
+                        ],
+                        "max_bytes": 128
+                      }
+                    }
+                  }
+                }
+              },
+              "role": {
+                "type": "string",
+                "max_bytes": 128,
+                "enum": [
+                  "photo",
+                  "recording",
+                  "video_frame",
+                  "video_audio",
+                  "raw_video"
+                ]
+              },
+              "object_id": {
+                "type": "string",
+                "max_bytes": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "prepared_destination": {
+                "type": "string",
+                "max_bytes": 0,
+                "enum": [],
+                "nullable": true
+              }
+            }
+          },
+          "max_items": 8
+        },
+        "backend_installation_digest": {
+          "type": "string",
+          "max_bytes": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "experiment": {
+      "type": "string",
+      "max_bytes": 0,
+      "enum": [],
+      "nullable": true
+    },
+    "variant": {
+      "type": "string",
+      "max_bytes": 128,
+      "enum": [
+        "media_sources"
+      ]
+    },
+    "source_plan_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

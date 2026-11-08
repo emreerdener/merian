@@ -90,7 +90,9 @@ for (
           [...args, media],
         )).rows[0].id;
         await observer.queryArray(
-          "SELECT internal.admit_protected_observation_analysis($1,pg_temp.protected_input($2,$3,$4),repeat('a',64))",
+          // Each race owns its actor and quota scope. Committed IP counters
+          // survive account deletion and must not be shared across scenarios.
+          "SELECT internal.admit_protected_observation_analysis($1,pg_temp.protected_input($2,$3,$4),encode(extensions.digest('protected-photo-race:' || $1::uuid::text,'sha256'),'hex'))",
           [...args, media],
         );
         await observer.queryArray(

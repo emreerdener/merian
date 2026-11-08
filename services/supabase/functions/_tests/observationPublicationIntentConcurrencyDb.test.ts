@@ -24,6 +24,9 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 }
 for (
   const scenario of [
+    "consent after review",
+    "consent after deletion",
+    "consent after selection",
     "duplicate preparation",
     "cross-owner operation collision",
     "account deletion first",
@@ -67,6 +70,8 @@ for (
         "protected_analysis_enabled",
         "publication_intent_enabled",
         "rejection_api_enabled",
+        "selection_api_enabled",
+        "selection_enabled",
       ];
       let previousFunding: {
         entitlement_mode: string;
@@ -122,6 +127,21 @@ for (
             "SELECT internal.prepare_observation_publication_intent($1,$2::jsonb) AS receipt",
             [owner, JSON.stringify(request)],
           );
+        if (scenario === "consent after selection") {
+          // Seed a completed legacy child; selection must go through the real owner transaction.
+          await observer.queryArray(
+            `INSERT INTO internal.observation_analysis_results
+            (analysis_id,observation_id,ordinal,request_digest,result_snapshot,evidence_manifest,completed_at)
+            SELECT $1,observation_id,2,repeat('b',64),result_snapshot,'{"schema_version":1,"captured_media":[]}',now()
+            FROM internal.observation_analysis_results WHERE analysis_id=$2`,
+            [otherAnalysis, analysis],
+          );
+          await observer.queryArray(
+            `INSERT INTO internal.observation_analysis_authorities(observation_id,analysis_id,review_snapshot)
+            SELECT observation_id,$1,review_snapshot FROM internal.observation_analysis_authorities WHERE analysis_id=$2`,
+            [otherAnalysis, analysis],
+          );
+        }
         if (scenario === "review before revalidation") await admit(observer);
         let otherRequest: unknown;
         if (scenario === "cross-owner operation collision") {
@@ -142,7 +162,97 @@ for (
         )).rows[0].pid;
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
-        if (scenario === "account deletion first") {
+        if (scenario.startsWith("consent after")) {
+          if (scenario === "consent after deletion") {
+            await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+              owner,
+            ]);
+          } else {
+            await first.queryArray(
+              "SELECT internal.lock_owned_observation_evidence($1,$2)",
+              [owner, observation],
+            );
+            if (scenario === "consent after review") {
+              await first.queryArray(
+                "SELECT set_config('request.jwt.claims',$1,true)",
+                [JSON.stringify({ role: "authenticated", sub: owner })],
+              );
+              await first.queryArray(
+                "SELECT public.review_owned_observation_analysis($1::jsonb,9)",
+                [JSON.stringify({
+                  schema_version: 1,
+                  observation_id: observation,
+                  analysis_id: analysis,
+                  operation_id: crypto.randomUUID(),
+                  expected_observation_revision: 1,
+                  expected_review_revision: 0,
+                  action: "reject",
+                  undo_operation_id: null,
+                })],
+              );
+            } else {
+              await first.queryArray(
+                "SELECT set_config('request.jwt.claims',$1,true)",
+                [JSON.stringify({ role: "authenticated", sub: owner })],
+              );
+              await first.queryArray(
+                "SELECT public.select_owned_observation_analysis($1::jsonb,9)",
+                [JSON.stringify({
+                  schema_version: 1,
+                  observation_id: observation,
+                  analysis_id: otherAnalysis,
+                  operation_id: crypto.randomUUID(),
+                  expected_observation_revision: 1,
+                  expected_review_revision: 0,
+                })],
+              );
+              assertEquals(
+                (await first.queryObject<{ selected_analysis_id: string }>(
+                  "SELECT selected_analysis_id FROM internal.observation_histories WHERE observation_id=$1",
+                  [observation],
+                )).rows[0].selected_analysis_id,
+                otherAnalysis,
+              );
+            }
+          }
+          const pending = settle(
+            second.queryObject<
+              {
+                receipt: {
+                  expected_observation_revision: number;
+                  analysis_id: string;
+                  expected_review_revision: number;
+                };
+              }
+            >(
+              "SELECT public.prepare_owned_observation_publication_consent($1,$2,$3) AS receipt",
+              [owner, observation, analysis],
+            ),
+          );
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          if (scenario !== "consent after deletion") {
+            assert(outcome.ok);
+            assertEquals(
+              outcome.value.rows[0].receipt.expected_observation_revision,
+              2,
+            );
+            assertEquals(outcome.value.rows[0].receipt.analysis_id, analysis);
+            assertEquals(
+              outcome.value.rows[0].receipt.expected_review_revision,
+              scenario === "consent after review" ? 1 : 0,
+            );
+            await second.queryArray("COMMIT");
+          } else {
+            assert(!outcome.ok);
+            assertEquals(
+              outcome.error,
+              "analysis_history_not_found",
+            );
+            await second.queryArray("ROLLBACK");
+          }
+        } else if (scenario === "account deletion first") {
           await first.queryArray("SELECT public.apply_user_tombstone($1)", [
             owner,
           ]);

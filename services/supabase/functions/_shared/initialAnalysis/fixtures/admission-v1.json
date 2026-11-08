@@ -1,0 +1,2471 @@
+{
+  "valid": [
+    {
+      "name": "Describe exact untrimmed Unicode",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1}",
+      "digest": "91aa0e5e93cbcb1b820102965e610024b7aecd77af9884b59192e6053978869d",
+      "profile": "description_compat_v1"
+    },
+    {
+      "name": "Vision with description",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":68,\"clip_index\":null,\"content_type\":\"image/png\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"Synthetic photo context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"media\"},{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify\",\"schema_version\":1}",
+      "digest": "f3d44bc946071c038fb9445452eea2a0cb3f7bcdde47014f2d6fc77a0331ae79",
+      "profile": "vision_compat_v1"
+    },
+    {
+      "name": "Multimodal text",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "577d02f73fca06d7a2c5830bb2e0adb4906e51e1d926746dba315f75be01c90a",
+      "profile": "multimodal_text_v1"
+    },
+    {
+      "name": "Multimodal photo",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":68,\"clip_index\":null,\"content_type\":\"image/png\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "d39f58309d369fe9c747998133d02ee7727d7a46cebac3ca82efcfaa07991c8f",
+      "profile": "multimodal_photo_v1"
+    },
+    {
+      "name": "Multimodal audio",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [
+          {
+            "kind": "audio",
+            "content_type": "audio/wav",
+            "source_content_type": "audio/wav",
+            "byte_count": 16044,
+            "source_byte_count": 32044,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": {
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false
+            }
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":16044,\"clip_index\":null,\"content_type\":\"audio/wav\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "a6a205d9bed7ae96bbc86e1f43bc73728a5898d056b16db6d54a7571453301ac",
+      "profile": "multimodal_audio_v1"
+    },
+    {
+      "name": "Multimodal blended",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          },
+          {
+            "kind": "audio",
+            "content_type": "audio/wav",
+            "source_content_type": "audio/wav",
+            "byte_count": 16044,
+            "source_byte_count": 32044,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": {
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false
+            }
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 1
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":68,\"clip_index\":null,\"content_type\":\"image/png\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"image\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null},{\"byte_count\":16044,\"clip_index\":null,\"content_type\":\"audio/wav\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":0,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":false,\"target_sample_rate\":16000}}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"First synthetic context\",\"Second synthetic context\"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"},{\"index\":0,\"kind\":\"media\"},{\"index\":1,\"kind\":\"media\"},{\"index\":1,\"kind\":\"description\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "d086293a841669d2d28acfe59892f3f37b3e4e39380d19af3a97721ecd75a03a",
+      "profile": "multimodal_photo_audio_v1"
+    },
+    {
+      "name": "frames",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": 0,
+            "focus_region": null,
+            "transform": "video_frame_v1",
+            "transform_parameters": null
+          },
+          {
+            "kind": "video",
+            "content_type": "video/mp4",
+            "source_content_type": "video/mp4",
+            "byte_count": 24,
+            "source_byte_count": 24,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 1,
+          "video_inference_frame_count": 1
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":1,\"has_video\":true,\"video_clip_count\":1,\"video_inference_frame_count\":1},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":68,\"clip_index\":0,\"content_type\":\"image/png\",\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null},{\"byte_count\":24,\"clip_index\":0,\"content_type\":\"video/mp4\",\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[],\"owner_timeline\":[{\"index\":1,\"kind\":\"media\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "e9dcd28615900cb6bb9e2f7f886678c0d48dcf18d1a7ad687deda523db197767",
+      "profile": "multimodal_video_frames_v1"
+    },
+    {
+      "name": "video audio",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": 0,
+            "focus_region": null,
+            "transform": "video_frame_v1",
+            "transform_parameters": null
+          },
+          {
+            "kind": "audio",
+            "content_type": "audio/wav",
+            "source_content_type": "audio/wav",
+            "byte_count": 16044,
+            "source_byte_count": 32044,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": {
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": true
+            }
+          },
+          {
+            "kind": "video",
+            "content_type": "video/mp4",
+            "source_content_type": "video/mp4",
+            "byte_count": 24,
+            "source_byte_count": 24,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 2
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 1,
+          "video_inference_frame_count": 1
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      },
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":1,\"has_video\":true,\"video_clip_count\":1,\"video_inference_frame_count\":1},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[{\"byte_count\":68,\"clip_index\":0,\"content_type\":\"image/png\",\"focus_region\":null,\"frame_index\":0,\"input_index\":0,\"kind\":\"image\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":68,\"source_content_type\":\"image/png\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"video_frame_v1\",\"transform_parameters\":null},{\"byte_count\":16044,\"clip_index\":0,\"content_type\":\"audio/wav\",\"focus_region\":null,\"frame_index\":null,\"input_index\":0,\"kind\":\"audio\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"source_byte_count\":32044,\"source_content_type\":\"audio/wav\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"initial_audio_v1\",\"transform_parameters\":{\"preserve_short_video_context\":true,\"target_sample_rate\":16000}},{\"byte_count\":24,\"clip_index\":0,\"content_type\":\"video/mp4\",\"focus_region\":null,\"frame_index\":null,\"input_index\":null,\"kind\":\"video\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source_byte_count\":24,\"source_content_type\":\"video/mp4\",\"source_index\":null,\"source_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"transform\":\"identity_v1\",\"transform_parameters\":null}],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[],\"owner_timeline\":[{\"index\":2,\"kind\":\"media\"}],\"route\":\"identify-multimodal\",\"schema_version\":1}",
+      "digest": "79faecbe91bf948b63e3bb6c4c1f9efc386f83fe5d582e7929c6fa9fd6209dee",
+      "profile": "multimodal_video_audio_v1"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "empty Describe",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [],
+        "media": [],
+        "owner_timeline": [],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "blank Describe",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "﻿ \t"
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "Describe cannot hide media",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "Vision needs image",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "untrimmed vision",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          " context "
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "wrong owner order",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 1
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "duplicate owner",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "missing owner",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "unknown context key",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null,
+          "extra": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "missing null option",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "invalid privacy alias",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "public",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "wrong source hash",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "wrong source type",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "audio/wav",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "missing ordinal",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "zero focus",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": {
+              "x": "0",
+              "y": "0",
+              "width": "0",
+              "height": "1",
+              "source": "vision_objectness"
+            },
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "exact decimal outside bound",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": {
+              "x": "1.00000000000000000001",
+              "y": "0",
+              "width": "0.1",
+              "height": "0.1",
+              "source": "vision_objectness"
+            },
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "focus sum outside",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": {
+              "x": "0.9",
+              "y": "0",
+              "width": "0.10000000000000000001",
+              "height": "0.1",
+              "source": "vision_objectness"
+            },
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "negative zero decimal",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": "-0",
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "alternate decimal",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "  Synthetic α / é / é\n\ttext  "
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": "1.0",
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "audio transform missing",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [
+          {
+            "kind": "audio",
+            "content_type": "audio/wav",
+            "source_content_type": "audio/wav",
+            "byte_count": 16044,
+            "source_byte_count": 32044,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "mp4 staging is not initial WAV inference",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [
+          "First synthetic context",
+          "Second synthetic context"
+        ],
+        "media": [
+          {
+            "kind": "audio",
+            "content_type": "audio/wav",
+            "source_content_type": "audio/mp4",
+            "byte_count": 16044,
+            "source_byte_count": 32044,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": {
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false
+            }
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "raw video alone",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "video",
+            "content_type": "video/mp4",
+            "source_content_type": "video/mp4",
+            "byte_count": 24,
+            "source_byte_count": 24,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "frame missing video",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": 0,
+            "focus_region": null,
+            "transform": "video_frame_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 1,
+          "video_inference_frame_count": 1
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "frame included as owner",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": 0,
+            "focus_region": null,
+            "transform": "video_frame_v1",
+            "transform_parameters": null
+          },
+          {
+            "kind": "video",
+            "content_type": "video/mp4",
+            "source_content_type": "video/mp4",
+            "byte_count": 24,
+            "source_byte_count": 24,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "media",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 1,
+          "video_inference_frame_count": 1
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "incorrect capture count",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-multimodal",
+        "ordered_descriptions": [],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 68,
+            "source_byte_count": 68,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": 0,
+            "focus_region": null,
+            "transform": "video_frame_v1",
+            "transform_parameters": null
+          },
+          {
+            "kind": "video",
+            "content_type": "video/mp4",
+            "source_content_type": "video/mp4",
+            "byte_count": 24,
+            "source_byte_count": 24,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": null,
+            "source_index": null,
+            "clip_index": 0,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 1
+          }
+        ],
+        "capture": {
+          "has_video": true,
+          "video_clip_count": 1,
+          "declared_video_frame_count": 1,
+          "video_inference_frame_count": 2
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "NUL description",
+      "input": {
+        "schema_version": 1,
+        "route": "identify-describe",
+        "ordered_descriptions": [
+          "x\u0000y"
+        ],
+        "media": [],
+        "owner_timeline": [
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "oversized source",
+      "input": {
+        "schema_version": 1,
+        "route": "identify",
+        "ordered_descriptions": [
+          "Synthetic photo context"
+        ],
+        "media": [
+          {
+            "kind": "image",
+            "content_type": "image/png",
+            "source_content_type": "image/png",
+            "byte_count": 5242881,
+            "source_byte_count": 5242881,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "identity_v1",
+            "transform_parameters": null
+          }
+        ],
+        "owner_timeline": [
+          {
+            "kind": "media",
+            "index": 0
+          },
+          {
+            "kind": "description",
+            "index": 0
+          }
+        ],
+        "capture": {
+          "has_video": false,
+          "video_clip_count": 0,
+          "declared_video_frame_count": 0,
+          "video_inference_frame_count": 0
+        },
+        "context": {
+          "depth_scale_text": null,
+          "semantic_location": null,
+          "weather_condition": null,
+          "device_locale": null,
+          "device_time_zone": null,
+          "device_region": null,
+          "time_of_day": null,
+          "gps_latitude": null,
+          "gps_longitude": null,
+          "gps_elevation": null,
+          "zoom_factor": null,
+          "estimated_size_cm": null,
+          "weather_temperature_f": null,
+          "current_month": null
+        },
+        "options": {
+          "timestamp": null,
+          "geoprivacy": "private",
+          "public_location_label": null,
+          "preferred_goal": null,
+          "observation_context": null
+        },
+        "admission": {
+          "client_protocol": 3,
+          "identification_protocol": 6,
+          "expected_processor_permission": "google_gemini"
+        },
+        "experiment": null
+      }
+    },
+    {
+      "name": "duplicate JSON key",
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1,\"schema_version\":1}"
+    },
+    {
+      "name": "alternate JSON whitespace",
+      "canonical": " {\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1}"
+    },
+    {
+      "name": "alternate integer",
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1.0}"
+    },
+    {
+      "name": "escaped Unicode",
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  Synthetic \\u03b1 / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1}"
+    },
+    {
+      "name": "unpaired surrogate",
+      "canonical": "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":\"google_gemini\",\"identification_protocol\":6},\"capture\":{\"declared_video_frame_count\":0,\"has_video\":false,\"video_clip_count\":0,\"video_inference_frame_count\":0},\"context\":{\"current_month\":null,\"depth_scale_text\":null,\"device_locale\":null,\"device_region\":null,\"device_time_zone\":null,\"estimated_size_cm\":null,\"gps_elevation\":null,\"gps_latitude\":null,\"gps_longitude\":null,\"semantic_location\":null,\"time_of_day\":null,\"weather_condition\":null,\"weather_temperature_f\":null,\"zoom_factor\":null},\"experiment\":null,\"media\":[],\"options\":{\"geoprivacy\":\"private\",\"observation_context\":null,\"preferred_goal\":null,\"public_location_label\":null,\"timestamp\":null},\"ordered_descriptions\":[\"  \\ud800 α / é / é\\n\\ttext  \"],\"owner_timeline\":[{\"index\":0,\"kind\":\"description\"}],\"route\":\"identify-describe\",\"schema_version\":1}"
+    }
+  ]
+}
