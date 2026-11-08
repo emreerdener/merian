@@ -8,6 +8,7 @@ import {
   INSPECTION_PROJECT,
   inspectionConnection,
   inspectionFailureMessage,
+  inspectionTls,
   localMigrationVersions,
   migrationVersionReport,
   readMigrationVersions,
@@ -153,7 +154,7 @@ Deno.test("manual workflow restricts Production inspection to main without deplo
   );
   assertEquals(/sql\.begin\(\s*"read only"/.test(source), true);
   assertStringIncludes(source, "default_transaction_read_only: true");
-  assertStringIncludes(source, 'ssl: "verify-full"');
+  assertStringIncludes(source, "ssl: inspectionTls(ca)");
   assertStringIncludes(source, "fetch_types: false");
   assertStringIncludes(source, "onnotice: () => {}");
   assertStringIncludes(
@@ -217,4 +218,20 @@ Deno.test("failure labels disclose neither credentials nor unknown driver detail
       );
     }
   }
+});
+
+Deno.test("inspection trusts the pinned public Supabase CA without disabling verification", async () => {
+  const bytes = await Deno.readFile(
+    new URL("./certificates/supabase-prod-ca-2021.crt", import.meta.url),
+  );
+  const digest = Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
+  assertEquals(
+    digest,
+    "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7",
+  );
+  const ca = new TextDecoder().decode(bytes);
+  assertEquals(inspectionTls(ca), { ca, rejectUnauthorized: true });
 });
