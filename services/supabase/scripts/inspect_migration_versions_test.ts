@@ -7,6 +7,7 @@ import {
 import {
   INSPECTION_PROJECT,
   inspectionConnection,
+  inspectionFailureMessage,
   localMigrationVersions,
   migrationVersionReport,
   readMigrationVersions,
@@ -155,10 +156,65 @@ Deno.test("manual workflow restricts Production inspection to main without deplo
   assertStringIncludes(source, 'ssl: "verify-full"');
   assertStringIncludes(source, "fetch_types: false");
   assertStringIncludes(source, "onnotice: () => {}");
-  assertEquals(
-    /console\.(log|error)\([^)]*(error|connection|password|databaseUrl)/.test(
-      source,
-    ),
-    false,
+  assertStringIncludes(
+    source,
+    "console.error(inspectionFailureMessage(error, phase))",
   );
+});
+
+Deno.test("existing separate password fills only a validated password-free URL", () => {
+  assertEquals(
+    inspectionConnection(direct.replace(":synthetic", ""), "separate synthetic")
+      .password,
+    "separate synthetic",
+  );
+  assertEquals(
+    inspectionConnection(direct, "other synthetic").password,
+    "synthetic",
+  );
+  assertThrows(() =>
+    inspectionConnection(
+      direct.replace(INSPECTION_PROJECT, "otherproject"),
+      "separate synthetic",
+    )
+  );
+});
+
+Deno.test("failure labels disclose neither credentials nor unknown driver details", () => {
+  const privateDetail = "synthetic-private-connection-detail";
+  const cases = [
+    ["28P01", "authentication_refused"],
+    ["42501", "metadata_permission_refused"],
+    ["42P01", "migration_table_unavailable"],
+    ["SELF_SIGNED_CERT_IN_CHAIN", "certificate_verification_failed"],
+    ["ENETUNREACH", "database_connection_unavailable"],
+    [privateDetail, "unclassified_failure"],
+  ];
+  for (const [code, reason] of cases) {
+    const error = Object.assign(new Error(privateDetail), {
+      code,
+      cause: privateDetail,
+    });
+    const message = inspectionFailureMessage(error, "metadata_read");
+    assertStringIncludes(message, `phase=metadata_read; reason=${reason}`);
+    assertEquals(message.includes(privateDetail), false);
+  }
+  for (
+    const [url, reason] of [
+      ["invalid", "invalid_connection_url"],
+      [direct.replace(INSPECTION_PROJECT, "otherproject"), "target_mismatch"],
+      [direct + "?options=private", "unsupported_connection_options"],
+      [direct.replace(":synthetic", ""), "missing_existing_password"],
+    ]
+  ) {
+    try {
+      inspectionConnection(url);
+      throw new Error("expected refusal");
+    } catch (error) {
+      assertStringIncludes(
+        inspectionFailureMessage(error, "target_validation"),
+        `reason=${reason}`,
+      );
+    }
+  }
 });

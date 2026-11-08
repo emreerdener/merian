@@ -33,9 +33,10 @@ validates the fixed project, database, user, port and URL options before
 resolving DNS. It requires certificate-verified TLS, one connection and a
 read-only transaction with statement/lock/idle limits. A wrong target, missing
 existing credential, inaccessible migration table, invalid version or truncated
-inventory fails closed with a generic message. Do not disable TLS verification
-to make an inspection succeed; correct the connection configuration through the
-normal credential controls.
+inventory fails closed with a fixed phase and allowlisted failure category.
+Messages, unknown error codes and connection details remain suppressed. Do not
+disable TLS verification to make an inspection succeed; correct the connection
+configuration through the normal credential controls.
 
 After separately authorized publication and dispatch, its job summary and 14-day
 artifact contain only the project, comparison SHA, timestamp, version
