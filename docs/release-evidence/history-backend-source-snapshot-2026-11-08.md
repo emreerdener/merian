@@ -108,3 +108,30 @@ walkthrough remain open. HQ243's earlier expiry failure still needs causal
 disposition; a later passing catalog run alone does not close it. No backend
 mutation, provider call, credential change or app installation is part of this
 snapshot. Later deletion/export/redesign milestones remain deferred.
+
+## Local successor after the first candidate CI failure
+
+The authorized run
+[42534204389](https://github.com/emreerdener/merian/actions/runs/42534204389)
+validated source `9f0deff`: database catalogs passed 187 files / 7,953
+assertions. The full Edge suite passed 4,367 tests (1,119 steps) and failed one
+contract test that read two native Swift test files omitted from this isolated
+snapshot. Database lint/advisors, contention and private-handoff runtime checks
+were skipped. The C1 artifact upload failed because its producer was skipped;
+disposable database cleanup passed. This failure remains retained.
+
+The local successor replaces that test's source-file dependency with the shared
+synthetic `apps/ios/TestSupport/InitialPhotoTransferFixtures.json`. It keeps the
+exact status/candidate byte strings and every backend parsing/rejection check.
+The combined native candidate separately adds an executable byte-equality test
+against its existing inline goldens. Those native test sources are not imported
+into this backend snapshot. Backend fixture-contract validation does not claim
+execution or compilation of the native companion. XcodeGen 2.45.4 registers the
+static fixture using the same stable generation directory and public tracked
+inputs described above.
+
+No parser, endpoint, migration, workflow, release hold, private configuration or
+provider-exchange behavior changes. The successor requires its own exact-SHA
+publication/validation authorization; the first run's permission is not an
+automatic retry allowance. No new publication or hosted operation is implied by
+this record.

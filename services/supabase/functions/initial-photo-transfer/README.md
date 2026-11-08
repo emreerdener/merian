@@ -41,13 +41,16 @@ owns integration status and qualification exclusions.
   fresh issuance. Status never resolves this catalog.
 - `fixtures.ts` contains synthetic test data only. The concrete database-adapter
   tests intercept all requests and deny network access.
-  `native_contract_test.ts` reads only the named Swift golden fixtures for
-  executable request parity.
+  `native_contract_test.ts` reads the shared synthetic
+  `apps/ios/TestSupport/InitialPhotoTransferFixtures.json` and retains the
+  closed request/negative checks. The native transfer tests independently assert
+  that its strings match their inline golden UTF-8 bytes. Backend-only
+  validation does not claim execution of that companion native test.
 
 Run the focused tests from the repository root:
 
 ```sh
-deno test --frozen --config services/supabase/functions/deno.json --allow-env --deny-net --allow-read=apps/ios/MerianTests/Core/Network/Transport services/supabase/functions/initial-photo-transfer/*_test.ts
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --deny-net --allow-read=apps/ios/TestSupport services/supabase/functions/initial-photo-transfer/*_test.ts
 ```
 
 An unavailable or lost issue reply remains uncertain. Recover the same write
