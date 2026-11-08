@@ -1,5 +1,10 @@
 # Merian Supabase Backend
 
+For migration-version inspection using existing Production secrets, see the
+[manual read-only workflow](../../docs/backend-and-data/06-supabase-deployment-runbook.md#manual-read-only-migration-inspection).
+The active History release hold blocks backend deployment; it does not block
+this separately authorized read-only inspection.
+
 > **Beta policy update — September 18, 2026:** The owner authorized the existing
 > beta backend rollout under the
 > [Field Chat beta release decision](../../docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md).
