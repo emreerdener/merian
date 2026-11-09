@@ -668,6 +668,14 @@ resetting its disposable catalog following source-allocation contention. Neither
 suite targets a hosted database. Failed schedules remain qualification failures
 until a corrected exact candidate passes.
 
+Raw invocation inserts meet dispatch authority before the preparation row
+barrier once their permanent operation fence commits. The contention fixture
+requires that exact dispatch denial after allocation and cancellation, then
+independently checks the preparation helper's denial for the same identity, the
+permanent blocked source barrier and absence of any invocation row. In-flight
+allocation and stale-snapshot probes retain their exact scope-busy and isolation
+errors. No production trigger is disabled or reordered.
+
 ## Inactive handoff metadata and budget validators
 
 `handoff-profile-schema-v1.json` and `handoffProfile.ts` validate closed

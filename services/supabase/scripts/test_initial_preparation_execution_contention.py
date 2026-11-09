@@ -191,9 +191,25 @@ def main():
             insert=f"INSERT INTO {relation}({key}) VALUES({literal(scan)});"
             second.run(insert,error="initial_analysis_scope_busy")
             first.run("COMMIT;")
-            second.run(insert,error="initial_analysis_preparation_provider_blocked")
-            admin.run(cancel(scan))
-            second.run(insert,error="initial_analysis_preparation_provider_blocked")
+            # Invocation authority sorts before the preparation row trigger.
+            # Once the permanent operation fence is visible it denies raw
+            # dispatch first; prove the preparation barrier separately too.
+            committed_error = (
+                "initial_analysis_dispatch_unavailable"
+                if relation == "internal.identification_invocations"
+                else "initial_analysis_preparation_provider_blocked"
+            )
+            for retired in [False, True]:
+                if retired:
+                    admin.run(cancel(scan))
+                second.run(insert,error=committed_error)
+                if relation == "internal.identification_invocations":
+                    second.run(
+                        f"SELECT internal.reject_initial_preparation_provider_writer(ARRAY[{literal(scan)}::UUID]);",
+                        error="initial_analysis_preparation_provider_blocked",
+                    )
+                    assert admin.run(f"SELECT provider_barrier FROM internal.initial_preparation_source_fences WHERE scan_id={literal(scan)};") == ["blocked_pre_admission"]
+                    assert admin.run(f"SELECT count(*) FROM internal.identification_invocations WHERE scan_id={literal(scan)};") == ["0"]
             print("PASS raw competing writer allocation/committed/retired barrier",relation,flush=True)
         # Both stale-snapshot directions reject instead of trusting advisory
         # serialization to refresh a REPEATABLE READ or SERIALIZABLE snapshot.

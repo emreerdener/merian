@@ -368,6 +368,15 @@ hold. Follow the
 
 ## Local atomic admission and cancellation qualification
 
+The preparation execution contention fixture keeps exact errors for raw writer
+competition. Invocation inserts encounter the dispatch-authority trigger first
+after the operation fence commits, including after cancellation. The fixture
+also directly proves the preparation helper rejects that same identity, its
+permanent source barrier stays blocked, and no invocation row was written.
+In-flight allocation still requires the preparation scope-busy error; stale
+snapshots still require the isolation error. Production trigger order and guards
+remain intact.
+
 `test_initial_atomic_admission_c1.py` prepares a synthetic complete committed
 admission and exercises actual service-role C1 cancellation, proof/role
 boundaries and terminal replay. Its `explicit`, `terminal`, `terminal-held`,
