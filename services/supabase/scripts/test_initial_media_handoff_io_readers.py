@@ -89,7 +89,7 @@ IF to_jsonb(answer.destination_backend) IS DISTINCT FROM r.destination::JSONB
                     stages = [
                         ('handoff', "INSERT INTO internal.initial_media_handoff_staging(scan_id,owner_id,action,admission_digest,transaction_id,authorized_at_ms,cutoff_ms,snapshot,events,frames,phase,next_root,active,after_seen,closed,cleanup_cursor) VALUES(extensions.gen_random_uuid(),r.owner_id,'start_copy',r.receipt_digest,pg_catalog.pg_current_xact_id(),1,2,'{}','[{}]','[{}]','applying',0,'{}','{}','{}',0);"),
                         ('admission', "INSERT INTO internal.initial_preparation_admission_staging(scan_id,owner_id,transaction_id,stage_token,phase,admission_receipt_id,candidate,assignment,outcome,input,installation,protocol,destination,phase_window,mapping,media_binding) VALUES(r.scan_id,r.owner_id,pg_catalog.pg_current_xact_id(),extensions.gen_random_uuid(),'validated',r.admission_receipt_id,'{}','{}','{}','{}','{}','{}','{}','{}','{}','{}');"),
-                        ('cancellation', "INSERT INTO internal.initial_admitted_cancellation_staging(scan_id,owner_id,transaction_id,prestate) VALUES(extensions.gen_random_uuid(),r.owner_id,pg_catalog.pg_current_xact_id(),'{}');"),
+                        ('cancellation', "INSERT INTO internal.initial_admitted_cancellation_staging(scan_id,owner_id,transaction_id,variant,prestate) VALUES(extensions.gen_random_uuid(),r.owner_id,pg_catalog.pg_current_xact_id(),'unused','{}');"),
                     ]
                     for stage_label, damage in stages:
                         read(reader_label + '_' + stage_label + '_stage', "SET LOCAL session_replication_role='replica';" + damage + "SET LOCAL session_replication_role='origin';" + reader, '55000', gate=True)

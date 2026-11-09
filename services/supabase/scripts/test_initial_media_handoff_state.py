@@ -304,7 +304,41 @@ IF p->>'authority'<>'none' OR jsonb_array_length(p->'events')<>1 OR jsonb_array_
  OR p#>>'{events,0,operation}'<>'INSERT' OR p#>>'{events,0,new,completed_objects}'<>'[]'
  OR (p#>>'{events,0,new,started_at_ms}')::BIGINT<>(p->>'authorized_at_ms')::BIGINT
  OR EXISTS(SELECT 1 FROM internal.initial_media_copy_progress WHERE scan_id=r.scan_id)
- OR (SELECT count(*) FROM jsonb_object_keys(p->'snapshot'))<>31
+ OR ARRAY(SELECT k FROM jsonb_object_keys(p->'snapshot') k ORDER BY k COLLATE "C") IS DISTINCT FROM ARRAY[
+  'internal.ai_quota_counters',
+  'internal.ai_quota_reservation_counters',
+  'internal.ai_quota_reservations',
+  'internal.complimentary_scan_usage',
+  'internal.identification_provider_attempts',
+  'internal.initial_analysis_admissions',
+  'internal.initial_analysis_completions',
+  'internal.initial_analysis_lifecycle_fences',
+  'internal.initial_analysis_media_allocation_fences',
+  'internal.initial_analysis_media_cohorts',
+  'internal.initial_analysis_media_preparations',
+  'internal.initial_analysis_media_registry',
+  'internal.initial_analysis_media_verifications',
+  'internal.initial_analysis_operation_fences',
+  'internal.initial_analysis_preparation_intents',
+  'internal.initial_analysis_results',
+  'internal.initial_analysis_submissions',
+  'internal.initial_cpm_photo_role_mapping',
+  'internal.initial_media_copy_progress',
+  'internal.initial_media_verification_claims_v2',
+  'internal.initial_media_verification_receipts_v2',
+  'internal.initial_preparation_admission_receipts',
+  'internal.initial_preparation_execution_grants',
+  'internal.initial_preparation_outcomes',
+  'internal.initial_preparation_output_manifests',
+  'internal.initial_preparation_output_mapping',
+  'internal.initial_preparation_source_fences',
+  'internal.initial_preparation_source_mapping',
+  'internal.initial_preparation_source_registry',
+  'internal.initial_preparation_source_verifications',
+  'internal.initial_preparation_transfer_receipts',
+  'public.users'
+ ]::TEXT[]
+ OR p#>'{snapshot,internal.initial_cpm_photo_role_mapping}' IS DISTINCT FROM '[]'::JSONB
 THEN RAISE EXCEPTION USING ERRCODE='ZX721';END IF;
 """)
     check('all_six_actions_retained_chain_and_transfer_graph', verified + """
@@ -323,7 +357,10 @@ FOR frame IN SELECT value FROM jsonb_array_elements(p->'frames') LOOP
  IF frame->>'parent' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p->'frames') f
   WHERE f->'id'=frame->'parent' AND f->>'operation'='DELETE') THEN RAISE EXCEPTION USING ERRCODE='ZX724';END IF;
 END LOOP;
-IF (SELECT count(*) FROM jsonb_array_elements(p->'frames') f WHERE f->>'parent' IS NOT NULL)<>6 THEN
+IF (SELECT count(*) FROM jsonb_array_elements(p->'frames') f WHERE f->>'parent' IS NOT NULL)<>7
+ OR (SELECT count(*) FROM jsonb_array_elements(p->'frames') f
+  WHERE f->>'relation'='internal.initial_cpm_photo_role_mapping' AND f->>'operation'='DELETE'
+   AND f->'events'='[]'::JSONB AND f->>'parent' IS NOT NULL)<>1 THEN
  RAISE EXCEPTION USING ERRCODE='ZX725';END IF;
 PERFORM internal.assert_initial_media_handoff_chain(r.owner_id,r.scan_id);
 """)

@@ -1221,6 +1221,16 @@ installed signer. The trusted attestation dependency must verify saved artifacts
 and the executing adapter; synthetic tests do not provide installed artifact
 qualification.
 
+The current private receipt composite has 22 columns after the CPM storage
+migration. `mediaHandoffRows.ts` requires the exact column set, literal
+`admission_variant = server_prepared_v3`, and SQL-null values for all five
+CPM-only columns before extracting the unchanged twelve canonical proof texts.
+Missing/unknown discriminants, CPM admissions, nonnull CPM fields and extra
+columns fail closed in both state and I/O decoding. Historical proof bytes stay
+unchanged; this is compatibility with the current private SQL storage shape, not
+a new public response or authority for CPM through the legacy handoff.
+`mediaHandoffRows_test.ts` covers all three decoder entry paths.
+
 `services/supabase/scripts/initial_media_handoff_bridge.ts` is a local-only
 qualification bridge to the current checkout's owned disposable replay. Each of
 its nine fixed methods uses a separate READ COMMITTED transaction, fixed 5s

@@ -21,6 +21,18 @@ contract for Capture → Identify → Insight → Field Chat / Explore is
 The sections below remain authoritative for individual request and response
 shapes.
 
+## Private initial-media handoff rows
+
+The local qualification bridge reads the current SQL receipt composite through
+`mediaHandoffRows.ts`. Its exact 22-column decoder permits only
+`server_prepared_v3` with all five CPM-only storage fields null. It then
+validates the unchanged twelve canonical admitted-proof texts and original
+scope/digests. The same check protects state, copy and verification loaders. CPM
+admissions, missing discriminants and unknown columns fail closed; no client DTO
+or public API shape changes. See the
+[initial-analysis owner](../../services/supabase/functions/_shared/initialAnalysis/README.md)
+for the current private boundary and qualification limits.
+
 ## Fleet-Wide JSON Ingress and Error Contract
 
 Every production Deno endpoint reads JSON through bounded primitives in

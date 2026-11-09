@@ -255,6 +255,12 @@ export async function handoffExecutionFixture(index = 0, stage = 0) {
           }),
       },
       admission: {
+        admission_variant: "server_prepared_v3",
+        cpm_verification: null,
+        cpm_verification_digest: null,
+        cpm_retained_roles: null,
+        cpm_capacity_predecessor: null,
+        original_admission_expires_at: null,
         ...scope,
         admission_receipt_id: binding.admission_receipt_id,
         receipt_digest: original.receiptDigest,

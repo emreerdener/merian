@@ -50,7 +50,7 @@ def cases(q):
                 'BEGIN ISOLATION LEVEL ' + isolation + ';' + jwt(target) +
                 'DO $$ DECLARE h internal.ghost_profile_merge_handoffs;BEGIN ' + invoke + 'END $$;ROLLBACK;', '25000')
         denied('active_target_with_no_source_usage_rejects_unchanged')
-        denied('damaged_receipt_still_blocks', 'ALTER TABLE internal.initial_preparation_admission_receipts DROP CONSTRAINT initial_preparation_admission_receipts_check;' + corrupt(
+        denied('damaged_receipt_still_blocks', 'ALTER TABLE internal.initial_preparation_admission_receipts DROP CONSTRAINT initial_admission_receipt_variant_proof;' + corrupt(
             "UPDATE internal.initial_preparation_admission_receipts SET receipt_digest=repeat('f',64) WHERE scan_id='" + scan + "';"))
         denied('missing_receipt_still_blocks', corrupt(
             "DELETE FROM internal.initial_preparation_admission_receipts WHERE scan_id='" + scan + "';"))

@@ -541,6 +541,15 @@ bind receipts to the caller's exact fresh-replay manifest.
 
 ## Private handoff runtime qualification
 
+The state fixture asserts the exact current 32-member snapshot inventory,
+including an empty CPM photo mapping on legacy media, and seven parented
+deletion frames with one empty CPM mapping frame. The shared transfer/C1 test
+catalog contains all 20 cancellation members, including CPM mapping in
+terminal-state digests. Keep these explicit expectations aligned with forward
+catalog migrations; do not replace exact equality with a relaxed minimum count.
+Historical CI512 and local pre-correction failures remain in the qualification
+findings record.
+
 `python3 services/supabase/scripts/run_initial_media_handoff_qualification.py
 --suite all`
 (from the repository root) runs the 22 closed local SQL, bridge, coordinator and
@@ -571,6 +580,33 @@ suite's output directory, including reservation, starting, failed startup and
 disposal. The `--snapshot-ownership --evidence-directory <output>` mode reads
 only the fixed receipt and saves its sanitized current metadata; it never calls
 Docker, provisions, retries or cleans up. Unknown future fields are excluded.
+
+A reconciled failed suite has a separate explicit local teardown mode:
+`--dispose-reconciled-failure <reconciliation.json> --evidence-directory <new-directory>`.
+It never runs from the failure handler and does not weaken the passing-suite
+residual expectations. The reconciliation must bind version 1,
+`qualificationPassed: false`, the exact retained ownership SHA-256,
+suite/project/ container/workdir/Unix endpoint identity, original failure
+directory and failure/ replay hashes, and the observed failed-state counts. The
+failure and replay must carry the original matching migration and runner-source
+manifests. An OS-held nonblocking exclusive lock is acquired before reading the
+fixed ownership/proof and held through disposition. Never unlink its file:
+process death releases the lock, while durable non-ready ownership still denies
+a blind repeat. Before stop, the runner rechecks project labels and copied
+configuration/migration bytes, inactive rollout, zero invocations and client
+sessions, absence of rows in the three checked staging tables (handoff,
+preparation admission and admitted cancellation), exact observed residuals and
+unchanged evidence. A changed or missing fact denies teardown.
+
+This mode preserves original failed receipts and emits `failed-disposition.json`
+with `qualificationPassed: false`, original hashes, a separate recovery-tool
+hash, observed residuals and durable disposing/stopped/disposal_failed/disposed
+states. It clears the fixed receipt only after verifying container absence and
+removing its exact owned temporary project; it never emits a passing
+`result.json`, executes cancellation/refunds or automatically starts another
+test. Interruption retains ownership and disposition evidence for read-only
+reconciliation; do not repeat stop or remove the receipt to work around an
+incomplete disposition.
 
 Failure stops the sequence and retains the live ownership receipt. Before
 disposal, the original database is retained for read-only outcome

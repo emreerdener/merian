@@ -83,6 +83,12 @@ function fixture(stage = 4, index = 0) {
   const state = {
     response,
     admission: {
+      admission_variant: "server_prepared_v3",
+      cpm_verification: null,
+      cpm_verification_digest: null,
+      cpm_retained_roles: null,
+      cpm_capacity_predecessor: null,
+      original_admission_expires_at: null,
       ...scope,
       admission_receipt_id: binding.admission_receipt_id as string,
       receipt_digest: identity.admission_receipt_digest,
@@ -291,6 +297,63 @@ for (let stage = 0; stage <= 6; stage++) {
       );
       s.observed_at_ms = latest - 1;
       await assertRejects(() => decodeHandoffState(s, f.identity));
+    },
+  );
+}
+
+for (const boundary of ["state", "copy", "verification"] as const) {
+  Deno.test(
+    "handoff " + boundary + " rejects incompatible admission storage rows",
+    async (t) => {
+      const changes: [string, (row: Record<string, unknown>) => void][] = [
+        ["missing variant", (row) => {
+          delete row.admission_variant;
+        }],
+        ["unknown variant", (row) => {
+          row.admission_variant = "future";
+        }],
+        ["null variant", (row) => {
+          row.admission_variant = null;
+        }],
+        ["CPM variant", (row) => {
+          row.admission_variant = "client_prepared_photo_v1";
+        }],
+        ["extra column", (row) => {
+          row.unrecognized = null;
+        }],
+      ];
+      for (
+        const field of [
+          "cpm_verification",
+          "cpm_verification_digest",
+          "cpm_retained_roles",
+          "cpm_capacity_predecessor",
+          "original_admission_expires_at",
+        ]
+      ) {
+        changes.push(["nonnull " + field, (row) => {
+          row[field] = field === "cpm_capacity_predecessor" ? {} : "unexpected";
+        }]);
+        changes.push(["missing " + field, (row) => {
+          delete row[field];
+        }]);
+      }
+      for (const [name, change] of changes) {
+        await t.step(name, async () => {
+          const f = fixture(boundary === "verification" ? 4 : 1);
+          change(f.state.admission);
+          await assertRejects(() =>
+            boundary === "state"
+              ? decodeHandoffState(f.state, f.identity)
+              : decodeHandoffIO(
+                f.io,
+                f.identity,
+                boundary,
+                boundary === "verification" ? f.proof.claim.claim_token : null,
+              )
+          );
+        });
+      }
     },
   );
 }

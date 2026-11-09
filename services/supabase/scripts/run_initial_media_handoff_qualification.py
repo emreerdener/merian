@@ -5,6 +5,8 @@ command mode exists. A failure leaves the fixed ownership receipt in place and
 blocks subsequent runs pending original-outcome reconciliation by the owner.
 """
 import argparse
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -12,6 +14,7 @@ from pathlib import Path
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -315,22 +318,165 @@ def qualify(suite, directory, host, env):
         raise Stopped(category) from None
 
 
+FAILED_STATE_QUERY = """BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
+SELECT json_build_object(
+ 'activation_enabled',(SELECT initial_analysis_lifecycle_enabled FROM internal.initial_analysis_rollout WHERE singleton),
+ 'invocations',(SELECT count(*) FROM internal.identification_invocations),
+ 'private_receipts',(SELECT count(*) FROM internal.initial_preparation_admission_receipts),
+ 'preparation_intents',(SELECT count(*) FROM internal.initial_analysis_preparation_intents),
+ 'copy_progress',(SELECT count(*) FROM internal.initial_media_copy_progress),
+ 'cancellation_staging',(SELECT count(*) FROM internal.initial_admitted_cancellation_staging),
+ 'admission_staging',(SELECT count(*) FROM internal.initial_preparation_admission_staging),
+ 'handoff_staging',(SELECT count(*) FROM internal.initial_media_handoff_staging),
+ 'other_client_sessions',(SELECT count(*) FROM pg_stat_activity WHERE pid<>pg_backend_pid()
+   AND datname=current_database() AND backend_type='client backend'));
+ROLLBACK;"""
+
+
+def bounded_json(path):
+    require(path.is_file() and not path.is_symlink() and path.stat().st_nlink == 1
+            and path.stat().st_size <= 262144, 'reconciliation_file_invalid')
+    return json.loads(path.read_text())
+
+
+@contextmanager
+def failed_disposal_lock():
+    # Never unlink this file: every invocation must lock the same persistent
+    # inode. The OS releases the held lock on process death; STATE retains the
+    # durable disposition and still forbids a blind repeat of stop.
+    path = STATE.with_suffix('.recovery.lock')
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        held = os.fstat(descriptor)
+        require(stat.S_ISREG(held.st_mode) and held.st_nlink == 1, 'recovery_lock_invalid')
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Stopped('recovery_busy') from None
+        named = os.stat(path, follow_symlinks=False)
+        require((held.st_dev, held.st_ino) == (named.st_dev, named.st_ino)
+                and named.st_nlink == 1, 'recovery_lock_replaced')
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def dispose_reconciled_failure(reconciliation, directory, host, env):
+    with failed_disposal_lock():
+        _dispose_reconciled_failure(reconciliation, directory, host, env)
+
+
+def _dispose_reconciled_failure(reconciliation, directory, host, env):
+    """Explicit failed-project teardown; never turns a failed suite into a pass."""
+    proof = bounded_json(reconciliation)
+    require(isinstance(proof, dict), 'failed_disposal_proof_invalid')
+    proof_digest = digest(reconciliation)
+    record = bounded_json(STATE)
+    ownership_projection(record)  # Closed local project/path/hash identities.
+    require(record['state'] == 'ready' and record['docker_host'] == host,
+            'failed_disposal_owner_not_ready')
+    require(proof.get('version') == 1 and proof.get('qualificationPassed') is False,
+            'failed_disposal_proof_invalid')
+    identity = {key: record[key] for key in ('suite', 'project', 'container', 'workdir', 'docker_host')}
+    require(proof.get('identity') == identity and proof.get('original_state_sha256') == digest(STATE),
+            'failed_disposal_identity_changed')
+    require(isinstance(proof.get('failure_directory'), str), 'failed_disposal_evidence_invalid')
+    original = Path(proof['failure_directory'])
+    require(original.is_dir() and not original.is_symlink(), 'failed_disposal_evidence_invalid')
+    failure, replay = [bounded_json(original / name) for name in ('failure.json', 'replay.json')]
+    require(isinstance(failure, dict) and isinstance(replay, dict), 'failed_disposal_evidence_invalid')
+    require(proof.get('failure_sha256') == digest(original / 'failure.json')
+            and proof.get('replay_sha256') == digest(original / 'replay.json'),
+            'failed_disposal_evidence_changed')
+    require(failure.get('passed') is False and failure.get('phase') == 'ready'
+            and failure.get('suite') == record['suite']
+            and failure.get('original_ownership_retained') is True,
+            'failed_disposal_not_failed')
+    require(all(replay.get(k) == v for k, v in identity.items())
+            and all(failure.get(k) == record.get(k) == replay.get(k)
+                    for k in ('migration_hashes', 'runner_sources')),
+            'failed_disposal_original_hashes_changed')
+    observed = proof.get('observed')
+    counts = ('invocations', 'private_receipts', 'preparation_intents', 'copy_progress',
+              'cancellation_staging', 'admission_staging', 'handoff_staging', 'other_client_sessions')
+    require(isinstance(observed, dict) and set(observed) == {'activation_enabled', *counts}
+            and observed['activation_enabled'] is False
+            and all(type(observed[k]) is int and observed[k] >= 0 for k in counts)
+            and all(observed[k] == 0 for k in ('invocations', 'cancellation_staging', 'admission_staging',
+                                             'handoff_staging', 'other_client_sessions')),
+            'failed_disposal_live_or_unreconciled')
+    work = Path(record['workdir'])
+    require(work.parent == temporary_root(sys.platform) and work.name == record['project']
+            and work.is_dir() and not work.is_symlink(), 'failed_disposal_path')
+    require(all(not p.resolve().is_relative_to(work.resolve())
+                for p in (directory, original, reconciliation)), 'failed_disposal_evidence_in_project')
+    require(bool(record.get('migration_hashes')) and not (work / 'supabase').is_symlink()
+            and not (work / 'supabase/migrations').is_symlink(), 'failed_disposal_project_changed')
+    require(digest(work / 'supabase/config.toml') == record['temporary_config_sha256']
+            and all(digest(work / 'supabase/migrations' / name) == value
+                    for name, value in record['migration_hashes'].items()),
+            'failed_disposal_project_changed')
+    inspect_owned(record, env)
+    require(json.loads(sql(record, env, FAILED_STATE_QUERY)) == observed,
+            'failed_disposal_observed_state_changed')
+    require(digest(STATE) == proof['original_state_sha256'], 'failed_disposal_owner_changed')
+    require(digest(reconciliation) == proof_digest
+            and digest(original / 'failure.json') == proof['failure_sha256']
+            and digest(original / 'replay.json') == proof['replay_sha256'], 'failed_disposal_evidence_changed')
+    directory.mkdir(parents=True, exist_ok=False)
+    disposition = dict(qualificationPassed=False, identity=identity, observedResiduals=observed,
+                       originalStateSHA256=proof['original_state_sha256'],
+                       originalFailureSHA256=proof['failure_sha256'], originalReplaySHA256=proof['replay_sha256'],
+                       reconciliationSHA256=proof_digest, originalRunnerSources=record['runner_sources'],
+                       migrationHashes=record['migration_hashes'], recoveryToolSHA256=digest(Path(__file__)))
+    save(directory / 'original-ownership.json', ownership_projection(record))
+    record.update(state='disposing')
+    checkpoint(record, directory)
+    disposition['state'] = 'disposing'
+    save(directory / 'failed-disposition.json', disposition)
+    stop = subprocess.run(['supabase', '--workdir', str(work), 'stop', '--no-backup'],
+                          env=env, cwd=ROOT, text=True, capture_output=True)
+    record.update(stop_exit=stop.returncode, state='stopped' if stop.returncode == 0 else 'disposal_failed')
+    checkpoint(record, directory)
+    disposition.update(state=record['state'], stopExit=stop.returncode)
+    save(directory / 'failed-disposition.json', disposition)
+    require(stop.returncode == 0, 'failed_disposal_stop_failed')
+    remaining = [json.loads(line) for line in run(
+        ['docker', '--host', host, 'container', 'ls', '-a', '--format', '{{json .Names}}'],
+        env, 'failed_disposal_container_list_failed').splitlines()]
+    require(record['container'] not in remaining, 'failed_disposal_container_remains')
+    require(not work.is_symlink() and work.parent == temporary_root(sys.platform), 'failed_disposal_path_changed')
+    shutil.rmtree(work)
+    disposition.update(state='disposed', containerAbsent=True, temporaryWorkdirRemoved=True)
+    save(directory / 'failed-disposition.json', disposition)
+    record['state'] = 'disposed'
+    save(directory / 'ownership.json', ownership_projection(record))
+    require(json.loads(STATE.read_text()) == {**record, 'state': 'stopped'}, 'failed_disposal_owner_changed')
+    STATE.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--suite', choices=['all', *SUITES])
     mode.add_argument('--snapshot-ownership', action='store_true')
+    mode.add_argument('--dispose-reconciled-failure', type=Path)
     parser.add_argument('--evidence-directory', type=Path)
     args = parser.parse_args()
     if args.snapshot_ownership:
         require(args.evidence_directory is not None, 'snapshot_directory_required')
         snapshot_ownership(args.evidence_directory.resolve())
         return
-    require(not STATE.exists(), 'existing_ownership_requires_reconciliation')
+    if not args.dispose_reconciled_failure:
+        require(not STATE.exists(), 'existing_ownership_requires_reconciliation')
     temporary_root(sys.platform)
     context = json.loads(run(['docker', 'context', 'inspect'], os.environ, 'docker_context_failed'))
     host, env = pinned_environment(os.environ, context)
     run(['bash', str(SCRIPTS / 'require_supabase_cli_version.sh')], env, 'cli_pin_failed')
+    if args.dispose_reconciled_failure:
+        require(args.evidence_directory is not None, 'failed_disposal_directory_required')
+        dispose_reconciled_failure(args.dispose_reconciled_failure, args.evidence_directory, host, env)
+        return
     directory = (args.evidence_directory or STATE.parent / ('portable-' + uuid.uuid4().hex)).resolve()
     directory.mkdir(parents=True, exist_ok=False)
     for suite in SUITES if args.suite == 'all' else [args.suite]:
