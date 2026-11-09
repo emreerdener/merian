@@ -28,6 +28,14 @@ for the complete release contract.
 
 ### Prepared observation analysis history
 
+The November 9 completion271 successor adds reader11 to only the existing
+selection, review, confirmation and confirmation/rejection Undo entry points.
+Its shared compatibility guard permits completed V5 action scope only when the
+operation ID argument is null; execution-status and retirement wrappers remain
+readers9/10. Old readers still refuse the whole video history. The migration
+changes no grants, lock order, CAS, receipt replay, deletion checks or rollout
+gates. V5 publication, selected chat and historical-source reuse remain closed.
+
 The October 2 history migrations add private `internal.observation_histories`,
 `observation_analysis_results`, `observation_analysis_authorities`,
 `observation_selection_receipts`, and `observation_history_reconciliation`.

@@ -10214,20 +10214,23 @@ and
 
 The
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
-defines bounded version-1 identity, selection, pagination and chat-context
-parsers. These are private preparation contracts, not deployed routes or
-generated native DTOs. Explicit history reader protocols 7, 8 and 9 do not
-change the current Identify reader capability. Native advertises protocol 9 for
-history reads only; V56 admits saved imports with unknown completion dates.
-Enrollment still requires state/authority hydration. A separate owner-only
-history read RPC is prepared behind a default-false reader gate; no history
-selection/deletion RPC is exposed and no chat endpoint persists this context
-yet. The
-[schema contract](./04-database-schema.md#prepared-observation-analysis-history)
-owns prepared storage and transaction behavior; connected API/DTO changes remain
-under the
-[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
-The legacy deletion refusal below remains mandatory.
+defines bounded identity, selection, pagination and chat-context contracts.
+Explicit history readers 7–11 support their versioned snapshot capabilities;
+these do not change the general Identify reader. Current native page/state
+requests use reader 11 for V1–V5. The completion271 candidate also uses reader
+11 for explicit selection, review and confirmation/rejection Undo, including
+completed V5; focused qualification is in progress and activation remains
+closed. Enrollment uses reader 9, and private photo resolution remains reader 8.
+Saved imports retain unknown original completion dates. V5 source reuse,
+publication and selected chat remain unavailable. Action reader11 does not admit
+execution-status or retirement operations: those wrappers retain readers9/10,
+and the shared compatibility guard rejects reader11 with a non-null operation
+scope. Explicit queue-level video execution does not install a user-facing
+editor route.
+
+The earlier preparation descriptions below retain their historical boundaries;
+the current reader/action capability is owned by the linked history README.
+Activation and deployment remain held.
 
 ### Prepared owner analysis history reader
 

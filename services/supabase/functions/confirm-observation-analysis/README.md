@@ -44,11 +44,13 @@ candidate evidence, and confirmation Undo recognizes the same correction.
 Schema-1 requests remain unchanged. Native candidate controls are a separate
 checkpoint; this adds no ordinary producer or UI layout change.
 
-Both fixed database calls advertise reader 10. Reader 9 is still accepted by SQL
-for compatible histories, but refuses a whole observation containing a completed
-audio result before receipt replay. Reader 10 preserves exact receipt replay
-before fresh gates. Native V4 review now uses a strictly decoded immutable
-ticket with the existing confirmation and both Undo contracts. This does not
-extend candidate membership or photo publication to audio. Explicit native
-selection uses its separate receipt/projection owner; ordinary access and
-activation gates remain disabled.
+Both fixed database calls advertise reader 11 for compatible V1–V5 histories.
+Reader 9 still refuses completed audio history, and readers9/10 refuse completed
+video history before receipt replay. Reader11 preserves exact receipt replay
+before fresh gates through the existing authority owners. Native V4/V5 review
+uses strictly decoded immutable tickets with confirmation and both Undo
+contracts. This does not extend candidate membership, historical-source reuse,
+selected chat or photo publication to video. The completion271 candidate has
+focused local real-owner V5 confirmation/replay/Undo coverage; deployment and
+installed qualification remain open. Explicit native selection uses its separate
+receipt/projection owner; ordinary access and activation gates remain disabled.

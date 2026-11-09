@@ -1123,6 +1123,7 @@ async function fundedVideo(
   variant = 0,
   paid = false,
   publicBegin = false,
+  withPrimary = false,
 ) {
   const [owner, parent, source, child] = Array.from(
     { length: 4 },
@@ -1172,7 +1173,7 @@ async function fundedVideo(
     operation: "scan_identification",
     policy_version: q.policy_version,
     prompt: "identify_vision_v1",
-    schema: "merian_identify_v1",
+    schema: withPrimary ? "merian_identify_primary_v1" : "merian_identify_v1",
     confidence: "unqualified",
     diagnostic_trigger: null,
     prompt_diagnostic_trigger: null,
@@ -1836,6 +1837,7 @@ for (const captureFirst of [true, false]) {
 async function preparedDraft(
   db: Client,
   f: Awaited<ReturnType<typeof fundedVideo>>,
+  withPrimary = false,
 ) {
   const page = JSON.parse(
     await Deno.readTextFile(
@@ -1849,6 +1851,17 @@ async function preparedDraft(
     ...JSON.parse(page.items[0].snapshot).result,
     scan_id: f.parent,
     identification_provenance: f.provenance,
+    ...(withPrimary
+      ? {
+        primary_identification: {
+          version: 1,
+          resolution: "species",
+          scientific_name:
+            JSON.parse(page.items[0].snapshot).result.scientific_name,
+          common_name: JSON.parse(page.items[0].snapshot).result.common_name,
+        },
+      }
+      : {}),
   };
   const species =
     (await db.queryObject<{ id: string; scientific_name: string }>(
@@ -3085,7 +3098,13 @@ for (let variant = 0; variant < 3; variant++) {
         await db.queryArray("BEGIN");
         try {
           await fixture(db);
-          const f = await fundedVideo(db, variant, funding === "paid");
+          const f = await fundedVideo(
+            db,
+            variant,
+            funding === "paid",
+            false,
+            true,
+          );
           await denied(db, () => completeVideoResult(db, f));
           await db.queryArray(
             "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=true",
@@ -3093,7 +3112,7 @@ for (let variant = 0; variant < 3; variant++) {
           const claim = (await claimVideo(db, f)).rows[0].value;
           await dispatchVideo(db, f, claim.work_token);
           await denied(db, () => completeVideoResult(db, f));
-          const { draft, outcome } = await preparedDraft(db, f);
+          const { draft, outcome } = await preparedDraft(db, f, true);
           await saveVideoDraftOutcome(db, f, outcome);
           await recordVideoDraft(db, f, draft);
           await denied(db, () => completeVideoResult(db, f));
@@ -3410,7 +3429,7 @@ for (let variant = 0; variant < 3; variant++) {
             [f.owner],
           );
           // Reader11 returns the immutable snapshot5, including mixed/cursor
-          // pages and older selected state. It does not authorize actions.
+          // pages and older selected state. Actions retain separate closed gates.
           for (const cursor of [null, 2, 1]) {
             const request = {
               schema_version: 1 as const,
@@ -3455,11 +3474,18 @@ for (let variant = 0; variant < 3; variant++) {
             if (analysis === f.child) {
               assertEquals(JSON.parse(decoded.analysis.snapshot), snapshot);
             }
-            await denied(db, () =>
-              db.queryArray(
-                "SELECT internal.require_observation_action_reader($1,11,$2)",
-                [f.parent, analysis],
-              ));
+            if (analysis === null) {
+              await db.queryArray(
+                "SELECT internal.require_observation_action_reader($1,11,NULL)",
+                [f.parent],
+              );
+            } else {
+              await denied(db, () =>
+                db.queryArray(
+                  "SELECT internal.require_observation_action_reader($1,11,$2)",
+                  [f.parent, analysis],
+                ));
+            }
           }
           for (const reader of [null, 12]) {
             await denied(db, () =>
@@ -3476,6 +3502,188 @@ for (let variant = 0; variant < 3; variant++) {
                 ],
               ));
           }
+          // Exercise actual V5 action owners after guarded completion, with no
+          // manufactured result, manifest or disabled completion trigger.
+          const revisions = async (analysis: string) =>
+            (await db.queryObject<{ observation: number; review: number }>(
+              "SELECT h.state_revision observation,a.review_revision review FROM internal.observation_histories h JOIN internal.observation_analysis_authorities a ON a.observation_id=h.observation_id WHERE h.observation_id=$1 AND a.analysis_id=$2",
+              [f.parent, analysis],
+            )).rows[0];
+          const selection = async (analysis: string) => {
+            const r = await revisions(analysis);
+            return {
+              schema_version: 1,
+              observation_id: f.parent,
+              analysis_id: analysis,
+              operation_id: crypto.randomUUID(),
+              expected_observation_revision: r.observation,
+              expected_review_revision: r.review,
+            };
+          };
+          const selectedRequest = await selection(f.child);
+          const select = async (request: unknown, reader = 11) =>
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.select_owned_observation_analysis($1::jsonb,$2) value",
+              [JSON.stringify(request), reader],
+            )).rows[0].value;
+          await denied(db, () => select(selectedRequest)); // rollout remains closed
+          await db.queryArray(
+            "UPDATE internal.observation_history_rollout SET selection_enabled=true,selection_api_enabled=true,rejection_api_enabled=true,confirmation_api_enabled=true,confirmation_undo_api_enabled=true",
+          );
+          await denied(db, () => select(selectedRequest, 10));
+          const selectedReceipt = await select(selectedRequest);
+          assertEquals(selectedReceipt.selected_analysis_id, f.child);
+          assertEquals(await select(selectedRequest), selectedReceipt);
+          const reviewRevision = await revisions(f.child);
+          const rejectRequest = {
+            schema_version: 1,
+            observation_id: f.parent,
+            analysis_id: f.child,
+            operation_id: crypto.randomUUID(),
+            expected_observation_revision: reviewRevision.observation,
+            expected_review_revision: reviewRevision.review,
+            action: "reject",
+            undo_operation_id: null,
+          };
+          const review = async (request: unknown, reader = 11) =>
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.review_owned_observation_analysis($1::jsonb,$2) value",
+              [JSON.stringify(request), reader],
+            )).rows[0].value;
+          await denied(db, () => review(rejectRequest, 10));
+          const rejected = await review(rejectRequest);
+          assertEquals(rejected.outcome, "applied");
+          assertEquals(await review(rejectRequest), rejected);
+          const undoRevision = await revisions(f.child);
+          const lookup = {
+            schema_version: 1,
+            observation_id: f.parent,
+            analysis_id: f.child,
+            expected_observation_revision: undoRevision.observation,
+            expected_review_revision: undoRevision.review,
+          };
+          const eligibility =
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.get_owned_observation_rejection_undo($1::jsonb,11) value",
+              [JSON.stringify(lookup)],
+            )).rows[0].value;
+          assertEquals(
+            eligibility.rejection_operation_id,
+            rejectRequest.operation_id,
+          );
+          const undone = await review({
+            ...lookup,
+            operation_id: crypto.randomUUID(),
+            action: "undo",
+            undo_operation_id: rejectRequest.operation_id,
+          });
+          assertEquals(undone.outcome, "applied");
+          const confirmationRevision = await revisions(f.child);
+          const confirmation = {
+            schema_version: 1,
+            observation_id: f.parent,
+            analysis_id: f.child,
+            operation_id: crypto.randomUUID(),
+            expected_observation_revision: confirmationRevision.observation,
+            expected_review_revision: confirmationRevision.review,
+            action: "confirm_name",
+            scientific_name: "Synthetic video confirmation",
+          };
+          const prepareConfirmation = async () =>
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.prepare_observation_analysis_confirmation($1,$2::jsonb,11) value",
+              [f.owner, JSON.stringify(confirmation)],
+            )).rows[0].value;
+          assertEquals((await prepareConfirmation()).status, "verify");
+          const completeConfirmation = async () =>
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.complete_observation_analysis_confirmation($1,$2::jsonb,11,$3,$4::jsonb) value",
+              [
+                f.owner,
+                JSON.stringify(confirmation),
+                confirmation.scientific_name,
+                JSON.stringify({
+                  scientific_name: confirmation.scientific_name,
+                  gbif_taxon_key: 987699792,
+                  rank: "SPECIES",
+                  status: "ACCEPTED",
+                  kingdom: "Animalia",
+                }),
+              ],
+            )).rows[0].value;
+          const confirmed = await completeConfirmation();
+          assertEquals(confirmed.status, "complete");
+          assertEquals(
+            (confirmed.receipt as Record<string, unknown>).outcome,
+            "applied",
+          );
+          assertEquals(await prepareConfirmation(), confirmed);
+          assertEquals(await completeConfirmation(), confirmed);
+          const confirmationUndoRevision = await revisions(f.child);
+          const confirmationLookup = {
+            schema_version: 1,
+            observation_id: f.parent,
+            analysis_id: f.child,
+            expected_observation_revision: confirmationUndoRevision.observation,
+            expected_review_revision: confirmationUndoRevision.review,
+          };
+          const confirmationEligibility =
+            (await db.queryObject<{ value: Record<string, unknown> }>(
+              "SELECT public.get_owned_observation_confirmation_undo($1::jsonb,11) value",
+              [JSON.stringify(confirmationLookup)],
+            )).rows[0].value;
+          assertEquals(
+            confirmationEligibility.confirmation_operation_id,
+            confirmation.operation_id,
+          );
+          const confirmationUndone = await review({
+            ...confirmationLookup,
+            operation_id: crypto.randomUUID(),
+            action: "undo_confirmation",
+            undo_operation_id: confirmation.operation_id,
+          });
+          assertEquals(confirmationUndone.outcome, "applied");
+          const settled = await revisions(f.child);
+          const stale = await review({
+            ...rejectRequest,
+            operation_id: crypto.randomUUID(),
+          });
+          assertEquals(stale.outcome, "revision_conflict");
+          assertEquals(await revisions(f.child), settled);
+          await db.queryArray(
+            "SELECT set_config('request.jwt.claim.sub',$1,true)",
+            [crypto.randomUUID()],
+          );
+          await denied(db, () => review(rejectRequest));
+          await denied(db, () => select(selectedRequest));
+          await db.queryArray(
+            "SELECT set_config('request.jwt.claim.sub',$1,true)",
+            [f.owner],
+          );
+          // Selection Undo is a fresh CAS to the original retained version;
+          // stale receipt replay cannot overwrite that later explicit choice.
+          const restored = await select(
+            await selection(f.c.input.source_analysis_id),
+          );
+          assertEquals(
+            restored.selected_analysis_id,
+            f.c.input.source_analysis_id,
+          );
+          assertEquals(await select(selectedRequest), selectedReceipt);
+          assertEquals(
+            (await db.queryObject<{ selected: string }>(
+              "SELECT selected_analysis_id::text selected FROM internal.observation_histories WHERE observation_id=$1",
+              [f.parent],
+            )).rows[0].selected,
+            f.c.input.source_analysis_id,
+          );
+          assertEquals(
+            (await db.queryObject<{ snapshot: string }>(
+              "SELECT internal.observation_analysis_snapshot(observation_id,analysis_id,source_analysis_id,request_digest,ordinal,completed_at,result_snapshot,evidence_manifest)::text snapshot FROM internal.observation_analysis_results WHERE analysis_id=$1",
+              [f.child],
+            )).rows[0].snapshot,
+            receipt.snapshot,
+          );
           // Later entitlement changes cannot rewrite the historical receipt.
           await db.queryArray(
             "UPDATE public.users SET subscription_tier='pro',subscription_expires_at=NULL WHERE id=$1",
@@ -3496,6 +3704,9 @@ for (let variant = 0; variant < 3; variant++) {
             f.owner,
           ]);
           await denied(db, () => completeVideoResult(db, f));
+          await denied(db, () => review(rejectRequest));
+          await denied(db, () => select(selectedRequest));
+          await denied(db, () => prepareConfirmation());
         } finally {
           await db.queryArray("ROLLBACK");
           await db.end();
