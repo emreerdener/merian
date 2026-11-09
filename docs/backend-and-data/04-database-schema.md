@@ -7166,3 +7166,19 @@ remain required. The isolated 512-migration replay passed all 188 catalog files
 identities, ACLs and configuration values were preserved. The earlier
 exact-candidate CI run remains failed; successor CI and its contention stages
 remain pending. This migration is not deployed.
+
+### Initial-analysis validation CPU bounds
+
+The forward metadata validation optimization (`20261109071913`) hashes the
+original outcome, phase-window, mapping and media-binding TEXT after their
+strict parsers have already succeeded in the same invocation. Standalone digest
+helpers retain their validation. No cached validation crosses a call, database
+mutation or transaction boundary; semantic checks and resource limits remain.
+The catalog fixture compares complete results and rejection errors with the
+historical validator, including malformed original TEXT. The subsequent
+scalar-child optimization (`20261109072401`) keeps recursive container
+validation while evaluating scalar rules inside the parent call. It preserves
+depth limits, numeric and UTF-8 bounds, nullable handling, three-valued results
+and malformed-rule errors. The independent recursive historical oracle in
+`initial_schema_scalar_inlining.sql` verifies scalar/rule crossings, nested
+parents, invalid rules and depth boundaries; no authority check is removed.
