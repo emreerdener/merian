@@ -442,6 +442,24 @@ relation access and actual same-IP key/window equality provide bounded wait
 attribution; no third lock scheduler is used. This does not qualify public
 admission, production timing or all possible lock graphs.
 
+Before either admission in each order, the fixture reads the selected
+complimentary policy and verifies its 60-second user/IP windows and daily
+counter. A fresh database clock sample must leave at least 50 seconds in the
+minute/day; at most one wait and one resample are allowed, with a 55-second
+total wait budget. Sample calls use at most five seconds of the remaining budget
+and a two-second SQL statement limit; their measured latency is deducted from
+the available runway. A planned sleep that exceeds the remaining budget is
+rejected. This establishes the same-window scheduling precondition without
+retrying admissions or changing clocks, policies or execution deadlines. The
+original exact counter assertions and observed shared-counter lock dependency
+remain mandatory; an order that crosses the boundary still fails. Sanitized
+counter diagnostics retain only scope/owner labels, window/count/timestamp
+metadata, equality and staging count before asserting. Full counter and peer
+images remain in memory. The deterministic precondition tests run through
+`initial_counter_window_test.sh` in the normal tooling gate. A forced rollover
+reproduced the old assertion's susceptibility; it does not establish the cause
+of the original CI515 failure, whose counter images were not retained.
+
 The `scan-delete-order` suite exercises the public scan-deletion `not_found`
 path against C1 in both observed orders. It proves no scan or deletion tombstone
 is created, preserves accounting and peer rows, and verifies the original
