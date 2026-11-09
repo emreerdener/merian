@@ -18,7 +18,7 @@ PROBE = Path(__file__).with_name("initial_cpm_request_probe.ts")
 SQL = Path(__file__).with_name("fixtures") / "initial_cpm_request_journey.sql"
 
 
-def run(q, config, roster):
+def run(q, config, roster, native_bridge=None):
     for path in [Path(__file__), PROBE, SQL, Path(__file__).with_name("test_initial_cpm_completion_admission.py"),
                  Path(__file__).with_name("test_initial_completion_acquisition.py")]:
         q.record["source_manifest"][str(path.resolve().relative_to(ROOT))] = q.digest(path)
@@ -34,7 +34,7 @@ def run(q, config, roster):
     def probe(mode, value):
         command = ["deno", "run", "--cached-only", "--frozen", "--deny-net", "--no-prompt",
                    "--allow-env=GOOGLE_SDK_NODE_LOGGING,GOOGLE_GENAI_DEBUG,WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,GOOGLE_GENAI_USE_ENTERPRISE,GOOGLE_GENAI_USE_VERTEXAI,GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION,GOOGLE_VERTEX_BASE_URL,GOOGLE_GEMINI_BASE_URL,GOOGLE_API_KEY,GEMINI_API_KEY",
-                   "--config", str(ROOT / "services/supabase/functions/deno.json"), str(PROBE), mode]
+                   "--config", str(ROOT / "services/supabase/functions/deno.json"), str(PROBE), mode] + (["--public-wire"] if native_bridge and mode == "deliver" else [])
         child = subprocess.run(command, input=json.dumps(value), text=True, capture_output=True, timeout=25, env={"PATH": os.environ["PATH"]})
         if child.returncode:
             # Child input and output may contain synthetic submitted content.
@@ -47,10 +47,13 @@ def run(q, config, roster):
         return json.loads(child.stdout)
 
     ack = json.loads(service("original_admission_for_preparation", "SELECT public.test_cpm_ack(NULL)"))
+    if native_bridge: native_bridge.project_admission(q, config, ack)
     def status(label, outcome, evidence=None):
         reply = json.loads(service(label, "SELECT public.test_acquisition()"))
-        return probe("deliver", {"admission": ack["admission_canonical"], "reply": reply,
-                                 "outcome": outcome, "result": evidence})
+        result = probe("deliver", {"admission": ack["admission_canonical"], "reply": reply,
+                                   "outcome": outcome, "result": evidence})
+        if native_bridge: native_bridge.capture(label, result.pop("body_base64"), result)
+        return result
 
     service("completion_lookup_requires_original_dispatch", "SELECT public.test_acquisition()", "55000")
     if "internal.lock_initial_dispatched_original" not in q.record["checks"][-1]["error_owners"]:
@@ -132,8 +135,8 @@ def finish_with_original_media(q, config, roster, reference, digest, service, ar
                 mime = "application/json"
             elif self.path == "/objects/" + str(len(reads)) and len(reads) < len(config["paths"]):
                 content = roster[len(reads)]
+                mime = config.get("media_types", ["image/jpeg"] * 6)[len(reads)]
                 reads.append(self.path)
-                mime = "image/jpeg"
             else:
                 self.send_error(404)
                 return

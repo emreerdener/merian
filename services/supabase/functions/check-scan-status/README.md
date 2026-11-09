@@ -314,3 +314,13 @@ recorded checks and 12 fixture assertions), including unchanged pending replies
 before completion and the original found result afterward. This is local
 synthetic-provider qualification; it does not establish live Auth, native
 integration or deployment.
+
+The later opt-in native bridge qualifies the literal join: native-created
+candidate and actual prepared role bytes pass through the disposable lifecycle,
+then the public allocation/admission/pending/found bodies reach strict native
+transport and durable pin/apply/new-container/enrollment-helper/replay. One
+executed native case, 116 SQL checks and 12 fixture assertions passed
+independent verification. Candidate and all four wire digests match. SQL states
+are captured before native replay; this is not concurrent live status, real
+Auth/enrollment, upload/R2, process death or deployment. See the
+[runtime methodology](../../../../docs/development-guides/18-ios-runtime-quality-and-benchmarking.md).

@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { syntheticOriginalPhotoSnapshot as snapshot } from "../functions/_shared/initialAnalysis/fixtures/cpmPhotoExecutionRequest.ts";
 import { identificationProvenance } from "../functions/_shared/ai/provenance.ts";
 import { identificationUsageFacts } from "../functions/_shared/ai/identificationUsage.ts";
-import { decodeBase64 } from "../functions/_shared/encoding.ts";
+import { decodeBase64, encodeBase64 } from "../functions/_shared/encoding.ts";
 
 import { createInitialCpmPhotoRequestPreparer } from "../functions/_shared/initialAnalysis/cpmPhotoExecutionRequest.ts";
 import { initialCanonicalText } from "../functions/_shared/initialAnalysis/canonical.ts";
@@ -178,6 +178,9 @@ if (Deno.args[0] === "prepare") {
     JSON.stringify({
       outcome: status.outcome,
       reads,
+      ...(Deno.args[1] === "--public-wire"
+        ? { body_base64: encodeBase64(response) }
+        : {}),
       byteCount: response.length,
       sha256: await initialMediaHash(response.slice()),
     }),

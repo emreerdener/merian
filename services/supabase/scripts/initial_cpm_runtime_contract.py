@@ -35,7 +35,7 @@ def close_overlap_sessions(observer, admission):
         if admission: admission.close()
 
 
-def main():
+def main(native_bridge=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ["container", "evidence-directory", "replay-manifest"]:
         parser.add_argument("--" + name, required=True)
@@ -66,26 +66,36 @@ def main():
         q.record["scope"] = "Two-photo six-role tiny real JPEGs, local HTTP shim executing service SQL, fixed local storage response. Not PostgREST/JWT, real signer/R2, provider/native, maximum-byte or representative network latency qualification."
         q.record["lost_ack"] = args.lost_ack
         q.record["pending_commit"] = args.pending_commit
-        generated = subprocess.run(DENO + [str(PROBE), "fixture-roster" if args.request_journey else "fixture"], capture_output=True, text=True, timeout=30)
-        if generated.returncode: raise RuntimeError("fixture generator failed")
-        generated_bytes = json.loads(generated.stdout)
-        roster = [bytes(member) for member in generated_bytes] if args.request_journey else [bytes(generated_bytes)] * 6
-        if len(roster) != 6 or (args.request_journey and len(set(roster)) != 6):
+        native = native_bridge.packet if native_bridge else None
+        if native and not args.request_journey:
+            raise ValueError("native fixture requires request journey")
+        generated = subprocess.run(DENO + [str(PROBE), "fixture-roster" if args.request_journey else "fixture"], capture_output=True, text=True, timeout=30) if native is None else None
+        if generated is not None and generated.returncode: raise RuntimeError("fixture generator failed")
+        generated_bytes = json.loads(generated.stdout) if generated else []
+        roster = native["roster"] if native else ([bytes(member) for member in generated_bytes] if args.request_journey else [bytes(generated_bytes)] * 6)
+        if len(roster) != 6 or (args.request_journey and native is None and len(set(roster)) != 6):
             raise ValueError("incomplete synthetic role fixtures")
         source = FIXTURE.read_text()
         vector = re.search(r"\$fixture\$(.*?)\$fixture\$", source).group(1)
-        candidate = json.loads(vector)
-        content = json.loads(candidate["content_canonical"])
-        content["photos"].append(json.loads(json.dumps(content["photos"][0])))
-        for n, photo in enumerate(content["photos"]):
-            photo["ordinal"] = n
-            for i, role in enumerate(["source", "ai", "display"]):
-                media = roster[n * 3 + i]
-                photo[role].update(byte_count=len(media), sha256=hashlib.sha256(media).hexdigest(), declared_content_type="image/jpeg", reference_id=f"00000000-0000-4000-8000-{700+n*3+i:012d}")
-        candidate["content_canonical"] = json.dumps(content, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
-        prefix = source.split("-- Negotiated backend projection:")[0].replace(vector, json.dumps(candidate, separators=(",", ":"), sort_keys=True, ensure_ascii=False))
+        if native:
+            from initial_cpm_native_packet import bind_fixture_prefix
+            prefix = bind_fixture_prefix(source.split("-- Negotiated backend projection:")[0], native)
+        else:
+            candidate = json.loads(vector)
+            content = json.loads(candidate["content_canonical"])
+            content["photos"].append(json.loads(json.dumps(content["photos"][0])))
+            for n, photo in enumerate(content["photos"]):
+                photo["ordinal"] = n
+                for i, role in enumerate(["source", "ai", "display"]):
+                    media = roster[n * 3 + i]
+                    photo[role].update(byte_count=len(media), sha256=hashlib.sha256(media).hexdigest(), declared_content_type="image/jpeg", reference_id=f"00000000-0000-4000-8000-{700+n*3+i:012d}")
+            candidate["content_canonical"] = json.dumps(content, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+            prefix = source.split("-- Negotiated backend projection:")[0].replace(vector, json.dumps(candidate, separators=(",", ":"), sort_keys=True, ensure_ascii=False))
         policy = source[source.index("CREATE TEMP TABLE closure_policy"):source.index("-- END CPM CLOSURE POLICY FIXTURE")]
         writes = source[source.index("DO $$ DECLARE s internal.initial_analysis_preparation_intents; m RECORD;"):source.index("SAVEPOINT verification_revoked;")]
+        if native:
+            from initial_cpm_native_packet import bind_fixture_identity
+            policy, writes = (bind_fixture_identity(fragment, native) for fragment in (policy, writes))
         actor = Session(q, "runtime_fixture", statement_seconds=45, marker_seconds=55)
         output = "\n".join(actor.run("physical_declarations_and_positive_closures", prefix + policy + writes + "SELECT * FROM extensions.finish();COMMIT;"))
         matches = re.findall(r"^ok ([0-9]+) -", output, re.M)
@@ -95,11 +105,21 @@ def main():
         q.record["fixture_assertions"] = len(matches)
         actor.close(); actor = None
         facts = json.loads(q.execute("runtime_original_identity", "SELECT jsonb_build_object('owner_id',owner_id,'scan_id',scan_id,'candidate_canonical',canonical_candidate,'assignment_canonical',canonical_assignment,'assignment_digest',assignment_digest) FROM internal.initial_analysis_preparation_intents;"))
+        if native and (facts["candidate_canonical"] != native["canonical"] or facts["owner_id"] != native["owner"] or facts["scan_id"] != native["scan"]):
+            raise ValueError("stored native candidate changed")
         assignment = json.loads(facts["assignment_canonical"])
         backend = json.loads(q.execute("runtime_original_backend", "SELECT to_jsonb(b) FROM internal.initial_preparation_source_backends b;"))
         backend = {k: backend[k] for k in ["generation", "configuration_digest", "provider", "direct_endpoint", "private_bucket", "namespace", "credential_profile", "storage_protocol"]}
         dims = {"maximumWidth":16384,"maximumHeight":16384,"maximumPixels":100_000_000}
         config = {"identity":facts,"policy":{"profile_digest":assignment["preparation"]["profile_digest"],"verifier_build_digest":assignment["preparation"]["verifier_build_digest"],"dimensions":{r:dims for r in ["source","ai","display"]},"backend":backend},"paths":[backend["direct_endpoint"]+"/"+backend["private_bucket"]+"/"+backend["namespace"]+"/"+facts["scan_id"]+"/"+m["object_id"] for m in assignment["preparation"]["role_mapping"]]}
+        media_types = native["content_types"] if native else ["image/jpeg"] * 6
+        config["media_types"] = media_types
+        if native:
+            q.record["native_execution"] = dict(native["execution"])
+            q.record["native_input"] = {"candidate_sha256": native["sha256"], "ordered_roles": [
+                {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "content_type": media_types[index]}
+                for index, data in enumerate(roster)], "stored_candidate_exact": True}
+            native_bridge.project_allocation(q, facts)
         counts = {"rpc":0,"media":0,"admit":0}
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -111,7 +131,8 @@ def main():
                 if self.path != "/media": self.send_error(404); return
                 if counts["media"] >= len(roster): self.send_error(409); return
                 media = roster[counts["media"]]
-                counts["media"] += 1; self.reply(media,"image/jpeg")
+                content_type = media_types[counts["media"]]
+                counts["media"] += 1; self.reply(media,content_type)
             def do_POST(self):
                 try:
                     operation = self.path.removeprefix("/rest/v1/rpc/")
@@ -194,8 +215,9 @@ def main():
         if q.execute("single_original_funding", "SELECT (SELECT count(*)=1 FROM internal.ai_quota_reservations WHERE state='reserved') AND (SELECT count(*)=1 FROM internal.initial_preparation_admission_receipts) AND NOT EXISTS(SELECT 1 FROM internal.identification_invocations);") != "t": raise ValueError("funding mismatch")
         if args.request_journey:
             from initial_cpm_request_journey import run as run_request_journey
-            run_request_journey(q, config, roster)
+            run_request_journey(q, config, roster, native_bridge=native_bridge)
         q.execute("disable_fixture_gate", "UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;")
+        if native_bridge: native_bridge.finish(q)
         q.finish()
         print("PASS local HTTP/SQL physical CPM composition")
     except Exception as error:
