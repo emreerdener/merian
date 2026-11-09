@@ -1,12 +1,14 @@
-/** Prepared branch only: index.ts rejects this request until serving controls
- * are installed. The caller must authenticate and bound raw bytes before JSON
- * parsing. This owner has no legacy repair, execution or retry dependency. */
+/** Original recovery owner. Authentication and bounded raw collection precede
+ * decoding; no legacy repair, execution or retry dependency. */
 import {
   decodeInitialStatusRecoveryRequest,
   initialStatusAdmissionRequestBytes,
   initialStatusCompletionRequestBytes,
 } from "../_shared/initialAnalysis/completionStatusRequest.ts";
-import { encodeInitialCompletionStatus } from "../_shared/initialAnalysis/completionStatusResponse.ts";
+import {
+  encodeInitialCompletionStatus,
+  initialCompletionStatusResponseBytes,
+} from "../_shared/initialAnalysis/completionStatusResponse.ts";
 import {
   createInitialCompletionAcquisition,
   createInitialSavedAdmissionAcquisition,
@@ -14,6 +16,7 @@ import {
 import {
   cancelInitialStream,
   checkInitialDeadline,
+  initialAbortable,
   initialDeadline,
   readInitialStream,
 } from "../_shared/initialAnalysis/transport.ts";
@@ -33,24 +36,32 @@ export async function readInitialRecovery(
   return await initialDeadline(signal, 5000, async (phase) => {
     checkInitialDeadline(phase);
     // The decoder snapshots all request facts synchronously before digest awaits.
-    const request = await decodeInitialStatusRecoveryRequest(
-      body,
-      authenticatedOwnerID,
+    const request = await initialAbortable(
+      phase,
+      () => decodeInitialStatusRecoveryRequest(body, authenticatedOwnerID),
     );
     checkInitialDeadline(phase);
     if (expectedPhase !== undefined && request.phase !== expectedPhase) {
       throw new Error("initial_status_recovery_request_invalid");
     }
     if (request.phase === "admission") {
-      const reader = await createInitialSavedAdmissionAcquisition({
-        ...transport,
-        original: request.original,
-        authenticatedOwnerID,
-      });
+      const reader = await initialAbortable(
+        phase,
+        () =>
+          createInitialSavedAdmissionAcquisition({
+            ...transport,
+            original: request.original,
+            authenticatedOwnerID,
+          }),
+      );
       checkInitialDeadline(phase);
       const value = await reader.read(phase);
       checkInitialDeadline(phase);
-      return new TextEncoder().encode(value.canonical);
+      const bytes = new TextEncoder().encode(value.canonical);
+      if (bytes.byteLength > 8192) {
+        throw new Error("initial_recovery_unavailable");
+      }
+      return bytes;
     }
     const reader = createInitialCompletionAcquisition({
       ...transport,
@@ -59,14 +70,19 @@ export async function readInitialRecovery(
     const value = await reader.read(phase);
     checkInitialDeadline(phase);
     const bytes = encodeInitialCompletionStatus(request.original, value);
+    if (bytes.byteLength > initialCompletionStatusResponseBytes) {
+      throw new Error("initial_recovery_unavailable");
+    }
     checkInitialDeadline(phase);
     return bytes;
   });
 }
 
-/** Prepared HTTP entry point, deliberately not installed by index.ts. The
+/** Reserved HTTP entry point installed by index.ts in the local candidate. The
  * authenticated owner comes from the existing handler, never the body/header.
- * The phase header selects only a fixed byte ceiling, not read authority. */
+ * The phase header selects only a fixed byte ceiling, not read authority.
+ * Five seconds bounds this owner after authentication, not full ingress latency
+ * or proven database statement/lock cancellation. */
 export async function readInitialRecoveryHttp(
   request: Request,
   authenticatedOwnerID: string,

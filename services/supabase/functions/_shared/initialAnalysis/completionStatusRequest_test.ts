@@ -20,8 +20,8 @@ async function fixture() {
 }
 import { createInitialSavedAdmissionAcquisition } from "./resultStore.ts";
 const foreign = "00000000-0000-4000-8000-000000000999";
-function request(scan_id: string, phase: string, original: unknown) {
-  return { scan_id, initial_recovery: { version: 1, phase, original } };
+function request(_scanID: string, phase: string, original: unknown) {
+  return { initial_recovery: { version: 1, phase, original } };
 }
 
 Deno.test("status recovery snapshots only the exact saved original for each phase", async () => {
@@ -33,7 +33,6 @@ Deno.test("status recovery snapshots only the exact saved original for each phas
       body,
       f.binding.owner_id,
     );
-    body.scan_id = foreign;
     body.initial_recovery.phase = "legacy";
     body.initial_recovery.original = null;
     const decoded = await pending;
@@ -55,8 +54,14 @@ Deno.test("status recovery never accepts foreign ownership, mixed legacy fields 
       for (
         const body of [
           { ...valid, scan_id: foreign },
+          { ...valid, scan_id: f.binding.scan_id },
+          { ...valid, scans: [] },
+          { ...valid, recovery_scan: {} },
           request(f.binding.scan_id, phase, { ...original, owner_id: foreign }),
-          request(f.binding.scan_id, phase, { ...original, scan_id: foreign }),
+          request(f.binding.scan_id, phase, {
+            ...original,
+            scan_id: "invalid",
+          }),
           request(f.binding.scan_id, phase, { ...original, retry: true }),
           request(f.binding.scan_id, phase, {
             ...original,
@@ -281,5 +286,24 @@ Deno.test("saved admission reader rejects absence, oversize, cancellation and la
       await rejected;
       assertEquals(calls, mode === "cancelled" ? 0 : 1);
     });
+  }
+});
+
+Deno.test("nested original recovery cannot satisfy pre-marker legacy repair requirements", async () => {
+  const { requireParams } = await import("../http.ts");
+  const f = await fixture();
+  for (const phase of ["admission", "completion"] as const) {
+    const body = request(
+      f.binding.scan_id,
+      phase,
+      phase === "admission" ? f.binding : f.admission,
+    );
+    assertEquals(Object.keys(body), ["initial_recovery"]);
+    assertEquals(requireParams(body, ["scan_id"])?.status, 400);
+    const decoded = await decodeInitialStatusRecoveryRequest(
+      body,
+      f.binding.owner_id,
+    );
+    assertEquals(decoded.scan_id, f.binding.scan_id);
   }
 });

@@ -1,4 +1,4 @@
-/** Prepared request boundary for the existing status owner; no live route import.
+/** Closed request boundary for the original-recovery status owner.
  * Authentication precedes this decoder. A client owner field is never authority.
  * Failure must not fall through to legacy missing-scan repair or retry. */
 import {
@@ -81,8 +81,7 @@ export async function decodeInitialStatusRecoveryRequest(
   authenticatedOwnerID: string,
 ): Promise<InitialStatusRecoveryRequest> {
   const owner = mediaUUID(authenticatedOwnerID);
-  const body = closed(value, ["scan_id", "initial_recovery"]);
-  const scan = mediaUUID(body.scan_id);
+  const body = closed(value, ["initial_recovery"]);
   const recovery = closed(body.initial_recovery, [
     "version",
     "phase",
@@ -97,7 +96,8 @@ export async function decodeInitialStatusRecoveryRequest(
     recovery.original,
     phase === "admission" ? bindingKeys : initialCompletionAdmissionKeys,
   );
-  if (original.owner_id !== owner || original.scan_id !== scan) throw invalid();
+  const scan = mediaUUID(original.scan_id);
+  if (original.owner_id !== owner) throw invalid();
   if (phase === "admission") {
     const candidate = original.candidate_canonical;
     if (
@@ -132,7 +132,6 @@ export async function decodeInitialStatusRecoveryRequest(
       await initialCpmPhotoContentDigest(content) !== saved.content_digest
     ) throw invalid();
     const request = {
-      scan_id: scan,
       initial_recovery: { version: 1, phase, original: saved },
     };
     if (
@@ -143,7 +142,6 @@ export async function decodeInitialStatusRecoveryRequest(
   }
   const saved = snapshotInitialCompletionAdmission(original);
   const request = {
-    scan_id: scan,
     initial_recovery: { version: 1, phase: "completion", original: saved },
   };
   if (
@@ -173,7 +171,6 @@ export async function decodeInitialStatusAdmission(
   const acknowledgement = initialCanonicalText(reply.acknowledgement);
   if (new TextEncoder().encode(acknowledgement).length > 8192) throw invalid();
   const saved = await decodeInitialStatusRecoveryRequest({
-    scan_id: original.scan_id,
     initial_recovery: { version: 1, phase: "admission", original },
   }, original.owner_id);
   if (saved.phase !== "admission") throw invalid();

@@ -9,7 +9,7 @@ import {
 } from "./status.ts";
 import { fetchComplimentaryScanStates } from "./db.ts";
 
-Deno.test("uninstalled initial recovery cannot fall through to legacy single or bulk repair", async () => {
+Deno.test("reserved initial recovery cannot fall through to legacy single or bulk repair", async () => {
   for (
     const body of [
       { scan_id: "saved", initial_recovery: null },
@@ -43,7 +43,16 @@ Deno.test("uninstalled initial recovery cannot fall through to legacy single or 
       handler.indexOf("await parseJsonBody(req"),
     true,
   );
-  assertEquals(source.includes('from "./initialRecovery.ts"'), false);
+  assertEquals(source.includes('from "./initialRecovery.ts"'), true);
+  assertStringIncludes(
+    handler,
+    "return await readInitialRecoveryHttp(req, user.id,",
+  );
+  assertEquals(
+    handler.indexOf("return await readInitialRecoveryHttp(req, user.id,") <
+      handler.indexOf("await parseJsonBody(req"),
+    true,
+  );
   assertStringIncludes(handler, "if (hasInitialRecoveryRequest(body))");
   assertEquals(
     handler.indexOf("if (hasInitialRecoveryRequest(body))") <

@@ -304,7 +304,6 @@ export async function createInitialSavedAdmissionAcquisition(
 ) {
   const call = createResultRPC(input);
   const request = await decodeInitialStatusRecoveryRequest({
-    scan_id: input.original.scan_id,
     initial_recovery: {
       version: 1,
       phase: "admission",

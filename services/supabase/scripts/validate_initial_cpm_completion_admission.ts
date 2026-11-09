@@ -1,3 +1,4 @@
+import { readInitialRecoveryHttp } from "../functions/check-scan-status/initialRecovery.ts";
 import { createInitialSavedAdmissionAcquisition } from "../functions/_shared/initialAnalysis/resultStore.ts";
 import { assertEquals } from "@std/assert";
 import { decodeCpmCompletionAdmission } from "../functions/_shared/initialAnalysis/cpmCompletionAdmission.ts";
@@ -69,4 +70,44 @@ const savedReader = await createInitialSavedAdmissionAcquisition({
 });
 assertEquals(await savedReader.read(new AbortController().signal), result);
 assertEquals(savedCalls, 1);
+let httpCalls = 0;
+const response = await readInitialRecoveryHttp(
+  new Request("https://trusted.invalid/check-scan-status", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-merian-initial-recovery": "admission-v1",
+    },
+    body: JSON.stringify({
+      initial_recovery: { version: 1, phase: "admission", original: saved },
+    }),
+  }),
+  saved.owner_id,
+  {
+    origin: "https://trusted.invalid",
+    serverApiKey: "sb_secret_" + "x".repeat(40),
+    fetcher: (url, init) => {
+      httpCalls++;
+      assertEquals(
+        String(url),
+        "https://trusted.invalid/rest/v1/rpc/read_initial_cpm_saved_admission_v1",
+      );
+      assertEquals(JSON.parse(String(init?.body)), {
+        p_owner: saved.owner_id,
+        p_scan: saved.scan_id,
+        p_candidate: saved.candidate_canonical,
+        p_candidate_digest: saved.candidate_digest,
+        p_content_digest: saved.content_digest,
+        p_assignment_digest: saved.assignment_digest,
+        p_backend_generation: saved.backend_generation,
+        p_backend_configuration_digest: saved.backend_configuration_digest,
+      });
+      return Promise.resolve(Response.json(input.saved_reply));
+    },
+  },
+);
+assertEquals(response.status, 200);
+assertEquals(response.headers.get("cache-control"), "no-store");
+assertEquals(await response.text(), result.canonical);
+assertEquals(httpCalls, 1);
 console.log(JSON.stringify({ passed: true }));

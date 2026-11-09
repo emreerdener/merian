@@ -14,10 +14,11 @@ internal access remain denied.
 The wrappers delegate original owner/admission/dispatch/funding and
 cancellation/deletion validation without copying those rules or adding writes.
 The saved-admission response includes private assignment context for server
-validation; it must never be relayed as the native acknowledgement. No HTTP
-admission/completion branch is installed by this candidate. Full S0 admission,
-media/execution/settlement and old-writer quiescence prerequisites remain.
-Ordinary legacy absence cannot gain an immutable result through these reads.
+validation; it must never be relayed as the native acknowledgement. The local
+status route now composes these readers through the existing
+`initialRecovery.ts` owner. Full S0 admission, media/execution/settlement and
+old-writer quiescence prerequisites remain. Ordinary legacy absence cannot gain
+an immutable result through these reads.
 
 Local validation passed: full 516-migration replay, 190 catalog files with
 10,384 executed assertions and two existing declared skips, strict
@@ -27,6 +28,17 @@ and owned cleanup. The migration remains unpublished and unapplied to hosted
 environments. These synthetic SQL journeys do not qualify the HTTP route,
 concurrent deletion/merge, server timeout or native integration;
 initial-recovery acceptance remains open.
+
+The composed local HTTP recovery owner additionally passed four SQL-response
+bridge journeys (341 checks), the full Edge suite (4,390 tests/1,170 steps),
+whole-tree lint and 125 deployable entrypoint checks. Focused native wire tests
+passed four methods/17 cases in the integrated app checkout. The tooling
+components passed across retained split execution: the original monolithic run
+failed because the sandbox denied synthetic hidden-input terminal access; the
+unchanged fake-provider PTY test and remaining shell tests then passed with
+terminal permission. Independent review verified these scoped results and
+cleanup. Durable original recovery-to-History, actual audio/video queued UI
+restart and broader S0/RUX/cumulative acceptance remain open.
 
 ## November 9 — explicit observation-only status protocol
 

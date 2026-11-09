@@ -1,3 +1,5 @@
+import { requireServerApiKeyFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { readInitialRecoveryHttp } from "./initialRecovery.ts";
 import { readScanObservationHttp } from "./observation.ts";
 import {
   jsonResponse,
@@ -99,13 +101,16 @@ Deno.serve((req: Request) =>
       if (req.headers.get("x-merian-initial-recovery") === "observe-v1") {
         return await readScanObservationHttp(req, user.id, supabaseAdmin);
       }
-      return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
+      return await readInitialRecoveryHttp(req, user.id, {
+        origin: Deno.env.get("SUPABASE_URL") ?? "",
+        serverApiKey: requireServerApiKeyFromEnvironment(),
+      });
     }
     const body = await parseJsonBody(req, { limit: "standard" });
     if (body instanceof Response) return body;
 
-    // The prepared native reader is not a legacy missing-scan repair request.
-    // Keep it unavailable until its separately reviewed serving branch exists.
+    // Recovery bodies require a reserved header; headerless or mixed bodies
+    // cannot enter ordinary missing-scan repair.
     if (hasInitialRecoveryRequest(body)) {
       return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
     }

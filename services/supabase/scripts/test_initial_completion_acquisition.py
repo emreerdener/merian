@@ -92,6 +92,9 @@ def main():
     sources += [ROOT/'services/supabase/functions/_shared/initialAnalysis'/name for name in
                 ['completionAcquisition.ts','completionDelivery.ts','resultStore.ts','resultEvidence.ts','resultEncoding.ts',
                  'resultSchemaV1.ts','completionContract.ts','completion-schema-v1.json','canonical.ts','transport.ts','mediaBinding.ts','schema.ts']]
+    sources += [ROOT/'services/supabase/functions/check-scan-status/initialRecovery.ts',
+                ROOT/'services/supabase/functions/_shared/initialAnalysis/completionStatusRequest.ts',
+                ROOT/'services/supabase/functions/_shared/initialAnalysis/completionStatusResponse.ts']
     for source in sources:q.record['source_manifest'][str(source.relative_to(ROOT))]=q.digest(source)
     q.save()
     if a.before_result:

@@ -272,25 +272,31 @@ The joined queue, persistence, Field Chat, Explore, rollout, and security
 contract is in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 
-## Prepared initial recovery (inactive)
+## Original recovery route (local candidate)
 
-Current source rejects any `X-Merian-Initial-Recovery` header before ordinary
-parsing, and a reserved `initial_recovery` field with503 before any legacy
-single/bulk status or repair path. Mixed and unknown recovery requests also fail
-closed; ordinary legacy requests retain their existing behavior. This source
-change is not a deployment claim.
+The serving handler reserves `X-Merian-Initial-Recovery` before ordinary legacy
+parsing or repair. `observe-v1` remains observation-only; `admission-v1` and
+`completion-v1` compose the existing `initialRecovery.ts` owner and the two
+service-only original readers. Unknown phases and headerless reserved bodies
+refuse. Native recovery requests contain only nested original facts, so older
+handlers also fail their required legacy `scan_id` check before repair.
 
-`initialRecovery.ts` prepares a separate authenticated read coordinator but is
-not imported by the serving handler. It binds the request to the authenticated
-owner, calls only the fixed original admission/completion readers, and returns
-existing canonical acknowledgement or completion-status bytes. It has a shared
-five-second deadline and no retry, inference, settlement or repair path. Future
-`readInitialRecoveryHttp` now prepares bounded raw collection using exact
-`admission-v1`/`completion-v1` phase headers, actual-byte limits before parsing,
-fatal UTF-8 and body/header phase equality before reads. Malformed input,
-cancellation or failure returns only a generic503 with no-store headers. Its
-focused Request-to-private-reader checks passed; it remains unimported. Future
-serving integration requires reviewed private-RPC access before wiring native
-callers; do not enlarge the ordinary request limit or fall through after a
-recovery failure. API grants and feature activation remain absent. See the
+Authentication supplies the owner. Closed fields and original immutable
+candidate/admission validation precede one fixed read. The admission reply is
+only the validated canonical acknowledgement, never the private assignment.
+Completion returns original canonical evidence or explicit pending, without
+reconstructing a result from mutable scan fields. There is no admission,
+execution, funding, settlement, repair or retry path.
+
+Declared and actual request bytes, strict UTF-8, phase equality and response
+bounds are enforced. The five-second recovery-owner budget begins after shared
+authentication and includes body collection, validation and the RPC read. It
+bounds caller waiting; database statement/lock cancellation and full ingress
+latency are not established by this deadline. Success and refusal use no-store.
+
+Focused tests include real caller-deadline expiry and discarded late RPC
+replies. The joined SQL-response bridge and native wire qualification remain
+pending. The route and its service wrappers are local and undeployed. Full S0
+admission, media/execution/settlement and old-writer quiescence prerequisites
+still apply; legacy absence never authorizes fresh work. See the
 [canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).
