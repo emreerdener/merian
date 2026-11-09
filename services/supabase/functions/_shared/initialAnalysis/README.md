@@ -676,6 +676,15 @@ permanent blocked source barrier and absence of any invocation row. In-flight
 allocation and stale-snapshot probes retain their exact scope-busy and isolation
 errors. No production trigger is disabled or reordered.
 
+The C1 terminal qualification fixtures commit the existing synthetic dispatch
+owner before cancellation, retaining the exact selected scan and original
+invocation. Cancellation must preserve committed funding, clear only the
+specified private invocation correlations, and associate one unknown accounting
+event with the original invocation identity and provenance. Rollback snapshots
+include usage events. Unknown-lifecycle recovery stays synthetic; the impossible
+authorized-without-invocation state is a denial probe. These fixtures do not
+execute a provider or activate the backend.
+
 ## Inactive handoff metadata and budget validators
 
 `handoff-profile-schema-v1.json` and `handoffProfile.ts` validate closed

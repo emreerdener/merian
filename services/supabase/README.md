@@ -402,9 +402,10 @@ own connections rolls back unfinished transactions.
 
 The absent-credit `explicit-edges` suite retains reviewed proof-drift, injected
 failure, original-owner seam and precedence checks. Every case restores the
-original 21-relation projection. Deliberately invalid corruption fixtures roll
-back; they do not establish deferred integrity of the injected state. Authentic
-completion and partial-stage checks retain their original constraint flushes.
+original 21-relation projection plus accounting events. Deliberately invalid
+corruption fixtures roll back; they do not establish deferred integrity of the
+injected state. Authentic completion and partial-stage checks retain their
+original constraint flushes.
 
 The `cross-owner` suite exercises actual public service-role cancellation in
 both valid/foreign caller orders. It observes blocking, requires exact foreign
@@ -521,14 +522,22 @@ qualifies production workers, providers, HTTP or media blob processing.
 
 The fixture uses the checked-in stage catalog's explicit composer marker and
 performs original funding, materialization, ledger freeze and completion of
-admission before testing public cancellation. Trusted unknown/authorized state
-fixtures are synthetic projections, not successful provider dispatch. Full
-runtime/concurrency packaging, production timing and installed qualification
-remain separate acceptance requirements. Activation stays disabled outside
-synthetic setup; receipts contain source hashes and bounded results, never SQL,
-input descriptions or response bodies. Migration version checks alone do not
-prove SQL byte identity: bind receipts to the caller's exact fresh-replay
-manifest.
+admission before testing public cancellation. Authorized terminal fixtures
+commit the existing synthetic dispatch owner in a separate transaction for the
+exact selected scan, preserving its invocation and committed funding before
+testing cancellation. They require unchanged funding, exact invocation
+retirement and one unknown accounting event matched against the original
+invocation identity, owner, scan and provenance. Late-fault and replay
+projections include accounting events. Unknown-lifecycle fixtures remain
+explicitly synthetic conservative recovery; an authorized flag without an
+invocation must deny. The completed receipt precedence fixture remains
+privileged and rollback-only, including its required projection object; it does
+not qualify completion construction. Full runtime/concurrency packaging,
+production timing and installed qualification remain separate acceptance
+requirements. Activation stays disabled outside synthetic setup; receipts
+contain source hashes and bounded results, never SQL, input descriptions or
+response bodies. Migration version checks alone do not prove SQL byte identity:
+bind receipts to the caller's exact fresh-replay manifest.
 
 ## Private handoff runtime qualification
 

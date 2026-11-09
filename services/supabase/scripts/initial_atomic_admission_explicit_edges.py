@@ -6,6 +6,7 @@ original constraint flushes; partial-stage commit has its own expected denial.
 Independent before/after projections additionally require full case restoration.
 """
 from initial_atomic_admission_sessions import PROJECTION
+from initial_atomic_admission_test_support import RETIRED_DISPATCH_ASSERTION
 
 
 def explicit_edge_cases(qualification):
@@ -13,10 +14,10 @@ def explicit_edge_cases(qualification):
     ids = 'SELECT owner_id,scan_id INTO STRICT o,a FROM internal.initial_preparation_admission_receipts;'
 
     def invoke(body):
-        return 'DO $$ DECLARE o UUID; a UUID; result JSONB; BEGIN ' + ids + body + ' END $$;'
+        return 'DO $$ DECLARE o UUID; a UUID; result JSONB; before_invocation JSONB; before_funding JSONB; BEGIN ' + ids + body + ' END $$;'
 
     def execute(label, sql, expected=None):
-        snapshot = "SELECT " + PROJECTION + ";"
+        snapshot = "SELECT jsonb_build_array(" + PROJECTION + ",(SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::JSONB) FROM public.ai_usage_events e));"
         before = qualification.execute(label + '_before', snapshot)
         result = qualification.execute(label, sql, expected)
         after = qualification.execute(label + '_after', snapshot)
@@ -55,7 +56,8 @@ END $$;
     for (table, event) in [('internal.ai_quota_reservations', 'UPDATE'), ('internal.initial_analysis_lifecycle_fences', 'UPDATE'), ('internal.initial_analysis_submissions', 'DELETE'), ('internal.initial_analysis_preparation_intents', 'DELETE'), ('internal.initial_analysis_cancellations', 'INSERT'), ('internal.initial_cancellation_terminal_snapshot', 'DELETE')]:
         setup = "CREATE FUNCTION pg_temp.fail_c1() RETURNS TRIGGER LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION USING ERRCODE='ZX410'; END;$f$;CREATE TRIGGER zz_fail_c1 AFTER " + event + ' ON ' + table + ' FOR EACH STATEMENT EXECUTE FUNCTION pg_temp.fail_c1();'
         denied('injected_' + table.rsplit('.', 1)[-1], setup, 'ZX410')
-    for (lifecycle, dispatch) in [('dispatch_authorized', 'dispatch_already_authorized'), (None, 'dispatch_outcome_unknown')]:
+    precedence('authorized_flag_without_invocation_denied', change('internal.initial_analysis_lifecycle_fences', "UPDATE internal.initial_analysis_lifecycle_fences SET state='dispatch_authorized'"), 'initial_analysis_admission_incomplete')
+    for (lifecycle, dispatch) in [(None, 'dispatch_outcome_unknown')]:
         setup = change('internal.initial_analysis_lifecycle_fences', 'DELETE FROM internal.initial_analysis_lifecycle_fences' if lifecycle is None else "UPDATE internal.initial_analysis_lifecycle_fences SET state='" + lifecycle + "'")
         execute('conservative_' + str(lifecycle) + '_and_exact_replay', base + invoke(setup + "SET LOCAL ROLE service_role;result:=public.cancel_initial_analysis(o,a);IF result->>'dispatch' IS DISTINCT FROM '" + dispatch + "' OR result IS DISTINCT FROM public.cancel_initial_analysis(o,a) THEN RAISE EXCEPTION USING ERRCODE='ZX413';END IF;RESET ROLE;IF internal.initial_cancellation_sealed() OR EXISTS(SELECT 1 FROM internal.ai_quota_reservations WHERE state<>'reserved' OR refund_count<>0) THEN RAISE EXCEPTION USING ERRCODE='ZX414';END IF;UPDATE public.users SET id=id WHERE FALSE;") + 'SET CONSTRAINTS ALL IMMEDIATE;ROLLBACK;')
     execute('new_no_footprint_disabled_gate_denied', base + invoke('SET LOCAL ROLE service_role;PERFORM public.cancel_initial_analysis(o,gen_random_uuid());') + 'ROLLBACK;', '55000')
@@ -68,6 +70,25 @@ END $$;
     execute('live_partial_stage_cannot_commit', base + live + checks + 'END $$;SET CONSTRAINTS ALL IMMEDIATE;ROLLBACK;', '55000')
     execute('live_stage_prestate_is_immutable', base + live + "UPDATE internal.initial_admitted_cancellation_staging SET prestate=jsonb_set(prestate,'{quota,lease_token}',to_jsonb(gen_random_uuid()::TEXT));END $$;ROLLBACK;", '55000')
     precedence('scan_deletion_precedes_positive_cancellation', 'INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES(a,o);', 'initial_analysis_deleted')
-    setup = change('internal.initial_analysis_results', "INSERT INTO internal.initial_analysis_results(scan_id,owner_id,result_evidence_id,result_schema_version,result_snapshot,provenance_snapshot) VALUES(a,o,gen_random_uuid(),1,'{}','{}')") + change('internal.initial_analysis_completions', "INSERT INTO internal.initial_analysis_completions(scan_id,owner_id,result_evidence_id,receipt_version,receipt_snapshot) SELECT scan_id,owner_id,result_evidence_id,1,'{}'::JSONB FROM internal.initial_analysis_results WHERE scan_id=a")
+    setup = change('internal.initial_analysis_results', "INSERT INTO internal.initial_analysis_results(scan_id,owner_id,result_evidence_id,result_schema_version,result_snapshot,provenance_snapshot) VALUES(a,o,gen_random_uuid(),1,'{}','{}')") + change('internal.initial_analysis_completions', "INSERT INTO internal.initial_analysis_completions(scan_id,owner_id,result_evidence_id,receipt_version,receipt_snapshot,completion_projection_snapshot) SELECT scan_id,owner_id,result_evidence_id,1,'{}'::JSONB,'{}'::JSONB FROM internal.initial_analysis_results WHERE scan_id=a")
     precedence('completed_receipt_precedes_positive_cancellation', setup, 'initial_analysis_already_complete')
     execute('absent_original_credit_is_noop_without_stage', base + invoke('result:=internal.settle_complimentary_analysis(o,a,\'cancelled_before_dispatch\');IF result IS DISTINCT FROM \'{"credit_released":false,"credit_consumed":false}\'::JSONB OR EXISTS(SELECT 1 FROM internal.complimentary_scan_usage) OR internal.initial_cancellation_sealed() THEN RAISE EXCEPTION USING ERRCODE=\'ZX416\';END IF;') + 'ROLLBACK;')
+
+    # Positive dispatch cancellation uses the complete existing dispatch owner,
+    # committed before the rollback-only cancellation/replay probe. Its seal
+    # intentionally forbids composing the two operations in one transaction.
+    scan = qualification.execute('select_exact_original_dispatch_scan',
+        'SELECT scan_id FROM internal.initial_preparation_admission_receipts;')
+    qualification.commit_dispatch(scan)
+    ids = f"SELECT owner_id,scan_id INTO STRICT o,a FROM internal.initial_preparation_admission_receipts WHERE scan_id='{scan}';"
+    funding_relations = ['internal.ai_quota_reservations', 'internal.ai_quota_reservation_counters',
+        'internal.ai_quota_counters', 'internal.complimentary_scan_usage',
+        'internal.identification_provider_attempts', 'public.users']
+    funding_projection = 'jsonb_build_array(' + ','.join(
+        "(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::TEXT),'[]'::JSONB) FROM "
+        + relation + ' t)' for relation in funding_relations) + ')'
+    body = "SELECT to_jsonb(i) INTO STRICT before_invocation FROM internal.identification_invocations i WHERE scan_id=a;before_funding:=" + funding_projection + ";"
+    body += "SET LOCAL ROLE service_role;result:=public.cancel_initial_analysis(o,a);IF result IS DISTINCT FROM '{\"version\":1,\"outcome\":\"cancelled\",\"dispatch\":\"dispatch_already_authorized\"}'::JSONB OR result IS DISTINCT FROM public.cancel_initial_analysis(o,a) THEN RAISE EXCEPTION USING ERRCODE='ZX413';END IF;RESET ROLE;"
+    body += "IF before_funding IS DISTINCT FROM " + funding_projection + " OR NOT internal.initial_cancellation_sealed() OR (SELECT count(*) FROM internal.ai_quota_reservations WHERE state='committed' AND refund_count=0)<>1 THEN RAISE EXCEPTION USING ERRCODE='ZX414';END IF;"
+    execute('real_committed_dispatch_cancellation_and_exact_replay',
+        base + invoke(body + RETIRED_DISPATCH_ASSERTION) + 'SET CONSTRAINTS ALL IMMEDIATE;ROLLBACK;')
