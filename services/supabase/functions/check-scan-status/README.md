@@ -31,11 +31,11 @@ This is source preparation, not deployed or installed qualification. The
 isolated backend candidate passed 4,384 Edge tests (1,164 steps), zero failures
 or skips, against an owned 515-migration replay; all 125 deployable entrypoints
 typechecked, and whole-tree lint/format checks passed. The initial run against
-an older local fallback catalog failed and remains retained. Native transport/UI
-adoption and its affected gates remain pending. Existing legacy routes are
-unchanged. IC-1 admission/completion serving remains disabled: this
-observational branch does not waive S0, create a result sidecar, backfill legacy
-proof or provide any original-completion authority.
+an older local fallback catalog failed and remains retained. Those are the
+observation checkpoint's results. The later local original-recovery integration
+and native status are described below; none is deployed. Existing legacy routes
+are unchanged. Observation itself does not waive S0, create a result sidecar,
+backfill legacy proof or provide original-completion authority.
 
 # check-scan-status
 
@@ -296,9 +296,12 @@ latency are not established by this deadline. Success and refusal use no-store.
 
 Focused tests include real caller-deadline expiry and discarded late RPC
 replies. The joined SQL-response bridge passed 341 checks and native wire tests
-passed four methods/17 cases. Full Edge passed 4,390 tests/1,170 steps. Durable
-recovery-to-History and actual audio/video queued UI restart qualification
-remain open. The route and its service wrappers are local and undeployed. Full
-S0 admission, media/execution/settlement and old-writer quiescence prerequisites
-still apply; legacy absence never authorizes fresh work. See the
+passed four methods/17 cases. Full Edge passed 4,390 tests/1,170 steps. The
+integrated native checkout subsequently qualified synthetic wire through durable
+pin/apply/enrollment and the dedicated held audio/video UI process-relaunch
+check (native28402 and28504, independently reviewed). These do not qualify the
+literal SQL-to-native join, live Auth, media playback or complete recovery. The
+route and its service wrappers are local and undeployed. Full S0 admission,
+media/execution/settlement and old-writer quiescence prerequisites still apply;
+legacy absence never authorizes fresh work. See the
 [canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).
