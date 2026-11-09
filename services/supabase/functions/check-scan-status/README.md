@@ -295,8 +295,10 @@ bounds caller waiting; database statement/lock cancellation and full ingress
 latency are not established by this deadline. Success and refusal use no-store.
 
 Focused tests include real caller-deadline expiry and discarded late RPC
-replies. The joined SQL-response bridge and native wire qualification remain
-pending. The route and its service wrappers are local and undeployed. Full S0
-admission, media/execution/settlement and old-writer quiescence prerequisites
+replies. The joined SQL-response bridge passed 341 checks and native wire tests
+passed four methods/17 cases. Full Edge passed 4,390 tests/1,170 steps. Durable
+recovery-to-History and actual audio/video queued UI restart qualification
+remain open. The route and its service wrappers are local and undeployed. Full
+S0 admission, media/execution/settlement and old-writer quiescence prerequisites
 still apply; legacy absence never authorizes fresh work. See the
 [canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).
