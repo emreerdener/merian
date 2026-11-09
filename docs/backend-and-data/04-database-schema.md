@@ -7145,3 +7145,24 @@ to accepted operation and deletion cascade, and the default-false
 source tuples and fixed policy can enter the service finalizer. Zero-attempt
 `public_container_rejected` outcomes commit with attestation and work
 retirement; existing provider outcomes and copy authority are unchanged.
+
+### Initial History routine lint repair (local candidate)
+
+`20261109002827_repair_initial_history_routine_lint.sql` preserves the final
+replayed routine bodies, including the accounting delegation installed by the
+CPM atomic-admission migration. It corrects volatility through the affected
+caller chain, makes JSONB/UUID-array initializer casts explicit, and removes
+unused or shadowed declarations without removing validation. Signatures, owners,
+ACLs, empty search paths and lifecycle operations remain unchanged. The two
+cancellation routines that depend on mutable transaction state are VOLATILE;
+JSON/codec-dependent helpers are STABLE. No shared codec is promoted to
+IMMUTABLE. The migration grants no execution or rollout authority.
+
+The static contract is `initialHistoryRoutineLintMigration.test.ts`; the catalog
+contract is `initial_history_routine_lint.sql`. Strict database lint, existing
+admission/consuming/cancellation/completion catalogs and concurrency fixtures
+remain required. The isolated 512-migration replay passed all 188 catalog files
+/ 8,188 assertions, strict lint and both advisor gates. All 39 routine
+identities, ACLs and configuration values were preserved. The earlier
+exact-candidate CI run remains failed; successor CI and its contention stages
+remain pending. This migration is not deployed.

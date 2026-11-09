@@ -634,6 +634,12 @@ setup action retries the immutable reviewed installer at most three times for
 transient GitHub release-download failures, verifies the installed runtime is
 exactly `2.9.4`, and fails closed after the final attempt.
 
+The local initial-History routine repair preserves final replayed definitions
+and private ACLs while correcting volatility, casts and unused declarations. See
+[the schema contract](../../docs/backend-and-data/04-database-schema.md#initial-history-routine-lint-repair-local-candidate)
+for its exact migration and passing local checks. Successor CI remains pending;
+no deployment or rollout is implied.
+
 After validating the pinned Supabase CLI, candidate validation clears the image
 registry override exported by `supabase/setup-cli`. CLI `2.109.1` then uses its
 built-in ECR → GHCR → Docker Hub fallback with the same pinned image tags for
