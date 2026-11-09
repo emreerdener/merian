@@ -1,3 +1,4 @@
+import { readScanObservationHttp } from "./observation.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -95,6 +96,9 @@ Deno.serve((req: Request) =>
     // A reserved phase header must not enter ordinary legacy repair, even when
     // its body is malformed or lacks the reserved JSON marker.
     if (req.headers.has("x-merian-initial-recovery")) {
+      if (req.headers.get("x-merian-initial-recovery") === "observe-v1") {
+        return await readScanObservationHttp(req, user.id, supabaseAdmin);
+      }
       return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
     }
     const body = await parseJsonBody(req, { limit: "standard" });

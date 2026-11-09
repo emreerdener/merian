@@ -1,3 +1,42 @@
+## November 9 — explicit observation-only status protocol
+
+The source candidate adds an authenticated `observe-v1` branch to
+`check-scan-status`. It uses `X-Merian-Initial-Recovery: observe-v1` and a
+closed body containing only `initial_recovery`, with version1, phase`observe`
+and nested `original.owner_id`/`original.scan_id`. The owner must match
+authenticated Auth; the nested scan is a canonical UUID. Legacy
+top-level`scan_id`,`scans` and `recovery_scan` are rejected. Their absence also
+makes legacy handlers that predate reserved-marker guards fail required-field
+validation before repair. Unknown/mismatched phases never fall through to the
+legacy route.
+
+The branch performs only two owner-scoped SELECTs: scan row ID and ingestion-job
+status. `row_exists` is literal row presence and may include a retained or
+tombstoned row. The reads are separate snapshots, not completion or execution
+proof. The closed response echoes version/phase/owner/scan and includes
+`row_exists`, nullable`job_status` and`original_result: "unavailable"`. Neither
+row presence nor a`complete` job grants original-result import, History
+selection, retry, replacement, funding settlement or provider dispatch. Missing,
+failed, unknown or refused observations keep the exact request held.
+
+Actual request bytes are capped at1024 and response bytes at4096. The branch's
+five-second budget begins after shared authentication and includes body
+collection and reads; it is not an end-to-end authenticated-handler latency
+claim. Caller cancellation discards late reads and prevents a subsequent query.
+Responses are no-store and failures reveal only a fixed unavailable code. The
+shared wire fixture is
+`services/supabase/functions/check-scan-status/fixtures/observation-v1.json`.
+
+This is source preparation, not deployed or installed qualification. The
+isolated backend candidate passed 4,384 Edge tests (1,164 steps), zero failures
+or skips, against an owned 515-migration replay; all 125 deployable entrypoints
+typechecked, and whole-tree lint/format checks passed. The initial run against
+an older local fallback catalog failed and remains retained. Native transport/UI
+adoption and its affected gates remain pending. Existing legacy routes are
+unchanged. IC-1 admission/completion serving remains disabled: this
+observational branch does not waive S0, create a result sidecar, backfill legacy
+proof or provide any original-completion authority.
+
 # API Contracts and Network Mappings
 
 > **Beta policy update — September 18, 2026:** The owner authorized the existing
