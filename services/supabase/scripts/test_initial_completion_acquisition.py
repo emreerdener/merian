@@ -1,5 +1,5 @@
 """Admission-bound first acquisition on owned disposable journeys; no provider,
-HTTP serving grant, native persistence or execution from absence.
+HTTP serving route, native persistence or execution from absence.
 """
 import argparse
 import json
@@ -37,7 +37,7 @@ BEGIN
  IF fault='choose_result' THEN value:=value||jsonb_build_object('result_evidence_id','00000000-0000-4000-8000-00000000ffff'); END IF;
  wire:=internal.initial_canonical(value);
  IF fault='noncanonical' THEN wire:=wire||' '; END IF;
- RETURN internal.discover_initial_completion_v1(r.owner_id,r.scan_id,wire);
+ RETURN public.discover_initial_completion_v1(r.owner_id,r.scan_id,wire);
 END $$;
 REVOKE ALL ON FUNCTION public.test_acquisition(TEXT) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.test_acquisition(TEXT) TO service_role;

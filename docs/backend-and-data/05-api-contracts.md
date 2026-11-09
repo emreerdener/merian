@@ -1,3 +1,33 @@
+## November 9 — prepared original recovery service reads
+
+The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
+candidate exposes two service-only wrappers for the existing locked immutable
+readers: `discover_initial_completion_v1` and
+`read_initial_cpm_saved_admission_v1`. Each checks the service caller inside a
+postgres-owned SECURITY DEFINER function with an empty search path and a
+five-second statement-timeout configuration. The existing abortable transport
+deadline remains required; this catalog setting alone does not qualify server
+execution or lock-wait duration. Exact signatures are registered in the existing
+privileged-routine allowlist. Anonymous/authenticated callers and direct
+internal access remain denied.
+
+The wrappers delegate original owner/admission/dispatch/funding and
+cancellation/deletion validation without copying those rules or adding writes.
+The saved-admission response includes private assignment context for server
+validation; it must never be relayed as the native acknowledgement. No HTTP
+admission/completion branch is installed by this candidate. Full S0 admission,
+media/execution/settlement and old-writer quiescence prerequisites remain.
+Ordinary legacy absence cannot gain an immutable result through these reads.
+
+Local validation passed: full 516-migration replay, 190 catalog files with
+10,384 executed assertions and two existing declared skips, strict
+public/internal SQL lint, and four owned recovery journeys with 341 checks.
+Independent review verified the permission-test correction, source applicability
+and owned cleanup. The migration remains unpublished and unapplied to hosted
+environments. These synthetic SQL journeys do not qualify the HTTP route,
+concurrent deletion/merge, server timeout or native integration;
+initial-recovery acceptance remains open.
+
 ## November 9 — explicit observation-only status protocol
 
 The source candidate adds an authenticated `observe-v1` branch to

@@ -1,5 +1,5 @@
 """Read-only original CPM admission before dispatch and across completion.
-Fresh owned disposable databases only; no provider, HTTP grant or native pinning.
+Fresh owned disposable databases only; service wrapper, no HTTP route or native pinning.
 """
 import argparse
 import json
@@ -55,7 +55,7 @@ DECLARE r public.test_cpm_ack_request; candidate_digest TEXT; content_digest TEX
  IF fault='assignment_digest' THEN r.assignment_digest:=repeat('0',64); END IF;
  IF fault='backend_generation' THEN r.generation:='00000000-0000-4000-8000-00000000ffff'; END IF;
  IF fault='backend_configuration_digest' THEN r.backend_digest:=repeat('0',64); END IF;
- RETURN internal.read_initial_cpm_saved_admission_v1(r.owner_id,r.scan_id,r.canonical_candidate,
+ RETURN public.read_initial_cpm_saved_admission_v1(r.owner_id,r.scan_id,r.canonical_candidate,
  candidate_digest,content_digest,r.assignment_digest,r.generation,r.backend_digest);
 END $$;
 REVOKE ALL ON FUNCTION public.test_cpm_saved_ack(TEXT) FROM PUBLIC,anon,authenticated;
