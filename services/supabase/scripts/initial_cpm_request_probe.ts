@@ -1,7 +1,7 @@
 /** Offline child of the owned disposable CPM qualification. The parent keeps the
  * prepared provider parameters in memory and passes them back only after a committed
  * original SQL grant. Never load a credential, contact a provider or save media. */
-import { readInitialRecovery } from "../functions/check-scan-status/initialRecovery.ts";
+import { readInitialRecoveryHttp } from "../functions/check-scan-status/initialRecovery.ts";
 import { isDeepStrictEqual } from "node:util";
 import { syntheticOriginalPhotoSnapshot as snapshot } from "../functions/_shared/initialAnalysis/fixtures/cpmPhotoExecutionRequest.ts";
 import { identificationProvenance } from "../functions/_shared/ai/provenance.ts";
@@ -120,17 +120,23 @@ if (Deno.args[0] === "prepare") {
 } else if (Deno.args[0] === "deliver") {
   const admission = JSON.parse(input.admission);
   let reads = 0;
-  const response = await readInitialRecovery(
-    {
-      scan_id: admission.scan_id,
-      initial_recovery: {
-        version: 1,
-        phase: "completion",
-        original: admission,
+  const http = await readInitialRecoveryHttp(
+    new Request("http://127.0.0.1/check-scan-status", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-merian-initial-recovery": "completion-v1",
       },
-    },
+      body: JSON.stringify({
+        initial_recovery: {
+          version: 1,
+          phase: "completion",
+          original: admission,
+        },
+      }),
+      signal,
+    }),
     admission.owner_id,
-    signal,
     {
       origin: "http://127.0.0.1",
       serverApiKey: ["sb", "secret", "fixture", "a".repeat(20)].join("_"),
@@ -149,8 +155,11 @@ if (Deno.args[0] === "prepare") {
         return Promise.resolve(Response.json(input.reply));
       },
     },
-    "completion",
   );
+  if (http.status !== 200 || http.headers.get("cache-control") !== "no-store") {
+    throw new Error("original HTTP recovery refused");
+  }
+  const response = new Uint8Array(await http.arrayBuffer());
   const status = JSON.parse(new TextDecoder().decode(response));
   if (
     status.outcome !== input.outcome ||

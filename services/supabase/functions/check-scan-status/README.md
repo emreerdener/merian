@@ -305,3 +305,12 @@ route and its service wrappers are local and undeployed. Full S0 admission,
 media/execution/settlement and old-writer quiescence prerequisites still apply;
 legacy absence never authorizes fresh work. See the
 [canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).
+
+The local disposable CPM request-journey probe uses this same HTTP owner with
+the closed nested recovery envelope and `completion-v1` header. It retains the
+literal response bytes for digest/length checks and requires `200` with
+`no-store`. The corrected caller passed the owned two-photo SQL journey (114
+recorded checks and 12 fixture assertions), including unchanged pending replies
+before completion and the original found result afterward. This is local
+synthetic-provider qualification; it does not establish live Auth, native
+integration or deployment.
