@@ -22,6 +22,57 @@ const manifestURL = new URL(
 );
 const ACK = "merian_local_handoff_transaction_committed_v1";
 const MAX_ROW_BYTES = 6 * 1024 * 1024;
+const PHASES = [
+  "connection_ready",
+  "transaction_ready",
+  "statement_complete",
+  "commit_acknowledged",
+] as const;
+type LocalPhase = typeof PHASES[number];
+export type LocalHandoffTrace = {
+  elapsed_ms: number;
+  diagnostic: string;
+  phases_ms: Partial<Record<LocalPhase, number>>;
+};
+const marker = (phase: LocalPhase) => "merian_local_handoff_phase_" + phase;
+/** Observe fixed psql markers as bytes arrive, including before a timeout.
+ * Retain at most 96 bytes of any line; never retain row/error text in evidence.
+ * Times are local arrival observations, not server execution measurements. */
+export function localHandoffPhaseProbe(
+  trace: LocalHandoffTrace,
+  elapsed: () => number,
+): TransformStream<Uint8Array, Uint8Array> {
+  let line = "", oversized = false, next = 0;
+  return new TransformStream({
+    transform(chunk, controller) {
+      let offset = 0;
+      while (offset < chunk.length) {
+        const newline = chunk.indexOf(10, offset);
+        const end = newline < 0 ? chunk.length : newline;
+        if (!oversized) {
+          if (line.length + end - offset > 96) oversized = true;
+          else {
+            for (let i = offset; i < end; i++) {
+              line += String.fromCharCode(chunk[i]);
+            }
+          }
+        }
+        if (newline >= 0) {
+          if (
+            !oversized && next < PHASES.length &&
+            line === marker(PHASES[next])
+          ) {
+            trace.phases_ms[PHASES[next++]] = Math.ceil(elapsed());
+          }
+          line = "";
+          oversized = false;
+        }
+        offset = end + 1;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+}
 class LocalHandoffUnknown extends Error {
   constructor(readonly diagnostic: string) {
     super("initial_media_handoff_local_outcome_unknown");
@@ -39,6 +90,7 @@ async function process(
   input: string,
   signal: AbortSignal,
   maxBytes: number,
+  probe?: TransformStream<Uint8Array, Uint8Array>,
 ): Promise<string> {
   const child = new Deno.Command("docker", {
     args,
@@ -57,7 +109,11 @@ async function process(
     // Drain both channels concurrently with input/status. Per-channel byte caps
     // apply before aggregation; no process output is printed or persisted.
     const output = await Promise.all([
-      readInitialStream(child.stdout, maxBytes, signal),
+      readInitialStream(
+        probe ? child.stdout.pipeThrough(probe) : child.stdout,
+        maxBytes,
+        signal,
+      ),
       readInitialStream(child.stderr, 65536, signal),
       initialAbortable(signal, () => child.status),
       initialAbortable(signal, async () => {
@@ -97,6 +153,7 @@ async function process(
  * local UNIX endpoint even if the ambient context subsequently changes. */
 export async function createDisposableHandoffBridge(
   caller: AbortSignal,
+  diagnostics?: LocalHandoffTrace[],
 ): Promise<HandoffBridge> {
   const { container, host } = await initialDeadline(
     caller,
@@ -151,6 +208,14 @@ export async function createDisposableHandoffBridge(
     },
   );
   const invoke = async (sql: string, caller: AbortSignal): Promise<unknown> => {
+    const began = performance.now();
+    const trace: LocalHandoffTrace = {
+      elapsed_ms: 0,
+      diagnostic: "unknown",
+      phases_ms: {},
+    };
+    const phase = (name: LocalPhase) =>
+      diagnostics ? "\\echo " + marker(name) + "\n" : "";
     try {
       return await initialDeadline(caller, 5000, async (signal) => {
         const text = await process(
@@ -172,24 +237,47 @@ export async function createDisposableHandoffBridge(
             "-d",
             "postgres",
           ],
-          "BEGIN ISOLATION LEVEL READ COMMITTED;\n" +
+          phase("connection_ready") +
+            "BEGIN ISOLATION LEVEL READ COMMITTED;\n" +
             "SET LOCAL statement_timeout='5s';\nSET LOCAL lock_timeout='1s';\n" +
-            sql + "\nCOMMIT;\nSELECT '" + ACK + "';\n",
+            phase("transaction_ready") + sql + "\n" +
+            phase("statement_complete") + "COMMIT;\n" +
+            phase("commit_acknowledged") + "SELECT '" + ACK + "';\n",
           signal,
           MAX_ROW_BYTES,
+          diagnostics
+            ? localHandoffPhaseProbe(trace, () => performance.now() - began)
+            : undefined,
         );
-        const lines = text.trimEnd().split("\n");
+        let lines = text.trimEnd().split("\n");
+        if (diagnostics) {
+          if (
+            lines.length !== 6 || lines[0] !== marker(PHASES[0]) ||
+            lines[1] !== marker(PHASES[1]) ||
+            lines[3] !== marker(PHASES[2]) ||
+            lines[4] !== marker(PHASES[3])
+          ) throw unknown("phase_framing");
+          lines = [lines[2], lines[5]];
+        }
         if (lines.length !== 2 || lines[1] !== ACK) throw unknown();
         const row = JSON.parse(lines[0]);
         if (!row || typeof row !== "object" || Array.isArray(row)) {
           throw unknown();
         }
+        trace.diagnostic = "acknowledged";
         return row;
       });
     } catch (error) {
+      trace.diagnostic = error instanceof LocalHandoffUnknown
+        ? error.diagnostic
+        : "acknowledgement";
       throw error instanceof LocalHandoffUnknown
         ? error
         : unknown("acknowledgement");
+    } finally {
+      trace.elapsed_ms = Math.ceil(performance.now() - began);
+      // This fixture has a finite cohort; cap observations independently of it.
+      if (diagnostics && diagnostics.length < 128) diagnostics.push(trace);
     }
   };
   const args = (id: HandoffIdentity) => {

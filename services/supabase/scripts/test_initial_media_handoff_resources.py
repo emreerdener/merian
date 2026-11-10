@@ -71,7 +71,7 @@ def cases(q, replay, shape):
                 report = {'passed': False}
             allowed = ['passed', 'shape', 'coordinator_ms', 'source_aliases', 'destinations', 'unique_bytes',
                 'sql_calls', 'storage_operations', 'baseline', 'peak', 'no_sql_during_io',
-                'outcome', 'recovered', 'error', 'stage']
+                'outcome', 'recovered', 'recovered_transfer_present', 'bridge_calls', 'error', 'stage']
             report = {k: v for k, v in report.items() if k in allowed}
             stderr_present = bool(result.stderr.strip())
             passed = result.returncode == 0 and not stderr_present and report.get('passed') is True and report.get('shape') == shape
@@ -79,7 +79,7 @@ def cases(q, replay, shape):
                 'stderr_present': stderr_present, 'report': report,
                 'local_child_user_cpu_seconds': after.ru_utime - before.ru_utime,
                 'local_child_system_cpu_seconds': after.ru_stime - before.ru_stime,
-                'measurement_limits': 'CPU includes local Deno/transport children, not database container CPU. Memory samples include in-memory storage fixture and are observations, not a handoff heap budget or proof of absolute peak.'}
+                'measurement_limits': 'CPU includes local Deno/transport children, not database container CPU. Memory samples include in-memory storage fixture and are observations, not a handoff heap budget or proof of absolute peak. Bridge phases are local arrival times of fixed psql markers; buffering can coalesce them and they are not server CPU or exact server phase durations. Recovered-transfer-present reports only the validated recovery read, never changes an unresolved outcome to success.'}
             q.save()
             print(('PASS ' if passed else 'FAIL ') + 'resource_' + shape, flush=True)
             if not passed:

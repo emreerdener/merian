@@ -2,6 +2,8 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   createDisposableHandoffBridge,
   localHandoffDiagnostic,
+  localHandoffPhaseProbe,
+  type LocalHandoffTrace,
 } from "./initial_media_handoff_bridge.ts";
 const ACK = "merian_local_handoff_transaction_committed_v1";
 const project = "merian-handoff-runtime-abcdefgh";
@@ -11,6 +13,13 @@ const id = {
   admission_receipt_digest: "a".repeat(64),
 };
 const token = "00000000-0000-4000-8000-000000000003";
+const phases = [
+  "connection_ready",
+  "transaction_ready",
+  "statement_complete",
+  "commit_acknowledged",
+] as const;
+const phaseLine = (name: string) => "merian_local_handoff_phase_" + name + "\n";
 type Result = { out: string; err?: string; code?: number };
 function fixture() {
   const commands: { args: string[]; input: string }[] = [];
@@ -169,6 +178,80 @@ Deno.test("local handoff bridge has nine fixed methods and independent bounded t
     assert(c.input.endsWith("\nCOMMIT;\nSELECT '" + ACK + "';\n"));
   }
 });
+Deno.test("local phase observations survive split markers and omit private/oversized lines", async () => {
+  const trace: LocalHandoffTrace = {
+    elapsed_ms: 0,
+    diagnostic: "unknown",
+    phases_ms: {},
+  };
+  let tick = 0;
+  const source = phaseLine("commit_acknowledged") + phaseLine(phases[0]) +
+    "synthetic-private-row-".repeat(10000) + "\n" + phaseLine(phases[1]) +
+    '{"private":"' + phaseLine(phases[2]).trim() + '"}\n' +
+    phaseLine(phases[2]);
+  const bytes = new TextEncoder().encode(source);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let i = 0; i < bytes.length; i += 17) {
+        controller.enqueue(bytes.slice(i, i + 17));
+      }
+      controller.close();
+    },
+  }).pipeThrough(localHandoffPhaseProbe(trace, () => ++tick));
+  assertEquals(await new Response(stream).text(), source);
+  assertEquals(trace.phases_ms, {
+    connection_ready: 1,
+    transaction_ready: 2,
+    statement_complete: 3,
+  });
+  assert(!JSON.stringify(trace).includes("private"));
+  assert(!("commit_acknowledged" in trace.phases_ms));
+});
+for (
+  const outcome of ["acknowledged", "missing_commit", "sql_timeout"] as const
+) {
+  Deno.test(
+    "diagnostic bridge preserves transaction acknowledgement requirement: " +
+      outcome,
+    async () => {
+      using f = fixture();
+      const traces: LocalHandoffTrace[] = [];
+      const signal = new AbortController().signal;
+      const bridge = await createDisposableHandoffBridge(signal, traces);
+      f.config.result = (input) => {
+        assert(input.includes("statement_timeout='5s'"));
+        assert(input.includes("lock_timeout='1s'"));
+        const prefix = phaseLine(phases[0]) + phaseLine(phases[1]);
+        if (outcome === "sql_timeout") {
+          return Promise.resolve({
+            out: prefix,
+            code: 1,
+            err: "ERROR: 57014 synthetic private details",
+          });
+        }
+        return Promise.resolve({
+          out: prefix + '{"synthetic":true}\n' + phaseLine(phases[2]) +
+            (outcome === "acknowledged" ? phaseLine(phases[3]) : "") + ACK +
+            "\n",
+        });
+      };
+      if (outcome === "acknowledged") {
+        assertEquals(await bridge.beginCopy(id, signal), { synthetic: true });
+      } else await assertRejects(() => bridge.beginCopy(id, signal));
+      assertEquals(traces.length, 1);
+      assertEquals(
+        traces[0].diagnostic,
+        outcome === "missing_commit"
+          ? "phase_framing"
+          : outcome === "sql_timeout"
+          ? "sql_57014"
+          : "acknowledged",
+      );
+      assert(!JSON.stringify(traces).includes("private"));
+      assertEquals(f.commands.filter((c) => c.args.includes("exec")).length, 1);
+    },
+  );
+}
 for (
   const kind of ["manifest", "remote", "label", "endpoint_drift", "reserving"]
 ) {

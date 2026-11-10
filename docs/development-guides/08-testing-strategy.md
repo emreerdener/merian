@@ -125,6 +125,22 @@ action makes at most three attempts with the same immutable installer SHA, then
 verifies exact version `2.9.4`; exhausted retries remain a failed candidate
 rather than being treated as passing evidence.
 
+The separate original-media handoff resource harness
+(`test_initial_media_handoff_resources.py`) retains failed or unresolved
+outcomes. Its optional local bridge diagnostics record only fixed psql phase
+markers and bounded arrival times under the existing five-second transaction
+acknowledgement limit. Buffering may combine markers; missing markers do not
+prove a server phase was not reached, and arrival intervals are not server CPU
+measurements. `recovered_transfer_present` describes the validated recovery
+read; it does not turn an unresolved transfer into passing acceptance or permit
+a mutation retry. Large-input admission catalog diagnostics identify the closed
+synthetic variant, original anchor/cutoff and stage clock observations without
+input or receipt bodies. `body_completed` precedes rollback checks; pgTAP is the
+passing-test authority. `failure_observed` is sampled after exception unwind and
+may be absent for cancellation. Preserve the original failed evidence when
+running a separately identified diagnostic fixture; do not extend deadlines or
+replay an uncertain mutation to obtain a passing result.
+
 The OpenAI adapter lane explicitly denies network and environment access. It
 covers the historical evaluation adapter, production photo adapter, and closed
 Luna/Sol photo-model evaluation profiles. The architecture guard permits the
