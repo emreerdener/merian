@@ -80,27 +80,47 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
 
-Deno.test("the history integration hold blocks release while preserving the beta exception", async () => {
+Deno.test("the proposed beta history release retains the complete hold inventory", async () => {
   const decision = await evaluateProductionReleaseHolds(
     new URL("../release-holds.json", import.meta.url),
   );
-  assertEquals(decision.allowed, false);
+  assertEquals(decision.allowed, true);
   assertEquals(decision.manifestValid, true);
-  assertEquals(productionSourceStatus(decision), "held");
-  assertEquals(decision.activeHoldIds, [
+  assertEquals(productionSourceStatus(decision), "clear");
+  assertEquals(decision.activeHoldIds, []);
+  assertEquals(decision.inactiveHoldIds, [
+    holdId,
     "identification_history_integration_hold",
   ]);
-  assertEquals(decision.inactiveHoldIds, [holdId]);
-  assertEquals(productionHoldCommandSucceeds("source-status", decision), true);
-  assertEquals(productionHoldCommandSucceeds("source-gate", decision), false);
+  assertEquals(productionHoldCommandSucceeds("source-gate", decision), true);
+  const source = JSON.parse(
+    await Deno.readTextFile(new URL("../release-holds.json", import.meta.url)),
+  );
+  const history = source.holds.find((hold: { id: string }) =>
+    hold.id === "identification_history_integration_hold"
+  );
+  assertEquals(
+    history.exit_criteria.map((criterion: { id: string }) => criterion.id),
+    [
+      "history_exact_target_release_approval",
+      "history_full_undeployed_plan",
+      "history_live_controls_and_jobs",
+    ],
+  );
 });
 
-Deno.test("repository history hold denies automatic release before live control access", async () => {
+Deno.test("reactivated history hold denies automatic release before live control access", async () => {
+  const source = JSON.parse(
+    await Deno.readTextFile(new URL("../release-holds.json", import.meta.url)),
+  );
+  source.holds.find((hold: { id: string }) =>
+    hold.id === "identification_history_integration_hold"
+  ).active = true;
   let called = false;
   const result = await evaluateAutomaticProductionRelease(
-    new URL("../release-holds.json", import.meta.url),
+    "manifest.json",
     candidateSha,
-    Deno.readTextFile,
+    () => Promise.resolve(JSON.stringify(source)),
     {
       verifyRepositoryControls: () => {
         called = true;
@@ -113,6 +133,27 @@ Deno.test("repository history hold denies automatic release before live control 
     "identification_history_integration_hold",
   ]);
   assertEquals(called, false);
+  assertEquals(
+    productionHoldCommandSucceeds("automatic-release", result),
+    false,
+  );
+});
+
+Deno.test("cleared history hold still refuses unavailable live release controls", async () => {
+  let called = false;
+  const result = await evaluateAutomaticProductionRelease(
+    new URL("../release-holds.json", import.meta.url),
+    candidateSha,
+    Deno.readTextFile,
+    {
+      verifyRepositoryControls: () => {
+        called = true;
+        return Promise.reject(new Error("controls unavailable"));
+      },
+    },
+  );
+  assertEquals(called, true);
+  assertEquals(result.allowed, false);
   assertEquals(
     productionHoldCommandSucceeds("automatic-release", result),
     false,

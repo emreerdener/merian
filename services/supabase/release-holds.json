@@ -72,10 +72,10 @@
     },
     {
       "id": "identification_history_integration_hold",
-      "active": true,
+      "active": false,
       "scope": "supabase_production",
       "owner": "History release owner",
-      "reason": "The History integration remains held. The owner authorized publishing and running only the read-only migration-inspection workflow for qlarqavoqhkuwzmevrmf on 2026-11-08, expressly without deploying other changes. Hold the entire Supabase production mutation job, including unrelated backend releases. This inspection publication does not authorize any database, function, secret, runtime-flag or device changes. See the Manual read-only migration inspection section in docs/backend-and-data/06-supabase-deployment-runbook.md.",
+      "reason": "Proposed beta release decision for qlarqavoqhkuwzmevrmf. This inactive manifest already clears the source gate; this reason and retained exit criteria are documentation, not an executable pending-approval or one-run restriction. Keep this revision unpublished until the owner explicitly authorizes its exact SHA, protected-main publication and backend operation. See docs/release-evidence/history-beta-release-decision-2026-11-09.md for the reviewed upgrade plan, deferred acceptance and repair limits. Exact-SHA Candidate Validation, current-main/live controls, data/account/funding fences and ordered workflow checks remain mandatory. Runtime activation, paid testing and device distribution remain separate.",
       "exit_criteria": [
         {
           "id": "history_exact_target_release_approval",

@@ -71,13 +71,21 @@ or deployed function compatibility.
 The standalone inspection publication includes the active
 `identification_history_integration_hold` in
 `services/supabase/release-holds.json`. It blocks the full Supabase production
-mutation job while permitting this read-only inspection. Keep that hold active;
-removing it requires separate backend release authorization. Do not dispatch the
-existing deployment workflow to obtain this report: it has no read-only
-inspection mode. Inspection approval does not authorize merging or deploying the
-broader History/PR116 candidate.
+mutation job while permitting this read-only inspection. Inspection approval
+never clears it; a later hold-clearing revision requires separate exact backend
+release authorization under the proposed November 9 beta decision below. Do not
+dispatch the existing deployment workflow to obtain this report: it has no
+read-only inspection mode. Inspection approval does not authorize merging or
+deploying the broader History/PR116 candidate.
 
 ## Observation analysis history activation hold
+
+> **Proposed beta backend release:** The
+> [November 9 decision](../release-evidence/history-beta-release-decision-2026-11-09.md)
+> prepares an exact-SHA clearance of the integration deployment hold for the
+> existing beta. This isolated revision must not be published without the
+> owner's exact target/operation approval. It does not clear the runtime feature
+> activation gates or mark unfinished native/manual acceptance complete.
 
 Function source/configuration is not excluded from the normal main-branch deploy
 workflow. In particular, a `services/supabase/config.toml` change selects the
@@ -465,14 +473,16 @@ required. When upgrading the CLI, review its bundler image pin with this helper.
 
 The production push first runs `scripts/plan_database_migration_push.ts` against
 read-only migration-version metadata. Ordinary forward migrations use the normal
-push. The only reviewed backfill is
-`20260927220537_hide_reported_explore_posts.sql` when the remote tip is exactly
-`20260927230801_account_identification_invocations.sql` and no other earlier
-migration is missing. The planner verifies both checked-in SQL file names and
-SHA-256 digests before allowing `--include-all`. Remote-only versions, duplicate
-or malformed history, another gap, a later remote tip with this gap still open,
-or changed recovery SQL fail closed. An already-recovered database returns to
-normal push behavior. No migration is renamed and no history entry is repaired.
+push. Two specific delayed-order scenarios are supported: the single
+`20260927220537_hide_reported_explore_posts.sql` gap at tip
+`20260927230801_account_identification_invocations.sql`, and the eight exact
+`HISTORY_RECOVERY_MIGRATIONS` at tip
+`20261003063950_restore_gemini_beta_photo_identification.sql`. The planner owns
+the complete filename and SHA-256 allowlist and verifies the reviewed tip and
+all missing earlier migrations before allowing `--include-all`. Remote-only
+versions, duplicate or malformed history, any unreviewed gap or tip, and changed
+recovery SQL fail closed. An already-recovered database returns to normal push
+behavior. No migration is renamed and no history entry is repaired.
 
 The workflow runs `db push --dry-run` with the selected mode before applying it,
 under the existing Production concurrency lock and exact-current-main controls.
@@ -482,8 +492,12 @@ adds identification invocation accounting without replacing those readers.
 private disposable database: replay through the reviewed tip without the missing
 migration, verify the ordinary push refuses it, apply the reviewed gap, then run
 report-visibility, invocation-accounting, and privileged-routine catalog tests.
-Candidate Validation runs this regression in addition to normal chronological
-replay and the complete catalog suite.
+The same script also reconstructs the history tip without its eight gaps, then
+applies the full pending history and checks Gemini assignment, history readers,
+append, evidence, funding, protection and privileged-routine catalogs. Candidate
+Validation runs both scenarios in addition to chronological replay and the
+complete catalog suite. These synthetic replays do not establish live data
+contents or hosted mixed-version execution.
 
 A superseded candidate skips deployment at the source hold gate; use the newest
 validated candidate instead of retrying an older SHA. If main advances after
