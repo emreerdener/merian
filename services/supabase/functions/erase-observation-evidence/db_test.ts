@@ -15,11 +15,16 @@ Deno.test("private erasure RPC boundary is fixed, scoped, abortable and strict",
   const repository = evidenceErasureRepository(client),
     signal = new AbortController().signal;
   assertEquals(await repository.retire(signal), 0);
+  assertEquals(await repository.retireVideo(signal), 0);
   value = null;
   assertEquals(await repository.claim(signal), null);
   value = true;
   assertEquals(await repository.finish("object", "token", false, signal), true);
   assertEquals(calls, [["retire_expired_observation_evidence", {}, false], [
+    "retire_expired_observation_video_evidence",
+    {},
+    false,
+  ], [
     "claim_observation_evidence_erasure",
     {},
     false,

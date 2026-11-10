@@ -7232,3 +7232,22 @@ depth limits, numeric and UTF-8 bounds, nullable handling, three-valued results
 and malformed-rule errors. The independent recursive historical oracle in
 `initial_schema_scalar_inlining.sql` verifies scalar/rule crossings, nested
 parents, invalid rules and depth boundaries; no authority check is removed.
+
+## Prepared private-evidence drain health
+
+The private `observation_evidence_erasure` outbox remains the durable owner of
+marker obligations; its service worker is documented in the
+[cleanup API contract](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
+`20261110190707_history_private_evidence_drain_health.sql` prepares inactive
+operations for that same private outbox. New obligations gain immutable
+`first_observed_at`; historical rows remain NULL because their original enqueue
+age is unknown. No backfill derives an age from retry eligibility. The private
+RLS singleton `observation_evidence_worker_state` retains an exact pending
+transport slot and sanitized completion counters/times. It stores no credential
+or response body. Only a valid, temporally correlated worker receipt releases
+the slot automatically; missing or ambiguous outcomes require explicit operator
+reconciliation. The service-only aggregate health RPC reads queue partitions,
+candidate discovery estimates, retained bound objects and unknown-age counts
+without mutating state. It exposes no row or request identity. Both scheduler
+enablement and cron registration remain absent until separately authorized.

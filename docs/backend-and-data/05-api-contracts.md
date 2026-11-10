@@ -14139,3 +14139,70 @@ minimal terminal status. The fingerprint is not a backend digest or authority.
 Network execution, post-await account/deletion fencing and UI delivery remain
 separate; all activation gates remain false. See
 [the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
+
+## Prepared private-evidence cleanup RPCs
+
+The separate `private_evidence_erasure_enabled` gate starts false. Only a
+service caller may execute `retire_expired_observation_evidence()` and
+`claim_observation_evidence_erasure()`. Retirement returns an integer from zero
+to five: one exact expired unbound cohort, or one legacy noncohort receipt.
+Discovery and the locked recheck exclude intent/result-owned evidence; invalid
+or mismatched immutable cohorts are held while later eligible work can progress.
+The original cohort descriptor and expiry survive receipt cleanup, so retrying
+an expired analysis cannot allocate new object keys. Parent/account deletion
+continues to remove private descriptors and enqueue opaque obligations.
+
+Claim returns SQL null when disabled or no obligation is due, otherwise exactly
+`object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
+never extended.
+`finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
+boolean for the original unexpired token. It remains callable after the gate
+closes; successful settlement still requires the trusted caller to PUT and
+HEAD-verify the permanent empty marker. The prepared
+`erase-observation-evidence` service-authenticated POST endpoint now connects
+these RPCs and the separate `retire_expired_observation_video_evidence()` owner.
+It consumes no caller body or object key and returns only `retired`
+(photo/audio, 0–5), `video_retired` (0–7), `retirement_failures` (0–2),
+`claimed`, `marked`, and `acknowledged` (0–1 each). All responses are no-store.
+Each media lane gets one bounded retirement attempt; a failure, malformed count
+or unknown acknowledgement is counted without retrying or assuming rollback.
+That lane's zero count is not proof of zero mutations. The independent other
+lane and authoritative registry claim can still progress. Parent cancellation
+and the overall deadline stop subsequent work. One request then marks at most
+one independently claimed opaque object. A 90-second shared request deadline
+caps twelve-second RPCs and a 25-second PUT/HEAD stage. Storage starts only with
+at least 38 seconds left in the original 60-second claim and request, reserving
+twelve seconds plus scheduling margin for settlement. The claim is never
+renewed, and no new claim is acquired with less than50seconds left for its RPC
+and existing marker reserve. Zero claims is not an empty-backlog assertion.
+Retirement failures, `claimed=1, marked=0` even with `acknowledged=1`, or
+`marked=1, acknowledged=0` are unhealthy outcomes; HTTP200 alone does not prove
+successful cleanup. Failed or uncertain marker writes report failure when time
+allows; lost acknowledgements recover through the durable outbox without
+in-request retries. Parent cancellation reaches both storage calls. Configured
+source participates in future main deployment planning; no deployment, schedule
+or activation is implied. Public-copy cleanup cannot drain this separate private
+outbox.
+
+`get_observation_evidence_erasure_health()` is a service-only, read-only JSON
+aggregate (`schema_version=1`, `generated_at`, `queue`, `retirement`, `worker`).
+Queue counts include claimable, deferred and live-claim partitions of all
+pending obligations, overlapping expired claims, unknown original ages, and
+separate pending/due ages. Future obligations retain immutable
+`first_observed_at`; historical NULL values stay unknown. Retirement aggregates
+separate media discovery candidates/object counts, bound retained objects and
+expired unbound objects outside discovery. Discovery is not proof that locked
+retirement will succeed, particularly video source/descriptor revalidation. No
+identities, object keys, request IDs, headers or response bodies are exposed.
+
+The private scheduler starts disabled and has no cron registration. Its durable
+pending request survives asynchronous transport. Only a bounded valid terminal
+receipt correlated to the exact request and a finite timestamp between dispatch
+and observation releases the slot; gateway errors, missing/malformed responses
+and timeouts remain unknown. Delayed reconciliation keeps the old response time
+for success/marker age. Health reads never reconcile or clear this state. The
+monitor workflow also starts inactive behind an explicit repository variable and
+main-branch check. Proposed cadence/alert thresholds and the original-slot
+operator reconciliation procedure are documented in the
+[worker owner guide](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes).
+They do not authorize deployment, activation or promise measured throughput.

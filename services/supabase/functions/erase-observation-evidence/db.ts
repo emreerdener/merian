@@ -19,6 +19,8 @@ export function evidenceErasureRepository(client: SupabaseClient) {
   return {
     retire: (signal: AbortSignal) =>
       rpc("retire_expired_observation_evidence", {}, signal),
+    retireVideo: (signal: AbortSignal) =>
+      rpc("retire_expired_observation_video_evidence", {}, signal),
     claim: (signal: AbortSignal) =>
       rpc("claim_observation_evidence_erasure", {}, signal),
     finish: async (

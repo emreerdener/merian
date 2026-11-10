@@ -6,6 +6,7 @@ import { publicationAbortable } from "../_shared/analysisHistory/publicationDead
 
 export interface EvidenceErasureDependencies {
   retire(signal: AbortSignal): Promise<unknown>;
+  retireVideo(signal: AbortSignal): Promise<unknown>;
   claim(signal: AbortSignal): Promise<unknown>;
   erase(object: string, signal: AbortSignal): Promise<void>;
   finish(
@@ -19,7 +20,7 @@ export interface EvidenceErasureDependencies {
   timeout?: (milliseconds: number) => AbortSignal;
 }
 
-/** One retirement and one marker, without renewing claims or retrying I/O. */
+/** One retirement per media lane and one marker; no renewed claims or retries. */
 export async function eraseObservationEvidence(
   deps: EvidenceErasureDependencies,
   parent?: AbortSignal,
@@ -38,21 +39,47 @@ export async function eraseObservationEvidence(
     overall.throwIfAborted();
     return AbortSignal.any([overall, timeout(remaining)]);
   };
-  const retirementSignal = stage(12_000);
-  const retired = await publicationAbortable(
-    retirementSignal,
-    () => deps.retire(retirementSignal),
-  );
-  if (
-    !Number.isSafeInteger(retired) || (retired as number) < 0 ||
-    (retired as number) > 5
-  ) return invalidHistory();
   const counts = {
-    retired: retired as number,
+    retired: 0,
+    video_retired: 0,
+    retirement_failures: 0,
     claimed: 0,
     marked: 0,
     acknowledged: 0,
   };
+  // Each independently authorized SQL owner gets one bounded opportunity. A
+  // held or unavailable lane cannot starve another media lane or obligations
+  // already in the durable registry. Unknown acknowledgements are not retried.
+  for (
+    const lane of [
+      { key: "retired", maximum: 5, run: deps.retire },
+      { key: "video_retired", maximum: 7, run: deps.retireVideo },
+    ] as const
+  ) {
+    overall.throwIfAborted();
+    try {
+      const signal = stage(12_000);
+      const retired = await publicationAbortable(
+        signal,
+        () => lane.run(signal),
+      );
+      if (
+        typeof retired !== "number" || !Number.isSafeInteger(retired) ||
+        retired < 0 || retired > lane.maximum
+      ) throw new Error("private_evidence_erasure_unavailable");
+      counts[lane.key] = retired;
+    } catch {
+      // No SQL/provider error detail leaves this boundary. Cancellation still
+      // stops all subsequent work; an independent stage timeout is observable.
+      overall.throwIfAborted();
+      counts.retirement_failures++;
+    }
+  }
+  overall.throwIfAborted();
+  // Do not acquire a new lease when even an on-time claim response could not
+  // leave the existing marker/settlement reserve. Zero claims is not an empty
+  // registry assertion; the read-only health projection owns backlog evidence.
+  if (requestEnd - now() < 50_000) return counts;
   const claimStart = now();
   const claimSignal = stage(12_000);
   const value = await publicationAbortable(
