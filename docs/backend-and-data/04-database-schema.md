@@ -7251,3 +7251,19 @@ reconciliation. The service-only aggregate health RPC reads queue partitions,
 candidate discovery estimates, retained bound objects and unknown-age counts
 without mutating state. It exposes no row or request identity. Both scheduler
 enablement and cron registration remain absent until separately authorized.
+
+### Private qualified-context parse reuse
+
+The local `20261111030135` forward migration removes repeated declaration
+parsing within `initial_qualified_context`. It validates the original candidate
+TEXT once at the existing assignment-validation point and reuses that decoded
+value, plus the profile already validated by its declaration initializer, for
+profile matching. The two private semantic helpers confer no authority and are
+revoked from PUBLIC and every API role. Independently callable assignment and
+profile entry points still parse fully before sharing those same semantics.
+Initialization and first-error ordering, canonical bytes, live receipt checks,
+deferred callbacks, locks and deadlines remain unchanged. There is no cache
+across calls or deferred events. `initial_qualified_codecs.sql` compares both
+context and direct entry points with independent historical oracles, including
+expected rejection and privilege checks. The migration is local preparation;
+complete candidate qualification and hosted deployment remain separate.

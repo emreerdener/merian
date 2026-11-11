@@ -1,3 +1,14 @@
+## Private qualified-context parse reuse
+
+The local `20261111030135` migration reuses already validated candidate/profile
+values within one qualified-context invocation. Direct entry points retain full
+parsing, and new semantic helpers remain private with no live-row authority. The
+[database contract](../../docs/backend-and-data/04-database-schema.md#private-qualified-context-parse-reuse)
+owns these boundaries; `tests/initial_qualified_codecs.sql` covers independent
+historical context and direct-entry parity, intended denials and privileges. No
+deadline, callback, rollout gate or hosted state changes. Full successor
+qualification is pending.
+
 ## Local CPM admission bridge qualification
 
 For a hosted migration-version inventory using existing Production secrets, see
