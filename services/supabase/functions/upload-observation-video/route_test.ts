@@ -13,10 +13,10 @@ async function environment(work: () => Promise<void>) {
       "SUPABASE_URL",
       "SUPABASE_SERVER_API_KEY",
       "R2_ACCOUNT_ID",
-      "R2_HISTORY_BUCKET_NAME",
+      "R2_SCANS_PRIVATE_BUCKET_NAME",
       "R2_BUCKET_NAME",
-      "R2_HISTORY_WRITE_ACCESS_KEY_ID",
-      "R2_HISTORY_WRITE_SECRET_ACCESS_KEY",
+      "R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID",
+      "R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY",
     ].map((
       key,
     ) => [key, Deno.env.get(key)]),
@@ -27,10 +27,13 @@ async function environment(work: () => Promise<void>) {
     "sb_secret_" + "synthetic_test_only".repeat(3),
   );
   Deno.env.set("R2_ACCOUNT_ID", "0".repeat(32));
-  Deno.env.set("R2_HISTORY_BUCKET_NAME", "synthetic-private-history");
+  Deno.env.set("R2_SCANS_PRIVATE_BUCKET_NAME", "synthetic-private-history");
   Deno.env.set("R2_BUCKET_NAME", "synthetic-public-scans");
-  Deno.env.set("R2_HISTORY_WRITE_ACCESS_KEY_ID", "synthetic-test-only");
-  Deno.env.set("R2_HISTORY_WRITE_SECRET_ACCESS_KEY", "synthetic-test-only");
+  Deno.env.set("R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID", "synthetic-test-only");
+  Deno.env.set(
+    "R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY",
+    "synthetic-test-only",
+  );
   try {
     await work();
   } finally {

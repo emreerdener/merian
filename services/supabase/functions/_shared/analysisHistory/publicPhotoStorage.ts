@@ -1,6 +1,7 @@
 import { getS3Client, type R2Config, r2RequestWithDeadline } from "../aws.ts";
 import { historyUUID } from "./contract.ts";
 import { evidenceDigest } from "./evidence.ts";
+import { hasLegacyHistoryStorageConfiguration } from "./evidenceStorage.ts";
 import { type PublicationPhotoSource } from "./photoClassifier.ts";
 import { validatePublicPhotoContainer } from "./publicPhotoContainer.ts";
 
@@ -14,7 +15,7 @@ export function getPublicationPhotoConfig(
 ): R2Config {
   const account = env("R2_ACCOUNT_ID") ?? "";
   const bucket = env("R2_BUCKET_NAME") ?? "";
-  const privateBucket = env("R2_HISTORY_BUCKET_NAME");
+  const privateBucket = env("R2_SCANS_PRIVATE_BUCKET_NAME");
   const prefix = access === "read"
     ? "R2_PUBLICATION_READ"
     : "R2_PUBLICATION_WRITE";
@@ -22,8 +23,8 @@ export function getPublicationPhotoConfig(
     secret = env(`${prefix}_SECRET_ACCESS_KEY`);
   const otherPrefixes = [
     "R2",
-    "R2_HISTORY_READ",
-    "R2_HISTORY_WRITE",
+    "R2_SCANS_PRIVATE_READ",
+    "R2_SCANS_PRIVATE_WRITE",
     access === "read" ? "R2_PUBLICATION_WRITE" : "R2_PUBLICATION_READ",
   ];
   const aliasesAnotherIdentity = otherPrefixes.some((other) =>
@@ -31,7 +32,7 @@ export function getPublicationPhotoConfig(
     secret === env(`${other}_SECRET_ACCESS_KEY`)
   );
   if (
-    aliasesAnotherIdentity ||
+    hasLegacyHistoryStorageConfiguration(env) || aliasesAnotherIdentity ||
     !/^[0-9a-f]{32}$/.test(account) ||
     !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket) ||
     !privateBucket || bucket === privateBucket || !key || !secret

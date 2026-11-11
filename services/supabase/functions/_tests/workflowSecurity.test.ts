@@ -200,6 +200,13 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assertStringIncludes(candidateWorkflow, "  pull_request:");
   assertEquals(
     candidateWorkflow.split(
+      "supabase/functions/_shared/analysisHistory/publicPhotoStorage_test.ts",
+    ).length - 1,
+    2,
+    "Publication credential separation must be type-checked and tested on the candidate",
+  );
+  assertEquals(
+    candidateWorkflow.split(
       "supabase/functions/_shared/analysisHistory/videoProvenance_test.ts",
     ).length - 1,
     2,

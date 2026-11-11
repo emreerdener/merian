@@ -678,13 +678,20 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 ## Prepared history evidence credentials
 
 The unconnected `analysisHistory/evidenceStorage.ts` owner reads
-`R2_HISTORY_BUCKET_NAME`, `R2_HISTORY_WRITE_ACCESS_KEY_ID`,
-`R2_HISTORY_WRITE_SECRET_ACCESS_KEY`, `R2_HISTORY_READ_ACCESS_KEY_ID`, and
-`R2_HISTORY_READ_SECRET_ACCESS_KEY`, alongside the existing `R2_ACCOUNT_ID`.
-Missing values fail closed; there is no fallback to public-scan credentials. The
-history bucket must differ from `R2_BUCKET_NAME`. Read and write credentials
-must be separate least-privilege identities scoped to this bucket. These names
-are contract declarations, not provisioned secrets or deployment authorization.
+`R2_SCANS_PRIVATE_BUCKET_NAME`, `R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID`,
+`R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY`,
+`R2_SCANS_PRIVATE_READ_ACCESS_KEY_ID`, and
+`R2_SCANS_PRIVATE_READ_SECRET_ACCESS_KEY`, alongside the existing
+`R2_ACCOUNT_ID`. Missing values fail closed; there is no fallback to public-scan
+credentials. Any of the five legacy `R2_HISTORY_*` settings, including an empty
+value, makes both private evidence and public publication configuration fail
+closed. Mixed old/new settings are rejected even when their values match; no
+aliases exist. The broader private-scans name does not authorize legacy library
+writers or cleanup to use this bucket; their migration remains separately
+scoped. The history bucket must differ from `R2_BUCKET_NAME`. Read and write
+credentials must be separate least-privilege identities scoped to this bucket.
+These names are contract declarations, not provisioned secrets or deployment
+authorization.
 
 The bucket must expose neither an r2.dev endpoint nor a custom domain. A private
 prefix inside the public scan bucket is insufficient: Cloudflare documents that
@@ -728,9 +735,9 @@ The unconnected public-photo transport declares
 `R2_PUBLICATION_WRITE_ACCESS_KEY_ID`, `R2_PUBLICATION_WRITE_SECRET_ACCESS_KEY`,
 `R2_PUBLICATION_READ_ACCESS_KEY_ID` and `R2_PUBLICATION_READ_SECRET_ACCESS_KEY`.
 It uses `R2_ACCOUNT_ID` and the public `R2_BUCKET_NAME`, which must differ from
-`R2_HISTORY_BUCKET_NAME`. There is no fallback to generic scan credentials. Both
-configurations must resolve to the same destination before writing. These are
-declarations, not provisioned secrets.
+`R2_SCANS_PRIVATE_BUCKET_NAME`. There is no fallback to generic scan
+credentials. Both configurations must resolve to the same destination before
+writing. These are declarations, not provisioned secrets.
 
 The dedicated owner reserves the `publication_media/v1/` namespace; generic scan
 writers, cleanup and lifecycle tools must not operate there. This is a logical
