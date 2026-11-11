@@ -32,9 +32,61 @@ env:
     services/supabase/**
 
 jobs:
-  candidate-validation:
+  validation-reuse:
+    name: Resolve existing exact-candidate validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      reuse: ${{ steps.evidence.outputs.reuse }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+      - name: Resolve successful standalone validation
+        id: evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          deno run --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_OUTPUT,GITHUB_STEP_SUMMARY \
+            --allow-net=api.github.com --allow-read=.github/workflows/supabase-candidate-validation.yml \
+            --allow-write="$GITHUB_OUTPUT,$GITHUB_STEP_SUMMARY" \
+            services/supabase/scripts/resolve_candidate_validation_reuse.ts
+
+  fresh-candidate-validation:
     name: Validate candidate without production access
+    needs: validation-reuse
+    if: needs.validation-reuse.outputs.reuse == 'false'
     uses: ./.github/workflows/supabase-candidate-validation.yml
+
+  candidate-validation:
+    name: Enforce exact-candidate validation
+    needs: [validation-reuse, fresh-candidate-validation]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require verified reuse or complete fresh validation
+        env:
+          RESOLUTION_RESULT: ${{ needs.validation-reuse.result }}
+          REUSE: ${{ needs.validation-reuse.outputs.reuse }}
+          FRESH_RESULT: ${{ needs.fresh-candidate-validation.result }}
+        run: |
+          test "$RESOLUTION_RESULT" = success
+          if [ "$REUSE" = true ]; then
+            test "$FRESH_RESULT" = skipped
+          elif [ "$REUSE" = false ]; then
+            test "$FRESH_RESULT" = success
+          else
+            echo "Missing exact-candidate validation decision." >&2
+            exit 1
+          fi
 
   production-scope:
     name: Determine production deployment scope

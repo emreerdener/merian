@@ -371,12 +371,34 @@ evidence.
 > are complete. Default-off export isolation narrows runtime scope; it does not
 > waive catalog or application evidence for objects that remain deployed.
 
-Every `main` push runs `.github/workflows/deploy.yml`, whose reusable **Supabase
-Candidate Validation** job validates the exact source SHA once without
-production access. Optional PRs still receive candidate checks and manual
-validation dispatch remains available. The normal development flow is commit,
-push to main, and wait for the exact-SHA checks; no PR or pre-push check is
-required. See the
+Every `main` push runs `.github/workflows/deploy.yml`. Its validation resolver
+first looks for the latest standalone, manually dispatched **Supabase Candidate
+Validation** run for the exact source SHA in this repository. It reuses that
+result only when the run and its latest attempt succeeded within 24 hours, all
+three expected jobs and every named validation step actually passed, and both
+same-attempt C1/handoff evidence artifacts remain available with matching GitHub
+provenance and digests. PR, fork, different-SHA, skipped, failed, stale,
+incomplete, expired and ambiguous evidence cannot qualify. A newer failed
+attempt prevents reuse of an older green result. A concurrent rerun invalidates
+the inspected attempt. Evidence inspection uses read-only GitHub access outside
+Production and never downloads or executes artifact contents.
+
+The resolver re-lists runs and rechecks the latest attempt before deciding.
+These are bounded snapshots, not an atomic scheduling lock; a run started after
+the final observation cannot be detected by that decision.
+
+An observed active same-SHA standalone run stops the deployment prerequisite
+instead of starting duplicate validation; allow that run to finish before an
+authorized retry. Missing or unverifiable evidence runs the complete existing
+reusable gate. The final candidate-validation job requires either verified reuse
+with the fresh gate skipped, or successful fresh validation; resolver failures
+and cancelled/skipped fresh gates cannot authorize production. This changes no
+release approval, current-main check, source hold, production lock, migration
+control or live smoke requirement. The first commit containing this resolver
+must itself be validated before reuse can apply. Optional PRs still receive
+candidate checks and manual validation dispatch remains available. The normal
+development flow is commit, push to main, and wait for the exact-SHA checks; no
+PR or pre-push check is required. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
 After successful validation, a read-only production-scope job resolves the last
@@ -549,11 +571,12 @@ changed-file bullets and then append a truncation marker.
 because `set -o pipefail` would otherwise turn an expected SIGPIPE into exit 141
 before validation or deployment begins.
 
-The workflow separates validation from mutation. Steps 5–8 below run once in the
-reusable Candidate Validation job before production scope, source holds, or
-Production access. The Production job consumes that exact-SHA result and
-performs only setup, live controls, planning, mutation, and runtime
-verification. The combined pipeline retains these checks:
+The workflow separates validation from mutation. Steps 5–8 below are proven by
+the verified exact-SHA standalone run or run in the fresh reusable Candidate
+Validation job before production scope, source holds, or Production access. The
+Production job consumes that exact-SHA result and performs only setup, live
+controls, planning, mutation, and runtime verification. The combined pipeline
+retains these checks:
 
 1. Writes the workflow context summary and exercises its large-change regression
    test.

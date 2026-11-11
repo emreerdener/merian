@@ -117,13 +117,19 @@ complete Deno task with `SUPABASE_DB_TEST_URL`, and finishes with database lint
 plus security and performance advisors. It declares no Production environment,
 receives no production secrets, and contains no migration push, Function
 deployment, or production smoke. A green candidate run is therefore
-database/runtime evidence, not proof of deployment. Every main push invokes this
-complete reusable gate once through `deploy.yml`; only production-relevant
-undeployed changes proceed to the separate mutation job. Candidate readiness is
-a release prerequisite, not a pre-push branch restriction. The shared Deno setup
-action makes at most three attempts with the same immutable installer SHA, then
-verifies exact version `2.9.4`; exhausted retries remain a failed candidate
-rather than being treated as passing evidence.
+database/runtime evidence, not proof of deployment. Every main push requires
+this complete gate through `deploy.yml`. Its read-only resolver can reuse the
+latest successful same-SHA standalone run within 24 hours only after checking
+complete job/step execution and retained same-attempt C1/handoff artifact
+provenance. An active standalone run stops duplicate validation; absent, stale,
+failed or unverifiable evidence requires fresh complete validation. The
+resolver's negative cases are tested in
+`resolve_candidate_validation_reuse_test.ts`; release controls are unchanged.
+Only production-relevant undeployed changes proceed to the separate mutation
+job. Candidate readiness is a release prerequisite, not a pre-push branch
+restriction. The shared Deno setup action makes at most three attempts with the
+same immutable installer SHA, then verifies exact version `2.9.4`; exhausted
+retries remain a failed candidate rather than being treated as passing evidence.
 
 The separate original-media handoff resource harness
 (`test_initial_media_handoff_resources.py`) retains failed or unresolved

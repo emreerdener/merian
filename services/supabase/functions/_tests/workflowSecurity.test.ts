@@ -451,13 +451,31 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   );
 
   const prerequisite = deployWorkflow.indexOf(
-    "candidate-validation:\n    name: Validate candidate without production access",
+    "fresh-candidate-validation:\n    name: Validate candidate without production access",
   );
   const reusableCall = deployWorkflow.indexOf(
     "uses: ./.github/workflows/supabase-candidate-validation.yml",
     prerequisite,
   );
-  const holdJob = deployWorkflow.indexOf("  production-hold:", reusableCall);
+  const reuseResolver = deployWorkflow.indexOf("  validation-reuse:");
+  const validationGate = deployWorkflow.indexOf(
+    "  candidate-validation:",
+    reusableCall,
+  );
+  assert(
+    reuseResolver >= 0 && prerequisite > reuseResolver &&
+      validationGate > reusableCall,
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    "needs: [validation-reuse, fresh-candidate-validation]",
+  );
+  assertStringIncludes(deployWorkflow, "resolve_candidate_validation_reuse.ts");
+  assertStringIncludes(
+    deployWorkflow,
+    "if: needs.validation-reuse.outputs.reuse == 'false'",
+  );
+  const holdJob = deployWorkflow.indexOf("  production-hold:", validationGate);
   const holdDependency = deployWorkflow.indexOf(
     "needs: [candidate-validation, production-scope]",
     holdJob,

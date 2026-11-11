@@ -717,11 +717,17 @@ does not exercise its nested thumbnail helper.
 
 `.github/workflows/supabase-candidate-validation.yml` is the reusable backend
 evidence gate. It reports a stable **Candidate readiness** result on every pull
-request, supports manual dispatch, and is called by
-`.github/workflows/deploy.yml` before the Production job. Its full-history scope
-detector treats `.github`, `apps`, `docs`, `scripts`, `services/supabase`, and
-the maintained root contract files as inputs because the executable suite reads
-or scans them. Resolution failure and unclassified new roots force complete
+request, supports manual dispatch, and is required by
+`.github/workflows/deploy.yml` before the Production job. Deployment first
+checks whether the latest standalone same-SHA run can be reused: successful
+current attempt within 24 hours, all required jobs/steps passed, and retained
+C1/handoff artifact provenance. An active run stops duplicate execution; missing
+or unverifiable evidence falls back to the full reusable workflow. See the
+[deployment contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#production-path).
+The resolver grants no production authority. Its full-history scope detector
+treats `.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the
+maintained root contract files as inputs because the executable suite reads or
+scans them. Resolution failure and unclassified new roots force complete
 validation; manual, merge-queue, and reusable non-PR invocations are never
 scoped out. It checks an exact clean checkout, pins Deno `2.9.4` and Supabase
 CLI `2.109.1`, validates the complete Function dependency graph and tooling
