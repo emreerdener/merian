@@ -8819,3 +8819,27 @@ provider dispatch. Ordinary enrollment/history scheduling, legacy divergence,
 review/community writers, public/credit authority, privacy/deletion integration
 and the complete activation matrix still gate rollout. See the
 [prepared UI contract](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).
+
+## Private cleanup dispatch correlation rollout
+
+The
+[correlation incident](../incidents/2026-11-private-evidence-dispatch-correlation.md)
+requires the compatible `erase-observation-evidence` worker and forward
+migration `20261111200839_correlate_private_evidence_dispatch.sql`. This is a
+local successor, not part of successful cancellation deployment1866. Bind both
+to the same reviewed exact candidate before requesting deployment approval.
+
+The old scheduler receives its legacy six-counter response from the new worker.
+The new scheduler requires the matching durable UUID in a strict v2 receipt; an
+old worker response remains held unknown. Prefer worker-before-new-dispatch
+ordering. Existing held legacy slots are not backfilled or cleared by migration.
+Do not dispatch a replacement, reset the sequence, modify timestamps or use TTL
+expiry as evidence of completion. Recovery of the original held request needs
+separately reviewed exact-identity maintenance and explicit target approval.
+
+Readiness must verify both version compatibility and actual correlated worker
+progress. Function ACTIVE status or an empty historical heartbeat is
+insufficient. Preserve the original request and conservative response age during
+reconciliation. The read-only health RPC/monitor exposes no UUID and cannot
+repair the slot. No additional bucket, credential, user API or native build is
+needed for this correlation fix.

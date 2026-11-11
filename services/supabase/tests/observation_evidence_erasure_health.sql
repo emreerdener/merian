@@ -52,33 +52,33 @@ SELECT extensions.ok(NOT internal.valid_observation_evidence_worker_receipt('{"r
 -- enabled stays false and pending-slot reconciliation precedes that gate.
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id IS NULL FROM internal.observation_evidence_worker_state),'disabled worker queues nothing');
-UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31001,last_dispatched_at=clock_timestamp()-INTERVAL '5 minutes';
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31001,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp()-INTERVAL '5 minutes';
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id=-31001 AND last_result='unknown' FROM internal.observation_evidence_worker_state),'missing response retains unknown slot');
-INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31001,200,'{"retired":0,"video_retired":7,"retirement_failures":1,"claimed":1,"marked":1,"acknowledged":0}',FALSE,clock_timestamp());
+INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31001,200,'{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":7,"retirement_failures":1,"claimed":1,"marked":1,"acknowledged":0}',FALSE,clock_timestamp());
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id IS NULL AND last_result='failure' AND consecutive_failures=1 AND last_success_at IS NULL FROM internal.observation_evidence_worker_state),'HTTP200 partial acknowledgement is a failure');
-UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31002,last_dispatched_at=clock_timestamp();
-INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31002,200,'{"retired":0,"video_retired":0,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}',FALSE,clock_timestamp());
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31002,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp();
+INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31002,200,'{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":0,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}',FALSE,clock_timestamp());
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id IS NULL AND last_result='success' AND consecutive_failures=0 AND last_success_at IS NOT NULL AND last_marker_success_at IS NULL FROM internal.observation_evidence_worker_state),'idle receipt is a heartbeat but not marker progress');
-UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31003,last_dispatched_at=clock_timestamp();
-INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31003,200,'{"retired":0,"video_retired":0,"retirement_failures":0,"claimed":1,"marked":1,"acknowledged":1}',FALSE,clock_timestamp());
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31003,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp();
+INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31003,200,'{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":0,"retirement_failures":0,"claimed":1,"marked":1,"acknowledged":1}',FALSE,clock_timestamp());
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT last_marker_success_at IS NOT NULL FROM internal.observation_evidence_worker_state),'acknowledged marker records progress');
-UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31004,last_dispatched_at=clock_timestamp();
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31004,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp();
 INSERT INTO net._http_response(id,status_code,content,timed_out,created) VALUES(-31004,NULL,NULL,TRUE,clock_timestamp());
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id=-31004 AND last_result='unknown' FROM internal.observation_evidence_worker_state),'transport timeout retains slot rather than overlapping remote execution');
 SELECT extensions.ok((public.get_observation_evidence_erasure_health()::TEXT NOT LIKE '%object_id%') AND (public.get_observation_evidence_erasure_health()::TEXT NOT LIKE '%pending_request_id%'),'health excludes object and transport identities');
 -- All network calls are replaced transaction-locally before testing enabled
 -- scheduling. No real request can leave this disposable catalog transaction.
-CREATE TEMP TABLE evidence_test_dispatches(url TEXT,headers JSONB,timeout_ms INTEGER);
+CREATE TEMP TABLE evidence_test_dispatches(url TEXT,headers JSONB,timeout_ms INTEGER,body JSONB);
 CREATE FUNCTION pg_temp.capture_evidence_dispatch(url TEXT,body JSONB DEFAULT '{}'::JSONB,params JSONB DEFAULT '{}'::JSONB,
  headers JSONB DEFAULT '{"Content-Type":"application/json"}'::JSONB,timeout_milliseconds INTEGER DEFAULT 1000)
 RETURNS BIGINT LANGUAGE PLPGSQL AS $$
 BEGIN
- INSERT INTO pg_temp.evidence_test_dispatches VALUES(url,headers,timeout_milliseconds);
+ INSERT INTO pg_temp.evidence_test_dispatches VALUES(url,headers,timeout_milliseconds,body);
  RETURN -31100;
 END;
 $$;
@@ -110,6 +110,8 @@ UPDATE internal.observation_evidence_worker_state SET pending_request_id=NULL,en
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'enabled scheduler dispatches exactly once');
 SELECT extensions.is((SELECT timeout_ms FROM evidence_test_dispatches),120000,'explicit bounded transport timeout');
+SELECT extensions.is((SELECT headers->>'X-Merian-Evidence-Dispatch' FROM evidence_test_dispatches),(SELECT pending_dispatch_id::TEXT FROM internal.observation_evidence_worker_state),'queued correlation is the persisted original UUID');
+SELECT extensions.is((SELECT body FROM evidence_test_dispatches),'{}'::JSONB,'correlation adds no caller object authority');
 SELECT extensions.is((SELECT url FROM evidence_test_dispatches),'https://abcdefghijklmnopqrst.supabase.co/functions/v1/erase-observation-evidence','fixed private endpoint on approved target');
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'pending asynchronous request prevents overlap');
@@ -119,7 +121,7 @@ SELECT extensions.ok((SELECT pending_request_id=-31100 AND last_result='unknown'
 DO $$
 DECLARE sample TEXT;
 BEGIN
- FOREACH sample IN ARRAY ARRAY['','not-json',repeat('a',2049),'{"retired":0,"video_retired":8,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}','{"retired":1e1000000}'] LOOP
+ FOREACH sample IN ARRAY ARRAY['','not-json',repeat('a',2049),'{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":8,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}','{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":1e1000000}'] LOOP
   UPDATE net._http_response SET status_code=200,content=sample WHERE id=-31100;
   PERFORM internal.dispatch_observation_evidence_erasure();
  END LOOP;
@@ -129,9 +131,10 @@ SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'
 UPDATE net._http_response SET status_code=204,content='' WHERE id=-31100;
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id=-31100 FROM internal.observation_evidence_worker_state),'empty204 retains slot');
-UPDATE net._http_response SET status_code=200,content='{"retired":0,"video_retired":0,"retirement_failures":0,"claimed":1,"marked":1,"acknowledged":1}',created=clock_timestamp()-INTERVAL '1 hour' WHERE id=-31100;
+UPDATE net._http_response SET status_code=200,content='{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":0,"retirement_failures":0,"claimed":1,"marked":1,"acknowledged":1}',created=clock_timestamp()-INTERVAL '1 hour' WHERE id=-31100;
 SELECT internal.dispatch_observation_evidence_erasure();
-SELECT extensions.ok((SELECT pending_request_id=-31100 FROM internal.observation_evidence_worker_state),'response from before this dispatch is uncorrelated');
+SELECT extensions.ok((SELECT pending_request_id=-31100 FROM internal.observation_evidence_worker_state),'reused numeric ID with wrong UUID and valid old timestamp stays held');
+UPDATE net._http_response SET content=(content::JSONB || jsonb_build_object('dispatch_id',(SELECT pending_dispatch_id FROM internal.observation_evidence_worker_state)))::TEXT WHERE id=-31100;
 UPDATE net._http_response SET created='infinity' WHERE id=-31100;
 SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id=-31100 FROM internal.observation_evidence_worker_state),'infinite timestamp denied');
@@ -144,5 +147,62 @@ SELECT internal.dispatch_observation_evidence_erasure();
 SELECT extensions.ok((SELECT pending_request_id IS NULL AND last_result='success' AND last_success_at<clock_timestamp()-INTERVAL '59 minutes' FROM internal.observation_evidence_worker_state),'delayed reconciliation preserves old response age');
 SELECT extensions.cmp_ok((public.get_observation_evidence_erasure_health()->'worker'->>'marker_success_age_seconds')::NUMERIC,'>=',3599::NUMERIC,'old marker is not a fresh heartbeat');
 SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'paused reconciliation never dispatches');
+-- The real pg_net default is transaction time. It can precede a later
+-- dispatch clock without implying an earlier HTTP operation.
+UPDATE internal.observation_evidence_worker_state
+SET pending_request_id=-31200,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp();
+INSERT INTO net._http_response(id,status_code,content,timed_out)
+VALUES(-31200,200,'{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":0,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}',FALSE);
+SELECT extensions.ok((SELECT r.created<s.last_dispatched_at FROM net._http_response r CROSS JOIN internal.observation_evidence_worker_state s WHERE r.id=-31200),'real default timestamp precedes dispatch');
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id IS NULL AND pending_dispatch_id IS NULL AND last_result='success' AND last_success_at=(SELECT created FROM net._http_response WHERE id=-31200) FROM internal.observation_evidence_worker_state),'matching UUID consumes default-timestamp receipt without freshening age');
+
+-- Transport failure overrides an otherwise valid matching terminal receipt.
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31200,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01';
+UPDATE net._http_response SET error_msg='synthetic transport failure' WHERE id=-31200;
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31200 AND pending_dispatch_id='00000000-0000-4000-8000-00000000ee01' AND last_result='unknown' FROM internal.observation_evidence_worker_state),'transport error overrides HTTP200 matching valid receipt');
+UPDATE net._http_response SET error_msg=NULL,timed_out=TRUE WHERE id=-31200;
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31200 AND pending_dispatch_id='00000000-0000-4000-8000-00000000ee01' AND last_result='unknown' FROM internal.observation_evidence_worker_state),'timeout overrides HTTP200 matching valid receipt');
+SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'valid-looking failed transport never dispatches replacement');
+UPDATE net._http_response SET timed_out=FALSE WHERE id=-31200;
+
+-- Legacy in-flight slots cannot acquire invented correlation after the fact.
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31200,pending_dispatch_id=NULL;
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31200 AND pending_dispatch_id IS NULL AND last_result='unknown' FROM internal.observation_evidence_worker_state),'legacy NULL slot stays held even with valid terminal body');
+UPDATE internal.observation_evidence_worker_state SET pending_dispatch_id='00000000-0000-4000-8000-00000000ee02';
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31200 AND pending_dispatch_id='00000000-0000-4000-8000-00000000ee02' AND last_result='unknown' FROM internal.observation_evidence_worker_state),'simulated sequence reset reuses ID and time but different UUID cannot consume original request');
+-- No boot/catalog comparison is involved: same-postmaster recovery cannot
+-- establish correlation for an unrelated worker response.
+UPDATE internal.observation_evidence_worker_state SET pending_dispatch_id='00000000-0000-4000-8000-00000000ee01';
+INSERT INTO net._http_response(id,status_code,content,timed_out) SELECT id,status_code,content,timed_out FROM net._http_response WHERE id=-31200;
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31200 AND last_result='unknown' FROM internal.observation_evidence_worker_state),'duplicate exact transport responses never choose an arbitrary receipt');
+
+-- Missing/wrong/legacy/extra fields must return FALSE, never SQL NULL.
+SELECT extensions.is(internal.valid_observation_evidence_worker_receipt('{"retired":0,"video_retired":0,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}','00000000-0000-4000-8000-00000000ee01'),FALSE,'old worker receipt with new scheduler holds');
+DO $$
+DECLARE sample JSONB; base JSONB := '{"schema_version":2,"dispatch_id":"00000000-0000-4000-8000-00000000ee01","retired":0,"video_retired":0,"retirement_failures":0,"claimed":0,"marked":0,"acknowledged":0}';
+BEGIN
+ FOR sample IN SELECT value FROM jsonb_array_elements(jsonb_build_array(base-'schema_version',base-'dispatch_id',base||'{"schema_version":"2"}',base||'{"dispatch_id":null}',base||'{"extra":0}',base||'{"claimed":2}',base||'{"dispatch_id":"00000000-0000-4000-8000-00000000EE01"}')) LOOP
+  IF internal.valid_observation_evidence_worker_receipt(sample,'00000000-0000-4000-8000-00000000ee01') IS DISTINCT FROM FALSE THEN RAISE EXCEPTION 'invalid_v2_receipt_accepted'; END IF;
+ END LOOP;
+END;
+$$;
+SELECT extensions.pass('v2 malformed receipts return false across missing type value and closed-shape boundaries');
+
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=-31300,pending_dispatch_id='00000000-0000-4000-8000-00000000ee01',last_dispatched_at=clock_timestamp();
+SELECT internal.dispatch_observation_evidence_erasure();
+SELECT extensions.ok((SELECT pending_request_id=-31300 AND last_result='pending' FROM internal.observation_evidence_worker_state),'missing young response stays pending');
+-- The stub still returns -31100, whose retained response deliberately collides.
+-- The captured queue INSERT and state transition must both roll back.
+UPDATE internal.observation_evidence_worker_state SET pending_request_id=NULL,pending_dispatch_id=NULL,enabled=TRUE;
+SELECT extensions.throws_ok('SELECT internal.dispatch_observation_evidence_erasure()','P0001','evidence_worker_dispatch_id_collision','collision rejects transaction');
+SELECT extensions.is((SELECT count(*) FROM evidence_test_dispatches),1::BIGINT,'collision rolls back queued request insert');
+SELECT extensions.ok((SELECT pending_request_id IS NULL AND pending_dispatch_id IS NULL FROM internal.observation_evidence_worker_state),'collision leaves no partially tracked request');
+SELECT extensions.ok(public.get_observation_evidence_erasure_health()::TEXT NOT LIKE '%dispatch_id%','correlation never enters health projection');
 SELECT * FROM extensions.finish();
 ROLLBACK;

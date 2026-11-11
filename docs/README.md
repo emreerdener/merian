@@ -138,9 +138,12 @@ production submission or public release.
 
 ### Incidents
 
+- **[Private evidence dispatch correlation](./incidents/2026-11-private-evidence-dispatch-correlation.md)**
+  records the timestamp defect, crash-safe correlation and retained
+  original-slot recovery boundary.
 - **[Private evidence request cancellation](./incidents/2026-11-private-evidence-request-cancellation.md)**
   — Signing dropped cancellation and SDK backoff escaped the request deadline;
-  local private-storage correction, successor validation/deployment pending.
+  deployed private-storage correction; actual-byte/device verification pending.
 
 - **[Beta OpenAI consent gate](./incidents/2026-09-beta-openai-consent-gate.md)**
   — Corrects the residual OpenAI permission block and Settings controls during

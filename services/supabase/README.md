@@ -1,3 +1,18 @@
+## Private cleanup dispatch correlation
+
+The local `20261111200839` migration and compatible worker bind each new
+transport request to a durable random UUID and strict v2 terminal receipt.
+Legacy in-flight slots remain held without backfill. pg_net transaction-start
+timestamps are conservative ages, not HTTP completion clocks. See the
+[worker contract](functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes)
+and
+[incident](../../docs/incidents/2026-11-private-evidence-dispatch-correlation.md).
+The migration changes no gates, schedules or credentials. Deploy the compatible
+worker before allowing new dispatch where practical; an old worker response to
+the new scheduler safely holds. Original-slot recovery requires separate exact
+maintenance approval. The cleanup SQL catalog and worker receipt tests own
+regression coverage; no Swift/client wire boundary changes.
+
 ## Private qualified-context parse reuse
 
 The local `20261111030135` migration reuses already validated candidate/profile

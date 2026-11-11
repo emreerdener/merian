@@ -911,3 +911,15 @@ can be recovered only from the permanent registry by the independent erasure
 worker. No source-level gate proves that scheduling is functioning. Runtime
 CPU/process-memory qualification and owner/native delivery also remain
 prerequisites; source/config inventory authorizes no deployment or schedule.
+
+## Private erasure transport identity
+
+The service-only `X-Merian-Evidence-Dispatch` UUID correlates a queued private
+cleanup request with its terminal receipt; it is not authentication or object
+authority. Existing canonical server credentials remain mandatory. Do not log or
+expose this private correlation in aggregate health. The
+[worker contract](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes)
+owns legacy compatibility, strict validation and unknown outcomes. Logged
+pending slots survive unlogged pg_net recovery; numeric request IDs, response
+transaction clocks and postmaster/catalog identities alone cannot prove origin.
+Exact original-slot repair and deployment remain separate authorized operations.

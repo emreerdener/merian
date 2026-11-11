@@ -7245,12 +7245,20 @@ operations for that same private outbox. New obligations gain immutable
 age is unknown. No backfill derives an age from retry eligibility. The private
 RLS singleton `observation_evidence_worker_state` retains an exact pending
 transport slot and sanitized completion counters/times. It stores no credential
-or response body. Only a valid, temporally correlated worker receipt releases
-the slot automatically; missing or ambiguous outcomes require explicit operator
-reconciliation. The service-only aggregate health RPC reads queue partitions,
-candidate discovery estimates, retained bound objects and unknown-age counts
-without mutating state. It exposes no row or request identity. Both scheduler
-enablement and cron registration remain absent until separately authorized.
+or response body. The forward migration
+`20261111200839_correlate_private_evidence_dispatch.sql` adds nullable private
+`pending_dispatch_id UUID`, generated with the transport enqueue in the same
+transaction. Only one exact-ID response with a closed v2 receipt matching that
+UUID and a finite nonfuture timestamp releases the slot automatically. Numeric
+IDs can repeat after unlogged pg_net recovery; timestamps and boot/catalog
+identities do not replace random correlation. Response time is the conservative
+transaction-start clock, not actual HTTP completion. Legacy NULL slots remain
+held without backfill; missing or ambiguous outcomes require explicit operator
+reconciliation. A collision rolls back both enqueue and state update. The
+service-only aggregate health RPC reads queue partitions, candidate discovery
+estimates, retained bound objects and unknown-age counts without mutating state.
+It exposes no row or request identity. Both scheduler enablement and cron
+registration remain absent until separately authorized.
 
 ### Private qualified-context parse reuse
 

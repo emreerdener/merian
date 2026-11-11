@@ -10673,3 +10673,21 @@ noted copies remain pending; validated legacy publications are protected. Actual
 caller roles, immutability and deletion are covered. The concurrency suite adds
 duplicate settlement, deletion in both orders, and binding/settlement in both
 orders. Provider approval and quota stay unchanged.
+
+## Private cleanup transport correlation regression
+
+`services/supabase/tests/observation_evidence_erasure_health.sql` runs only on a
+fresh owned disposable catalog and rolls back its synthetic state. It covers
+pg_net transaction-start timestamp ordering, durable UUID matching, duplicate
+responses, legacy NULL holds, valid-looking transport failures, paused
+settlement and collision rollback. Its captured HTTP insert is a local
+transactional stand-in, not hosted network qualification. Run catalog fixtures
+before committed handoff-owner suites; those suites retain synthetic
+configuration and are not pristine catalog inputs.
+
+`erase-observation-evidence/receipt_test.ts` owns header validation before work,
+legacy/v2 response compatibility and terminal-only correlation. The unchanged
+worker handler suite owns retirement/claim/deadline bounds. No iOS DTO or native
+build is affected. Full Edge/database/tooling gates remain required; scoped
+passes do not waive older local-service failures. See the
+[incident](../incidents/2026-11-private-evidence-dispatch-correlation.md).

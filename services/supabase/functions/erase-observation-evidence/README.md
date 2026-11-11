@@ -27,20 +27,28 @@ for completion. Parent cancellation reaches both storage requests. The worker
 never DELETEs the object: the permanent marker blocks delayed conditional
 uploads. A missing object alone is not erasure evidence.
 
-Responses contain only `retired` (photo/audio,0–5), `video_retired` (0–7),
-`retirement_failures` (0–2), `claimed`, `marked`, and `acknowledged` (0–1 each),
-and are no-store. A failed lane's zero count is unknown, not proof that its
-transaction made no changes. Each retirement RPC has its own12-second cap under
-the same90-second absolute deadline. Parent cancellation or overall expiry stops
-subsequent work. The worker does not acquire a claim with less than 50seconds
-remaining for its12-second request and existing38-second reserve; zero claims
-never proves an empty registry. `marked` means the origin marker was verified;
-`acknowledged` means SQL accepted a success or failure report. Failed marking
-may therefore return `marked=0, acknowledged=1` and remains retryable. Unknown
-writes or acknowledgements are never retried inside the request; claim expiry
-and the durable registry retain recovery. Existing-token settlement remains
-available after the gate closes. No owner, object key, raw error, inference or
-credit information is returned or logged.
+Legacy requests without `X-Merian-Evidence-Dispatch` return only `retired`
+(photo/audio,0–5), `video_retired` (0–7), `retirement_failures` (0–2),
+`claimed`, `marked`, and `acknowledged` (0–1 each), and are no-store. A
+canonical lowercase UUIDv4 in that service-only header selects the strict
+eight-field terminal receipt: `schema_version: 2`, `dispatch_id` equal to that
+UUID, plus the same six counters. A present empty, malformed or
+duplicate-combined header returns400 before any worker operation; it never falls
+back to legacy. Correlation grants no object or service authority, is not logged
+or included in health telemetry, and is echoed only after terminal work. Errors
+never emit a terminal correlation receipt. A failed lane's zero count is
+unknown, not proof that its transaction made no changes. Each retirement RPC has
+its own12-second cap under the same90-second absolute deadline. Parent
+cancellation or overall expiry stops subsequent work. The worker does not
+acquire a claim with less than 50seconds remaining for its12-second request and
+existing38-second reserve; zero claims never proves an empty registry. `marked`
+means the origin marker was verified; `acknowledged` means SQL accepted a
+success or failure report. Failed marking may therefore return
+`marked=0, acknowledged=1` and remains retryable. Unknown writes or
+acknowledgements are never retried inside the request; claim expiry and the
+durable registry retain recovery. Existing-token settlement remains available
+after the gate closes. No owner, object key, raw error, inference or credit
+information is returned or logged.
 
 Monitoring must treat retirement failures, a claimed-but-unmarked object, or a
 marked object without acknowledged settlement as unhealthy. HTTP200 alone is not
@@ -68,14 +76,30 @@ handles opaque keys and legacy service JWTs. Its fixed private endpoint uses a
 120-second HTTP timeout. The proposed one-minute cron is not created here.
 
 A durable pending request prevents overlap across cron transactions. Only a
-strict, bounded terminal worker receipt for that exact transport request, with a
-finite response timestamp between dispatch and observation, releases the slot
-automatically. Valid failure receipts release the transport slot while retaining
-the underlying object obligation. Missing responses, gateway errors, malformed
-receipts and timeouts remain unknown and hold the original slot. Elapsed time
-alone never releases it. Success ages use the retained transport response
-timestamp, not the later scheduler observation time. Neither bodies, headers nor
-raw errors enter persistent telemetry.
+strict, bounded v2 terminal worker receipt with the original durable random
+`pending_dispatch_id`, exactly one matching transport response, and a finite
+nonfuture response timestamp releases the slot automatically. Migration
+`20261111200839_correlate_private_evidence_dispatch.sql` adds this correlation
+without backfilling legacy pending slots. Numeric transport IDs can repeat after
+unlogged pg_net storage recovery, including recovery without a new postmaster;
+ID, boot time or catalog OIDs alone are not correlation proof. Valid failure
+receipts release the transport slot while retaining the underlying object
+obligation. Missing responses, gateway errors, malformed receipts and timeouts
+remain unknown and hold the original slot. Elapsed time alone never releases it.
+Success ages use the retained transport response timestamp, not the later
+scheduler observation time. pg_net0.19.5 defaults `created` to transaction
+start, so it can precede dispatch and is a conservative age clock, not the
+actual HTTP completion time. Neither bodies, headers nor raw errors enter
+persistent telemetry. UUID and request ID are committed and cleared together; an
+enqueue ID collision rolls back the queued request as well.
+
+Mixed rollout is intentionally fail-closed. New worker/old scheduler preserves
+the legacy shape; new scheduler/old worker holds the six-field response as
+unknown. Deploy the compatible worker before allowing new dispatch where
+practical. An existing ID with NULL correlation always remains held, including
+the currently observed beta slot; deployment never repairs it. A separately
+authorized original-receipt recovery is required. No gate or schedule change is
+included in this forward migration.
 
 `get_observation_evidence_erasure_health()` reads aggregate queue partitions,
 known oldest age, unknown-age count, expired retirement discovery candidates,

@@ -1,7 +1,7 @@
 # Incident: Private evidence signing dropped request cancellation
 
 - **Date detected:** 2026-11-11
-- **Status:** Mitigated in source; full candidate validation remains open
+- **Status:** Exact candidate deployed; actual-byte runtime verification pending
 - **Affected version:** Deployed backend
   b6bd9fed8adbf87030be22f8dce4fee05eaa8966
 - **Affected surface:** Private evidence upload, verified read and erasure
@@ -72,12 +72,25 @@ corrected repository command passed all 125 entrypoints. Retain all original
 logs. Exact successor CI against a freshly migrated disposable runner database
 remains necessary. No test bypass or limit increase was made.
 
+## November 11 candidate validation update
+
+CI533 attempt 1 passed on exact successor
+`13dcc59a221de823ed8207503b7475833a6f1862`, including Candidate readiness.
+Complete tooling and Edge tests passed in the fresh runner environment. Retained
+evidence reconciles 18 C1 suites / 301 checks and 22 private-handoff suites /
+1,043 checks, matching source/migration hashes and expected database disposal.
+This supersedes the pending-CI status above, while preserving all original local
+failures and their unresolved causality. Synthetic resource evidence does not
+qualify production timing or physical-device behavior.
+
 ## Production deployment and runtime verification
 
-**Not performed.** Frozen b6, current cleanup/monitor and closed user-facing
-History gates are preserved. A successor requires its own exact candidate
-validation and publication/deployment authorization. Actual-byte storage
-cleanup, phone installation and the all-media walkthrough remain open.
+**Deployment completed; actual-byte runtime verification pending.** Authorized
+exact13dcc deployment1866 and its metadata postconditions passed as recorded
+below. The local frozen b6 checkout remains preserved; beta now serves13dcc.
+Existing cleanup/monitor and closed user-facing History gates were retained.
+Actual-byte storage cleanup, phone installation and the all-media walkthrough
+remain open behind the separate correlation defect.
 
 ## Data recovery and privacy
 
@@ -90,7 +103,22 @@ account identifiers. No hosted credential use or network storage calls occurred.
 
 - [x] Root cause reproduced and bounded to the reviewed private owner.
 - [x] Regression and correction independently reviewed.
-- [ ] Exact successor completes all applicable candidate gates.
-- [ ] Authorized successor deployment and postconditions verified.
+- [x] Exact successor completes all applicable candidate gates.
+- [x] Authorized successor deployment and metadata postconditions verified.
 - [ ] Actual-byte cleanup and original marker acknowledgement verified.
 - [ ] Full-flow device acceptance completed; no inferred data recovery closure.
+
+## November 11 deployment readback
+
+Authorized deployment1866 attempt1 completed successfully on exact
+`13dcc59a221de823ed8207503b7475833a6f1862` to beta `qlarqavoqhkuwzmevrmf`.
+Runtime logs report twelve planned functions and an up-to-date database; all six
+jobs passed. All125 endpoints remain active. No new migrations or History
+admission changes occurred. Readback preserved the original held cleanup request
+and observed no private objects or pending erasure obligations.
+
+This deploys the cancellation correction; it does not qualify actual-byte
+cancellation or cleanup. The independent
+[dispatch correlation incident](2026-11-private-evidence-dispatch-correlation.md)
+blocks that next check. Function version changes during credential sync are not
+evidence that all125 bundles were deployed.
