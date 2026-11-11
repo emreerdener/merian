@@ -190,6 +190,16 @@ provision a schedule or enable its gate. See the
 
 ## Prepared protected evidence storage
 
+November 11 transport correction: the dedicated private read/write clients use
+zero SDK retries, leaving recovery to the original durable operation. The
+combined ten-second request/caller signal is explicitly forwarded through the
+real signer to native fetch. Injected transport fixtures alone do not cover this
+boundary. `evidence_test.ts` covers real signing for upload/erasure PUT and
+HEAD, verified GET, caller/deadline cancellation and single-dispatch 429/503
+refusal. The fix is local, not yet deployed; hashing/signing/body cloning remain
+non-preemptive. See the
+[incident](../../../../../docs/incidents/2026-11-private-evidence-request-cancellation.md).
+
 `evidence.ts` and `evidenceStorage.ts` prepare a separate private-bucket
 lifecycle. Upload/cleanup have no live endpoint, database adapter, worker
 schedule or API execution permission. The completed-photo read adapter is

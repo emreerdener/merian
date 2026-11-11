@@ -482,3 +482,109 @@ Deno.test("private scans configuration rejects legacy-only and mixed settings fo
     }
   }
 });
+
+// Exercise the default AwsClient path; injected Transport fixtures bypass signing.
+for (const cancellation of ["caller", "deadline"] as const) {
+  Deno.test(`private storage signed requests retain ${cancellation} cancellation`, async (t) => {
+    for (
+      const phase of [
+        "upload PUT",
+        "upload HEAD",
+        "read GET",
+        "erase PUT",
+        "erase HEAD",
+      ]
+    ) {
+      await t.step(phase, async () => {
+        const f = await fixture();
+        const controller = new AbortController();
+        const originalFetch = globalThis.fetch;
+        const originalTimeout = AbortSignal.timeout;
+        const calls: string[] = [];
+        let observed: AbortSignal | undefined;
+        const method = phase.split(" ")[1];
+        try {
+          if (cancellation === "deadline") {
+            AbortSignal.timeout = () => controller.signal;
+          }
+          globalThis.fetch = (input, init) => {
+            const request = new Request(input, init);
+            calls.push(request.method);
+            if (request.method === method) {
+              observed = request.signal;
+              controller.abort(
+                new DOMException("synthetic cancellation", "AbortError"),
+              );
+              return Promise.reject(controller.signal.reason);
+            }
+            return Promise.resolve(new Response(null, { status: 200 }));
+          };
+          const storage = new PrivateHistoryEvidenceStorage(
+            () => f.config,
+            () => f.config,
+          );
+          const caller = cancellation === "caller"
+            ? controller.signal
+            : undefined;
+          await assertRejects(
+            () =>
+              phase.startsWith("upload")
+                ? storage.writeOnce(f.receipt, bytes, caller)
+                : phase.startsWith("read")
+                ? storage.readVerified(f.receipt, caller)
+                : storage.erase(f.receipt.object_id, caller),
+            DOMException,
+            "synthetic cancellation",
+          );
+          assert(
+            observed,
+            "the real signing path must reach the synthetic fetch",
+          );
+          assert(
+            observed.aborted,
+            "signing must preserve cancellation on the outgoing request",
+          );
+          assertEquals(calls, method === "HEAD" ? ["PUT", "HEAD"] : [method]);
+        } finally {
+          globalThis.fetch = originalFetch;
+          AbortSignal.timeout = originalTimeout;
+        }
+      });
+    }
+  });
+}
+
+Deno.test("private storage leaves retryable HTTP failures to the durable owner", async (t) => {
+  for (const status of [429, 503]) {
+    await t.step(String(status), async () => {
+      const f = await fixture();
+      const originalFetch = globalThis.fetch;
+      const originalRandom = Math.random;
+      const calls: string[] = [];
+      try {
+        // A regression must fail promptly, without the SDK's exponential wait.
+        Math.random = () => 0;
+        globalThis.fetch = (input, init) => {
+          calls.push(new Request(input, init).method);
+          if (calls.length > 1) {
+            return Promise.reject(new Error("unexpected SDK retry"));
+          }
+          return Promise.resolve(new Response(null, { status }));
+        };
+        const storage = new PrivateHistoryEvidenceStorage(
+          () => f.config,
+          () => f.config,
+        );
+        await assertRejects(
+          () => storage.writeOnce(f.receipt, bytes),
+          Error,
+          "history_evidence_storage_unavailable",
+        );
+        assertEquals(calls, ["PUT"]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        Math.random = originalRandom;
+      }
+    });
+  }
+});

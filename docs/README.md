@@ -138,6 +138,10 @@ production submission or public release.
 
 ### Incidents
 
+- **[Private evidence request cancellation](./incidents/2026-11-private-evidence-request-cancellation.md)**
+  — Signing dropped cancellation and SDK backoff escaped the request deadline;
+  local private-storage correction, successor validation/deployment pending.
+
 - **[Beta OpenAI consent gate](./incidents/2026-09-beta-openai-consent-gate.md)**
   — Corrects the residual OpenAI permission block and Settings controls during
   beta; preserves receipt history and owned explicit retry, and records the

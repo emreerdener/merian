@@ -14140,6 +14140,20 @@ Network execution, post-await account/deletion fencing and UI delivery remain
 separate; all activation gates remain false. See
 [the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
 
+### Private evidence request cancellation
+
+The private read/write configurations disable SDK transport retries. The durable
+operation owner handles recovery using the original receipt or cleanup claim;
+HTTP 429/5xx does not start an SDK retry/backoff loop. `evidenceStorage.ts`
+explicitly passes the combined caller/request signal through aws4fetch signing,
+so native fetch retains the existing ten-second request timeout and caller
+cancellation for upload PUT/HEAD, verified GET and erasure PUT/HEAD. Hashing,
+signing and body cloning remain non-preemptive; this is not a hard
+whole-operation wall-clock guarantee. An uncertain PUT remains uncertain and
+cannot allocate a replacement object. The correction is local pending successor
+validation and deployment; see the
+[incident record](../incidents/2026-11-private-evidence-request-cancellation.md).
+
 ## Prepared private-evidence cleanup RPCs
 
 The separate `private_evidence_erasure_enabled` gate starts false. Only a

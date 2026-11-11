@@ -55,6 +55,40 @@ Deno.test("handoff deadline audit rejects unwrapped or altered injected transpor
   assert(!isHandoffDeadlineCall(bypass, bypass.lastIndexOf(".fetch(")));
 });
 
+// This owner must retain the exact combined signal across the real signer.
+function isPrivateEvidenceDeadlineCall(
+  source: string,
+  callStart: number,
+): boolean {
+  const pattern =
+    /const request = r2RequestWithDeadline\(url, init\);\s*if \(this\.transport\) \{\s*return await this\.transport\(request, config\);\s*\}\s*(?:\/\/[^\n]*\s*)*return await config\.s3Client\.fetch\(request, \{ signal: request\.signal \}\);/g;
+  return [...source.matchAll(pattern)].some((match) =>
+    match.index + match[0].lastIndexOf(".fetch(") === callStart
+  );
+}
+
+Deno.test("private evidence deadline audit rejects unsigned signals and extra fetches", async () => {
+  const source = await Deno.readTextFile(
+    new URL("_shared/analysisHistory/evidenceStorage.ts", functionsRoot),
+  );
+  assert(isPrivateEvidenceDeadlineCall(source, source.indexOf(".fetch(")));
+  for (
+    const [before, after] of [
+      ["r2RequestWithDeadline(url, init)", "new Request(url, init)"],
+      ["{ signal: request.signal }", "{}"],
+      ["{ signal: request.signal }", "{ signal }"],
+      ["fetch(request,", "fetch(otherRequest,"],
+    ]
+  ) {
+    assert(source.includes(before));
+    const altered = source.replace(before, after);
+    assert(!isPrivateEvidenceDeadlineCall(altered, altered.indexOf(".fetch(")));
+  }
+  const bypass = source +
+    "\nconfig.s3Client.fetch(request, { signal: request.signal });";
+  assert(!isPrivateEvidenceDeadlineCall(bypass, bypass.lastIndexOf(".fetch(")));
+});
+
 async function collectRuntimeSources(
   directory: URL,
   relativeDirectory = "",
@@ -125,6 +159,13 @@ Deno.test("production outbound transports cannot bypass reviewed deadline adapte
         assert(
           isHandoffDeadlineCall(file.source, callStart),
           `${file.path} must delegate this exact fetch through its reviewed deadline callback.`,
+        );
+        continue;
+      }
+      if (file.path === "_shared/analysisHistory/evidenceStorage.ts") {
+        assert(
+          isPrivateEvidenceDeadlineCall(file.source, callStart),
+          "Private evidence must forward this exact deadline signal through signing.",
         );
         continue;
       }

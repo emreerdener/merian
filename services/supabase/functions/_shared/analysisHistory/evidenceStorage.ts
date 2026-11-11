@@ -42,8 +42,12 @@ export function getHistoryEvidenceConfig(
   ) {
     throw new Error("history_evidence_storage_unavailable");
   }
+  const s3Client = getS3Client(key, secret);
+  // Durable owners reconcile/retry the original operation. SDK backoff is not
+  // abortable and must not outlive this private storage request's deadline.
+  s3Client.retries = 0;
   return {
-    s3Client: getS3Client(key, secret),
+    s3Client,
     bucketName: bucket,
     endpoint: `https://${account}.r2.cloudflarestorage.com`,
   };
@@ -71,10 +75,13 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     }`;
     signal?.throwIfAborted();
     const init: RequestInit = { method, headers, body: body?.slice(), signal };
+    const request = r2RequestWithDeadline(url, init);
     if (this.transport) {
-      return await this.transport(r2RequestWithDeadline(url, init), config);
+      return await this.transport(request, config);
     }
-    return await config.s3Client.fetch(r2RequestWithDeadline(url, init));
+    // aws4fetch does not copy Request.signal while signing. Supply it in init
+    // so both the request deadline and caller cancellation reach native fetch.
+    return await config.s3Client.fetch(request, { signal: request.signal });
   }
 
   async writeOnce(
