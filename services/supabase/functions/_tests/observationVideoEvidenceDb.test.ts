@@ -1,3 +1,4 @@
+import { evidenceDispatchFixture } from "./observationEvidenceDispatchFixture.ts";
 import { decodeAnalysisResultSnapshot } from "../_shared/analysisHistory/result.ts";
 import { parseHistoryPage } from "../_shared/analysisHistory/page.ts";
 import { parseHistoryState } from "../_shared/analysisHistory/state.ts";
@@ -342,6 +343,7 @@ Deno.test({
     await db.queryArray("BEGIN");
     try {
       await fixture(db);
+      const dispatchFixture = await evidenceDispatchFixture(db);
       const [owner, parent, source, child] = Array.from(
         { length: 4 },
         () => crypto.randomUUID(),
@@ -371,14 +373,16 @@ Deno.test({
       await denied(db, () => complete(db, owner, request, a.items[0]));
       const cleanup = async () =>
         (await db.queryObject<{ value: number }>(
-          "SELECT public.retire_expired_observation_video_evidence() value",
+          "SELECT public.retire_expired_observation_video_evidence_for_dispatch($1) value",
+          [dispatchFixture.dispatch],
         )).rows[0].value;
-      assertEquals(await cleanup(), 0);
+      await denied(db, cleanup);
       await db.queryArray(
         "UPDATE internal.observation_history_rollout SET private_evidence_erasure_enabled=true",
       );
       await db.queryArray(
-        "SELECT public.retire_expired_observation_evidence()",
+        "SELECT public.retire_expired_observation_evidence_for_dispatch($1)",
+        [dispatchFixture.dispatch],
       );
       assertEquals(
         (await db.queryObject<{ n: number }>(
@@ -560,9 +564,13 @@ Deno.test({
       { length: 4 },
       () => crypto.randomUUID(),
     );
+    let dispatchFixture:
+      | Awaited<ReturnType<typeof evidenceDispatchFixture>>
+      | undefined;
     let prior: Record<string, boolean> | undefined;
     try {
       await fixture(first);
+      dispatchFixture = await evidenceDispatchFixture(first);
       await second.queryArray(
         "SELECT set_config('request.jwt.claim.role','service_role',false)",
       );
@@ -586,7 +594,8 @@ Deno.test({
       await second.queryArray("BEGIN");
       const cleanup = async (db: Client) =>
         (await db.queryObject<{ n: number }>(
-          "SELECT public.retire_expired_observation_video_evidence() n",
+          "SELECT public.retire_expired_observation_video_evidence_for_dispatch($1) n",
+          [dispatchFixture!.dispatch],
         )).rows[0].n;
       assertEquals(await cleanup(first), a.items.length);
       const pid = (await second.queryObject<{ pid: number }>(
@@ -632,6 +641,7 @@ Deno.test({
           gates.map((g) => prior![g]),
         );
       }
+      await dispatchFixture?.restore();
       await first.end();
       await second.end();
     }

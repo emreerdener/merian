@@ -7239,6 +7239,22 @@ The private `observation_evidence_erasure` outbox remains the durable owner of
 marker obligations; its service worker is documented in the
 [cleanup API contract](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
 
+The local, not-yet-deployed successor
+`20261112003746_fence_legacy_private_cleanup_acquisition.sql` permanently denies
+and revokes the three original acquisition signatures in place, preserving their
+OIDs. Their unchanged implementations move to new, ungranted private functions.
+The service facades `retire_expired_observation_evidence_for_dispatch(UUID)`,
+`retire_expired_observation_video_evidence_for_dispatch(UUID)` and
+`claim_observation_evidence_erasure_for_dispatch(UUID)` require the current
+pending dispatch and retain the worker singleton lock through acquisition.
+Exact-token finish remains available after dispatch rotation or gate closure.
+Multiple calls with the current UUID remain possible; this is not exactly-once
+delivery. Function replacement does not stop an already executing old body. The
+[deployment runbook](06-supabase-deployment-runbook.md#local-legacy-acquisition-fence-successor-not-deployed)
+requires the separately approved closed-gate cutover and positive drain of
+pre-cutover transactions before activation. This source migration alone does not
+resolve the held legacy request or establish hosted readiness.
+
 `20261110190707_history_private_evidence_drain_health.sql` prepares inactive
 operations for that same private outbox. New obligations gain immutable
 `first_observed_at`; historical rows remain NULL because their original enqueue

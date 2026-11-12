@@ -3,15 +3,15 @@ import type { eraseObservationEvidence } from "./handler.ts";
 
 type Counts = Awaited<ReturnType<typeof eraseObservationEvidence>>;
 
-/** Called only after service authentication. Correlation confers no authority. */
+/** Called after service authentication; SQL independently admits this dispatch. */
 export async function evidenceWorkerReceipt(
   req: Request,
-  work: () => Promise<Counts>,
+  work: (dispatch: string) => Promise<Counts>,
 ): Promise<Response> {
   const headers = { "Cache-Control": "no-store" };
   const dispatch = req.headers.get("X-Merian-Evidence-Dispatch");
   if (
-    dispatch !== null &&
+    dispatch === null ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
       .test(
         dispatch,
@@ -27,13 +27,11 @@ export async function evidenceWorkerReceipt(
       },
     );
   }
-  const counts = await work();
-  // Legacy callers retain the closed six-counter shape. Only terminal work
-  // echoes correlation; errors must never look like a completed invocation.
+  const counts = await work(dispatch);
+  // Only terminal work echoes correlation. Legacy acquisition is denied by
+  // both this boundary and the permanent old-RPC denial in the database.
   return jsonResponse(
-    dispatch === null
-      ? counts
-      : { schema_version: 2, dispatch_id: dispatch, ...counts },
+    { schema_version: 2, dispatch_id: dispatch, ...counts },
     200,
     headers,
   );

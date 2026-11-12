@@ -14150,23 +14150,35 @@ so native fetch retains the existing ten-second request timeout and caller
 cancellation for upload PUT/HEAD, verified GET and erasure PUT/HEAD. Hashing,
 signing and body cloning remain non-preemptive; this is not a hard
 whole-operation wall-clock guarantee. An uncertain PUT remains uncertain and
-cannot allocate a replacement object. The correction is local pending successor
-validation and deployment; see the
+cannot allocate a replacement object. The cancellation correction was included
+in the backend whose deployment1866 completed; actual hosted cleanup and phone
+qualification remain separate. See the
 [incident record](../incidents/2026-11-private-evidence-request-cancellation.md).
 
 ## Prepared private-evidence cleanup RPCs
 
-The separate `private_evidence_erasure_enabled` gate starts false. Only a
-service caller may execute `retire_expired_observation_evidence()` and
-`claim_observation_evidence_erasure()`. Retirement returns an integer from zero
-to five: one exact expired unbound cohort, or one legacy noncohort receipt.
-Discovery and the locked recheck exclude intent/result-owned evidence; invalid
-or mismatched immutable cohorts are held while later eligible work can progress.
-The original cohort descriptor and expiry survive receipt cleanup, so retrying
-an expired analysis cannot allocate new object keys. Parent/account deletion
-continues to remove private descriptors and enqueue opaque obligations.
+The local recovery-fence successor (not deployed) retains the separate
+`private_evidence_erasure_enabled` gate and permanently denies the original
+no-argument acquisition RPCs. Service callers use
+`retire_expired_observation_evidence_for_dispatch(p_dispatch_id UUID)`,
+`retire_expired_observation_video_evidence_for_dispatch(p_dispatch_id UUID)` and
+`claim_observation_evidence_erasure_for_dispatch(p_dispatch_id UUID)`. The
+mandatory UUID must match the enabled pending worker slot with valid project
+transport and open cleanup gate; the singleton stays locked through the existing
+operation. A supplied null/stale UUID, paused worker or mismatched authority
+returns42501. Omitting the required RPC argument is a routing/signature denial
+(for example PostgREST404/PGRST202), not a guaranteed42501 response. The
+service-role and private implementation grants remain separate boundaries.
+Photo/audio retirement returns an integer from zero to five; video retirement
+returns zero to seven. The photo/audio owner retires one exact expired unbound
+cohort, or one legacy noncohort receipt. Discovery and the locked recheck
+exclude intent/result-owned evidence; invalid or mismatched immutable cohorts
+are held while later eligible work can progress. The original cohort descriptor
+and expiry survive receipt cleanup, so retrying an expired analysis cannot
+allocate new object keys. Parent/account deletion continues to remove private
+descriptors and enqueue opaque obligations.
 
-Claim returns SQL null when disabled or no obligation is due, otherwise exactly
+An admitted claim returns SQL null when no obligation is due, otherwise exactly
 `object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
 never extended.
 `finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
@@ -14174,22 +14186,24 @@ boolean for the original unexpired token. It remains callable after the gate
 closes; successful settlement still requires the trusted caller to PUT and
 HEAD-verify the permanent empty marker. The prepared
 `erase-observation-evidence` service-authenticated POST endpoint now connects
-these RPCs and the separate `retire_expired_observation_video_evidence()` owner.
-It consumes no caller body or object key; legacy requests without the dispatch
-header return only `retired` (photo/audio, 0–5), `video_retired` (0–7),
-`retirement_failures` (0–2), `claimed`, `marked`, and `acknowledged` (0–1 each).
-All responses are no-store. Each media lane gets one bounded retirement attempt;
-a failure, malformed count or unknown acknowledgement is counted without
-retrying or assuming rollback. That lane's zero count is not proof of zero
-mutations. The independent other lane and authoritative registry claim can still
-progress. Parent cancellation and the overall deadline stop subsequent work. One
-request then marks at most one independently claimed opaque object. A 90-second
-shared request deadline caps twelve-second RPCs and a 25-second PUT/HEAD stage.
-Storage starts only with at least 38 seconds left in the original 60-second
-claim and request, reserving twelve seconds plus scheduling margin for
-settlement. The claim is never renewed, and no new claim is acquired with less
-than50seconds left for its RPC and existing marker reserve. Zero claims is not
-an empty-backlog assertion. Retirement failures, `claimed=1, marked=0` even with
+these versioned RPCs and requires the canonical dispatch header before work. It
+consumes no caller body or object key. Terminal receipts retain the v2 UUID and
+six bounded counters. Legacy requests are refused; no fallback is allowed.
+Existing exact-token settlement remains independent of current dispatch. This
+intentional service-only cutover requires closed gates and positively drained
+old SQL transactions before activation; it is not an iOS wire change. All
+responses are no-store. Each media lane gets one bounded retirement attempt; a
+failure, malformed count or unknown acknowledgement is counted without retrying
+or assuming rollback. That lane's zero count is not proof of zero mutations. The
+independent other lane and authoritative registry claim can still progress.
+Parent cancellation and the overall deadline stop subsequent work. One request
+then marks at most one independently claimed opaque object. A 90-second shared
+request deadline caps twelve-second RPCs and a 25-second PUT/HEAD stage. Storage
+starts only with at least 38 seconds left in the original 60-second claim and
+request, reserving twelve seconds plus scheduling margin for settlement. The
+claim is never renewed, and no new claim is acquired with less than50seconds
+left for its RPC and existing marker reserve. Zero claims is not an
+empty-backlog assertion. Retirement failures, `claimed=1, marked=0` even with
 `acknowledged=1`, or `marked=1, acknowledged=0` are unhealthy outcomes; HTTP200
 alone does not prove successful cleanup. Failed or uncertain marker writes
 report failure when time allows; lost acknowledgements recover through the
@@ -14214,18 +14228,19 @@ pending request survives asynchronous transport. Only a bounded valid terminal
 v2 receipt correlated to the exact request ID and durable random dispatch UUID,
 with exactly one response and a finite nonfuture timestamp, releases the slot;
 gateway errors, missing/malformed/duplicate responses and timeouts remain
-unknown. `X-Merian-Evidence-Dispatch` must be a canonical lowercase UUIDv4 when
-present; invalid or empty values reject before worker operations. V2 adds
-exactly `schema_version: 2` and matching `dispatch_id` to the six counters.
-Correlation is private service transport metadata, never authorization or health
-output. Legacy absent-header requests retain six fields; legacy pending
-NULL-correlation slots cannot be automatically consumed or backfilled. A new
-scheduler talking to an old worker holds safely rather than retrying. pg_net's
-response `created` is transaction start, may precede dispatch and is not HTTP
-completion time. Delayed reconciliation keeps the old response time for
-success/marker age. Health reads never reconcile or clear this state. The
-monitor workflow also starts inactive behind an explicit repository variable and
-main-branch check. Proposed cadence/alert thresholds and the original-slot
-operator reconciliation procedure are documented in the
+unknown. In the local acquisition-fence successor, `X-Merian-Evidence-Dispatch`
+is required and must be a canonical lowercase UUIDv4; missing, invalid or empty
+values reject before worker operations. V2 adds exactly `schema_version: 2` and
+matching `dispatch_id` to the six counters. The dispatch is a private SQL
+admission fence and correlation value; it does not replace service authorization
+and is not health output. Legacy absent-header requests are refused by the
+successor. Legacy pending NULL-correlation slots cannot be automatically
+consumed or backfilled. A new scheduler talking to an old worker holds safely
+rather than retrying. pg_net's response `created` is transaction start, may
+precede dispatch and is not HTTP completion time. Delayed reconciliation keeps
+the old response time for success/marker age. Health reads never reconcile or
+clear this state. The monitor workflow also starts inactive behind an explicit
+repository variable and main-branch check. Proposed cadence/alert thresholds and
+the original-slot operator reconciliation procedure are documented in the
 [worker owner guide](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes).
 They do not authorize deployment, activation or promise measured throughput.

@@ -24,7 +24,7 @@ serveEdge(async (req: Request) => {
     });
   }
   try {
-    return await evidenceWorkerReceipt(req, async () => {
+    return await evidenceWorkerReceipt(req, async (dispatch) => {
       const client = createServiceRoleClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         auth.serverApiKey,
@@ -32,7 +32,7 @@ serveEdge(async (req: Request) => {
       const storage = new PrivateHistoryEvidenceStorage();
       // No caller body or key is consumed. Only the gated registry grants erasure.
       const counts = await eraseObservationEvidence({
-        ...evidenceErasureRepository(client),
+        ...evidenceErasureRepository(client, dispatch),
         erase: (object, signal) => storage.erase(object, signal),
       }, req.signal);
       return counts;

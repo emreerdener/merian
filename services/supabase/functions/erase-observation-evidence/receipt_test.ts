@@ -17,28 +17,26 @@ function request(value?: string) {
   });
 }
 
-Deno.test("legacy scheduler retains six counters; new scheduler receives exact correlation", async () => {
-  for (const value of [undefined, dispatch]) {
-    let calls = 0;
-    const response = await evidenceWorkerReceipt(request(value), () => {
-      calls++;
-      return Promise.resolve(counts);
-    });
-    assertEquals(calls, 1);
-    assertEquals(response.status, 200);
-    assertEquals(response.headers.get("Cache-Control"), "no-store");
-    assertEquals(
-      await response.json(),
-      value === undefined
-        ? counts
-        : { schema_version: 2, dispatch_id: dispatch, ...counts },
-    );
-  }
+Deno.test("current dispatch reaches SQL work and receives exact terminal correlation", async () => {
+  let seen: string | undefined;
+  const response = await evidenceWorkerReceipt(request(dispatch), (value) => {
+    seen = value;
+    return Promise.resolve(counts);
+  });
+  assertEquals(seen, dispatch);
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
+  assertEquals(await response.json(), {
+    schema_version: 2,
+    dispatch_id: dispatch,
+    ...counts,
+  });
 });
 
-Deno.test("present invalid correlation never falls back or starts worker operations", async () => {
+Deno.test("missing or invalid dispatch never falls back or starts worker operations", async () => {
   for (
     const value of [
+      undefined,
       "",
       "invalid",
       dispatch.toUpperCase(),

@@ -1,9 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
+import { evidenceDispatchFixture } from "./observationEvidenceDispatchFixture.ts";
+
 const databaseUrl = Deno.env.get("SUPABASE_DB_TEST_URL");
 const retirement =
-  "SELECT public.retire_expired_observation_evidence() AS count";
+  "SELECT public.retire_expired_observation_evidence_for_dispatch($1) AS count";
 const settle = <T>(promise: Promise<T>) =>
   promise.then(
     (value) => ({ ok: true as const, value }),
@@ -40,8 +42,12 @@ Deno.test({
     const [observer, first, second] = clients;
     const objects = [crypto.randomUUID(), crypto.randomUUID()];
     let gate = false;
+    let dispatchFixture:
+      | Awaited<ReturnType<typeof evidenceDispatchFixture>>
+      | undefined;
     try {
       for (const client of clients) await client.connect();
+      dispatchFixture = await evidenceDispatchFixture(observer);
       gate = (await observer.queryObject<{ enabled: boolean }>(
         "SELECT private_evidence_erasure_enabled AS enabled FROM internal.observation_history_rollout WHERE singleton",
       )).rows[0].enabled;
@@ -57,22 +63,56 @@ Deno.test({
         claim_token: string;
         claim_expires_at: string;
       }[] = [];
+      // A separate row owner proves SKIP LOCKED while facade callers serialize.
+      await observer.queryArray("BEGIN");
+      await observer.queryArray(
+        "SELECT object_id FROM internal.observation_evidence_erasure WHERE object_id=$1 FOR UPDATE",
+        [objects[0]],
+      );
       for (const client of [first, second]) {
         await client.queryArray("BEGIN");
-        await client.queryArray("SET LOCAL statement_timeout='3s'");
+        await client.queryArray("SET LOCAL statement_timeout='10s'");
         await client.queryArray("SET LOCAL ROLE service_role");
-        claims.push(
-          (await client.queryObject<{ value: typeof claims[number] }>(
-            "SELECT public.claim_observation_evidence_erasure() AS value",
-          )).rows[0].value,
-        );
       }
+      const claimSql =
+        "SELECT public.claim_observation_evidence_erasure_for_dispatch($1) AS value";
+      claims.push(
+        (await first.queryObject<{ value: typeof claims[number] }>(claimSql, [
+          dispatchFixture.dispatch,
+        ])).rows[0].value,
+      );
+      assertEquals(claims[0].object_id, objects[1]);
+      const firstPid = (await first.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() pid",
+      )).rows[0].pid;
+      const secondPid = (await second.queryObject<{ pid: number }>(
+        "SELECT pg_backend_pid() pid",
+      )).rows[0].pid;
+      const pending = second.queryObject<{ value: null }>(claimSql, [
+        dispatchFixture.dispatch,
+      ]);
+      await blocked(observer, secondPid, firstPid);
+      await first.queryArray("COMMIT");
+      assertEquals((await pending).rows[0].value, null);
+      await second.queryArray("COMMIT");
+      await observer.queryArray("COMMIT");
+      await second.queryArray("BEGIN");
+      await second.queryArray("SET LOCAL ROLE service_role");
+      claims.push(
+        (await second.queryObject<{ value: typeof claims[number] }>(claimSql, [
+          dispatchFixture.dispatch,
+        ])).rows[0].value,
+      );
+      await second.queryArray("COMMIT");
       assertEquals(
         claims.map((claim) => claim.object_id).sort(),
         objects.sort(),
       );
       assert(claims[0].claim_token !== claims[1].claim_token);
-      for (const client of [first, second]) await client.queryArray("COMMIT");
+      await observer.queryArray(
+        "UPDATE internal.observation_evidence_worker_state SET pending_dispatch_id=$1",
+        [crypto.randomUUID()],
+      );
       await observer.queryArray(
         "UPDATE internal.observation_history_rollout SET private_evidence_erasure_enabled=FALSE",
       );
@@ -98,6 +138,7 @@ Deno.test({
         "DELETE FROM internal.observation_evidence_erasure WHERE object_id IN ($1,$2)",
         objects,
       );
+      await dispatchFixture?.restore();
       await Promise.all(clients.map((client) => client.end()));
     }
   },
@@ -139,11 +180,15 @@ for (
       }];
       const reserve =
         "SELECT public.reserve_owned_observation_evidence_cohort($1,$2,$3,$4::jsonb) AS value";
+      let dispatchFixture:
+        | Awaited<ReturnType<typeof evidenceDispatchFixture>>
+        | undefined;
       let object: string | undefined;
       let gates: Record<string, boolean> | undefined;
       let entitlement: { mode: string; protocol: number } | undefined;
       try {
         for (const client of clients) await client.connect();
+        dispatchFixture = await evidenceDispatchFixture(observer);
         const source = await Deno.readTextFile(
           new URL(
             "../../tests/observation_protected_analysis.sql",
@@ -243,7 +288,9 @@ for (
         } else {
           await first.queryArray("SET LOCAL ROLE service_role");
           assertEquals(
-            (await first.queryObject<{ count: number }>(retirement)).rows[0]
+            (await first.queryObject<{ count: number }>(retirement, [
+              dispatchFixture.dispatch,
+            ])).rows[0]
               .count,
             1,
           );
@@ -257,7 +304,9 @@ for (
               analysis,
               JSON.stringify(items),
             ])
-            : second.queryObject<{ count: number }>(retirement),
+            : second.queryObject<{ count: number }>(retirement, [
+              dispatchFixture.dispatch,
+            ]),
         );
         await blocked(observer, waiter, blocker);
         await first.queryArray("COMMIT");
@@ -316,6 +365,7 @@ for (
         await observer.queryArray("DELETE FROM auth.users WHERE id=$1", [
           owner,
         ]);
+        await dispatchFixture?.restore();
         await Promise.all(clients.map((client) => client.end()));
       }
     },

@@ -8866,3 +8866,29 @@ insufficient. Preserve the original request and conservative response age during
 reconciliation. The read-only health RPC/monitor exposes no UUID and cannot
 repair the slot. No additional bucket, credential, user API or native build is
 needed for this correlation fix.
+
+### Local legacy-acquisition fence successor (not deployed)
+
+Migration `20261112003746_fence_legacy_private_cleanup_acquisition.sql` and the
+matching worker are local work in progress. They permanently deny original
+no-argument acquisition OIDs and use mandatory-UUID versioned facades. They do
+not repair the current held request. Deployment1867 remains frozen7c.
+
+Cutover preparation must retain closed producer/cleanup gates and paused
+scheduling, commit permanent old-entry denial, and then positively drain every
+pre-cutoff transaction capable of running an old body. The cutoff is sampled
+from the same server after denial commits. Include idle-in-transaction,
+background/cron/parallel backends as applicable, prepared transactions and
+unclassifiable/disabled/redacted activity. A long-lived transaction is a
+blocker; no termination is implied. Require fresh activity snapshots and full
+visibility. Retain identity privately and recheck denial definitions/grants and
+no prior claim/external-effect assumptions before activation. DDL, schema-cache
+reload, a function-level timeout and one empty activity sample are not a drain
+proof.
+
+Exact-token settlement stays callable after pause or dispatch rotation. A late
+legacy HTTP call must remain unable to acquire newly created work after
+admission opens. Same-dispatch retries are not claimed to be exactly-once. The
+operation packet, live barrier, maintenance and activation still require
+independent verification and explicit target authorization; no new deployment is
+started by this preparation.

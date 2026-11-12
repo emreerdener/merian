@@ -12,7 +12,10 @@ Deno.test("private erasure RPC boundary is fixed, scoped, abortable and strict",
       },
     }),
   } as unknown as SupabaseClient;
-  const repository = evidenceErasureRepository(client),
+  const repository = evidenceErasureRepository(
+      client,
+      "00000000-0000-4000-8000-00000000ee01",
+    ),
     signal = new AbortController().signal;
   assertEquals(await repository.retire(signal), 0);
   assertEquals(await repository.retireVideo(signal), 0);
@@ -20,13 +23,15 @@ Deno.test("private erasure RPC boundary is fixed, scoped, abortable and strict",
   assertEquals(await repository.claim(signal), null);
   value = true;
   assertEquals(await repository.finish("object", "token", false, signal), true);
-  assertEquals(calls, [["retire_expired_observation_evidence", {}, false], [
-    "retire_expired_observation_video_evidence",
-    {},
+  assertEquals(calls, [["retire_expired_observation_evidence_for_dispatch", {
+    p_dispatch_id: "00000000-0000-4000-8000-00000000ee01",
+  }, false], [
+    "retire_expired_observation_video_evidence_for_dispatch",
+    { p_dispatch_id: "00000000-0000-4000-8000-00000000ee01" },
     false,
   ], [
-    "claim_observation_evidence_erasure",
-    {},
+    "claim_observation_evidence_erasure_for_dispatch",
+    { p_dispatch_id: "00000000-0000-4000-8000-00000000ee01" },
     false,
   ], ["finish_observation_evidence_erasure", {
     p_object: "object",
@@ -55,7 +60,8 @@ Deno.test("private erasure database failure has no raw diagnostic or implicit re
     }),
   } as unknown as SupabaseClient;
   const error = await assertRejects(() =>
-    evidenceErasureRepository(client).claim(new AbortController().signal)
+    evidenceErasureRepository(client, "00000000-0000-4000-8000-00000000ee01")
+      .claim(new AbortController().signal)
   );
   assert(error instanceof Error);
   assertEquals(error.message, "private_evidence_erasure_unavailable");

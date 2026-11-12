@@ -27,15 +27,16 @@ for completion. Parent cancellation reaches both storage requests. The worker
 never DELETEs the object: the permanent marker blocks delayed conditional
 uploads. A missing object alone is not erasure evidence.
 
-Legacy requests without `X-Merian-Evidence-Dispatch` return only `retired`
-(photo/audio,0–5), `video_retired` (0–7), `retirement_failures` (0–2),
-`claimed`, `marked`, and `acknowledged` (0–1 each), and are no-store. A
-canonical lowercase UUIDv4 in that service-only header selects the strict
-eight-field terminal receipt: `schema_version: 2`, `dispatch_id` equal to that
-UUID, plus the same six counters. A present empty, malformed or
-duplicate-combined header returns400 before any worker operation; it never falls
-back to legacy. Correlation grants no object or service authority, is not logged
-or included in health telemetry, and is echoed only after terminal work. Errors
+The local recovery-fence successor requires `X-Merian-Evidence-Dispatch`;
+missing or malformed values return400 before work. A canonical lowercase UUIDv4
+is passed into each versioned acquisition RPC, which independently verifies the
+current enabled dispatch under a singleton lock held through that operation.
+Only completed work returns the strict eight-field terminal receipt:
+`schema_version: 2`, `dispatch_id` equal to that UUID, plus the same six
+counters. A present empty, malformed or duplicate-combined header returns400
+before any worker operation; it never falls back to legacy. The UUID never
+replaces service authentication or object-claim authority. It is not logged or
+included in health telemetry and is echoed only after terminal work. Errors
 never emit a terminal correlation receipt. A failed lane's zero count is
 unknown, not proof that its transaction made no changes. Each retirement RPC has
 its own12-second cap under the same90-second absolute deadline. Parent
@@ -59,6 +60,14 @@ age monitoring, real private-bucket policy and credential verification, and
 storage race qualification. Local fake transport tests do not prove hosted
 storage or CDN behavior. See the
 [canonical contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
+
+Regression owners are the worker's `*_test.ts` files, the SQL dispatch-fence
+catalog, and `observationEvidenceDispatchConcurrencyDb.test.ts` /
+`observationEvidenceDispatchUpgradeDb.test.ts` under `functions/_tests`. The
+upgrade test loads the exact migration through Deno and rolls back its legacy
+reconstruction; it does not prove a hosted cutover. Run pristine catalog tests
+before committed full Edge/race fixtures, which intentionally can retain
+accounting and erasure evidence after deleting synthetic users.
 
 ## Prepared operations and unknown outcomes
 
@@ -93,13 +102,32 @@ actual HTTP completion time. Neither bodies, headers nor raw errors enter
 persistent telemetry. UUID and request ID are committed and cleared together; an
 enqueue ID collision rolls back the queued request as well.
 
-Mixed rollout is intentionally fail-closed. New worker/old scheduler preserves
-the legacy shape; new scheduler/old worker holds the six-field response as
-unknown. Deploy the compatible worker before allowing new dispatch where
-practical. An existing ID with NULL correlation always remains held, including
-the currently observed beta slot; deployment never repairs it. A separately
-authorized original-receipt recovery is required. No gate or schedule change is
-included in this forward migration.
+The local successor migration
+`20261112003746_fence_legacy_private_cleanup_acquisition.sql` permanently denies
+all three original no-argument acquisition RPCs **in place**, preserving their
+OIDs. It copies effective retirement/claim implementations into new private OIDs
+and adds distinct `*_for_dispatch(p_dispatch_id UUID)` facades. The original
+exact-token finish RPC remains available after rotation or pause. Missing/stale
+UUID, disabled worker, missing slot, wrong project transport or closed cleanup
+gate refuses acquisition. This does not promise one invocation per dispatch;
+same-dispatch redelivery remains subject to existing registry/claim safety.
+
+This successor is local and incompletely verified; deployment1867 uses frozen7c
+and is unaffected. Migration does not change gates, cron, pending request or
+claims. Old deployed workers become unable to acquire work after permanent
+legacy denial. New workers never fall back to old RPCs. Preserve the original
+legacy hold through the coordinated cutover.
+
+Before activation, commit the permanent denial while producer and cleanup gates
+remain closed, then establish and verify a post-commit transaction drain
+barrier. Already-running old bodies can survive DDL/revocation. Positive
+transaction-exit proof must cover every capable backend and prepared
+transaction, with complete activity visibility, fresh observation and a retained
+server cutoff; elapsed time alone is insufficient. Confirm no prior external
+claim/effect and recheck the original empty-work invariant. A delayed old HTTP
+delivery then encounters a permanent database denial even after new media
+admission opens. This procedure is still preparation, not an approved executable
+recovery command.
 
 `get_observation_evidence_erasure_health()` reads aggregate queue partitions,
 known oldest age, unknown-age count, expired retirement discovery candidates,
