@@ -382,3 +382,98 @@ Deno.test("same run starts a later active attempt during final inspection", asyn
     "validation_in_progress",
   );
 });
+
+Deno.test("production chain tolerates reuse skip but rejects failed gates and cancellation", () => {
+  const workflow = Deno.readTextFileSync(".github/workflows/deploy.yml");
+  const conditions = Object.fromEntries(
+    ["production-scope", "production-hold", "deploy"].map((job) => {
+      const block =
+        workflow.split(`\n  ${job}:\n`)[1].split(/\n {2}[a-z-]+:\n/)[0];
+      const condition = block.match(/^ {4}if: (.+)$/m)?.[1];
+      assert(condition, `${job} must explicitly handle the skipped ancestor`);
+      return [job, condition];
+    }),
+  );
+  // Model only this restricted job-condition grammar, including GitHub's
+  // implicit success() when no status function overrides ancestor skipping.
+  function evaluate(
+    expression: string,
+    cancelled: boolean,
+    ancestorsSucceeded: boolean,
+    values: Record<string, string>,
+  ): boolean {
+    const explicitStatus = /\b(?:cancelled|always|success|failure)\(\)/.test(
+      expression,
+    );
+    if (!explicitStatus && !ancestorsSucceeded) return false;
+    const body = expression.replace(/^\$\{\{\s*|\s*\}\}$/g, "")
+      .replace(/!cancelled\(\)/g, String(!cancelled))
+      .replace(
+        /needs\.([a-z-]+)\.(result|outputs\.[a-z_]+) == '([^']*)'/g,
+        (_, job, field, expected) =>
+          String(values[`${job}.${field}`] === expected),
+      );
+    assert(
+      /^(?:true|false|\s|&&)+$/.test(body),
+      `Unsupported condition: ${body}`,
+    );
+    return body.split("&&").every((part) => part.trim() === "true");
+  }
+  const states = ["success", "failure", "cancelled", "skipped", ""];
+  for (const cancelled of [false, true]) {
+    for (const ancestorsSucceeded of [false, true]) {
+      for (const validation of states) {
+        for (const prerequisite of states) {
+          for (const output of ["true", "false", ""]) {
+            const values = {
+              "candidate-validation.result": validation,
+              "production-scope.result": prerequisite,
+              "production-scope.outputs.should_deploy": output,
+              "production-hold.result": prerequisite,
+              "production-hold.outputs.deploy_allowed": output,
+            };
+            assertEquals(
+              evaluate(
+                conditions["production-scope"],
+                cancelled,
+                ancestorsSucceeded,
+                values,
+              ),
+              !cancelled && validation === "success",
+            );
+            for (const job of ["production-hold", "deploy"]) {
+              assertEquals(
+                evaluate(
+                  conditions[job],
+                  cancelled,
+                  ancestorsSucceeded,
+                  values,
+                ),
+                !cancelled && validation === "success" &&
+                  prerequisite === "success" && output === "true",
+                job,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+  // Recorded run1868: successful enforcement, intentionally skipped fresh
+  // validation. The former implicit guard blocked the production chain.
+  const approved = {
+    "candidate-validation.result": "success",
+    "production-hold.result": "success",
+    "production-hold.outputs.deploy_allowed": "true",
+  };
+  assertEquals(
+    evaluate(
+      "needs.production-hold.outputs.deploy_allowed == 'true'",
+      false,
+      false,
+      approved,
+    ),
+    false,
+  );
+  assertEquals(evaluate(conditions.deploy, false, false, approved), true);
+});

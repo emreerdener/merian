@@ -401,6 +401,14 @@ development flow is commit, push to main, and wait for the exact-SHA checks; no
 PR or pre-push check is required. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
+The production-scope, release-hold and deploy jobs explicitly use `!cancelled()`
+with successful prerequisite results and their existing output gates. This
+permits the intentional fresh-validation skip after verified reuse without
+inheriting GitHub Actions' default ancestor-skip behavior. Failed, skipped or
+cancelled prerequisite gates still prevent deployment. A successful workflow
+conclusion alone is not deployment evidence: the exact candidate's actual
+`deploy` job must complete successfully.
+
 After successful validation, a read-only production-scope job resolves the last
 successful actual `deploy` job and compares that ancestor SHA with the current
 candidate. `PRODUCTION_SOURCE_PATHS` in `deploy.yml` owns the production path

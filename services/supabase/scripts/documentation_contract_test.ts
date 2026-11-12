@@ -4622,7 +4622,7 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
   );
   assertStringIncludes(
     deploySource,
-    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-hold.result == 'success' && needs.production-hold.outputs.deploy_allowed == 'true' }}",
   );
   assertStringIncludes(
     deploySource,

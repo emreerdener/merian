@@ -724,19 +724,22 @@ current attempt within 24 hours, all required jobs/steps passed, and retained
 C1/handoff artifact provenance. An active run stops duplicate execution; missing
 or unverifiable evidence falls back to the full reusable workflow. See the
 [deployment contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#production-path).
-The resolver grants no production authority. Its full-history scope detector
-treats `.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the
-maintained root contract files as inputs because the executable suite reads or
-scans them. Resolution failure and unclassified new roots force complete
-validation; manual, merge-queue, and reusable non-PR invocations are never
-scoped out. It checks an exact clean checkout, pins Deno `2.9.4` and Supabase
-CLI `2.109.1`, validates the complete Function dependency graph and tooling
-contracts, replays every migration into a disposable database, discovers every
-pgTAP catalog, executes the complete Edge/database-concurrency suite, and runs
-database lint plus security/performance advisors. The repository-local Deno
-setup action retries the immutable reviewed installer at most three times for
-transient GitHub release-download failures, verifies the installed runtime is
-exactly `2.9.4`, and fails closed after the final attempt.
+Downstream jobs explicitly reject cancellation and require successful validation
+and release prerequisites while permitting the intentional fresh-gate skip. An
+overall green run with a skipped `deploy` job is not a deployment. The resolver
+grants no production authority. Its full-history scope detector treats
+`.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the maintained
+root contract files as inputs because the executable suite reads or scans them.
+Resolution failure and unclassified new roots force complete validation; manual,
+merge-queue, and reusable non-PR invocations are never scoped out. It checks an
+exact clean checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`, validates
+the complete Function dependency graph and tooling contracts, replays every
+migration into a disposable database, discovers every pgTAP catalog, executes
+the complete Edge/database-concurrency suite, and runs database lint plus
+security/performance advisors. The repository-local Deno setup action retries
+the immutable reviewed installer at most three times for transient GitHub
+release-download failures, verifies the installed runtime is exactly `2.9.4`,
+and fails closed after the final attempt.
 
 The local initial-History routine repair preserves final replayed definitions
 and private ACLs while correcting volatility, casts and unused declarations. See

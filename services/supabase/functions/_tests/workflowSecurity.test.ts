@@ -494,7 +494,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     deployJob,
   );
   const deployHoldCondition = deployWorkflow.indexOf(
-    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-hold.result == 'success' && needs.production-hold.outputs.deploy_allowed == 'true' }}",
     deployJob,
   );
   assert(
@@ -575,7 +575,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
 
   const deployBlock = deployWorkflow.slice(deployJob);
   const deployHoldConditionInBlock = deployBlock.indexOf(
-    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-hold.result == 'success' && needs.production-hold.outputs.deploy_allowed == 'true' }}",
   );
   const productionEnvironment = deployBlock.indexOf("environment: Production");
   assert(

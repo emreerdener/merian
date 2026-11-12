@@ -1022,6 +1022,10 @@ Deno.test("direct main validation is independent of the cumulative production sc
     "DEPLOY_BASE_SHA: ${{ steps.baseline.outputs.sha }}",
   );
   assertStringIncludes(scope, "detect_production_source_changes.sh");
+  assertStringIncludes(
+    scope,
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' }}",
+  );
   assert(!scope.includes("if: always()"));
   assert(!scope.includes("secrets."));
   assert(!scope.includes("environment: Production"));
@@ -1032,7 +1036,7 @@ Deno.test("direct main validation is independent of the cumulative production sc
   assertStringIncludes(hold, "needs: [candidate-validation, production-scope]");
   assertStringIncludes(
     hold,
-    "if: needs.production-scope.outputs.should_deploy == 'true'",
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-scope.result == 'success' && needs.production-scope.outputs.should_deploy == 'true' }}",
   );
   assert(!hold.includes("if: always()"));
   assertStringIncludes(hold, "verify_production_hold_candidate.sh");
@@ -1054,7 +1058,7 @@ Deno.test("direct main validation is independent of the cumulative production sc
   );
   assertStringIncludes(
     deploy,
-    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+    "if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-hold.result == 'success' && needs.production-hold.outputs.deploy_allowed == 'true' }}",
   );
   assertStringIncludes(deploy, "group: supabase-production-deploy");
   assertStringIncludes(deploy, "cancel-in-progress: false");
