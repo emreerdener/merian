@@ -41,6 +41,7 @@ Deno.test({
     ];
     const [observer, first, second] = clients;
     const objects = [crypto.randomUUID(), crypto.randomUUID()];
+    const backlog = crypto.randomUUID();
     let gate = false;
     let dispatchFixture:
       | Awaited<ReturnType<typeof evidenceDispatchFixture>>
@@ -55,8 +56,8 @@ Deno.test({
         "UPDATE internal.observation_history_rollout SET private_evidence_erasure_enabled=TRUE",
       );
       await observer.queryArray(
-        "INSERT INTO internal.observation_evidence_erasure(object_id,available_at) VALUES($1,'1970-01-01'),($2,'1970-01-01')",
-        objects,
+        "INSERT INTO internal.observation_evidence_erasure(object_id,available_at) VALUES($1,'1970-01-01'),($2,'1970-01-01'),($3,'1971-01-01')",
+        [...objects, backlog],
       );
       const claims: {
         object_id: string;
@@ -88,12 +89,16 @@ Deno.test({
       const secondPid = (await second.queryObject<{ pid: number }>(
         "SELECT pg_backend_pid() pid",
       )).rows[0].pid;
-      const pending = second.queryObject<{ value: null }>(claimSql, [
-        dispatchFixture.dispatch,
-      ]);
+      const pending = second.queryObject<{ value: typeof claims[number] }>(
+        claimSql,
+        [
+          dispatchFixture.dispatch,
+        ],
+      );
       await blocked(observer, secondPid, firstPid);
       await first.queryArray("COMMIT");
-      assertEquals((await pending).rows[0].value, null);
+      // Once admitted, the second caller skips both the row lock and live lease.
+      assertEquals((await pending).rows[0].value.object_id, backlog);
       await second.queryArray("COMMIT");
       await observer.queryArray("COMMIT");
       await second.queryArray("BEGIN");
@@ -135,8 +140,8 @@ Deno.test({
         [gate],
       );
       await observer.queryArray(
-        "DELETE FROM internal.observation_evidence_erasure WHERE object_id IN ($1,$2)",
-        objects,
+        "DELETE FROM internal.observation_evidence_erasure WHERE object_id IN ($1,$2,$3)",
+        [...objects, backlog],
       );
       await dispatchFixture?.restore();
       await Promise.all(clients.map((client) => client.end()));

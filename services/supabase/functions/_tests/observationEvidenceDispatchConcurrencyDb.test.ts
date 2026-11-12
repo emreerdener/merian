@@ -150,18 +150,21 @@ Deno.test({
         "UPDATE internal.observation_history_rollout SET private_evidence_erasure_enabled=TRUE",
       );
       const object = crypto.randomUUID();
+      const backlog = crypto.randomUUID();
       await db.queryArray(
-        "INSERT INTO internal.observation_evidence_erasure(object_id,available_at) VALUES($1,'1970-01-01')",
-        [object],
+        "INSERT INTO internal.observation_evidence_erasure(object_id,available_at) VALUES($1,'1970-01-01'),($2,'1971-01-01')",
+        [object, backlog],
       );
       await db.queryArray("SET LOCAL ROLE service_role");
       const first =
         (await db.queryObject<{ value: Claim }>(claimSql, [fixture.dispatch]))
           .rows[0].value;
+      assertEquals(first.object_id, object);
+      // A live lease excludes this object, not other eligible backlog.
       assertEquals(
-        (await db.queryObject<{ value: null }>(claimSql, [fixture.dispatch]))
-          .rows[0].value,
-        null,
+        (await db.queryObject<{ value: Claim }>(claimSql, [fixture.dispatch]))
+          .rows[0].value.object_id,
+        backlog,
       );
       await db.queryArray("RESET ROLE");
       // Privileged local clock positioning only; no production lease rewrite.
