@@ -1,3 +1,9 @@
+> November 10 release preparation: the scoped History candidate pins Next.js
+> 16.4.6 and the Sharp override at 0.35.5. Its dependency guards also require
+> source-map-js 1.2.2 and patched Sharp native artifacts. Historical version
+> references below describe earlier checkpoints. Current package validation is
+> recorded in completion309; unrelated Web feature changes are not included.
+
 # Naturebook Internal Admin
 
 Private Next.js + Mantine operations application for `admin.naturebook.earth`.

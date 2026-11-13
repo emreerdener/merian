@@ -75,6 +75,9 @@ production submission or public release.
 - [Release evidence operations](./release-evidence/README.md) owns hold-exit
   evidence and automatic deployment controls. A green held run is not deployment
   evidence.
+- [History backend source snapshot](./release-evidence/history-backend-source-snapshot-2026-11-08.md)
+  records the isolated source, local evidence and excluded native companion
+  work. It is not release-qualified or an installed History journey.
 - [iOS publishing](./development-guides/14-ios-release-versioning.md) and
   [Supabase deployment](./backend-and-data/06-supabase-deployment-runbook.md)
   own separately authorized operations, rollout order, and recovery.

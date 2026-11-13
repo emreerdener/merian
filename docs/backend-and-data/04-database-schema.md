@@ -10121,6 +10121,22 @@ recipe, hashes and byte lengths, avoiding recursive edit history. The earlier
 unreachable `attemptBytes` intent codec is rejected, never reinterpreted. No
 runtime pair admission or schema migration is enabled by this codec correction.
 
+### Initial-analysis validation CPU bounds
+
+The forward metadata validation optimization (`20261109071913`) hashes the
+original outcome, phase-window, mapping and media-binding TEXT after their
+strict parsers have already succeeded in the same invocation. Standalone digest
+helpers retain their validation. No cached validation crosses a call, database
+mutation or transaction boundary; semantic checks and resource limits remain.
+The catalog fixture compares complete results and rejection errors with the
+historical validator, including malformed original TEXT. The subsequent
+scalar-child optimization (`20261109072401`) keeps recursive container
+validation while evaluating scalar rules inside the parent call. It preserves
+depth limits, numeric and UTF-8 bounds, nullable handling, three-valued results
+and malformed-rule errors. The independent recursive historical oracle in
+`initial_schema_scalar_inlining.sql` verifies scalar/rule crossings, nested
+parents, invalid rules and depth boundaries; no authority check is removed.
+
 ### Initial History routine lint repair (local candidate)
 
 `20261109002827_repair_initial_history_routine_lint.sql` preserves the final
