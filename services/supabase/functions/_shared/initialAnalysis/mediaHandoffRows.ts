@@ -135,13 +135,28 @@ function snapshot(
     ...ADMITTED_COMPONENT_LIMITS,
     manifest: ADMITTED_MANIFEST_LIMIT,
   };
+  // The current SQL composite carries a closed storage union. This legacy
+  // handoff decoder accepts only server-prepared rows, never CPM admission.
+  const cpmFields = [
+    "cpm_verification",
+    "cpm_verification_digest",
+    "cpm_retained_roles",
+    "cpm_capacity_predecessor",
+    "original_admission_expires_at",
+  ];
   const a = mediaRecord(raw.admission, [
+    "admission_variant",
+    ...cpmFields,
     ...Object.keys(keys),
     "owner_id",
     "scan_id",
     "admission_receipt_id",
     "receipt_digest",
   ]);
+  if (
+    a.admission_variant !== "server_prepared_v3" ||
+    cpmFields.some((field) => a[field] !== null)
+  ) throw initialMediaUnavailable();
   scope(a, identity);
   const original = {} as AdmittedProofText;
   for (const [key, limit] of Object.entries(keys)) {

@@ -26,6 +26,11 @@ import schema from "./cpm-admission-bridge-response-schema-v1.json" with {
 import currentSchema from "./cpm-verification-current-response-schema-v1.json" with {
   type: "json",
 };
+import {
+  type CpmCompletionAdmissionBinding,
+  decodeCpmCompletionAdmission,
+  snapshotCpmCompletionAdmissionBinding,
+} from "./cpmCompletionAdmission.ts";
 import { fetchWithDeadline } from "../outbound.ts";
 import {
   requireServerApiKeyFromEnvironment,
@@ -84,6 +89,10 @@ export function createCpmPhotoAdmissionDb(
   trustedIpHash: string,
   fetcher: typeof fetch = fetch,
 ): Omit<CpmPhotoAdmissionBridge, "verify"> & {
+  readCompletionAdmission(
+    original: CpmCompletionAdmissionBinding,
+    signal: AbortSignal,
+  ): Promise<Awaited<ReturnType<typeof decodeCpmCompletionAdmission>>>;
   requireCurrent(
     start: Readonly<CpmVerificationStart>,
     signal: AbortSignal,
@@ -105,6 +114,7 @@ export function createCpmPhotoAdmissionDb(
   async function call(
     operation:
       | "read_initial_cpm_photo_admission"
+      | "read_initial_cpm_completion_admission_v1"
       | "begin_initial_cpm_photo_admission"
       | "admit_initial_cpm_photo"
       | "assert_initial_cpm_photo_verification_current",
@@ -117,9 +127,21 @@ export function createCpmPhotoAdmissionDb(
         "attempt_id" | "snapshot_canonical" | "snapshot_digest"
       >
     >,
+    acknowledgement?: Readonly<
+      Pick<
+        CpmCompletionAdmissionBinding,
+        "backend_generation" | "backend_configuration_digest"
+      >
+    >,
   ) {
     return await initialDeadline(signal, 5000, async (phase) => {
       try {
+        if (
+          (operation === "read_initial_cpm_completion_admission_v1") !==
+            (acknowledgement !== undefined)
+        ) {
+          throw initialMediaUnavailable();
+        }
         const candidate = parseInitialCanonicalText(
           identity.candidate_canonical,
         );
@@ -157,6 +179,11 @@ export function createCpmPhotoAdmissionDb(
               p_candidate: identity.candidate_canonical,
               p_assignment: identity.assignment_canonical,
               p_assignment_digest: identity.assignment_digest,
+              ...(acknowledgement === undefined ? {} : {
+                p_backend_generation: acknowledgement.backend_generation,
+                p_backend_configuration_digest:
+                  acknowledgement.backend_configuration_digest,
+              }),
               ...(verification === undefined
                 ? {}
                 : { p_verification: verification, p_ip_hash: trustedIpHash }),
@@ -183,7 +210,11 @@ export function createCpmPhotoAdmissionDb(
             }, { fetcher, timeoutMs: 5000 }),
           (late) => cancelInitialStream(late.body),
         );
-        const bytes = await readInitialStream(response.body, 262144, phase);
+        const bytes = await readInitialStream(
+          response.body,
+          acknowledgement ? 8192 : 262144,
+          phase,
+        );
         if (response.status !== 200) throw initialMediaUnavailable();
         const value: unknown = JSON.parse(
           new TextDecoder("utf-8", { fatal: true }).decode(bytes),
@@ -196,6 +227,26 @@ export function createCpmPhotoAdmissionDb(
     });
   }
   return Object.freeze({
+    async readCompletionAdmission(value, signal) {
+      return await initialDeadline(signal, 5000, async (phase) => {
+        const original = await initialAbortable(
+          phase,
+          () => snapshotCpmCompletionAdmissionBinding(value),
+        );
+        const reply = await call(
+          "read_initial_cpm_completion_admission_v1",
+          original,
+          phase,
+          undefined,
+          undefined,
+          original,
+        );
+        return await initialAbortable(
+          phase,
+          () => decodeCpmCompletionAdmission(reply, original),
+        );
+      });
+    },
     async requireCurrent(value, signal) {
       const identity = snapshot({
         owner_id: value.owner_id,

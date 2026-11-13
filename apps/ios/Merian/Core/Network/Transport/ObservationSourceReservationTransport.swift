@@ -86,8 +86,9 @@ struct ObservationSourceReservationConflict: Error, Equatable, Sendable {
     let ownerID: UUID
 }
 
+// The full name distinguishes this source-reservation conflict from other History actions.
 /// A definite video conflict retains the exact saved candidate and original owner.
-struct ObservationVideoSourceReservationConflict: Error, Equatable, Sendable {
+struct ObservationVideoSourceReservationConflict: Error, Equatable, Sendable { // swiftlint:disable:this type_name
     let request: ObservationVideoSourceReservationRequest
     let ownerID: UUID
 }

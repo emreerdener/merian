@@ -34,7 +34,7 @@ enum ObservationHistorySelectionIntent {
         try entry.request.validate()
         _ = try ObservationHistoryPage.uuid(entry.owner)
         _ = try ObservationHistoryPage.uuid(entry.previous)
-        guard (entry.version == 1 || entry.version == 2), entry.request.observation_id == observation.lowercased(),
+        guard entry.version == 1 || entry.version == 2, entry.request.observation_id == observation.lowercased(),
               entry.previous != observation.lowercased(), entry.previous != entry.request.analysis_id,
               entry.previousReview >= 0, entry.previousReview <= entry.request.expected_observation_revision else { throw Failure.invalidIntent }
         if entry.rejection != nil {

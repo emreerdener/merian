@@ -14,6 +14,8 @@ import {
   PrivateHistoryEvidenceStorage,
 } from "./evidenceStorage.ts";
 
+import { getPublicationPhotoConfig } from "./publicPhotoStorage.ts";
+
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const identity = {
@@ -36,9 +38,9 @@ async function fixture() {
   const config = getHistoryEvidenceConfig("write", (key) => ({
     R2_ACCOUNT_ID: "a".repeat(32),
     R2_BUCKET_NAME: "synthetic-public",
-    R2_HISTORY_BUCKET_NAME: "synthetic-private",
-    R2_HISTORY_WRITE_ACCESS_KEY_ID: "synthetic-key",
-    R2_HISTORY_WRITE_SECRET_ACCESS_KEY: "synthetic-secret",
+    R2_SCANS_PRIVATE_BUCKET_NAME: "synthetic-private",
+    R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID: "synthetic-key",
+    R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY: "synthetic-secret",
   }[key]));
   let object: { body: Uint8Array; headers: Headers } | undefined;
   const methods: string[] = [];
@@ -118,12 +120,12 @@ Deno.test("history evidence storage fails closed without a separate private buck
   const env: Record<string, string> = {
     R2_ACCOUNT_ID: "a".repeat(32),
     R2_BUCKET_NAME: "same-bucket",
-    R2_HISTORY_BUCKET_NAME: "same-bucket",
-    R2_HISTORY_READ_ACCESS_KEY_ID: "synthetic-key",
-    R2_HISTORY_READ_SECRET_ACCESS_KEY: "synthetic-secret",
+    R2_SCANS_PRIVATE_BUCKET_NAME: "same-bucket",
+    R2_SCANS_PRIVATE_READ_ACCESS_KEY_ID: "synthetic-key",
+    R2_SCANS_PRIVATE_READ_SECRET_ACCESS_KEY: "synthetic-secret",
   };
   assertThrows(() => getHistoryEvidenceConfig("read", (key) => env[key]));
-  env.R2_HISTORY_BUCKET_NAME = "different-bucket";
+  env.R2_SCANS_PRIVATE_BUCKET_NAME = "different-bucket";
   assertEquals(
     getHistoryEvidenceConfig("read", (key) => env[key]).bucketName,
     "different-bucket",
@@ -404,5 +406,185 @@ Deno.test("private erasure propagates cancellation before PUT, before HEAD and a
       calls,
       phase === "before" ? [] : phase === "PUT" ? ["PUT"] : ["PUT", "HEAD"],
     );
+  }
+});
+
+Deno.test("private scans configuration rejects legacy-only and mixed settings for both storage owners", () => {
+  const base: Record<string, string> = {
+    R2_ACCOUNT_ID: "a".repeat(32),
+    R2_BUCKET_NAME: "synthetic-public",
+    R2_SCANS_PRIVATE_BUCKET_NAME: "synthetic-private",
+    R2_SCANS_PRIVATE_READ_ACCESS_KEY_ID: "private-read-key",
+    R2_SCANS_PRIVATE_READ_SECRET_ACCESS_KEY: "private-read-secret",
+    R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID: "private-write-key",
+    R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY: "private-write-secret",
+    R2_PUBLICATION_READ_ACCESS_KEY_ID: "public-read-key",
+    R2_PUBLICATION_READ_SECRET_ACCESS_KEY: "public-read-secret",
+    R2_PUBLICATION_WRITE_ACCESS_KEY_ID: "public-write-key",
+    R2_PUBLICATION_WRITE_SECRET_ACCESS_KEY: "public-write-secret",
+  };
+  const legacy = [
+    "R2_HISTORY_BUCKET_NAME",
+    "R2_HISTORY_READ_ACCESS_KEY_ID",
+    "R2_HISTORY_READ_SECRET_ACCESS_KEY",
+    "R2_HISTORY_WRITE_ACCESS_KEY_ID",
+    "R2_HISTORY_WRITE_SECRET_ACCESS_KEY",
+  ];
+  for (const access of ["read", "write"] as const) {
+    assertEquals(
+      getHistoryEvidenceConfig(access, (key) => base[key]).bucketName,
+      "synthetic-private",
+    );
+    assertEquals(
+      getPublicationPhotoConfig(access, (key) => base[key]).bucketName,
+      "synthetic-public",
+    );
+    for (const legacyName of legacy) {
+      const newName = legacyName.replace("R2_HISTORY_", "R2_SCANS_PRIVATE_");
+      for (const value of ["", base[newName]]) {
+        for (const mixed of [false, true]) {
+          const env = { ...base, [legacyName]: value };
+          if (!mixed) {
+            for (const name of Object.keys(env)) {
+              if (name.startsWith("R2_SCANS_PRIVATE_")) delete env[name];
+            }
+          }
+          for (
+            const [readConfig, message] of [
+              [
+                getHistoryEvidenceConfig,
+                "history_evidence_storage_unavailable",
+              ],
+              [
+                getPublicationPhotoConfig,
+                "publication_photo_storage_unavailable",
+              ],
+            ] as const
+          ) {
+            const error = assertThrows(
+              () => readConfig(access, (key) => env[key]),
+              Error,
+            );
+            assertEquals(error.message, message);
+            assertEquals(error.cause, undefined);
+          }
+        }
+      }
+    }
+    for (const suffix of ["ACCESS_KEY_ID", "SECRET_ACCESS_KEY"]) {
+      const env = { ...base };
+      delete env[`R2_SCANS_PRIVATE_${access.toUpperCase()}_${suffix}`];
+      assertThrows(
+        () => getHistoryEvidenceConfig(access, (key) => env[key]),
+        Error,
+        "history_evidence_storage_unavailable",
+      );
+    }
+  }
+});
+
+// Exercise the default AwsClient path; injected Transport fixtures bypass signing.
+for (const cancellation of ["caller", "deadline"] as const) {
+  Deno.test(`private storage signed requests retain ${cancellation} cancellation`, async (t) => {
+    for (
+      const phase of [
+        "upload PUT",
+        "upload HEAD",
+        "read GET",
+        "erase PUT",
+        "erase HEAD",
+      ]
+    ) {
+      await t.step(phase, async () => {
+        const f = await fixture();
+        const controller = new AbortController();
+        const originalFetch = globalThis.fetch;
+        const originalTimeout = AbortSignal.timeout;
+        const calls: string[] = [];
+        let observed: AbortSignal | undefined;
+        const method = phase.split(" ")[1];
+        try {
+          if (cancellation === "deadline") {
+            AbortSignal.timeout = () => controller.signal;
+          }
+          globalThis.fetch = (input, init) => {
+            const request = new Request(input, init);
+            calls.push(request.method);
+            if (request.method === method) {
+              observed = request.signal;
+              controller.abort(
+                new DOMException("synthetic cancellation", "AbortError"),
+              );
+              return Promise.reject(controller.signal.reason);
+            }
+            return Promise.resolve(new Response(null, { status: 200 }));
+          };
+          const storage = new PrivateHistoryEvidenceStorage(
+            () => f.config,
+            () => f.config,
+          );
+          const caller = cancellation === "caller"
+            ? controller.signal
+            : undefined;
+          await assertRejects(
+            () =>
+              phase.startsWith("upload")
+                ? storage.writeOnce(f.receipt, bytes, caller)
+                : phase.startsWith("read")
+                ? storage.readVerified(f.receipt, caller)
+                : storage.erase(f.receipt.object_id, caller),
+            DOMException,
+            "synthetic cancellation",
+          );
+          assert(
+            observed,
+            "the real signing path must reach the synthetic fetch",
+          );
+          assert(
+            observed.aborted,
+            "signing must preserve cancellation on the outgoing request",
+          );
+          assertEquals(calls, method === "HEAD" ? ["PUT", "HEAD"] : [method]);
+        } finally {
+          globalThis.fetch = originalFetch;
+          AbortSignal.timeout = originalTimeout;
+        }
+      });
+    }
+  });
+}
+
+Deno.test("private storage leaves retryable HTTP failures to the durable owner", async (t) => {
+  for (const status of [429, 503]) {
+    await t.step(String(status), async () => {
+      const f = await fixture();
+      const originalFetch = globalThis.fetch;
+      const originalRandom = Math.random;
+      const calls: string[] = [];
+      try {
+        // A regression must fail promptly, without the SDK's exponential wait.
+        Math.random = () => 0;
+        globalThis.fetch = (input, init) => {
+          calls.push(new Request(input, init).method);
+          if (calls.length > 1) {
+            return Promise.reject(new Error("unexpected SDK retry"));
+          }
+          return Promise.resolve(new Response(null, { status }));
+        };
+        const storage = new PrivateHistoryEvidenceStorage(
+          () => f.config,
+          () => f.config,
+        );
+        await assertRejects(
+          () => storage.writeOnce(f.receipt, bytes),
+          Error,
+          "history_evidence_storage_unavailable",
+        );
+        assertEquals(calls, ["PUT"]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        Math.random = originalRandom;
+      }
+    });
   }
 });

@@ -12,9 +12,11 @@ struct IdentificationHistorySheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if model.isClosed { Text("History is no longer available for this account.") }
-                else if let detail = model.detail { preview(detail) }
-                else {
+                if model.isClosed {
+                    Text("History is no longer available for this account.")
+                } else if let detail = model.detail {
+                    preview(detail)
+                } else {
                     Section {
                         ForEach(model.rows) { row in
                             Button { model.start(.preview(row.id)) } label: { rowLabel(row) }
@@ -83,8 +85,11 @@ struct IdentificationHistorySheet: View {
                 if model.selected == row.id { Label("Current", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.tint) }
             }
             if let scientific = row.scientificName, scientific != row.title { Text(scientific).italic() }
-            if let date = row.completedAt { Text(date, format: .dateTime.year().month().day().hour().minute()).font(.caption) }
-            else { Text("Saved identification · Original date unavailable").font(.caption) }
+            if let date = row.completedAt {
+                Text(date, format: .dateTime.year().month().day().hour().minute()).font(.caption)
+            } else {
+                Text("Saved identification · Original date unavailable").font(.caption)
+            }
             Text([row.confidence, row.review].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
@@ -93,8 +98,9 @@ struct IdentificationHistorySheet: View {
     @ViewBuilder private func preview(_ detail: IdentificationHistoryDetail) -> some View {
         Section { rowLabel(detail.row) }
         Section {
-            if model.selected == detail.row.id { Text("This is your current identification.") }
-            else {
+            if model.selected == detail.row.id {
+                Text("This is your current identification.")
+            } else {
                 Button("Use this identification") { model.start(.restore) }
                     .disabled(!detail.canRestore || model.pending)
                     .accessibilityIdentifier("HistoryRestore")

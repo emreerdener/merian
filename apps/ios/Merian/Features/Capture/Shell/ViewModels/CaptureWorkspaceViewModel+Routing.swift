@@ -167,9 +167,14 @@ extension CaptureWorkspaceViewModel {
         do {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             if let record = (try context.fetch(descriptor)).first {
-                diContainer.inferenceEngine.load(from: record)
+                let authority = try SharedMediaConsumerAuthority.classify(raw: record.mediaAuthorityRaw,
+                    consumerID: record.sharedMediaConsumerID, record: .scan)
+                let needsRetainedDisplay: Bool
+                if case .nativeInitial = authority { needsRetainedDisplay = true } else { needsRetainedDisplay = false }
+                if !needsRetainedDisplay { diContainer.inferenceEngine.load(from: record) }
                 protectExternalRouteFromImmediateSessionTimeoutReset()
                 self.activeSheet = .insight
+                if needsRetainedDisplay { activePresentation?.localScanID = scanId }
                 return true
             }
         } catch {

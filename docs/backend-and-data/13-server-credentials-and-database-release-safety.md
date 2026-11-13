@@ -1,3 +1,45 @@
+## November 9 — prepared original recovery service reads
+
+The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
+candidate exposes two service-only wrappers for the existing locked immutable
+readers: `discover_initial_completion_v1` and
+`read_initial_cpm_saved_admission_v1`. Each checks the service caller inside a
+postgres-owned SECURITY DEFINER function with an empty search path and a
+five-second statement-timeout configuration. The existing abortable transport
+deadline remains required; this catalog setting alone does not qualify server
+execution or lock-wait duration. Exact signatures are registered in the existing
+privileged-routine allowlist. Anonymous/authenticated callers and direct
+internal access remain denied.
+
+The wrappers delegate original owner/admission/dispatch/funding and
+cancellation/deletion validation without copying those rules or adding writes.
+The saved-admission response includes private assignment context for server
+validation; it must never be relayed as the native acknowledgement. The local
+status route now composes these readers through the existing
+`initialRecovery.ts` owner. Full S0 admission, media/execution/settlement and
+old-writer quiescence prerequisites remain. Ordinary legacy absence cannot gain
+an immutable result through these reads.
+
+Local validation passed: full 516-migration replay, 190 catalog files with
+10,384 executed assertions and two existing declared skips, strict
+public/internal SQL lint, and four owned recovery journeys with 341 checks.
+Independent review verified the permission-test correction, source applicability
+and owned cleanup. The migration remains unpublished and unapplied to hosted
+environments. These synthetic SQL journeys do not qualify the HTTP route,
+concurrent deletion/merge, server timeout or native integration;
+initial-recovery acceptance remains open.
+
+The composed local HTTP recovery owner additionally passed four SQL-response
+bridge journeys (341 checks), the full Edge suite (4,390 tests/1,170 steps),
+whole-tree lint and 125 deployable entrypoint checks. Focused native wire tests
+passed four methods/17 cases in the integrated app checkout. The tooling
+components passed across retained split execution: the original monolithic run
+failed because the sandbox denied synthetic hidden-input terminal access; the
+unchanged fake-provider PTY test and remaining shell tests then passed with
+terminal permission. Independent review verified these scoped results and
+cleanup. Durable original recovery-to-History, actual audio/video queued UI
+restart and broader S0/RUX/cumulative acceptance remain open.
+
 # Server Credentials and Database Release Safety
 
 **Status (2026-07-27):** Canonical repository contract. Repository corrections
@@ -645,13 +687,20 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 ## Prepared history evidence credentials
 
 The private `analysisHistory/evidenceStorage.ts` owner reads
-`R2_HISTORY_BUCKET_NAME`, `R2_HISTORY_WRITE_ACCESS_KEY_ID`,
-`R2_HISTORY_WRITE_SECRET_ACCESS_KEY`, `R2_HISTORY_READ_ACCESS_KEY_ID`, and
-`R2_HISTORY_READ_SECRET_ACCESS_KEY`, alongside the existing `R2_ACCOUNT_ID`.
-Missing values fail closed; there is no fallback to public-scan credentials. The
-history bucket must differ from `R2_BUCKET_NAME`. Read and write credentials
-must be separate least-privilege identities scoped to this bucket. These names
-are contract declarations, not provisioned secrets or deployment authorization.
+`R2_SCANS_PRIVATE_BUCKET_NAME`, `R2_SCANS_PRIVATE_WRITE_ACCESS_KEY_ID`,
+`R2_SCANS_PRIVATE_WRITE_SECRET_ACCESS_KEY`,
+`R2_SCANS_PRIVATE_READ_ACCESS_KEY_ID`, and
+`R2_SCANS_PRIVATE_READ_SECRET_ACCESS_KEY`, alongside the existing
+`R2_ACCOUNT_ID`. Missing values fail closed; there is no fallback to public-scan
+credentials. Any of the five legacy `R2_HISTORY_*` settings, including an empty
+value, makes both private evidence and public publication configuration fail
+closed. Mixed old/new settings are rejected even when their values match; no
+aliases exist. The broader private-scans name does not authorize legacy library
+writers or cleanup to use this bucket; their migration remains separately
+scoped. The history bucket must differ from `R2_BUCKET_NAME`. Read and write
+credentials must be separate least-privilege identities scoped to this bucket.
+These names are contract declarations, not provisioned secrets or deployment
+authorization.
 
 The bucket must expose neither an r2.dev endpoint nor a custom domain. A private
 prefix inside the public scan bucket is insufficient: Cloudflare documents that
@@ -719,9 +768,9 @@ The unconnected public-photo transport declares
 `R2_PUBLICATION_WRITE_ACCESS_KEY_ID`, `R2_PUBLICATION_WRITE_SECRET_ACCESS_KEY`,
 `R2_PUBLICATION_READ_ACCESS_KEY_ID` and `R2_PUBLICATION_READ_SECRET_ACCESS_KEY`.
 It uses `R2_ACCOUNT_ID` and the public `R2_BUCKET_NAME`, which must differ from
-`R2_HISTORY_BUCKET_NAME`. There is no fallback to generic scan credentials. Both
-configurations must resolve to the same destination before writing. These are
-declarations, not provisioned secrets.
+`R2_SCANS_PRIVATE_BUCKET_NAME`. There is no fallback to generic scan
+credentials. Both configurations must resolve to the same destination before
+writing. These are declarations, not provisioned secrets.
 
 The dedicated owner reserves the `publication_media/v1/` namespace; generic scan
 writers, cleanup and lifecycle tools must not operate there. This is a logical
@@ -1017,3 +1066,15 @@ routes supersede the earlier no-Edge-caller status; native execution and hosted
 qualification remain outstanding. Config changes require the normal reviewed
 future deployment plan and confer no deployment/scheduling authorization. See
 [video execution contract](05-api-contracts.md#gated-video-edge-execution).
+
+## Private erasure transport identity
+
+The service-only `X-Merian-Evidence-Dispatch` UUID correlates a queued private
+cleanup request with its terminal receipt; it is not authentication or object
+authority. Existing canonical server credentials remain mandatory. Do not log or
+expose this private correlation in aggregate health. The
+[worker contract](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes)
+owns legacy compatibility, strict validation and unknown outcomes. Logged
+pending slots survive unlogged pg_net recovery; numeric request IDs, response
+transaction clocks and postmaster/catalog identities alone cannot prove origin.
+Exact original-slot repair and deployment remain separate authorized operations.

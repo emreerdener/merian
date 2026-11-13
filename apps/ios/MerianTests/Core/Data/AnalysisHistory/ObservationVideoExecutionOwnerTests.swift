@@ -40,15 +40,22 @@ struct ObservationVideoExecutionOwnerTests {
             #expect(finishedLease && !owner.isRunning); exits += 1; exited.continuation.yield(())
         })
         #expect(admission == .started)
+        let receipt = try #require(owner.captureActualExit(key))
+        var joined = false
+        let waiter = Task { await receipt.wait(); joined = true }
+        waiter.cancel() // Cancelling an observer cannot cancel the retained operation.
         var iterator = entered.stream.makeAsyncIterator(); _ = await iterator.next()
         #expect(owner.start(key, account: cloud, isCurrent: { true }, operation: { _ in Issue.record("Duplicate") },
             didFinish: { Issue.record("Joiner notification") }) == .coalesced)
+        #expect(!joined && scope?.mayDispatch() == true)
         owner.cancel()
         #expect(owner.isRunning && !finishedLease && scope?.maySettleKnownReceipt() == true && scope?.mayDispatch() == false)
         #expect(owner.start(key, account: cloud, isCurrent: { true }, operation: { _ in }, didFinish: {}) == .unavailable)
         try #require(release).resume()
         var end = exited.stream.makeAsyncIterator(); _ = await end.next()
-        #expect(exits == 1 && scope?.maySettleKnownReceipt() == false)
+        await waiter.value
+        #expect(joined && finishedLease && exits == 1 && scope?.maySettleKnownReceipt() == false)
+        #expect(owner.captureActualExit(key) == nil)
     }
 
     @Test(arguments: ["generation", "container", "session", "request", "claim"])
@@ -67,6 +74,7 @@ struct ObservationVideoExecutionOwnerTests {
         let changed = Owner.Key(snapshot: change == "request" ? otherKey.snapshot : change == "claim" ? changedSnapshot : key.snapshot,
             session: change == "session" ? .init(userID: key.session.userID, isAnonymous: true) : key.session,
             generation: change == "generation" ? 2 : 1, container: change == "container" ? otherKey.container : key.container)
+        #expect(owner.captureActualExit(changed) == nil)
         #expect(owner.start(changed, account: account(key), isCurrent: { true }, operation: { _ in Issue.record("Scope substituted") },
             didFinish: {}) == .unavailable)
         try #require(release).resume(); await owner.invalidateAndAwait()

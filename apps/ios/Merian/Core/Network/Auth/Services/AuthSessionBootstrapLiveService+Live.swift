@@ -10,7 +10,8 @@ extension AuthSessionBootstrapLiveService {
                 client.auth.currentSession
             },
             createAnonymousSession: {
-                try await client.auth.signInAnonymously()
+                guard !MerianEnvironment.isHistoryQualificationBuild else { throw MerianEnvironment.HistoryQualificationFailure.accounts }
+                return try await client.auth.signInAnonymously()
             }
         )
     }

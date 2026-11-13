@@ -16,6 +16,8 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
     }
 
     struct TargetOrigin: Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Location: Equatable, Sendable {
             case present(packageID: UUID)
             case released(SharedMediaAcquisitionReceipt.TerminalIdentity)
@@ -171,7 +173,7 @@ enum SharedMediaNativeReleaseMetadataSnapshot {
     /// Each allocation/receipt is independently validated; logical ownership is
     /// never a substitute. The caller still owes its phase and complete audit.
     static func ownedOriginals(_ packageID: UUID, inventory: SharedMediaInventoryRecord,
-                                       context: ModelContext, checkpoint: () throws -> Void) throws -> [Original] {
+                               context: ModelContext, checkpoint: () throws -> Void) throws -> [Original] {
         // Mirror the existing budget's authoritative physical-origin traversal,
         // not the current package's logical-reference list. Page materialization
         // and checkpoint on every row; never silently omit a surviving share.

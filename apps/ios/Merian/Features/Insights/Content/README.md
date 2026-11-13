@@ -96,6 +96,11 @@ effects.
 
 ## Personal scan context
 
+The common-name header uses unlimited lines and its full wrapped height, keeping
+long names readable in the centered large-title style without truncation. The
+scientific-name subtitle also wraps at its full height and keeps its centered
+italic title style without shrinking or truncating.
+
 AI response text in biological and non-biological results uses unlimited lines
 and its full wrapped height inside the Insight scroll view. The response must
 remain readable inline without layout truncation or an expansion action;
@@ -328,3 +333,21 @@ perform network/persistence work. Nil capability preserves legacy refinement
 only when a fresh enrollment check allows scan-only mutation. Staged or
 acknowledged enrollment, damaged holds and failed lookups withhold that action.
 Delayed handoffs and the Capture route repeat the check before legacy staging.
+
+## Qualification-only queued status observation
+
+`QueuedContentDependencies+Observation` owns the explicit status read using the
+existing account-work lease and fresh `OfflineQueueDurableAuthorityReader`
+snapshot. Positive funding ownership, exact queue/job identity, and an absent
+release marker are required. The model captures a presentation ticket before
+scheduling a tap; close/background/navigation invalidate it and join active
+reads. `QueuedObservationStatusView` reports literal last observations, never
+original-result proof. This path performs no retry, scheduler write, funding
+settlement, result import or app-event publication. Existing plan/consent
+actions retain their owners. Ordinary builds keep this qualification action
+inactive.
+
+`QueuedObservationTests`, `ScanObservationResponseTests` and existing Content,
+receiving/transport and Capture clock suites own the pending native
+verification. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-9--explicit-observation-only-recovery-status).

@@ -12,10 +12,23 @@ final class SharedMediaNativePreparationMutation {
     private let member: SharedMediaPendingMembershipRecord
     private enum Authority {
         case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppPreparationWitness)
-        var ownerID: UUID { switch self { case .qualification(let value): value.ownerID; case .app(let value): value.authority.profile.ownerID } }
-        var writerEpoch: UUID { switch self { case .qualification(let value): value.writerEpoch; case .app(let value): value.authority.writerEpoch } }
+        var ownerID: UUID {
+            switch self {
+            case .qualification(let value): value.ownerID
+            case .app(let value): value.authority.profile.ownerID
+            }
+        }
+        var writerEpoch: UUID {
+            switch self {
+            case .qualification(let value): value.writerEpoch
+            case .app(let value): value.authority.writerEpoch
+            }
+        }
         @MainActor func validate(_ container: ModelContainer) throws {
-            switch self { case .qualification(let value): try value.validate(); case .app(let value): try value.validate(container) }
+            switch self {
+            case .qualification(let value): try value.validate()
+            case .app(let value): try value.validate(container)
+            }
         }
     }
     private let authority: Authority

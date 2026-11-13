@@ -95,14 +95,14 @@ struct SharedMediaNativeReleasePairPoststate {
         }
     }
     private mutating func update<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
         let read = reader(query, fields)
         guard let before = try read(context), Set(changes.keys).isSubset(of: Set(before.1.keys)) else { throw SharedMediaStorageFailure.conflict }
         var after = before.1; after.merge(changes) { _, new in new }
         rows.append(.init(before: before, after: after, read: read))
     }
     private mutating func insert<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields, _ after: Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields, _ after: Raw.Fields) throws {
         let read = reader(query, fields)
         guard try read(context) == nil else { throw SharedMediaStorageFailure.conflict }
         rows.append(.init(before: nil, after: after, read: read))

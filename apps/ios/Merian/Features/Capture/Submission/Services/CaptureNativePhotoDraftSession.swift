@@ -107,8 +107,7 @@ final class CaptureNativePhotoDraftSession {
         } catch {
             // Even a lost acknowledgement retains the exact association. This
             // slice never reloads a picker item to guess whether copying happened.
-            if enteredAcquisition { needsAttention = true }
-            else { items.removeLast() } // request() is read-only; no reservation was entered
+            if enteredAcquisition { needsAttention = true } else { items.removeLast() } // request() is read-only; no reservation was entered
             throw error
         }
     }
@@ -199,8 +198,7 @@ final class CaptureNativePhotoDraftSession {
         }
         isBusy = true
         defer { isBusy = false }
-        do { try await removeAcknowledgedItem(at: index) }
-        catch { needsAttention = true; uncertainDisposition = true; throw error }
+        do { try await removeAcknowledgedItem(at: index) } catch { needsAttention = true; uncertainDisposition = true; throw error }
     }
 
     func discard() async throws {

@@ -31,7 +31,7 @@ extension CaptureWorkspaceViewModel {
         revokeAutomaticSubmission()
         isCapturing = true
         let generation = scanOperationState.beginStillCapture()
-        let task = Task { @MainActor in
+        let task = Task { @MainActor [self] in
             var succeeded = false
             var capturedBytes: Data?
             var instantLocation: CLLocation?
@@ -102,7 +102,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     private func requireCurrentNativeCamera(_ generation: CaptureScanStillGeneration,
-                                           operation: CaptureDraftSession.Operation, account: UUID) throws {
+                                            operation: CaptureDraftSession.Operation, account: UUID) throws {
         try requireCurrentStillCapture(generation)
         guard draftSession.contains(operation), dependencies.submission.admission.accountID() == account,
               !dependencies.submission.admission.isLibraryAccessBlocked() else { throw SharedMediaStorageFailure.stale }

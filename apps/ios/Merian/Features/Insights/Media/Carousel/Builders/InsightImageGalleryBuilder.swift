@@ -9,6 +9,12 @@ struct InsightImageGalleryBuilder {
 
         for item in activeMedia.items {
             switch item {
+            case .retainedDisplayImage(let identity, let data):
+                items.append(MediaGalleryItem(
+                    id: "retainedDisplay-\(identity.uuidString.lowercased())",
+                    source: .liveImage(data),
+                    referenceAttributionLabel: nil
+                ))
             case .liveImage(let data):
                 items.append(MediaGalleryItem(
                     id: "liveImage-\(data.hashValue)",

@@ -92,7 +92,7 @@ struct SharedMediaPendingGraph {
     }
 
     static func deriveIntentPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                     proof: SharedMediaNativeAppIntentPoststate) throws -> Self {
+                                      proof: SharedMediaNativeAppIntentPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
@@ -110,13 +110,13 @@ struct SharedMediaPendingGraph {
     }
 
     static func deriveOriginalPoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                       proof: SharedMediaNativeAppOriginalPoststate) throws -> Self {
+                                        proof: SharedMediaNativeAppOriginalPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
 
     static func deriveOriginalReleasePoststate(in context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                       proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Self {
+                                               proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
         return try scopedProjection(in: context, inventory: inventory, ownerID: proof.profile.ownerID, format: .appV2)
     }
@@ -210,7 +210,7 @@ struct SharedMediaPendingGraph {
     }
 
     private static func fetch<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>,
-                                                   maximum: Int) throws -> [T] {
+                                                  maximum: Int) throws -> [T] {
         var query = descriptor; query.fetchLimit = maximum + 1; query.includePendingChanges = true
         let rows = try context.fetch(query)
         guard rows.count <= maximum else { throw SharedMediaStorageFailure.capacity }

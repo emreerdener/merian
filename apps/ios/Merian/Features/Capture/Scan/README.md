@@ -54,10 +54,39 @@ still-photo and video-request lifetime owners, respectively.
 workspace container. Do not add a Scan singleton, a broad service protocol, or
 direct service lookup in a view.
 
+The physical shutter and recorder stage media without waiting for Auth or the
+scan-admission preview. Submission retains account, funding, and durable-queue
+checks. Local Pro-video capability, permissions, thermal policy, and draft
+capacity still apply. Account recovery appears only when opening private
+destinations; new media stays in the local draft until it can be identified.
+
 `MainOverlayView` consumes Shell's shared `captureChromeLayout` environment for
 viewfinder-hint clearance. Expanded staging adds the same measured offset used
 by the primary capture controls; Scan does not measure or size the tray. See the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#tray-and-protected-discard).
+
+## Viewfinder introduction
+
+`ViewfinderHintPresentation` owns the timed "Tap to identify" → Pro video hint →
+contextual guidance sequence. `ViewfinderHintLaunchState` is retained by the app
+container and injected through Shell's workspace dependencies, so the
+introduction runs once per process on an uncovered, empty camera. Capture and
+visibility loss cancel it permanently for that launch. Refinement and the
+recording countdown retain their own presentation priority. The
+[camera guide](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md#viewfinderhints-featurescapturescancomponentsviewfinderhintsswift)
+owns timing, eligibility, accessibility, and verification details.
+
+## Zoom presentation
+
+`ZoomSliderView` starts and settles with only 4pt optical-stop and current-zoom
+dots, centered 8pt inside the selected viewport edge. Zoom changes animate the
+dots inward to 18pt, expand the ruler lines, and reveal the numeric zoom pill
+over 0.12s. After 0.8s without a zoom change, shared animation progress retracts
+all lines, restores the yellow dot, and moves the dots outward over 0.5s. The
+52pt touch area and logarithmic zoom/haptic mapping stay fixed. Hiding or
+removing the control cancels its idle work and resets the presentation. The
+[camera guide](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md#zoomsliderview-featurescapturescancomponentszoomsliderviewswift)
+owns the complete interaction contract.
 
 ## Media lifecycle
 

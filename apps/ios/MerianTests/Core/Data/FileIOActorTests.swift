@@ -338,6 +338,108 @@ struct FileIOActorTests {
         #expect(!FileManager.default.fileExists(atPath: source.path))
     }
 
+    @Test func chosenVideoSnapshotCopiesWithoutAdoptingOrDeletingSource() async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let source = h.documents.appendingPathComponent("chosen.mp4")
+        let bytes = Data(repeating: 7, count: 150_001)
+        try bytes.write(to: source)
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary)
+        let snapshot = try #require(await actor.snapshotVideoFile(filename: "chosen.mp4"))
+        #expect(snapshot.url != source)
+        #expect(try Data(contentsOf: snapshot.url) == bytes)
+        #expect(try Data(contentsOf: source) == bytes)
+        #expect(await actor.videoSnapshotIsCurrent(snapshot))
+        try Data([9]).write(to: source, options: .atomic)
+        #expect(try Data(contentsOf: snapshot.url) == bytes)
+        #expect(await actor.discardVideoSnapshot(snapshot))
+        #expect(!FileManager.default.fileExists(atPath: snapshot.url.path))
+        #expect(try Data(contentsOf: source) == Data([9]))
+    }
+
+    @Test(arguments: ["replace", "sameSize", "flushMutation", "writeFailure"])
+    func chosenVideoSnapshotRefusesMutationAndPreservesSources(mode: String) async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let source = h.documents.appendingPathComponent("chosen.mp4")
+        let bytes = Data(repeating: 7, count: 150_001)
+        try bytes.write(to: source)
+        let mutate: @Sendable () -> Void = {
+            if mode == "replace" { try? Data(repeating: 9, count: bytes.count).write(to: source, options: .atomic) }
+            else if let handle = try? FileHandle(forWritingTo: source) {
+                try? handle.write(contentsOf: Data([9])); try? handle.close()
+            }
+        }
+        var io = FileIOActor.CopyIO.live
+        io.write = { fd, buffer in
+            if mode == "writeFailure" { errno = EIO; return -1 }
+            if lseek(fd, 0, SEEK_CUR) == 0 && mode != "flushMutation" { mutate() }
+            return Darwin.write(fd, buffer.baseAddress, buffer.count)
+        }
+        io.synchronize = { fd in
+            if mode == "flushMutation" { mutate() }
+            return fsync(fd)
+        }
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary, copyIO: io)
+        #expect(await actor.snapshotVideoFile(filename: "chosen.mp4") == nil)
+        #expect(FileManager.default.fileExists(atPath: source.path))
+        #expect(try Data(contentsOf: source).count == bytes.count)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.temporary.path).isEmpty)
+    }
+
+    @Test(arguments: ["symlink", "hardlink", "nested", "absolute", "missing", "oversized", "empty"])
+    func chosenVideoSnapshotCannotExpandLegacyFileAuthority(mode: String) async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let source = h.documents.appendingPathComponent("chosen.mp4")
+        try Data([7]).write(to: source)
+        var name = "chosen.mp4"
+        if mode == "symlink" {
+            try FileManager.default.createSymbolicLink(atPath: h.documents.appendingPathComponent("alias.mp4").path,
+                withDestinationPath: source.path); name = "alias.mp4"
+        }
+        if mode == "hardlink" { try FileManager.default.linkItem(at: source, to: h.documents.appendingPathComponent("alias.mp4")) }
+        if mode == "nested" { name = "../chosen.mp4" }
+        if mode == "absolute" { name = source.path }
+        if mode == "missing" { name = "missing.mp4" }
+        if mode == "empty" || mode == "oversized" {
+            let handle = try FileHandle(forWritingTo: source)
+            try handle.truncate(atOffset: mode == "empty" ? 0 : UInt64(ScanMediaPayloadPolicy.maxSavedVideoBytes) + 1)
+            try handle.close()
+        }
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary)
+        #expect(await actor.snapshotVideoFile(filename: name) == nil)
+        #expect(FileManager.default.fileExists(atPath: source.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.temporary.path).isEmpty)
+    }
+
+    @Test func cancelledSnapshotRemovesPartialCopyWithoutDeletingSource() async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let source = h.documents.appendingPathComponent("chosen.mp4")
+        let bytes = Data(repeating: 7, count: 150_001)
+        try bytes.write(to: source)
+        var io = FileIOActor.CopyIO.live
+        io.write = { fd, buffer in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return Darwin.write(fd, buffer.baseAddress, buffer.count)
+        }
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary, copyIO: io)
+        let task = Task { await actor.snapshotVideoFile(filename: "chosen.mp4") }
+        #expect(await task.value == nil)
+        #expect(try Data(contentsOf: source) == bytes)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.temporary.path).isEmpty)
+    }
+
+    @Test func changedSnapshotCannotBeConsumedOrEraseItsReplacement() async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let source = h.documents.appendingPathComponent("chosen.mp4")
+        try Data([7]).write(to: source)
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary)
+        let snapshot = try #require(await actor.snapshotVideoFile(filename: "chosen.mp4"))
+        try Data([9]).write(to: snapshot.url, options: .atomic)
+        #expect(await actor.videoSnapshotIsCurrent(snapshot) == false)
+        #expect(await actor.discardVideoSnapshot(snapshot) == false)
+        #expect(try Data(contentsOf: snapshot.url) == Data([9]))
+        #expect(try Data(contentsOf: source) == Data([7]))
+    }
+
     @Test @MainActor func genericCleanupCannotReleaseSharedOriginal() async throws {
         let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
         let owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()

@@ -83,7 +83,9 @@ extension BackgroundDatabaseActor {
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
         videoFilePaths: [String]?,
-        capturedMediaJSON: String?
+        capturedMediaJSON: String?,
+        originalCompletion: OrdinaryInferenceCompletion? = nil,
+        originalOwnership: BackgroundAccountWorkOwnership? = nil
     ) async -> OfflineScanProcessingResult {
         guard !Task.isCancelled else { return .notProcessed }
 
@@ -101,7 +103,9 @@ extension BackgroundDatabaseActor {
             observationContextsJSON: observationContextsJSON,
             audioFilePaths: audioFilePaths,
             videoFilePaths: videoFilePaths,
-            capturedMediaJSON: capturedMediaJSON
+            capturedMediaJSON: capturedMediaJSON,
+            originalCompletion: originalCompletion,
+            originalOwnership: originalOwnership
         )
         await ScanFinalizationCoordinator.shared.release(scanId: recordId)
         return result
@@ -116,7 +120,9 @@ extension BackgroundDatabaseActor {
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
         videoFilePaths: [String]?,
-        capturedMediaJSON: String?
+        capturedMediaJSON: String?,
+        originalCompletion: OrdinaryInferenceCompletion?,
+        originalOwnership: BackgroundAccountWorkOwnership?
     ) async -> OfflineScanProcessingResult {
         guard !Task.isCancelled,
               SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: queueScanId)
@@ -129,6 +135,9 @@ extension BackgroundDatabaseActor {
             }
             var mappedData = initialMappedData
             let existing = try localScanRecord(id: recordId)
+            if let existing {
+                _ = try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext)
+            }
             try validatePrimaryCompletion(mappedData, existing: existing)
             guard mappedData.requiresSavedRecord else {
                 try modelContext.save()
@@ -154,7 +163,9 @@ extension BackgroundDatabaseActor {
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
                     videoFilePaths: videoFilePaths,
-                    capturedMediaJSON: capturedMediaJSON
+                    capturedMediaJSON: capturedMediaJSON,
+                    originalCompletion: originalCompletion,
+                    originalOwnership: originalOwnership
                 )
             }
             try Task.checkCancellation()

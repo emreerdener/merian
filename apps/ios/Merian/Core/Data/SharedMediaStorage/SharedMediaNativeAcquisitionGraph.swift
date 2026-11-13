@@ -293,7 +293,7 @@ enum SharedMediaNativeAcquisitionGraph {
     }
 
     private static func page<T: PersistentModel>(_ context: ModelContext, _ descriptor: FetchDescriptor<T>,
-                                               body: (T) throws -> Void) throws {
+                                                 body: (T) throws -> Void) throws {
         var query = descriptor, offset = 0; query.fetchLimit = SharedMediaStoragePolicy.pageSize
         while true {
             query.fetchOffset = offset

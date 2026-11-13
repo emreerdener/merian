@@ -63,6 +63,14 @@ struct ScanFinalizationArchitectureTests {
         #expect(!factory.contains("modelContext"))
         #expect(!factory.contains(".shared"))
 
+        let initial = try source(Self.initialFactoryPath)
+        #expect(initial.contains("extension LocalScanRecordFactory"))
+        #expect(initial.contains("static func makeInitialRecord("))
+        #expect(initial.contains("static func initialApplicationBaseline("))
+        #expect(!initial.contains("modelContext"))
+        // Member names such as sharedMediaConsumerID are data, not singletons.
+        #expect(initial.range(of: #"\.shared\b"#, options: .regularExpression) == nil)
+
         let support = try source(Self.supportPath)
         #expect(support.contains(
             "func scanRecordSpeciesIdentity(\n        for scientificName: String\n    ) throws"
@@ -242,6 +250,8 @@ struct ScanFinalizationArchitectureTests {
         "apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+OfflineFinalization.swift"
     private static let supportPath =
         "apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+ScanRecordSupport.swift"
+    private static let initialFactoryPath =
+        "apps/ios/Merian/Core/Data/Database/LocalScanRecordFactory+InitialCompletion.swift"
     private static let recordFactoryPath =
         "apps/ios/Merian/Core/Data/Database/LocalScanRecordFactory.swift"
     private static let coordinatorsPath =
@@ -271,6 +281,7 @@ struct ScanFinalizationArchitectureTests {
         (offlinePersistencePath, 250),
         (supportPath, 220),
         (recordFactoryPath, 150),
+        (initialFactoryPath, 150),
         (coordinatorsPath, 120),
         (mediaServicePath, 200),
         (finalizationServicePath, 200),

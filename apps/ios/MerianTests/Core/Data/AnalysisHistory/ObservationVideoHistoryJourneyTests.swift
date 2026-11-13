@@ -143,13 +143,9 @@ struct ObservationVideoHistoryJourneyTests {
         let original = try listing.cached(observationID: saved.source.observationID.uuidString,
             analysisID: saved.source.analysisID, container: reopened)
         _ = try ObservationAnalysisReviewTicket(entry: original, context: context, observationID: saved.source.observationID)
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationHistorySelectionService(cloud: reads.cloud).prepare(observationID: saved.source.observationID.uuidString,
-                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened)
-        }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationAnalysisReviewTicket(entry: entry, context: context, observationID: saved.source.observationID)
-        }
+        let review = try ObservationAnalysisReviewTicket(entry: entry, context: context, observationID: saved.source.observationID)
+        #expect(review.canReject && !review.supportsPhotoPublicationFormat && review.evidencePhotoID == nil)
+        #expect(try review.request(.reject, operationID: UUID()).analysisID == saved.request.analysisID)
         // Even a selected V5 value cannot supply a Field Chat ticket.
         let selectedVideo = ObservationHistoryListingService.Context(owner: context.owner, selected: entry.result.analysisID,
             revision: context.revision, pendingOperation: nil, undoOperation: nil)
@@ -181,6 +177,64 @@ struct ObservationVideoHistoryJourneyTests {
             && $0.observation_id == saved.source.observationID.uuidString.lowercased() })
         #expect(reads.mutations == 0 && publicationCalls == 0)
         try unchanged(saved, container: reopened)
+    }
+
+    @Test(arguments: [false, true])
+    func completedVideoSelectionAndUndoPreserveBothVersionsAfterLostReply(audio: Bool) async throws {
+        let saved = try await completed(audio: audio)
+        defer { try? FileManager.default.removeItem(at: saved.root) }
+        let container = try ObservationPublicationPersistenceTests().container(url: saved.url, seed: false)
+        let reads = Reads(owner: saved.source.ownerID)
+        reads.state = try bytes(state(saved.result, source: saved.source))
+        _ = try await ObservationHistoryPreviewService(cloud: reads.cloud).preview(
+            observationID: saved.source.observationID.uuidString, analysisID: saved.request.analysisID, container: container)
+        var cloud = reads.cloud
+        var dispatched: [ObservationHistorySelectionRequest] = []
+        var loseFirstReply = true
+        cloud.select = { request in
+            dispatched.append(request)
+            let selectingVideo = request.analysis_id == saved.request.analysisID.uuidString.lowercased()
+            var response = try state(selectingVideo ? saved.result : saved.source.snapshot, source: saved.source)
+            response["selected_analysis_id"] = request.analysis_id
+            response["state_revision"] = request.expected_observation_revision + 1
+            reads.state = try bytes(response)
+            if loseFirstReply { loseFirstReply = false; throw ObservationHistoryError.unavailable }
+            return try JSONEncoder().encode(ObservationHistorySelectionReceipt(schema_version: 1,
+                operation_id: request.operation_id, observation_id: request.observation_id,
+                previous_analysis_id: (selectingVideo ? saved.source.analysisID : saved.request.analysisID).uuidString.lowercased(),
+                selected_analysis_id: request.analysis_id, observation_revision: request.expected_observation_revision + 1,
+                review_revision: request.expected_review_revision))
+        }
+        let service = ObservationHistorySelectionService(cloud: cloud)
+        let request = try service.prepare(observationID: saved.source.observationID.uuidString,
+            analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: container)
+        let before = try ObservationHistorySyncService.enrolledScan(saved.source.observationID.uuidString, context: ModelContext(container))
+        #expect(before.selectedAnalysisID == saved.source.analysisID.uuidString.lowercased())
+        await #expect(throws: ObservationHistoryError.unavailable) {
+            try await service.sendPending(observationID: saved.source.observationID.uuidString, container: container)
+        }
+        _ = try await service.sendPending(observationID: saved.source.observationID.uuidString, container: container)
+        #expect(dispatched == [request, request])
+        let selected = try ObservationHistorySyncService.enrolledScan(saved.source.observationID.uuidString, context: ModelContext(container))
+        #expect(selected.selectedAnalysisID == saved.request.analysisID.uuidString.lowercased() && selected.observationStateRevision == 11)
+        let undoRequest = try service.prepareUndo(observationID: saved.source.observationID.uuidString,
+            operationID: #require(UUID(uuidString: request.operation_id)), ownerID: saved.source.ownerID, container: container)
+        _ = try await service.sendPending(observationID: saved.source.observationID.uuidString, container: container)
+        let context = ModelContext(container)
+        let restored = try ObservationHistorySyncService.enrolledScan(saved.source.observationID.uuidString, context: context)
+        #expect(restored.selectedAnalysisID == saved.source.analysisID.uuidString.lowercased() && restored.observationStateRevision == 12)
+        let rows = try context.fetch(FetchDescriptor<LocalAnalysisRecord>())
+        #expect(rows.count == 2)
+        #expect(rows.first { $0.id == saved.request.analysisID.uuidString.lowercased() }?.resultSnapshotData == saved.result)
+        #expect(rows.first { $0.id == saved.source.analysisID.uuidString.lowercased() }?.resultSnapshotData == saved.source.snapshot)
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>())
+        #expect(jobs.count == 2) // Existing cleanup receipt plus durable selection/Undo intent.
+        #expect(jobs.first { $0.id == ObservationReanalysisErasureReceipt.jobID(saved.request.analysisID) }?.metadataJSON == saved.receipt)
+        let selection = try #require(try ObservationHistorySelectionIntent.load(restored.id, context: context))
+        #expect(selection.receipt?.operation_id == undoRequest.operation_id)
+        #expect(selection.receipt?.selected_analysis_id == saved.source.analysisID.uuidString.lowercased())
+        #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(reads.began == reads.finished)
     }
 
     @Test(arguments: [false, true])

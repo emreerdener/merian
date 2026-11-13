@@ -39,6 +39,8 @@ enum SharedMediaNativeReceivingReleaseValues {
     }
 
     struct Plan: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Format: String, Codable, Sendable { case releasing = "nativeReceivingReleasingV1" }
         let format: Format
         let profile: SharedMediaNativeAppProfile
@@ -141,6 +143,8 @@ enum SharedMediaNativeReceivingReleaseValues {
     /// originals retain their allocation/lease/receipt; last references require
     /// the existing stripped acquisition terminal and verified physical absence.
     struct Outcome: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Original: String, Codable, Sendable { case shared, removed }
         let pairID: UUID, pairRetirementID: UUID
         let pairClosureSHA256: String
@@ -156,6 +160,8 @@ enum SharedMediaNativeReceivingReleaseValues {
     }
 
     struct Released: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Format: String, Codable, Sendable { case released = "nativeReceivingReleasedV1" }
         let format: Format
         let plan: Plan
@@ -215,6 +221,8 @@ enum SharedMediaNativeReceivingReleaseValues {
         let closureSHA256: String
     }
     struct TargetProgress: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Stage: String, Codable, CaseIterable, Sendable {
             case readyPair, retiringPair, pairGoneOriginalLive, originalRetiring, removed
             var remaining: Int64 {
@@ -256,6 +264,8 @@ enum SharedMediaNativeReceivingReleaseValues {
     }
 
     struct Progress: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Format: String, Codable, Sendable { case progress = "nativeReceivingReleasingProgressV1" }
         let format: Format
         let plan: Plan

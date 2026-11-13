@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(11);
+SELECT extensions.no_plan();
 
 -- BEGIN ACCOUNTING SYNTHETIC HELPERS
 CREATE FUNCTION pg_temp.seed_invocation(p_openai BOOLEAN DEFAULT FALSE)
@@ -42,6 +42,218 @@ RETURNS TABLE(invocation_id UUID, may_dispatch BOOLEAN) LANGUAGE sql AS $functio
 $function$;
 
 -- END ACCOUNTING SYNTHETIC HELPERS
+
+-- Replace only the estimator body in this rollback fixture, preserving its OID
+-- so cached callers are observed too. The delegate is the exact original body.
+CREATE TEMP TABLE accounting_estimator_original(definition TEXT);
+INSERT INTO accounting_estimator_original SELECT pg_get_functiondef(
+ 'internal.estimate_ai_cost_microusd(text,text,timestamptz,bigint,bigint,bigint,bigint,bigint)'::regprocedure);
+DO $instrument$
+BEGIN
+ EXECUTE replace((SELECT definition FROM accounting_estimator_original),
+  'FUNCTION internal.estimate_ai_cost_microusd(', 'FUNCTION pg_temp.accounting_original_estimator(');
+END;
+$instrument$;
+CREATE TEMP TABLE accounting_price_calls(cost BIGINT, version TEXT);
+CREATE OR REPLACE FUNCTION internal.estimate_ai_cost_microusd(
+ p_model TEXT,p_modality TEXT,p_occurred_at TIMESTAMPTZ,p_prompt BIGINT,p_cached BIGINT,
+ p_candidate BIGINT,p_thinking BIGINT,p_tool BIGINT)
+RETURNS TABLE(cost_microusd BIGINT,pricing_version TEXT)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $instrument$
+DECLARE result RECORD;
+BEGIN
+ SELECT * INTO result FROM pg_temp.accounting_original_estimator(
+  p_model,p_modality,p_occurred_at,p_prompt,p_cached,p_candidate,p_thinking,p_tool);
+ INSERT INTO pg_temp.accounting_price_calls VALUES(result.cost_microusd,result.pricing_version);
+ RETURN QUERY SELECT result.cost_microusd,result.pricing_version;
+END;
+$instrument$;
+
+-- Transaction-local observation only: full synthetic images never leave this
+-- rollback fixture. Observe both attempted and effective rows for ON CONFLICT.
+CREATE TEMP TABLE accounting_observations(relation_name TEXT, timing TEXT, old_image JSONB, new_image JSONB);
+CREATE FUNCTION pg_temp.observe_accounting_write() RETURNS TRIGGER LANGUAGE plpgsql AS $function$
+BEGIN
+    INSERT INTO accounting_observations VALUES(TG_TABLE_NAME,TG_WHEN,
+        CASE WHEN TG_OP='UPDATE' THEN to_jsonb(OLD) END,to_jsonb(NEW));
+    RETURN NEW;
+END;
+$function$;
+CREATE TRIGGER accounting_test_before BEFORE INSERT ON public.ai_usage_events
+ FOR EACH ROW EXECUTE FUNCTION pg_temp.observe_accounting_write();
+CREATE TRIGGER accounting_test_after AFTER INSERT ON public.ai_usage_events
+ FOR EACH ROW EXECUTE FUNCTION pg_temp.observe_accounting_write();
+CREATE TRIGGER accounting_test_link AFTER UPDATE ON internal.identification_invocations
+ FOR EACH ROW EXECUTE FUNCTION pg_temp.observe_accounting_write();
+
+DO $test$
+DECLARE f RECORD; started RECORD; event UUID; row_image public.ai_usage_events; invocation_image JSONB;
+BEGIN
+    SELECT * INTO f FROM pg_temp.seed_invocation();
+    SELECT * INTO started FROM pg_temp.commit_invocation(f.reservation,f.owner_id,f.token,1);
+    SELECT to_jsonb(i) INTO invocation_image FROM internal.identification_invocations i WHERE id=started.invocation_id;
+    DELETE FROM accounting_observations;
+    DELETE FROM accounting_price_calls;
+    event:=public.complete_identification_invocation(started.invocation_id,f.owner_id,f.token,'refusal',
+        '{"input_tokens":100,"cached_tokens":20,"candidate_tokens":30,"thinking_tokens":10,"total_tokens":140}');
+    SELECT * INTO STRICT row_image FROM public.ai_usage_events WHERE id=event;
+    IF (SELECT count(*) FROM accounting_price_calls)<>1
+        OR row_image.estimated_cost_microusd IS DISTINCT FROM (SELECT cost FROM accounting_price_calls)
+        OR row_image.pricing_version IS DISTINCT FROM (SELECT version FROM accounting_price_calls)
+        OR row_image.id IS NULL OR row_image.created_at IS DISTINCT FROM now()
+        OR row_image.occurred_at IS DISTINCT FROM (invocation_image->>'occurred_at')::TIMESTAMPTZ
+        OR row_image.conversation_id IS NOT NULL OR row_image.message_id IS NOT NULL
+        OR row_image.is_backfilled IS DISTINCT FROM FALSE OR row_image.coverage_scope IS DISTINCT FROM 'complete'
+        OR row_image.user_id IS DISTINCT FROM f.owner_id OR row_image.scan_id IS DISTINCT FROM f.scan
+        OR row_image.source_id IS DISTINCT FROM started.invocation_id OR row_image.outcome IS DISTINCT FROM 'refusal'
+        OR row_image.prompt_tokens IS DISTINCT FROM 100 OR row_image.cached_tokens IS DISTINCT FROM 20
+        OR row_image.candidate_tokens IS DISTINCT FROM 30 OR row_image.thinking_tokens IS DISTINCT FROM 10
+        OR row_image.total_tokens IS DISTINCT FROM 140
+        OR (SELECT count(*) FROM accounting_observations WHERE relation_name='ai_usage_events'
+            AND new_image=to_jsonb(row_image) AND timing IN ('BEFORE','AFTER'))<>2
+        OR (SELECT count(*) FROM accounting_observations WHERE relation_name='identification_invocations'
+            AND old_image=invocation_image AND new_image=invocation_image||jsonb_build_object('event_id',event))<>1
+        OR (SELECT count(*) FROM accounting_observations)<>3 THEN
+        RAISE EXCEPTION 'candidate defaults, full insert image or invocation-only linkage drifted';
+    END IF;
+    DELETE FROM accounting_observations;
+    DELETE FROM accounting_price_calls;
+    -- Invalid input must not even reach derivation on an accounted replay.
+    IF internal.complete_identification_usage(started.invocation_id,NULL,'null') IS DISTINCT FROM event
+        OR EXISTS(SELECT 1 FROM accounting_observations)
+        OR EXISTS(SELECT 1 FROM accounting_price_calls)
+        OR (SELECT to_jsonb(e) FROM public.ai_usage_events e WHERE id=event) IS DISTINCT FROM to_jsonb(row_image) THEN
+        RAISE EXCEPTION 'accounted replay validated input or wrote accounting rows';
+    END IF;
+END;
+$test$;
+SELECT extensions.pass('full candidate image and six defaults persist once; invalid accounted replay performs zero writes');
+
+DO $test$
+DECLARE f RECORD; started RECORD; invocation internal.identification_invocations;
+ winner public.ai_usage_events; event UUID; attempt JSONB;
+BEGIN
+    SELECT * INTO f FROM pg_temp.seed_invocation();
+    SELECT * INTO started FROM pg_temp.commit_invocation(f.reservation,f.owner_id,f.token,1);
+    SELECT * INTO STRICT invocation FROM internal.identification_invocations WHERE id=started.invocation_id;
+    -- Model an already-inserted winner without its link; a conflicting report
+    -- must link that actual winner, not overwrite it with the new candidate.
+    winner:=internal.prepare_identification_usage_event(invocation,'unknown_execution','{}');
+    INSERT INTO public.ai_usage_events SELECT (winner).*;
+    DELETE FROM accounting_observations;
+    DELETE FROM accounting_price_calls;
+    event:=internal.complete_identification_usage(invocation.id,'draft','{"input_tokens":101,"candidate_tokens":37}');
+    SELECT new_image INTO STRICT attempt FROM accounting_observations WHERE relation_name='ai_usage_events' AND timing='BEFORE';
+    IF (SELECT count(*) FROM accounting_price_calls)<>1
+        OR event IS DISTINCT FROM winner.id
+        OR (SELECT to_jsonb(e) FROM public.ai_usage_events e WHERE id=event) IS DISTINCT FROM to_jsonb(winner)
+        OR (SELECT event_id FROM internal.identification_invocations WHERE id=invocation.id) IS DISTINCT FROM winner.id
+        OR (attempt->>'id')::UUID=winner.id OR attempt->>'outcome' IS DISTINCT FROM 'success'
+        OR (attempt->>'prompt_tokens')::BIGINT IS DISTINCT FROM 101
+        OR (attempt->>'candidate_tokens')::BIGINT IS DISTINCT FROM 37
+        OR EXISTS(SELECT 1 FROM accounting_observations WHERE relation_name='ai_usage_events' AND timing='AFTER')
+        OR (SELECT count(*) FROM accounting_observations WHERE relation_name='identification_invocations'
+            AND old_image=to_jsonb(invocation) AND new_image=to_jsonb(invocation)||jsonb_build_object('event_id',winner.id))<>1
+        OR (SELECT count(*) FROM accounting_observations)<>2 THEN
+        RAISE EXCEPTION 'conflict lost attempted image, changed winner or linked candidate';
+    END IF;
+END;
+$test$;
+SELECT extensions.pass('conflict observes attempted BEFORE without AFTER insert and preserves the actual winner and linkage');
+-- Report mechanics integrate the actual accounting writer, but classification
+-- is injected and no original admission authority is claimed. All trigger
+-- installation and synthetic rows roll back; report observers are installed; public report admission stays closed.
+CREATE FUNCTION pg_temp.report_suppress() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+CREATE FUNCTION pg_temp.report_mutate() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN NEW.metadata:=NEW.metadata||'{"changed":true}'::JSONB; RETURN NEW; END $$;
+CREATE FUNCTION pg_temp.report_case(mode TEXT) RETURNS TEXT LANGUAGE plpgsql AS $case$
+DECLARE f RECORD; started RECORD; original internal.identification_invocations;
+ candidate public.ai_usage_events; stage internal.initial_consuming_staging; event UUID;
+ receipt UUID:=gen_random_uuid();
+BEGIN
+ BEGIN
+  SELECT * INTO f FROM pg_temp.seed_invocation();
+  SELECT * INTO started FROM pg_temp.commit_invocation(f.reservation,f.owner_id,f.token,1);
+  ALTER TABLE internal.identification_invocations DISABLE TRIGGER a00_initial_invocation_authority;
+  UPDATE internal.identification_invocations SET is_initial_analysis=TRUE,initial_admission_receipt_id=receipt WHERE id=started.invocation_id;
+  ALTER TABLE internal.identification_invocations ENABLE TRIGGER a00_initial_invocation_authority;
+  SELECT * INTO STRICT original FROM internal.identification_invocations WHERE id=started.invocation_id FOR UPDATE;
+  IF mode IN ('winner','suppressed_winner','mutated_winner') THEN
+   candidate:=internal.prepare_identification_usage_event(original,'unknown_execution','{}');
+   INSERT INTO public.ai_usage_events SELECT (candidate).*;
+  END IF;
+  IF mode='immediate' THEN SET CONSTRAINTS ALL IMMEDIATE; END IF;
+  INSERT INTO internal.initial_consuming_staging(transaction_id,scan_id,owner_id,operation,admission_receipt_id,
+   admission_receipt_digest,reservation_id,invocation_id,expected_writes,report_invocation)
+   VALUES(pg_current_xact_id(),original.scan_id,original.user_id,'report',receipt,repeat('a',64),original.reservation_id,
+    original.id,'[]',to_jsonb(original));
+  IF mode='suppressed' OR mode='suppressed_winner' THEN
+   CREATE TRIGGER zzzz_report_suppress BEFORE INSERT ON public.ai_usage_events FOR EACH ROW EXECUTE FUNCTION pg_temp.report_suppress();
+  ELSIF mode='mutated' THEN
+   CREATE TRIGGER zzzz_report_mutate BEFORE INSERT ON public.ai_usage_events FOR EACH ROW EXECUTE FUNCTION pg_temp.report_mutate();
+  ELSIF mode='link_suppressed' THEN
+   CREATE TRIGGER zzzz_report_suppress BEFORE UPDATE ON internal.identification_invocations FOR EACH ROW EXECUTE FUNCTION pg_temp.report_suppress();
+  ELSIF mode='missing_before' THEN ALTER TABLE public.ai_usage_events DISABLE TRIGGER s0_report_row_before;
+  ELSIF mode='missing_after' THEN ALTER TABLE public.ai_usage_events DISABLE TRIGGER s0_report_row_after;
+  ELSIF mode='direct_winner' THEN UPDATE internal.initial_consuming_staging SET report_winner='{}';
+  ELSIF mode='original_changed' THEN UPDATE internal.initial_consuming_staging SET report_invocation=report_invocation||'{"model":"changed"}';
+  END IF;
+  DELETE FROM accounting_price_calls;
+  event:=internal.complete_identification_usage(original.id,'draft','{"input_tokens":101,"candidate_tokens":37}');
+  SELECT * INTO STRICT stage FROM internal.initial_consuming_staging;
+  IF NOT stage.sealed OR stage.report_winner IS DISTINCT FROM (SELECT to_jsonb(e) FROM public.ai_usage_events e WHERE id=event)
+   OR stage.report_invocation IS DISTINCT FROM to_jsonb(original)
+   OR (stage.expected_writes#>>'{0,0,new,prompt_tokens}')::BIGINT IS DISTINCT FROM 101
+   OR (SELECT count(*) FROM accounting_price_calls)<>1
+   OR stage.report_inserted IS DISTINCT FROM (mode NOT IN ('winner','suppressed_winner','mutated_winner')) THEN
+   RAISE EXCEPTION 'report candidate, winner, pricing count or terminal mismatch'; END IF;
+  IF mode='extra_statement' THEN UPDATE internal.identification_invocations SET event_id=event WHERE id=original.id; END IF;
+  IF mode='protected_winner' THEN UPDATE public.ai_usage_events SET metadata=metadata||'{"changed":true}' WHERE id=event; END IF;
+  -- Deliberate fault injection bypasses only append-only protection; this
+  -- separate case reaches the report terminal validator. DDL rolls back.
+  IF mode IN ('mutated_winner','mutated_after_delete') THEN
+   ALTER TABLE public.ai_usage_events DISABLE TRIGGER trg_protect_ai_usage_events;
+  END IF;
+  IF mode='mutated_winner' THEN UPDATE public.ai_usage_events SET metadata=metadata||'{"changed":true}' WHERE id=event; END IF;
+  DELETE FROM internal.initial_consuming_staging;
+  IF mode='mutated_after_delete' THEN UPDATE public.ai_usage_events SET metadata=metadata||'{"changed":true}' WHERE id=event; END IF;
+  IF mode='link_after_delete' THEN
+   ALTER TABLE internal.identification_invocations DISABLE TRIGGER a00_initial_invocation_authority;
+   UPDATE internal.identification_invocations SET event_id=NULL WHERE id=original.id;
+  END IF;
+  IF mode='reuse' THEN
+   INSERT INTO internal.initial_consuming_staging SELECT (stage).*;
+  END IF;
+  SET CONSTRAINTS ALL IMMEDIATE;
+  RAISE EXCEPTION 'success rollback' USING ERRCODE='Z0001';
+ EXCEPTION WHEN SQLSTATE 'Z0001' THEN RETURN 'ok';
+ END;
+EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE||':'||SQLERRM;
+END;
+$case$;
+SELECT extensions.is(pg_temp.report_case(mode),expected,mode) FROM (VALUES
+ ('inserted','ok'),('winner','ok'),('suppressed_winner','ok'),
+ ('suppressed','55000:initial_analysis_report_winner_missing'),
+ ('mutated','55000:initial_analysis_consuming_row_invalid'),
+ ('link_suppressed','55000:initial_analysis_consuming_stage_incomplete'),
+ ('missing_before','55000:initial_analysis_consuming_row_invalid'),
+ ('missing_after','55000:initial_analysis_report_resolution_invalid'),
+ ('direct_winner','55000:initial_analysis_report_attachment_invalid'),
+ ('original_changed','55000:initial_analysis_report_attachment_invalid'),
+ ('extra_statement','55000:initial_analysis_consuming_statement_invalid'),
+ ('protected_winner','42501:AI usage events are append-only.'),
+ ('mutated_winner','55000:initial_analysis_report_incomplete'),
+ ('mutated_after_delete','55000:initial_analysis_report_incomplete'),
+ ('link_after_delete','55000:initial_analysis_report_incomplete'),
+ ('immediate','55000:initial_analysis_consuming_stage_incomplete'),
+ ('reuse','55000:initial_analysis_consuming_stage_invalid')
+) cases(mode,expected);
+DROP TRIGGER accounting_test_before ON public.ai_usage_events;
+DROP TRIGGER accounting_test_after ON public.ai_usage_events;
+DROP TRIGGER accounting_test_link ON internal.identification_invocations;
+DO $instrument$
+BEGIN EXECUTE (SELECT definition FROM accounting_estimator_original); END;
+$instrument$;
+
 
 DO $test$
 DECLARE f RECORD; first RECORD; duplicate RECORD; event UUID; denied BOOLEAN := FALSE;
@@ -183,7 +395,8 @@ DO $test$
 DECLARE role_name TEXT; signature TEXT;
 BEGIN
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
-        IF has_table_privilege(role_name,'internal.identification_invocations','SELECT,INSERT,UPDATE,DELETE')
+        IF has_function_privilege(role_name,'internal.prepare_identification_usage_event(internal.identification_invocations,text,jsonb)','EXECUTE')
+            OR has_table_privilege(role_name,'internal.identification_invocations','SELECT,INSERT,UPDATE,DELETE')
             OR has_table_privilege(role_name,'internal.ai_native_token_prices','SELECT,INSERT,UPDATE,DELETE')
             THEN RAISE EXCEPTION 'private accounting table accessible'; END IF;
     END LOOP;

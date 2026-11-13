@@ -126,8 +126,7 @@ final class SharedMediaInboxHandoffLedger {
         guard source.retirementID == nil else { throw SharedMediaStorageFailure.inUse }
         let lease = try work(row)
         context.delete(try hold(row))
-        if Self.value(row).completed { context.delete(lease); context.delete(row) }
-        else {
+        if Self.value(row).completed { context.delete(lease); context.delete(row) } else {
             row.phaseRaw = "detached"
             lease.allocatedByteCount = 0; lease.sourceIdentity = nil
             lease.writerStateRaw = "closedNeedsAttention"; lease.terminalProof = "sourceOwnerAcceptedReturn"
@@ -181,8 +180,7 @@ final class SharedMediaInboxHandoffLedger {
         context.delete(try allocation(row)); context.delete(try work(row)); context.delete(try sharedLease(row)); context.delete(row)
         let hasReference = try fetch(PhotoPreparationReference.self, 128).contains { $0.packageID == p.id }
         let otherWork = try fetch(PhotoPreparationLease.self, 96).contains { $0.packageID == p.id && $0.id != row.leaseID }
-        if !hasReference && !otherWork { context.delete(p) }
-        else {
+        if !hasReference && !otherWork { context.delete(p) } else {
             p.phaseRaw = otherWork ? "needsAttention" : "draftOwned"
             p.revision = try SharedMediaStoragePolicy.add(p.revision, 1)
         }

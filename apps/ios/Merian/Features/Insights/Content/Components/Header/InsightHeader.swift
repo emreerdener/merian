@@ -59,8 +59,8 @@ struct InsightHeader: View {
                         .italic()
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // MARK: - Common Name
@@ -69,6 +69,8 @@ struct InsightHeader: View {
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(hazardType != "none" ? [] : .isHeader)
                     .accessibilityHint(hasPicker ? "Tap to choose a preferred name" : "")
                     .background(

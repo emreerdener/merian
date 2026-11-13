@@ -17,6 +17,8 @@ extension OfflineQueueManager {
         resultFileURL: URL,
         statusCode: Int?,
         functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil,
+        originalOwnership: BackgroundAccountWorkOwnership? = nil,
+        completionAccount: InferenceCompletionAccountScope? = nil,
         finalizationService: BackgroundInferenceFinalizationService = .live,
         publishCompletion: @MainActor (String, OfflineScanProcessingResult, ExtractedScanData) async -> Void
             = OfflineQueueManager.publishBackgroundInferenceCompletion
@@ -217,6 +219,8 @@ extension OfflineQueueManager {
                 videoFilePaths: extracted.videoFilePaths,
                 capturedMediaJSON: extracted.capturedMediaJSON,
                 expectedGeneration: generation,
+                originalOwnership: originalOwnership,
+                completionAccount: completionAccount,
                 persistenceActor: cleanupActor
             )
 

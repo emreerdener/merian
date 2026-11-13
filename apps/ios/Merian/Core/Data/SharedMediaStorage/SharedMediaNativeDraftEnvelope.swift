@@ -7,6 +7,8 @@ enum SharedMediaNativeDraftEnvelope: Sendable {
     case original(PhotoPreparationDraftEnvelope)
     case preparation(V2)
 
+    // The nested codec name matches the persisted V2 envelope vocabulary.
+    // swiftlint:disable:next type_name
     struct V2: Codable, Sendable {
         let version: Int
         let contexts: [ObservationContext]

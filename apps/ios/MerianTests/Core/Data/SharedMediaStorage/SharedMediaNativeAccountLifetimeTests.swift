@@ -249,6 +249,61 @@ struct SharedMediaNativeAccountLifetimeTests {
         await h.runtime.awaitAccountWorkDrain()
     }
 
+    @Test(arguments: [false, true])
+    func localBorrowersJoinActualExitIncludingDiscoveryFailure(failDiscovery: Bool) async throws {
+        let h = try Fixture(), consumer = NSObject(), gate = Gate()
+        var callbackCount = 0
+        let borrow = try h.drain.borrowLocalFence(for: consumer, role: .inputRecovery, container: h.container, close: {
+            callbackCount += 1
+            await gate.pause()
+            return true
+        })
+        let same = try h.drain.borrowLocalFence(for: consumer, role: .inputRecovery, container: h.container, close: {
+            Issue.record("Replaced exact callback"); return false
+        })
+        #expect(same === borrow)
+        #expect(throws: (any Error).self) {
+            _ = try h.drain.borrowLocalFence(for: NSObject(), role: .inputRecovery, container: h.container, close: { true })
+        }
+        #expect(throws: (any Error).self) { _ = try borrow.fence(container: ModelContainerFactory.makeInMemoryContainer()) }
+        if failDiscovery {
+            try FileManager.default.createDirectory(at: h.parent, withIntermediateDirectories: false)
+            #expect(throws: (any Error).self) { _ = try h.discover() }
+            #expect(h.finishes == 0)
+        }
+        let draining = Task { await h.drain.shutdown() }
+        await gate.arrived()
+        #expect(h.drain.isClosed && !h.drain.shutdownFinished)
+        draining.cancel()
+        #expect(throws: (any Error).self) { _ = try borrow.fence(container: h.container) }
+        // Already-owned cleanup keeps the exact fence until actual exit.
+        _ = try borrow.fence(container: h.container, cleanup: true)
+        #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
+        #expect(throws: (any Error).self) {
+            _ = try h.drain.borrowLocalFence(for: consumer, role: .preparedInputs, container: h.container, close: { true })
+        }
+        gate.release()
+        #expect(await draining.value)
+        #expect(h.drain.shutdownFinished)
+        #expect(callbackCount == 1 && h.begins == h.finishes)
+        #expect(throws: (any Error).self) { _ = try borrow.fence(container: h.container, cleanup: true) }
+        _ = try h.admission.acquireFence(container: h.container)
+    }
+
+    @Test func blockedBorrowerRetainsFenceUntilExplicitShutdownRetry() async throws {
+        let h = try Fixture(), consumer = NSObject()
+        var quiet = false
+        _ = try h.drain.borrowLocalFence(for: consumer, role: .inputRecovery, container: h.container, close: { quiet })
+        #expect(await h.drain.shutdown() == false)
+        #expect(h.drain.isClosed && !h.drain.shutdownFinished)
+        #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
+        quiet = true
+        #expect(await h.drain.shutdown())
+        #expect(h.drain.shutdownFinished)
+        _ = try h.admission.acquireFence(container: h.container)
+        #expect(h.begins == 0 && h.finishes == 0) // Cold cleanup never acquired former-account authority.
+    }
+
     @MainActor private final class Fixture {
         let support: URL, container: ModelContainer, admission: NativeReleaseStartupAdmission, ownerID: UUID
         let runtime = AuthRuntimeState()

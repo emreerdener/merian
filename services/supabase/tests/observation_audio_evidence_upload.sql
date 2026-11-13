@@ -1,5 +1,11 @@
 \set ON_ERROR_STOP on
 BEGIN;
+-- Synthetic dispatch authority; no transport invoked.
+SELECT vault.create_secret('https://abcdefghijklmnopqrst.supabase.co','SUPABASE_URL') IS NOT NULL;
+SELECT vault.create_secret('sb_secret_'||repeat('a',30),'SUPABASE_SERVICE_ROLE_KEY') IS NOT NULL;
+UPDATE internal.observation_evidence_worker_state SET enabled=TRUE,approved_project='abcdefghijklmnopqrst',pending_request_id=-370,
+ pending_dispatch_id='00000000-0000-4000-8000-00000000ee01';
+
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.no_plan();
 CREATE FUNCTION pg_temp.history_append_request(observation UUID, analysis UUID, source UUID DEFAULT NULL)
@@ -80,12 +86,12 @@ ALTER TABLE internal.observation_audio_evidence_upload_cohorts ENABLE TRIGGER gu
 ALTER TABLE internal.observation_evidence_objects ENABLE TRIGGER guard_observation_evidence_update;
 SET LOCAL ROLE service_role;
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_audio()','55000','analysis_history_evidence_unavailable','expired ready audio never renews');
-SELECT extensions.is(public.retire_expired_observation_evidence(),0,'cleanup separately gated');
+SELECT extensions.throws_ok($$SELECT public.retire_expired_observation_evidence_for_dispatch('00000000-0000-4000-8000-00000000ee01'::uuid)$$,'42501','private_evidence_dispatch_unavailable','cleanup separately gated');
 RESET ROLE;
 UPDATE internal.observation_history_rollout SET private_evidence_erasure_enabled=TRUE;
 SET LOCAL ROLE service_role;
-SELECT extensions.is(public.retire_expired_observation_evidence(),1,'expired audio receipt retires atomically');
-SELECT extensions.is(public.retire_expired_observation_evidence(),0,'empty audio cohort not rediscovered');
+SELECT extensions.is(public.retire_expired_observation_evidence_for_dispatch('00000000-0000-4000-8000-00000000ee01'::uuid),1,'expired audio receipt retires atomically');
+SELECT extensions.is(public.retire_expired_observation_evidence_for_dispatch('00000000-0000-4000-8000-00000000ee01'::uuid),0,'empty audio cohort not rediscovered');
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_audio()','55000','analysis_history_evidence_unavailable','cleanup cannot mint successor');
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_photo()','22023','analysis_history_operation_conflict','retained audio identity excludes photos');
 RESET ROLE;

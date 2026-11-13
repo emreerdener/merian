@@ -73,29 +73,126 @@ enum SharedMediaNativeReceivingRows {
         guard try matches(key, in: context).isEmpty else { throw SharedMediaStorageFailure.conflict }
     }
     /// Collision checks include canonical aliases and every reverse identity join.
-    private static func matches(_ key: CollisionKey, in c: ModelContext) throws -> Matches {
+    private static func matches(_ key: CollisionKey, in c: ModelContext, applied: SharedMediaNativeReceivingIntent.Prepared? = nil, enrollmentRecovery: ObservationHistoryEnrollmentIntent.Receipt? = nil) throws -> Matches {
         let identities = Array(Swift.Set([key.queueID, key.observationID].flatMap { [$0, $0.uppercased()] }))
         let bindingID = key.bindingID, packageID = key.packageID
-        let jobIDs = identities.map { "scan-ingestion:" + $0 }, eventIDs = [key.eventID, key.eventID.uppercased()]
+        let jobIDs = identities.map { "scan-ingestion:" + $0 } + (applied == nil ? [] : [ObservationHistorySelectionIntent.jobID(key.observationID)])
+        let eventIDs = [key.eventID, key.eventID.uppercased()]
+        // Optional equality is supported on iOS 26; predicate force unwrap is not.
+        // Keep both queue and observation aliases, which may be distinct.
+        // Match optional operand types explicitly: repeated implicit promotion
+        // in this macro exceeds Swift's type-checking budget.
+        let queue: String? = key.queueID, queueUpper: String? = key.queueID.uppercased()
+        let observation: String? = key.observationID, observationUpper: String? = key.observationID.uppercased()
+        let queueJob: String? = "scan-ingestion:" + key.queueID
+        let queueUpperJob: String? = "scan-ingestion:" + key.queueID.uppercased()
+        let observationJob: String? = "scan-ingestion:" + key.observationID
+        let observationUpperJob: String? = "scan-ingestion:" + key.observationID.uppercased()
         let consumers = try fetch(c, FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
             $0.id == bindingID || $0.packageID == packageID || identities.contains($0.consumerID) ||
                 identities.contains($0.originQueueID) || identities.contains($0.observationID)
         }))
         let queues = try queueMatches(key, in: c)
-        let jobs = try fetch(c, FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
-            jobIDs.contains($0.id) || ($0.subjectId != nil && identities.contains($0.subjectId!))
-        }))
+        var jobQuery = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
+            jobIDs.contains($0.id) || $0.subjectId == queue || $0.subjectId == queueUpper ||
+                $0.subjectId == observation || $0.subjectId == observationUpper
+        })
+        // At most two proved History rows can be excluded below. Inspect one
+        // more so neither accepted row can hide a competing subject/alias.
+        jobQuery.fetchLimit = applied == nil ? 2 : 3
+        jobQuery.includePendingChanges = true
+        var jobs = try c.fetch(jobQuery)
         let events = try fetch(c, FetchDescriptor<OfflineQueueEvent>(predicate: #Predicate {
-            eventIDs.contains($0.id) || ($0.scanId != nil && identities.contains($0.scanId!)) ||
-                ($0.jobId != nil && jobIDs.contains($0.jobId!))
+            eventIDs.contains($0.id) ||
+                (($0.scanId == queue || $0.scanId == queueUpper) ||
+                 ($0.scanId == observation || $0.scanId == observationUpper)) ||
+                (($0.jobId == queueJob || $0.jobId == queueUpperJob) ||
+                 ($0.jobId == observationJob || $0.jobId == observationUpperJob))
         }))
-        guard try fetch(c, FetchDescriptor<LocalScanRecord>(predicate: #Predicate {
+        let scans = try fetch(c, FetchDescriptor<LocalScanRecord>(predicate: #Predicate {
             identities.contains($0.id) || $0.sharedMediaConsumerID == bindingID
-        })).isEmpty,
-              try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
-            identities.contains($0.id) || identities.contains($0.observationID) || $0.sharedMediaConsumerID == bindingID
-        })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+        }))
+        if let applied {
+            let appliedOwner = applied.profile.ownerID
+            guard scans.count == 1, let scan = scans.first, scan.id == key.observationID,
+                  try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw,
+                    consumerID: scan.sharedMediaConsumerID, record: .scan) == .nativeInitial(bindingID),
+                  scan.analysisOwnerAccountID == nil || scan.analysisOwnerAccountID == appliedOwner.uuidString.lowercased(),
+                  try fetch(c, FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate {
+                    identities.contains($0.scanId)
+                  })).isEmpty,
+                  try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
+                    $0.sharedMediaConsumerID == bindingID
+                  })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+            if let recovery = enrollmentRecovery {
+                guard recovery.observationID.uuidString.lowercased() == key.observationID,
+                      recovery.ownerID == appliedOwner,
+                      try ObservationHistoryEnrollmentIntent.existing(observationID: recovery.observationID,
+                        ownerID: recovery.ownerID, context: c) == recovery else { throw SharedMediaStorageFailure.conflict }
+                jobs.removeAll { $0.id == ObservationHistoryEnrollmentIntent.jobID(key.observationID) }
+            }
+            // Exclude only proved closed History metadata. Unknown or active jobs still collide.
+            guard let observationID = UUID(uuidString: key.observationID) else { throw SharedMediaStorageFailure.conflict }
+            if try ObservationHistoryEnrollmentIntent.baseline(observationID: observationID, ownerID: appliedOwner, context: c) != nil {
+                guard enrollmentRecovery == nil else { throw SharedMediaStorageFailure.conflict }
+                let baselineID = ObservationHistoryEnrollmentIntent.baselineJobID(key.observationID)
+                jobs.removeAll { $0.id == baselineID }
+                let selectionID = ObservationHistorySelectionIntent.jobID(key.observationID)
+                if jobs.contains(where: { $0.id == selectionID }) {
+                    try requireHistoricalSelection(applied, consumers: consumers, context: c)
+                    jobs.removeAll { $0.id == selectionID }
+                }
+            }
+            // Later enrolled analyses and selections may exist. They cannot
+            // acquire this original scan's exclusive native consumer binding.
+        } else {
+            guard scans.isEmpty,
+                  try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
+                    identities.contains($0.id) || identities.contains($0.observationID) || $0.sharedMediaConsumerID == bindingID
+                  })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+        }
         return .init(consumers: consumers, queues: queues, jobs: jobs, events: events)
+    }
+
+    /// A completed selection or rejection stays as History metadata. It never
+    /// supplies media ownership. A local selection can settle between the
+    /// History enrollment save and the later native handoff acknowledgement.
+    private static func requireHistoricalSelection(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                                   consumers: [SharedMediaConsumerRecord], context: ModelContext) throws {
+        let id = prepared.observationID.uuidString.lowercased()
+        guard let entry = try ObservationHistorySelectionIntent.load(id, context: context),
+              entry.owner == prepared.profile.ownerID.uuidString.lowercased(),
+              entry.receipt != nil || entry.rejection != nil,
+              let baseline = try NativeInitialHistoryBaseline.read(prepared, context: context),
+              consumers.count == 1, let consumer = consumers.first, consumer.id == prepared.bindingID else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let cohort = try SharedMediaNativeConsumerCohort.AppliedInitial.decode(consumer.cohortData)
+        guard cohort.receipt.ownerID == prepared.profile.ownerID, cohort.receipt.observationID == prepared.observationID,
+              cohort.receipt.bindingID == prepared.bindingID, cohort.historyBaseline == nil || cohort.historyBaseline == baseline.association else {
+            throw SharedMediaStorageFailure.conflict
+        }
+    }
+    /// Bounded reverse joins for an already applied original. This does not
+    /// establish the receipt, package, inventory or current session fence.
+    static func appliedConsumer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                in context: ModelContext) throws -> SharedMediaConsumerRecord {
+        let found = try matches(.init(prepared), in: context, applied: prepared)
+        guard found.consumers.count == 1, let consumer = found.consumers.first,
+              consumer.id == prepared.bindingID, found.queues.isEmpty, found.jobs.isEmpty, found.events.isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return consumer
+    }
+    /// Enrollment-only metadata verification. Never used by media or save authority.
+    static func enrollmentRecoveryConsumer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                           receipt: ObservationHistoryEnrollmentIntent.Receipt, context: ModelContext) throws -> SharedMediaConsumerRecord {
+        let found = try matches(.init(prepared), in: context, applied: prepared, enrollmentRecovery: receipt)
+        guard found.consumers.count == 1, let consumer = found.consumers.first,
+              consumer.id == prepared.bindingID, found.queues.isEmpty, found.jobs.isEmpty, found.events.isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return consumer
     }
     /// Freshness only, after the caller's full graph validation. Reuse the exact
     /// collision predicate, including pending aliases and reverse bindings.

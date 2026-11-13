@@ -4,6 +4,8 @@ import SwiftData
 /// Final atomic receiving closure under the existing registered release owner.
 /// No unlink, new reservation, admission, AI dispatch or funding operation.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppReceivingTerminalOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     let container: ModelContainer
@@ -43,8 +45,7 @@ struct SharedMediaNativeAppReceivingTerminalOperations {
             try attempt.requirePredecessor(fresh(), header: expected)
             try verify(attempt.prefix); try validate(); try attempt.seal.validate(c)
             // No suspension between authoritative physical/store fences and save.
-            do { try c.save(); try boundary(.afterSave) }
-            catch { c.rollback(); return try recover(attempt) }
+            do { try c.save(); try boundary(.afterSave) } catch { c.rollback(); return try recover(attempt) }
             return try recover(attempt)
         } catch { c.rollback(); throw error }
     }

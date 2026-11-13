@@ -698,18 +698,20 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     ),
     "Installed legacy intake recovery must persist a v1 proof instead of creating a v2 envelope for the v1 endpoint.",
   );
+  const intakeBindings = [
+    "recordCapabilityPreparationPending()",
+    "recoveryCapabilityStore.prepare()",
+    ".performPreparedIntake(",
+    "prepareDeletionV2(",
+    "recordCapabilityPreparedPending: dependencies.localState.recordCapabilityPreparedPending",
+    "recordIntakePending: dependencies.localState.recordIntakePending",
+    "commitDeletionV2(",
+  ].map((fragment) => swiftDeletionCoordinator.indexOf(fragment));
   assert(
-    swiftDeletionCoordinator.indexOf(
-          "recordCapabilityPreparationPending()",
-        ) <
-        swiftDeletionCoordinator.indexOf("recoveryCapabilityStore.prepare()") &&
-      swiftDeletionCoordinator.indexOf("recoveryCapabilityStore.prepare()") <
-        swiftDeletionCoordinator.indexOf("prepareDeletionV2(") &&
-      swiftDeletionCoordinator.indexOf("prepareDeletionV2(") <
-        swiftDeletionCoordinator.indexOf("recordCapabilityPreparedPending()") &&
-      swiftDeletionCoordinator.indexOf("recordCapabilityPreparedPending()") <
-        swiftDeletionCoordinator.indexOf("commitDeletionV2("),
-    "The local barrier and verified two-proof Keychain envelope must precede non-destructive server preparation, and the prepared marker must precede destructive commit.",
+    intakeBindings.every((position, index) =>
+      position >= 0 && (index === 0 || position > intakeBindings[index - 1])
+    ),
+    "The local barrier and verified two-proof envelope must precede preparation, with both durable marker callbacks bound to the existing workflow before destructive commit.",
   );
   assertStringIncludes(
     swiftCapability,
@@ -724,27 +726,32 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   ) {
     assertStringIncludes(swiftDeletionState, fragment);
   }
-  const interactiveRetirement = swiftDeletionCoordinator.slice(
-    swiftDeletionCoordinator.indexOf(
-      ".performDefinitiveIntakeRejectionRetirement(",
-    ),
-  );
-  const rejectionMarker = interactiveRetirement.indexOf(
-    ".recordCapabilityRejectionRetirementPending()",
-  );
-  const rejectionProofRemoval = interactiveRetirement.indexOf(
-    "clearCapability(",
-    rejectionMarker,
-  );
-  const rejectionMarkerRemoval = interactiveRetirement.indexOf(
-    ".localState.resolve()",
-    rejectionProofRemoval,
+  const interactiveRetirementStart = swiftDeletionCoordinator.indexOf(
+    ".performDefinitiveIntakeRejectionRetirement(",
   );
   assert(
-    rejectionMarker >= 0 &&
-      rejectionProofRemoval > rejectionMarker &&
-      rejectionMarkerRemoval > rejectionProofRemoval,
-    "Definitive rejection must persist its phase before verified proof removal and clear the marker last.",
+    interactiveRetirementStart >= 0,
+    "Interactive retirement binding is missing.",
+  );
+  const interactiveRetirementEnd = swiftDeletionCoordinator.indexOf(
+    ")",
+    interactiveRetirementStart,
+  );
+  assert(interactiveRetirementEnd > interactiveRetirementStart);
+  const interactiveRetirement = swiftDeletionCoordinator.slice(
+    interactiveRetirementStart,
+    interactiveRetirementEnd,
+  );
+  const retirementBindings = [
+    "recordRejectionRetirementPending: dependencies.localState.recordCapabilityRejectionRetirementPending",
+    "retireRecoveryCapability: recoveryCapabilityStore.retireVerified",
+    "resolveCleanup: dependencies.localState.resolve",
+  ].map((fragment) => interactiveRetirement.indexOf(fragment));
+  assert(
+    retirementBindings.every((position, index) =>
+      position >= 0 && (index === 0 || position > retirementBindings[index - 1])
+    ),
+    "Definitive rejection must bind durable phase recording, verified proof removal and marker resolution to the existing workflow.",
   );
   assertStringIncludes(
     swiftDeletionRecoveryCoordinator,
@@ -766,6 +773,16 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     /\s+/g,
     " ",
   );
+  assertStringIncludes(
+    compactDeletionWorkflow,
+    "guard recordRejectionRetirementPending() else { return false } return retireRejectedRecoveryProof( retireRecoveryCapability: retireRecoveryCapability )",
+    "The durable rejection phase must succeed before proof-only retirement.",
+  );
+  assertStringIncludes(
+    compactDeletionWorkflow,
+    "guard retireDefinitiveIntakeRejectionProof( recordRejectionRetirementPending: recordRejectionRetirementPending, retireRecoveryCapability: retireRecoveryCapability ) else { return false } return resolveCleanup()",
+    "Proof retirement must succeed before removing the durable marker.",
+  );
   const preparedIntakeStart = compactDeletionWorkflow.indexOf(
     "static func performPreparedIntake(",
   );
@@ -776,6 +793,19 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   const preparedIntake = compactDeletionWorkflow.slice(
     preparedIntakeStart,
     preparedIntakeEnd,
+  );
+  const preparedSteps = [
+    "preparation = try await prepareDeletion()",
+    "guard preparation.status == .prepared,",
+    "recordCapabilityPreparedPending()",
+    "recordIntakePending()",
+    "receipt = try await commitDeletion()",
+  ].map((fragment) => preparedIntake.indexOf(fragment));
+  assert(
+    preparedSteps.every((position, index) =>
+      position >= 0 && (index === 0 || position > preparedSteps[index - 1])
+    ),
+    "The workflow must invoke both durable markers after preparation and before destructive commit.",
   );
   assert(
     preparedIntake.indexOf("try Task.checkCancellation()") >= 0 &&

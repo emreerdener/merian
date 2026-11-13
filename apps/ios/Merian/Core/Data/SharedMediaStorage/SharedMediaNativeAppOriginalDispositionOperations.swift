@@ -4,6 +4,8 @@ import SwiftData
 /// First selected original only, after its pair is gone. No filesystem or
 /// provider dependency is accepted. Every new attempt starts from durable state.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppOriginalDispositionOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     let container: ModelContainer
@@ -41,8 +43,7 @@ struct SharedMediaNativeAppOriginalDispositionOperations {
             try attempt.seal.validate(c); try boundary(.beforeSave); try validate()
             try attempt.requirePredecessor(fresh(), header: expected)
             try attempt.seal.validate(c); try validate()
-            do { try c.save(); try boundary(.afterSave) }
-            catch { c.rollback(); return try recover(attempt) }
+            do { try c.save(); try boundary(.afterSave) } catch { c.rollback(); return try recover(attempt) }
             return try recover(attempt)
         } catch { c.rollback(); throw error }
     }

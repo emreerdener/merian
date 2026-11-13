@@ -19,6 +19,25 @@ ROOT = Path(__file__).resolve().parents[3]
 STAGE = "services/supabase/tests/initial_atomic_admission_stage.sql"
 FIXTURE_END = "-- END ATOMIC ADMISSION COMPOSER FIXTURE\n"
 
+# The caller captures before_invocation before public cancellation. Only its
+# five private correlations and the new accounting event association may change.
+RETIRED_DISPATCH_ASSERTION = """
+IF NOT EXISTS(
+ SELECT 1 FROM internal.identification_invocations i
+ JOIN public.ai_usage_events e ON e.id=i.event_id
+ WHERE i.id=(before_invocation->>'id')::UUID
+ AND i.is_initial_analysis AND i.user_id IS NULL AND i.scan_id IS NULL
+ AND i.reservation_id IS NULL AND i.lease_sha256 IS NULL
+ AND i.initial_admission_receipt_id IS NULL AND e.outcome='unknown'
+ AND e.metadata->>'ai_outcome'='unknown_execution'
+ AND internal.identification_usage_matches_invocation(
+  jsonb_populate_record(NULL::internal.identification_invocations,before_invocation),e)
+ AND to_jsonb(i)-ARRAY['user_id','scan_id','reservation_id','lease_sha256','initial_admission_receipt_id','event_id']
+  IS NOT DISTINCT FROM before_invocation-ARRAY['user_id','scan_id','reservation_id','lease_sha256','initial_admission_receipt_id','event_id']
+) OR (SELECT count(*) FROM public.ai_usage_events)<>1
+THEN RAISE EXCEPTION USING ERRCODE='ZX496'; END IF;
+"""
+
 
 class Qualification:
     def __init__(self, container, evidence_directory, suite, replay_manifest):
@@ -167,6 +186,18 @@ COMMIT;
         fixture += "UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;"
         self.record["fixture_sha256"] = hashlib.sha256(fixture.encode()).hexdigest()
         self.execute("commit_complete_synthetic_admission", fixture)
+
+    def commit_dispatch(self, scan):
+        """Use the existing private SQL dispatch fixture in its own transaction."""
+        scan = str(uuid.UUID(scan))
+        fixture = Path(__file__).with_name('fixtures') / 'initial_dispatch.sql'
+        self.record['source_manifest'][str(fixture.relative_to(ROOT))] = self.digest(fixture)
+        self.save()
+        self.execute('install_original_dispatch_fixture', fixture.read_text())
+        self.execute('commit_original_dispatch_before_cancellation',
+                     "BEGIN; SELECT set_config('request.jwt.claim.role','service_role',TRUE);"
+                     "SET LOCAL ROLE service_role;"
+                     f"SELECT public.test_initial_dispatch('{scan}',NULL); COMMIT;")
 
     def finish(self):
         if self.execute("activation_remains_disabled", "SELECT NOT initial_analysis_lifecycle_enabled FROM internal.initial_analysis_rollout;") != "t":

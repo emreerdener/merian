@@ -7,11 +7,7 @@ enum ObservationHistoryDisplayProjection {
     /// Cached display is usable only when its provenance still matches evidence.
     static func restore(_ data: Data, matching result: ObservationHistoryPage.Result) throws -> AnalysisDisplaySnapshot {
         if result.version == 3 {
-            let display = try SavedIdentificationDisplayBaseline.restore(data, analysisID: result.analysisID)
-            guard try SavedIdentificationDisplayBaseline.capture(display, matching: result) == data else {
-                throw ObservationHistoryError.resultConflict
-            }
-            return display
+            return try SavedIdentificationDisplayBaseline.restoreMatching(data, result: result)
         }
         // Earlier caches embedded unsorted JSON bytes. Key order/whitespace in those
         // two payloads cannot invalidate otherwise identical immutable evidence.

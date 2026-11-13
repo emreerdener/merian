@@ -129,28 +129,31 @@ struct HistoryReanalysisCompositionTests {
     }
 
     @Test func multipleResultAvailabilityUsesInjectedCloudAndSessionPredicate() async throws {
+        let current = MainActorTestValue(true)
         let fixture = ObservationHistorySelectionIntentTests(), container = try await fixture.seeded()
         let support = fixture.support.support.support
-        var current = true
+
         let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: support.client(fetch: { _ in Data() }),
-            currentOwner: { support.owner }, generation: { 1 }, sessionIsCurrent: { _ in current },
+            currentOwner: { support.owner }, generation: { 1 }, sessionIsCurrent: { _ in current.value },
             preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { _ in true }, submitted: { _ in Issue.record("Availability submitted work") }, cleanup: { Issue.record("Availability erased work") })
         #expect(bundle.history.hasMultiple(fixture.observation, container))
-        current = false
+        current.value = false
         #expect(!bundle.history.hasMultiple(fixture.observation, container))
         #expect(throws: (any Error).self) { try bundle.history.open(fixture.observation, container) }
     }
 
     @Test(arguments: ["owner", "generation", "session"])
     func invalidatedCompositionCannotReadRouteOrPreparePrivateMedia(_ reason: String) async throws {
+        let current = MainActorTestValue(true)
+        let generation = MainActorTestValue(UInt64(1))
         let seed = try fixture.seed(count: 1), root = try ObservationReanalysisFileStoreTests().directory()
         defer { try? FileManager.default.removeItem(at: root) }
-        var owner = seed.source.ownerID, generation: UInt64 = 1, current = true, resolves = 0, wake = 0
+        var owner = seed.source.ownerID, resolves = 0, wake = 0
         var cloud = fixture.fixture.account()
         cloud.resolvePhoto = { request in resolves += 1; return try ticket(request, seed: seed) }
         let bytes = seed.bytes
         let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: cloud,
-            currentOwner: { owner }, generation: { generation }, sessionIsCurrent: { _ in current },
+            currentOwner: { owner }, generation: { generation.value }, sessionIsCurrent: { _ in current.value },
             preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { _ in true }, submitted: { _ in wake += 1 }, cleanup: { wake += 1 },
             documents: { root }, downloadPhoto: { _ in bytes })
         let id = seed.source.observationID.uuidString
@@ -161,8 +164,8 @@ struct HistoryReanalysisCompositionTests {
         editor.toggle(try #require(seed.source.photos.first).mediaID)
         switch reason {
         case "owner": owner = UUID()
-        case "generation": generation += 2 // Same account after A → B → A still invalidates old presentations.
-        default: current = false
+        case "generation": generation.value += 2 // Same account after A → B → A still invalidates old presentations.
+        default: current.value = false
         }
         #expect(!history.isCurrent() && !status.isCurrent())
         #expect(throws: (any Error).self) { try history.context() }

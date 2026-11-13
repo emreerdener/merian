@@ -72,8 +72,7 @@ final class SharedMediaStorageFileOwner {
         } else { bootstrapFiles = nil }
         nativeBootstrap = bootstrapFiles
         let fd: Int32
-        if let bootstrapFiles { fd = try bootstrapFiles.take("authority").consume(at: root).root }
-        else { fd = try Self.openDirectory(root) }
+        if let bootstrapFiles { fd = try bootstrapFiles.take("authority").consume(at: root).root } else { fd = try Self.openDirectory(root) }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
             Darwin.close(fd); throw SharedMediaStorageFailure.busy
         }
@@ -105,8 +104,7 @@ final class SharedMediaStorageFileOwner {
     /// Audit database reads only; this does not authorize media or control use.
     func checkAuditReadIdentity() throws { try checkFileIdentity() }
     private func checkFileIdentity() throws {
-        do { try admissionFence.check() }
-        catch { throw SharedMediaStorageFailure.conflict }
+        do { try admissionFence.check() } catch { throw SharedMediaStorageFailure.conflict }
         let namedParentFD = try Self.openDirectory(storeDirectoryURL)
         defer { Darwin.close(namedParentFD) }
         var heldParent = stat(), namedParent = stat()

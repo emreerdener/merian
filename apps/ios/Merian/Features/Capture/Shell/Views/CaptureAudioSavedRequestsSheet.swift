@@ -38,9 +38,24 @@ struct CaptureAudioSavedRequestsSheet: View {
                     } footer: {
                         Text("Choose a saved request. Your current identification stays in place. When a saved request has already been sent, continuing only checks its original result.")
                     }
+                    Text("Checking for a result requires an internet connection. Background completion is not guaranteed.")
+                        .font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("SavedAudioConnectivity")
                     Button(actionTitle) { model.continueSelected() }
                         .disabled(model.selected == nil || model.isBusy)
                         .accessibilityIdentifier("SavedAudioContinue")
+                    Button("View saved audio") { model.previewSelected() }
+                        .disabled(model.selected == nil || model.isBusy)
+                        .accessibilityIdentifier("SavedAudioPreview")
+                    if let preview = model.preview {
+                        Section("Original submitted audio") {
+                            if let message = preview.message { Text(message) }
+                            Button(preview.isPlaying ? "Stop audio" : "Play audio") { preview.toggle() }
+                                .disabled(!preview.isReady || preview.isClosed)
+                                .accessibilityIdentifier("SavedAudioPlay")
+                            Button("Close audio preview") { model.closePreview() }
+                                .accessibilityIdentifier("SavedAudioPreviewClose")
+                        }
+                    }
                     if model.next != nil {
                         Button("More requests") { model.start(more: true) }
                             .disabled(model.isBusy).accessibilityIdentifier("SavedAudioMore")
@@ -48,7 +63,8 @@ struct CaptureAudioSavedRequestsSheet: View {
                     if let message = model.message {
                         Text(message).accessibilityIdentifier("SavedAudioMessage")
                     }
-                    if model.isBusy { ProgressView().accessibilityLabel("Checking saved audio requests") }
+                    if let message = model.recoveryMessage { Text(message).accessibilityIdentifier("SavedAudioRecoveryMessage") }
+                    if model.showsProgress { ProgressView().accessibilityLabel("Checking saved audio requests") }
                 }
             }
             .navigationTitle("Saved audio requests")
@@ -66,8 +82,15 @@ struct CaptureAudioSavedRequestsSheet: View {
         .accessibilityIdentifier("SavedAudioSheet")
         .presentationDetents([.large])
         .task { model.start() }
+        .task(id: model.preview != nil) {
+            while let preview = model.preview, !preview.isClosed, !Task.isCancelled {
+                preview.checkScope()
+                guard !preview.isClosed else { return }
+                do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            }
+        }
         .onChange(of: model.isCurrent, initial: true) { _, current in if !current { model.close() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.validate() } }
+        .onChange(of: scenePhase) { _, phase in model.setVisible(phase == .active) }
         .onDisappear { model.close() }
     }
 

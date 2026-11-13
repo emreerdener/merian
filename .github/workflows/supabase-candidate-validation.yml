@@ -156,6 +156,10 @@ jobs:
             supabase/functions/_shared/complimentaryScans.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
             supabase/functions/_shared/initialAnalysis/admission_test.ts \
+            supabase/functions/_shared/initialAnalysis/completionStatusRequest_test.ts \
+            supabase/functions/_shared/initialAnalysis/completionStatusResponse_test.ts \
+            supabase/functions/check-scan-status/status_test.ts \
+            supabase/functions/check-scan-status/initialRecovery_test.ts \
             supabase/functions/_shared/initialAnalysis/transport_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
@@ -163,6 +167,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/state_test.ts \
             supabase/functions/_shared/analysisHistory/append_test.ts \
             supabase/functions/_shared/analysisHistory/evidence_test.ts \
+            supabase/functions/_shared/analysisHistory/publicPhotoStorage_test.ts \
             supabase/functions/_shared/analysisHistory/intent_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \
@@ -388,6 +393,10 @@ jobs:
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
             supabase/functions/_shared/initialAnalysis/admission_test.ts \
+            supabase/functions/_shared/initialAnalysis/completionStatusRequest_test.ts \
+            supabase/functions/_shared/initialAnalysis/completionStatusResponse_test.ts \
+            supabase/functions/check-scan-status/status_test.ts \
+            supabase/functions/check-scan-status/initialRecovery_test.ts \
             supabase/functions/_shared/initialAnalysis/transport_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
@@ -395,6 +404,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/state_test.ts \
             supabase/functions/_shared/analysisHistory/append_test.ts \
             supabase/functions/_shared/analysisHistory/evidence_test.ts \
+            supabase/functions/_shared/analysisHistory/publicPhotoStorage_test.ts \
             supabase/functions/_shared/analysisHistory/intent_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \

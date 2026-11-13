@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 @testable import Merian
 import Testing
 
@@ -121,9 +122,9 @@ struct ObservationRetainedVideoTests {
         let sibling = fixture.outputDirectory.appendingPathComponent("sibling.txt")
         try Data([42]).write(to: sibling)
         let checkpoint = RetainedVideoValidationCheckpoint()
-        let producer = ObservationRetainedVideoClipProducer {
+        let producer = ObservationRetainedVideoClipProducer(validateAfterFirstAppend: {
             if await checkpoint.enterFirst() { try await Task.sleep(for: .seconds(30)) }
-        }
+        })
         let task = Task { try await producer.prepare(source: fixture.videoURL, directory: fixture.outputDirectory) }
         let deadline = ContinuousClock.now + .seconds(10)
         while !(await checkpoint.entered), ContinuousClock.now < deadline {
@@ -163,6 +164,67 @@ struct ObservationRetainedVideoTests {
         let remainingFiles = try fixture.outputFiles().map(\.lastPathComponent)
         #expect(remainingFiles.isEmpty, "Unexpected synthetic output entries: \(remainingFiles)")
         #expect(FileManager.default.fileExists(atPath: fixture.videoURL.path))
+    }
+
+    @Test
+    func cancellationWhileValidatorIsHeldKeepsProducerBusyUntilDrain() async throws {
+        let fixture = try await VideoAudioFixture(channels: nil)
+        defer { fixture.remove() }
+        let checkpoint = RetainedVideoHeldCheckpoint()
+        let producer = ObservationRetainedVideoClipProducer(validateAfterFirstAppend: { await checkpoint.holdFirst() })
+        let task = Task { try await producer.prepare(source: fixture.videoURL, directory: fixture.outputDirectory) }
+        let deadline = ContinuousClock.now + .seconds(10)
+        do {
+            while !(await checkpoint.entered), ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(5))
+            }
+        } catch {
+            task.cancel()
+            await checkpoint.release()
+            _ = try? await task.value
+            throw error
+        }
+        let entered = await checkpoint.entered
+        #expect(entered)
+        task.cancel()
+        do {
+            _ = try await producer.prepare(source: fixture.videoURL, directory: fixture.outputDirectory)
+            Issue.record("Producer reopened before its cancelled worker drained")
+        } catch ObservationRetainedVideoClipError.busy {} catch {
+            Issue.record("Unexpected busy result: \(error)")
+        }
+        await checkpoint.release()
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled held preparation unexpectedly succeeded")
+        } catch is CancellationError {} catch {
+            Issue.record("Unexpected held cancellation result: \(error)")
+        }
+        #expect(try fixture.outputFiles().isEmpty)
+        #expect(FileManager.default.fileExists(atPath: fixture.videoURL.path))
+        let retry = try await producer.prepare(source: fixture.videoURL, directory: fixture.outputDirectory)
+        #expect(FileManager.default.fileExists(atPath: retry.url.path))
+    }
+
+    @Test
+    func cancellationAfterSampleReadRejectsAppendAndCleansOwnedOutput() async throws {
+        let fixture = try await VideoAudioFixture(channels: 2)
+        defer { fixture.remove() }
+        let original = try Data(contentsOf: fixture.videoURL)
+        let appended = OSAllocatedUnfairLock(initialState: false)
+        let producer = ObservationRetainedVideoClipProducer(validateAfterRead: {
+            #expect(!Thread.isMainThread)
+            withUnsafeCurrentTask { $0?.cancel() }
+        }, didAppendSample: { appended.withLock { $0 = true } })
+        do {
+            _ = try await producer.prepare(source: fixture.videoURL, directory: fixture.outputDirectory)
+            Issue.record("Sample read after cancellation was accepted")
+        } catch is CancellationError {} catch {
+            Issue.record("Unexpected post-read cancellation result: \(error)")
+        }
+        #expect(!appended.withLock { $0 })
+        #expect(try fixture.outputFiles().isEmpty)
+        #expect(try Data(contentsOf: fixture.videoURL) == original)
     }
 
     @Test
@@ -225,5 +287,25 @@ private actor RetainedVideoValidationCheckpoint {
         guard !entered else { return false }
         entered = true
         return true
+    }
+}
+
+/// Deliberately ignores task cancellation so the test controls actual drain.
+private actor RetainedVideoHeldCheckpoint {
+    private(set) var entered = false
+    private var released = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func holdFirst() async {
+        guard !entered else { return }
+        entered = true
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
     }
 }

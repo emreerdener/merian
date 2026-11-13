@@ -31,8 +31,7 @@ final class SharedMediaNativeLifecycleOperations {
     }
     func prepareRemoval(_ source: PhotoOriginalReference) throws -> SharedMediaNativeRemovalRequest { try removal().prepare(source) }
     func share(_ request: SharedMediaNativeShareRequest) throws -> PhotoOriginalReference {
-        do { try sharing().apply(request, availableBytes: availableBytes(), beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) }
-        catch { let failure = error; do { return try sharing().result(request) } catch { throw failure } }
+        do { try sharing().apply(request, availableBytes: availableBytes(), beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) } catch { let failure = error; do { return try sharing().result(request) } catch { throw failure } }
         return try sharing().result(request)
     }
     func remove(_ request: SharedMediaNativeRemovalRequest) async throws {
@@ -40,8 +39,7 @@ final class SharedMediaNativeLifecycleOperations {
         try authority.validate()
         let proof = request.liveCount == 1 ? try await io.inspect(file) : nil
         try authority.validate()
-        do { try removal().apply(request, proof: proof, beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) }
-        catch { let failure = error; do { try removal().result(request) } catch { throw failure } }
+        do { try removal().apply(request, proof: proof, beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) } catch { let failure = error; do { try removal().result(request) } catch { throw failure } }
         try removal().result(request)
     }
     func recoverRetirements() async throws {
@@ -55,8 +53,7 @@ final class SharedMediaNativeLifecycleOperations {
                 try boundary(.beforeReadback)
                 return try .init(container: container, inventoryID: inventoryID, authority: authority)
             }
-            do { try release().apply(proof, beforeSave: { try self.boundary(.beforeReleaseSave) }, afterSave: { try self.boundary(.afterReleaseSave) }) }
-            catch { let failure = error; do { try release().result(state) } catch { throw failure } }
+            do { try release().apply(proof, beforeSave: { try self.boundary(.beforeReleaseSave) }, afterSave: { try self.boundary(.afterReleaseSave) }) } catch { let failure = error; do { try release().result(state) } catch { throw failure } }
             try release().result(state)
         }
     }
@@ -70,8 +67,7 @@ final class SharedMediaNativeLifecycleOperations {
         try authority.validate()
         let proof = try await io.inspectPending(request)
         try authority.validate()
-        do { try pending().abandon(state, proof: proof, beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) }
-        catch { let failure = error; do { try pending().abandonedResult(state, closure: proof.closure) } catch { throw failure } }
+        do { try pending().abandon(state, proof: proof, beforeSave: { try self.boundary(.beforeSave) }, afterSave: { try self.boundary(.afterSave) }) } catch { let failure = error; do { try pending().abandonedResult(state, closure: proof.closure) } catch { throw failure } }
         try pending().abandonedResult(state, closure: proof.closure)
     }
     func recoverPendingAbandonments() async throws {
@@ -81,8 +77,7 @@ final class SharedMediaNativeLifecycleOperations {
             let disposal = SharedMediaNativePendingDisposal(state: state, binding: authority.binding.bytes, epoch: authority.binding.epoch)
             let proof = try await io.releasePending(disposal)
             try authority.validate()
-            do { try pending().release(proof, beforeSave: { try self.boundary(.beforeReleaseSave) }, afterSave: { try self.boundary(.afterReleaseSave) }) }
-            catch { let failure = error; do { try pending().releasedResult(state) } catch { throw failure } }
+            do { try pending().release(proof, beforeSave: { try self.boundary(.beforeReleaseSave) }, afterSave: { try self.boundary(.afterReleaseSave) }) } catch { let failure = error; do { try pending().releasedResult(state) } catch { throw failure } }
             try pending().releasedResult(state)
         }
     }

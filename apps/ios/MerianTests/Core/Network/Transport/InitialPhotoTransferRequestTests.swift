@@ -2,8 +2,20 @@ import Foundation
 @testable import Merian
 import Testing
 
+private final class InitialPhotoTransferFixtureAnchor: NSObject {}
+
 @Suite("Dormant native photo transfer request")
 struct InitialPhotoTransferRequestTests {
+    @Test func sharedFixtureMatchesNativeRequestGoldens() throws {
+        let url = try #require(Bundle(for: InitialPhotoTransferFixtureAnchor.self)
+            .url(forResource: "InitialPhotoTransferFixtures", withExtension: "json"))
+        struct Fixture: Decodable { let version: Int; let status_canonical, candidate_canonical: String }
+        let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
+        #expect(fixture.version == 1)
+        #expect(Data(fixture.status_canonical.utf8) == Data(Self.statusGolden.utf8))
+        #expect(Data(fixture.candidate_canonical.utf8) == Data(InitialPhotoAllocationRoleReplyTests.candidate.utf8))
+    }
+
     @Test(arguments: SharedMediaNativePhotoRoleMapping.Role.allCases)
     func issueKeepsExactSubmittedCandidateAndSelectedRole(_ role: SharedMediaNativePhotoRoleMapping.Role) throws {
         let allocation = try InitialPhotoUploadTicketTests().allocation(role, boundBackend: true)
@@ -112,6 +124,60 @@ struct InitialPhotoTransferRequestTests {
             let invalid = Allocation.RemoteAttempt(id: attempt.id, state: state, createdAtMilliseconds: attempt.createdAtMilliseconds,
                 capabilityExpiresAtMilliseconds: attempt.capabilityExpiresAtMilliseconds, writeClosed: state == .mayHaveIssued)
             #expect(throws: SharedMediaStorageFailure.closed) { _ = try requested.startingPut(invalid) }
+        }
+    }
+
+    @Test(arguments: SharedMediaNativePhotoRoleMapping.Role.allCases)
+    func roleProgressRequiresOriginalClosedAttemptAndExactServerDeclaration(_ role: SharedMediaNativePhotoRoleMapping.Role) throws {
+        let base = try InitialPhotoUploadTicketTests().allocation(role, boundBackend: true, phase: 8)
+        let requested = try base.reservingPutStart().startingTicketRequest()
+        let receipt = try #require(requested.receipt)
+        let attempt = SharedMediaNativePhotoAllocation.RemoteAttempt(id: UUID(), state: .mayHaveIssued,
+            createdAtMilliseconds: receipt.createdAtMilliseconds, capabilityExpiresAtMilliseconds: receipt.createdAtMilliseconds + 600_000, writeClosed: false)
+        let started = try requested.startingPut(attempt)
+        #expect(throws: SharedMediaStorageFailure.closed) { _ = try InitialPhotoTransferRequest(allocation: started, action: .roleProgress) }
+        let transfer = try #require(started.transferReservation), backend = try #require(started.backendBinding)
+        let id = attempt.id.uuidString.lowercased(), object = transfer.selection.objectID.uuidString.lowercased()
+        let wire: [String: Any] = ["version": 1, "authority": "none", "scan_id": started.claim.observationID.uuidString.lowercased(),
+            "assignment_digest": receipt.assignmentDigest, "object_id": object, "attempt": ["attempt_id": id, "state": "may_have_issued",
+                "created_at_ms": attempt.createdAtMilliseconds, "capability_expires_at_ms": attempt.capabilityExpiresAtMilliseconds, "write_closed": true]]
+        let closed = try started.observing(InitialPhotoUploadStatus(data: JSONSerialization.data(withJSONObject: wire), allocation: started, objectID: transfer.selection.objectID))
+        let request = try InitialPhotoTransferRequest(allocation: closed, action: .roleProgress)
+        let body = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
+        #expect(body["version"] as? Int == 2 && body["action"] as? String == "role_progress" && body["attempt_id"] as? String == id)
+        let stamp = Date(timeIntervalSince1970: Double(receipt.createdAtMilliseconds / 1000 + 1)).formatted(.iso8601).replacingOccurrences(of: "Z", with: ".123456Z")
+        let row: [String: Any] = ["version": 2, "authority": "none", "outcome": "live_role_observed",
+            "owner_id": closed.claim.profile.ownerID.uuidString.lowercased(), "scan_id": closed.claim.observationID.uuidString.lowercased(),
+            "assignment_digest": receipt.assignmentDigest, "object_id": object, "attempt_id": id, "role": role.rawValue,
+            "byte_count": transfer.byteCount, "content_type": try transfer.declaredContentType(claim: closed.claim), "sha256": transfer.sha256,
+            "backend_generation": backend.generation.uuidString.lowercased(), "backend_configuration_digest": backend.configurationDigest,
+            "policy_digest": String(repeating: "d", count: 64), "observed_at": stamp]
+        let proof = try InitialPhotoRoleProgress(data: JSONSerialization.data(withJSONObject: row), matching: request)
+        try proof.requireOriginal(closed)
+        #expect(proof.selection == transfer.selection && proof.observedAt == stamp)
+        let sealed = try closed.retainingLiveRole(proof)
+        try closed.requireSuccessor(sealed)
+        let bytes = try sealed.encoded()
+        #expect(try SharedMediaNativePhotoAllocation.decode(bytes, sha256: SharedMediaAcquisitionEncoding.digest(bytes)) == sealed)
+        #expect(try sealed.historicalLiveRole() == proof)
+        #expect(try sealed.observing(InitialPhotoUploadStatus(data: JSONSerialization.data(withJSONObject: wire),
+            allocation: sealed, objectID: transfer.selection.objectID)) == sealed)
+        #expect(throws: (any Error).self) { _ = try sealed.startingTicketRequest() }
+        var corrupted = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        corrupted["liveRoleReceipt"] = Data("{}".utf8).base64EncodedString()
+        let invalid = try JSONSerialization.data(withJSONObject: corrupted, options: [.sortedKeys, .withoutEscapingSlashes])
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativePhotoAllocation.decode(invalid, sha256: SharedMediaAcquisitionEncoding.digest(invalid))
+        }
+
+        #expect(throws: SharedMediaStorageFailure.stale) { try proof.requireOriginal(started) }
+        for patch: [String: Any] in [["owner_id": id], ["scan_id": id], ["object_id": id], ["attempt_id": object],
+            ["assignment_digest": "other"], ["role": "unknown"], ["byte_count": true], ["sha256": "other"],
+            ["content_type": "other"], ["backend_generation": id], ["backend_configuration_digest": "other"],
+            ["policy_digest": "bad"], ["observed_at": "2026-02-30T00:00:00.000000Z"],
+            ["observed_at": "2000-01-01T00:00:00.123456Z"], ["authority": "issue"], ["extra": true]] {
+            let data = try JSONSerialization.data(withJSONObject: row.merging(patch) { _, replacement in replacement })
+            #expect(throws: (any Error).self) { _ = try InitialPhotoRoleProgress(data: data, matching: request) }
         }
     }
 

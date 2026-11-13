@@ -32,10 +32,74 @@ struct SelectedAnalysisReviewTests {
         var wakes = 0
         let session = try access(wake: { wakes += 1 }).open(baseline(ticket), container)
         #expect(session.ticket == ticket && session.isScopeCurrent())
+        #expect(try session.access.pending() == nil)
+        #expect(try session.access.undo(ticket) == nil)
+        let model = session.reviewModel(presentationIsCurrent: { true })
+        #expect(model.canSubmit && model.message == nil)
         #expect(wakes == 0)
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
         session.close()
         #expect(!session.isScopeCurrent())
+    }
+
+    @Test(arguments: [3, 4, 5])
+    func ordinaryMenuStagesExactReviewThroughPreparedSession(version: Int) async throws {
+        let (container, ticket) = try await fixture.seed(audio: version == 4, video: version == 5)
+        var wakes = 0
+        let session = try access(wake: { wakes += 1 }).open(baseline(ticket), container)
+        defer { session.close() }
+        let model = session.reviewModel(presentationIsCurrent: { true })
+        #expect(model.canSubmit && model.message == nil)
+        model.submit(.reject)
+        let request = try #require(model.request)
+        let pending = try #require(try session.access.pending())
+        #expect(request.analysisID == ticket.analysisID && request.observationID == ticket.observationID)
+        #expect(pending.operationID == request.operationID && pending.phase == .pending)
+        #expect(try session.access.status(ticket, request.operationID)?.phase == .pending)
+        #expect(wakes == 1 && model.hasUnresolvedRequest && !model.canSubmit)
+        let scan = try ObservationHistorySyncService.enrolledScan(ticket.observationID.uuidString, context: ModelContext(container))
+        #expect(scan.selectedAnalysisID == ticket.selectedAnalysisID.uuidString.lowercased())
+        #expect(scan.observationStateRevision == ticket.observationRevision)
+    }
+
+    @Test func alphanumericObservationIsCanonicalizedBeforePendingAndUndoReads() async throws {
+        let observation = "abcdefab-cdef-4abc-8def-abcdefabcdef"
+        let identifier = try #require(UUID(uuidString: observation))
+        #expect(identifier.uuidString != observation)
+        let container = try SavedIdentificationDisplayBaselineTests().container()
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        try fixture.source.update(container) { scan, _ in scan.id = observation }
+        let original = try #require(String(bytes: try fixture.source.fixture(revision: 10), encoding: .utf8))
+        let data = Data(original.replacingOccurrences(of: fixture.source.support.observation, with: observation).utf8)
+        var cloud = fixture.source.support.client(fetch: { _ in throw ObservationHistoryError.unavailable })
+        cloud.fetchState = { request in
+            #expect(request.observation_id == observation && request.analysis_id == nil)
+            return data
+        }
+        _ = try await ObservationHistoryStateSyncService(cloud: cloud).syncSelected(observationID: observation, container: container)
+        let context = ModelContext(container)
+        let scan = try ObservationHistorySyncService.enrolledScan(observation, context: context)
+        let entry = try ObservationHistoryListingService.entry(#require(UUID(uuidString: fixture.source.analysisID)), scan: scan, context: context)
+        let ticket = try ObservationAnalysisReviewTicket(entry: entry, context: .init(owner: fixture.source.support.owner,
+            selected: entry.result.analysisID, revision: 10, pendingOperation: nil, undoOperation: nil), observationID: identifier)
+        let unnormalized = try IdentificationHistorySession(observation: identifier.uuidString, container: container, cloud: cloud,
+            reviewWake: {}, currentGeneration: { 1 }, sessionIsCurrent: { _ in true })
+        #expect(throws: ObservationHistoryError.invalidPage) { try unnormalized.pendingReview() }
+        unnormalized.close()
+        let session = try access().open(baseline(ticket), container)
+        defer { session.close() }
+        #expect(try session.access.pending() == nil)
+        #expect(try session.access.undo(ticket) == nil)
+        let model = session.reviewModel(presentationIsCurrent: { true })
+        #expect(model.canSubmit && model.message == nil)
+        model.submit(.reject)
+        let request = try #require(model.request)
+        let pending = try #require(try session.access.pending())
+        #expect(request.observationID == identifier && pending.operationID == request.operationID)
+        #expect(pending.phase == .pending && model.hasUnresolvedRequest)
+        #expect(scan.selectedAnalysisID == ticket.selectedAnalysisID.uuidString.lowercased())
+        #expect(scan.observationStateRevision == ticket.observationRevision)
     }
 
     @Test(arguments: ["revision", "selection", "owner", "delete"])

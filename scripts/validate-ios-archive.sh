@@ -25,6 +25,13 @@ verify_version() {
   local plist="$2"
   local version
   local build
+  local ancestor="$plist"
+
+  while [[ "$ancestor" != "$archive_path" ]]; do
+    [[ ! -L "$ancestor" ]] || fail "$label path contains a symbolic link."
+    [[ "$ancestor" != "/" ]] || fail "$label path escapes the archive."
+    ancestor="$(dirname "$ancestor")"
+  done
 
   [[ -f "$plist" && ! -L "$plist" ]] || fail "$label Info.plist is missing."
   version="$(read_plist_value "$plist" CFBundleShortVersionString)"
@@ -47,6 +54,7 @@ expected_source_fingerprint="$6"
 
 [[ -d "$archive_path" && ! -L "$archive_path" ]] \
   || fail "archive must be a non-symbolic-link directory."
+archive_path="$(cd "$archive_path" && pwd -P)"
 [[ "$plistbuddy_command" == /* && -x "$plistbuddy_command" ]] \
   || fail "PlistBuddy must be an executable absolute path."
 [[ "$expected_bundle_id" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || fail "expected bundle ID is malformed."
@@ -64,6 +72,7 @@ application_path="$(read_plist_value "$archive_info" ApplicationProperties:Appli
 app_path="$archive_path/Products/$application_path"
 app_info="$app_path/Info.plist"
 verify_version "main app" "$app_info"
+python3 "$script_dir/validate-ios-history-release.py" "$app_info"
 
 privacy_manifest="$app_path/PrivacyInfo.xcprivacy"
 if ! bash "$script_dir/validate-ios-privacy-manifest.sh" "$privacy_manifest"; then

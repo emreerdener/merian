@@ -1,9 +1,35 @@
+## November 13 — data-preserving History builds
+
+`ModelContainerBootstrapper.bootstrap()` takes the explicit
+`MerianEnvironment.preservesExistingLibrary` policy. It is true in both
+`HistoryQualification`, normal-OAuth `HistoryTesting` and enabled `Release`. On
+persistent-store failure these builds preserve the existing store, bypass
+quarantine/rescue/ recreation and report `existing_store_preserved` before the
+in-memory recovery presentation. Normal successful opening and default Debug
+recovery remain unchanged. Tests still use their isolated in-memory bootstrap;
+no user store is used for the regression fixtures.
+
 # Startup Store Recovery
 
 Naturebook must never turn a damaged local SwiftData store into account loss.
 This document defines the startup recovery contract for `ModelContainer`
 failures, quarantined local store files, legacy-store rescue archives,
 telemetry, and verification.
+
+## Primary-app qualification preservation
+
+The November 8 CST primary-app qualification revision keeps the shipped App
+Group and store/media addressing. In the compiled qualification configuration,
+`ModelContainerBootstrapper` takes its safe-mode path on persistent-open failure
+before any corruption quarantine or legacy migration rescue/replacement.
+Existing store artifacts and journals remain in place. Builds without the
+History capability retain their signature-gated recovery policy. Successful
+opens can still migrate a supported schema; populated-store migration, signed
+install-over and any older-binary rollback compatibility require their own
+applicable evidence. Do not erase or recreate the user's library to unblock
+qualification. The
+[device-review contract](../development-guides/24-identification-history-device-review.md#planned-real-app-qualification-environment)
+owns the current operation boundary.
 
 ## October 23 startup ownership qualification
 

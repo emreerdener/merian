@@ -31,6 +31,8 @@ struct SavedIdentificationReanalysisAccess {
                 guard try ObservationHistoryEnrollmentService.baseline(observation: observation, container: container) == displayed else {
                     throw ObservationHistoryEnrollmentService.AdmissionError.localStateChanged
                 }
+                let ordinary = try ObservationHistoryEnrollmentService.ordinaryCompletionAdmission(
+                    observation: observation, owner: owner, container: container)
                 return Request(resolve: {
                     try Task.checkCancellation()
                     guard current() else { throw ObservationHistoryError.accountChanged }
@@ -39,7 +41,7 @@ struct SavedIdentificationReanalysisAccess {
                     try Task.checkCancellation()
                     guard current() else { throw ObservationHistoryError.accountChanged }
                     let baseline = try ObservationHistoryStateSyncService.displayBaseline(observation: observation, container: container)
-                    guard baseline.retainsIdentification(of: displayed) else { throw ObservationHistoryError.resultConflict }
+                    guard baseline.retainsIdentification(of: displayed, ordinaryCompletion: ordinary) else { throw ObservationHistoryError.resultConflict }
                     return try action(observation: observation, analysis: analysis, owner: owner, container: container,
                         cloud: cloud, current: current)
                 })

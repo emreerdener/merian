@@ -4,6 +4,8 @@ import SwiftData
 /// First selected saved retiring pair only. Runtime dispatch/activation remains
 /// closed; the existing owner supplies locks, work lease, root and account fences.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppReleasePairRemovalOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     let container: ModelContainer
@@ -85,8 +87,7 @@ struct SharedMediaNativeAppReleasePairRemovalOperations {
             try capability.seal.validate(context)
             for proof in proofs { try verifyAbsence(proof) }
             try validate() // No await between complete clean/physical/raw seals and save.
-            do { try context.save(); try boundary(.afterSave) }
-            catch { context.rollback(); return try recover(capability) }
+            do { try context.save(); try boundary(.afterSave) } catch { context.rollback(); return try recover(capability) }
             return try recover(capability)
         } catch { context.rollback(); throw error }
     }

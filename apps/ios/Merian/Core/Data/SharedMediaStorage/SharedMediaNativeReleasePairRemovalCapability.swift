@@ -51,6 +51,8 @@ final class SharedMediaNativePairUnlinkPermit: Sendable {
 /// The complete clean retiring graph, raw row identities and exact saved closure
 /// authorize one selected pair only. No constructor accepts a bare Progress.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeReleasePairRemovalCapability {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot

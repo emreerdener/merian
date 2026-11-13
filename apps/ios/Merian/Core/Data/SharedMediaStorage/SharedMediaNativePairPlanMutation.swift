@@ -12,10 +12,23 @@ final class SharedMediaNativePairPlanMutation {
     private let member: SharedMediaPendingMembershipRecord
     private enum Authority {
         case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppPairPlanWitness)
-        var ownerID: UUID { switch self { case .qualification(let a): a.ownerID; case .app(let a): a.preparation.authority.profile.ownerID } }
-        var fileEpoch: UUID { switch self { case .qualification(let a): a.binding.epoch; case .app(let a): a.fileEpoch } }
+        var ownerID: UUID {
+            switch self {
+            case .qualification(let a): a.ownerID
+            case .app(let a): a.preparation.authority.profile.ownerID
+            }
+        }
+        var fileEpoch: UUID {
+            switch self {
+            case .qualification(let a): a.binding.epoch
+            case .app(let a): a.fileEpoch
+            }
+        }
         @MainActor func validate(_ container: ModelContainer) throws {
-            switch self { case .qualification(let a): try a.validate(); case .app(let a): try a.validate(container) }
+            switch self {
+            case .qualification(let a): try a.validate()
+            case .app(let a): try a.validate(container)
+            }
         }
     }
     private let authority: Authority
@@ -112,8 +125,7 @@ final class SharedMediaNativePairPlanMutation {
             try requireFreshOutputIDs(intent)
             // The physical seal is the final synchronous check before persistence.
             try value.verifyOriginal()
-            do { try context.save(); try afterSave() }
-            catch {
+            do { try context.save(); try afterSave() } catch {
                 let failure = error; context.rollback()
                 do { try acknowledgeApp(expected) } catch { throw failure }
             }

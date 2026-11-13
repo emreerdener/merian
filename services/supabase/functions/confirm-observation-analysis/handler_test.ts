@@ -299,12 +299,12 @@ Deno.test("database adapters bind authenticated owner, protocol and verified que
     ["prepare_observation_analysis_confirmation", {
       p_user_id: user.id,
       p_request: body,
-      p_reader: 10,
+      p_reader: 11,
     }],
     ["complete_observation_analysis_confirmation", {
       p_user_id: user.id,
       p_request: body,
-      p_reader: 10,
+      p_reader: 11,
       p_verified_name: "Fixtureus synonym",
       p_taxon: proof,
     }],

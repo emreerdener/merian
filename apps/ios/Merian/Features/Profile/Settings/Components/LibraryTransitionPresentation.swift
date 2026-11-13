@@ -1,6 +1,82 @@
 import SwiftData
 import SwiftUI
 
+enum LibraryAccountRecoveryPresentation: Equatable {
+    case none
+    case restoringSession
+    case recoveryRequired
+
+    static func resolve(
+        recoveryRequired: Bool,
+        authSessionGeneration: UInt64,
+        hasCachedSessionAwaitingRefresh: Bool,
+        activeTransitionKind: AuthTransitionKind?
+    ) -> Self {
+        guard recoveryRequired else { return .none }
+        // Generation zero means the SDK has not delivered its initial event.
+        // It is not evidence that the device's saved session is missing.
+        if authSessionGeneration == 0
+            || (authSessionGeneration == 1 && hasCachedSessionAwaitingRefresh)
+            || activeTransitionKind == .anonymousBootstrap {
+            return .restoringSession
+        }
+        return .recoveryRequired
+    }
+}
+
+/// Account recovery belongs to private destinations, never the capture workspace.
+struct LibraryAccountAccessView<Content: View>: View {
+    @Environment(SupabaseManager.self) private var supabase
+    @Environment(\.dismiss) private var dismiss
+    let title: String?
+    @ViewBuilder var content: () -> Content
+
+    private var transitionBlocksLibrary: Bool {
+        supabase.librarySignOutRecoveryPending
+            || (supabase.libraryTransferResult != .completed && !supabase.isGuestUser)
+    }
+
+    private var presentation: LibraryAccountRecoveryPresentation {
+        .resolve(
+            recoveryRequired: supabase.libraryAccountRecoveryRequired || transitionBlocksLibrary,
+            authSessionGeneration: supabase.authSessionGeneration,
+            hasCachedSessionAwaitingRefresh: supabase.hasCachedSessionAwaitingRefresh,
+            activeTransitionKind: supabase.activeAuthTransition?.token.kind
+        )
+    }
+
+    var body: some View {
+        if let title, presentation != .none {
+            NavigationStack {
+                VStack(spacing: 16) {
+                    if transitionBlocksLibrary {
+                        ProgressView("Finishing library changes")
+                    } else if presentation == .restoringSession {
+                        ProgressView("Restoring your library")
+                    } else {
+                        Text("Recover your library account").font(.headline)
+                        Text("Sign in to the account that owns this library to see your saved scans. Guest libraries require their original session. You can keep capturing without signing in.")
+                        Button("Sign in with Apple") { supabase.startAppleSignIn() }
+                        Button("Sign in with Google") { Task { await supabase.signInWithGoogle() } }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.background)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { dismiss() }
+                    }
+                }
+            }
+        } else {
+            content()
+        }
+    }
+}
+
 struct LibraryTransitionPresentation: ViewModifier {
     @Bindable var supabase: SupabaseManager
     var dependencies: LibraryTransitionPresentationDependencies = .live
@@ -11,12 +87,13 @@ struct LibraryTransitionPresentation: ViewModifier {
     }
 
     private var blocksLibrary: Bool {
-        supabase.librarySignOutRecoveryPending || transferBlocksLibrary || supabase.libraryAccountRecoveryRequired
+        supabase.librarySignOutRecoveryPending || transferBlocksLibrary
     }
 
     func body(content: Content) -> some View {
         content
             .disabled(blocksLibrary)
+            .allowsHitTesting(!blocksLibrary)
             .accessibilityHidden(blocksLibrary)
             .overlay {
                 if supabase.librarySignOutRecoveryPending {
@@ -43,16 +120,6 @@ struct LibraryTransitionPresentation: ViewModifier {
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.background)
-                } else if supabase.libraryAccountRecoveryRequired {
-                    VStack(spacing: 16) {
-                        Text("Recover your library account").font(.headline)
-                        Text("This device has a library belonging to a previous session. Sign in to the same account to continue. Guest recovery requires its original session.")
-                        Button("Sign in with Apple") { supabase.startAppleSignIn() }
-                        Button("Sign in with Google") { Task { await supabase.signInWithGoogle() } }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.background)
                 }
             }
             .task {
@@ -60,15 +127,20 @@ struct LibraryTransitionPresentation: ViewModifier {
                     await supabase.resumeLibrarySignOut()
                 }
             }
-            .alert("Library changes need attention", isPresented: Binding(
+            .alert(supabase.libraryTransitionIssue == .accountRecoveryRequired
+                   ? "Library account needs attention" : "Library changes need attention", isPresented: Binding(
                 get: { supabase.libraryTransitionIssue != nil },
                 set: { if !$0 { supabase.libraryTransitionIssue = nil } }
             )) {
-                Button("Review pending changes") { reviewsPendingChanges = true }
-                Button("Keep syncing") {
-                    Task { await dependencies.retrySynchronization() }
+                if supabase.libraryTransitionIssue == .accountRecoveryRequired {
+                    Button("OK", role: .cancel) { }
+                } else {
+                    Button("Review pending changes") { reviewsPendingChanges = true }
+                    Button("Keep syncing") {
+                        Task { await dependencies.retrySynchronization() }
+                    }
+                    Button("Cancel", role: .cancel) { }
                 }
-                Button("Cancel", role: .cancel) { }
             } message: {
                 Text(supabase.libraryTransitionIssue?.message ?? "")
             }
@@ -164,7 +236,7 @@ struct LibraryPendingChangesView: View {
         case .identificationReviewSync, .observationAnalysisReviewSync: "Identification review"
         case .protectedInsightChatSync: "Field Chat"
         case .observationPublicationSync: "Identification sharing"
-        case .observationReanalysisErasure: "Private photo cleanup"
+        case .observationReanalysisErasure: "Private media cleanup"
         case .observationReanalysisSync: "Reanalysis"
         case .collectionSync: "Collections and memberships"
         case .speciesPreferenceSync: "Species preferences"

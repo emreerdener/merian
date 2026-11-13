@@ -5,10 +5,10 @@ extension OfflineQueueManager {
     /// Explicit held video upload work only; no discovery, timer or automatic replay.
     @discardableResult
     func requestVideoEvidenceUpload(_ key: ObservationVideoUploadOwner.Key,
-                                  proof: ObservationVideoPreparation.Verified,
-                                  account: ObservationHistoryCloudClient, service: ObservationVideoUploadService,
-                                  isCurrentAccount: @escaping @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool,
-                                  didComplete: @escaping @MainActor () -> Void) -> ObservationVideoUploadOwner.Admission {
+                                    proof: ObservationVideoPreparation.Verified,
+                                    account: ObservationHistoryCloudClient, service: ObservationVideoUploadService,
+                                    isCurrentAccount: @escaping @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool,
+                                    didComplete: @escaping @MainActor () -> Void) -> ObservationVideoUploadOwner.Admission {
         guard isOnline, !isCurrentNetworkConstrained, let context = modelContext,
               ObjectIdentifier(context.container) == key.container,
               isCurrentAccount(key.session, key.generation) else { return .unavailable }

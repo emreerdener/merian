@@ -10,6 +10,9 @@ struct ReanalysisStatusAccess {
         var generation: () -> UInt64 = { 0 }
         var recover: ((ObservationReanalysisIntent, @escaping ObservationReanalysisExecutor.Validator) async throws -> Data?)?
         var completionAttempted: () -> Void = {}
+        var documents: () throws -> URL = {
+            try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        }
     }
     var available: (String, ModelContainer) -> Bool
     var open: (String, ModelContainer) throws -> ReanalysisStatusDependencies
@@ -42,7 +45,8 @@ struct ReanalysisStatusDependencies {
     var isCurrent: () -> Bool
     var close: () -> Void
     var generation: () -> UInt64 = { 0 }
-    var recoverOutcome: ((ObservationReanalysisOperationStatus.Summary) async throws -> Bool)?
+    var recovery: ((ObservationReanalysisOperationStatus.Summary) throws -> AnalysisRecoveryCheckingModel.Access)?
+    var photo: ((ObservationReanalysisOperationStatus.Summary, Int, @escaping @MainActor @Sendable () -> Bool) async throws -> ReanalysisSavedPhotoAccess.Preview)?
     var retire: ((ObservationReanalysisOperationStatus.Summary, UUID) async throws -> ObservationReanalysisRetirementAction.Outcome)?
 }
 
@@ -62,15 +66,29 @@ extension IdentificationHistorySession {
             validate: { [self] in try check() }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() })
         if let retirement {
             dependencies.generation = retirement.generation
+            dependencies.photo = { [self] row, index, presented in
+                try check()
+                let identity = OfflineQueueWork.Reanalysis(observationID: try ObservationHistoryPage.uuid(observation),
+                    sourceAnalysisID: row.sourceAnalysisID, analysisID: row.id, ownerID: session.userID)
+                return try await ReanalysisSavedPhotoAccess.read(identity: identity, index: index, container: container,
+                    files: ObservationReanalysisFileStore(documents: retirement.documents()), ownership: retirement.ownership,
+                    account: cloud, isCurrent: { [self] in isCurrent() && presented() })
+            }
             if let recover = retirement.recover {
-                dependencies.recoverOutcome = { [self] row in
+                dependencies.recovery = { [self] row in
                     try check()
-                    guard row.canCheckOutcome else { return false }
+                    guard row.canCheckOutcome else { throw ObservationHistoryError.unavailable }
                     let identity = OfflineQueueWork.Reanalysis(observationID: try ObservationHistoryPage.uuid(observation),
                         sourceAnalysisID: row.sourceAnalysisID, analysisID: row.id, ownerID: session.userID)
-                    return try await ObservationReanalysisOutcomeAction(ownership: retirement.ownership, account: cloud,
-                        recover: recover, completionAttempted: retirement.completionAttempted).perform(identity,
-                            container: container, isCurrent: { [self] in commonEnvironmentIsCurrent() })
+                    let current: @MainActor @Sendable () -> Bool = { [self] in commonEnvironmentIsCurrent() }
+                    return .prepared(identity: identity, container: container, isCurrent: current, validateOperation: { [self] in
+                        let saved = try ObservationReanalysisExecutionStore.read(identity, container: container, isCurrent: current)
+                        guard ObservationReanalysisExecutionStore.canRecoverHeldOutcome(saved) else { throw ObservationHistoryError.unavailable }
+                    }, check: { [self] in
+                        try await ObservationReanalysisOutcomeAction(ownership: retirement.ownership, account: cloud,
+                            recover: recover, completionAttempted: retirement.completionAttempted).perform(identity,
+                                container: container, isCurrent: current)
+                    })
                 }
             }
             dependencies.retire = { [self] row, operation in

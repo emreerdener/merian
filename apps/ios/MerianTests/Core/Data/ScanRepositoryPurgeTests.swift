@@ -9,6 +9,71 @@ import Testing
     .sharedProcessState(.offlineQueueManager)
 )
 struct ScanRepositoryPurgeTests {
+    @Test func repositoryCompletionRechecksScopeBeforeResetsOrJournalAdvancement() async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container), repository = ScanRepository()
+        let source = UUID(), destination = UUID()
+        let generation = repository.libraryRestoration.begin(accountID: source)
+        repository.libraryRestoration.finish(generation: generation, complete: true)
+        var journal = LibrarySignOutJournal(sourceUserID: source)
+        journal.phase = .sourceCleared
+        var data: Data? = try JSONEncoder().encode(journal)
+        let store = LibrarySignOutJournalStore(dependencies: .init(read: { data }, write: { data = $0; return true }, remove: { data = nil }))
+        var current = true, loseAuthority = true, derivedResets = 0, acknowledgements = 0, destinations = 0
+        var session: AuthTransitionSession?
+        let scope = try #require(store.recoveryScope(expected: journal, validateContext: { current }))
+        let suite = "merian.tests.repository-scope." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
+        let recovery = LibrarySignOutRecoveryCoordinator(store: store, dependencies: .init(
+            currentSession: { session }, clearSourceSession: { _ in Issue.record("Source already cleared"); return false },
+            clearLibrary: { expected in
+                #expect(expected == journal)
+                let completed = await repository.purgeAllData(modelContext: context, userDefaults: defaults,
+                    resetDerivedState: { derivedResets += 1 },
+                    resetRuntimeState: { if loseAuthority { current = false } }, validateAuthorization: { scope.allowsLibraryPurge })
+                if completed { acknowledgements += 1 }
+                return completed
+            }, createDestination: {
+                destinations += 1; session = .init(userID: destination, isAnonymous: true); return session
+            }, completePurchases: { _ in true }))
+        #expect(await recovery.resume() == false)
+        #expect(derivedResets == 0 && acknowledgements == 0 && destinations == 0)
+        #expect(repository.libraryRestoration.status == .complete && repository.libraryRestoration.accountID == source)
+        #expect(try store.load() == journal)
+        current = true; loseAuthority = false
+        #expect(await recovery.resume())
+        #expect(derivedResets == 1 && acknowledgements == 1 && destinations == 1)
+        #expect(repository.libraryRestoration.status == .notStarted && repository.libraryRestoration.accountID == nil)
+        #expect(try store.load() == nil)
+    }
+
+    @Test(arguments: ["before", "photo", "reanalysis"])
+    func lostDestructiveAuthorityStopsLaterPurgeStages(boundary: String) async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(OfflineJobRecord(id: "synthetic-authority-sentinel", kind: .scanIngestion)); try context.save()
+        let suite = "merian.tests.authorized-purge." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+        var current = boundary != "before", resets = 0, erasures = 0
+        let result = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: {
+                await Task.yield(); if boundary == "photo" { current = false }
+            }, validateAuthorization: { current }, eraseReanalysis: {
+                erasures += 1; await Task.yield(); if boundary == "reanalysis" { current = false }
+            })
+        #expect(!result && resets == 0 && erasures == (boundary == "reanalysis" ? 1 : 0))
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == (boundary == "reanalysis" ? 0 : 1))
+        #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        current = true
+        #expect(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, validateAuthorization: { current }, eraseReanalysis: {}))
+        #expect(resets == 1 && !FieldNotesStore.hasStoredValues(userDefaults: defaults))
+    }
+
     @Test func photoPreparationRequiresOwnerCleanupBeforeLegacyPurge() async throws {
         let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
         let owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()

@@ -7,10 +7,10 @@ extension SharedMediaNativeAcquisitionBudget {
     /// Clean held-release values only. Identity is deliberately absent here:
     /// the single asset-owned pass below supplies current bytes and headroom.
     static func releaseContribution(_ snapshot: SharedMediaNativeReleaseMetadataSnapshot.Snapshot,
-                                            graph: SharedMediaPendingGraph, context: ModelContext,
-                                            inventory: SharedMediaInventoryRecord,
-                                            totals: inout SharedMediaStoragePolicy.Totals,
-                                            chargedPhysical: inout Set<UUID>, chargedReceipts: inout Set<UUID>) throws -> Int64 {
+                                    graph: SharedMediaPendingGraph, context: ModelContext,
+                                    inventory: SharedMediaInventoryRecord,
+                                    totals: inout SharedMediaStoragePolicy.Totals,
+                                    chargedPhysical: inout Set<UUID>, chargedReceipts: inout Set<UUID>) throws -> Int64 {
         func one<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) throws -> T {
             var query = descriptor; query.includePendingChanges = true
             return try SharedMediaNativePairPlanGraph.one(context, query)

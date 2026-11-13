@@ -68,7 +68,11 @@ enum SharedMediaNativeReleasePairRaw {
             "releaseStartData": value(row.releaseStartData),
             "releaseStartSHA256": value(row.releaseStartSHA256),
             "allocationData": value(row.allocationData),
-            "allocationSHA256": value(row.allocationSHA256)
+            "allocationSHA256": value(row.allocationSHA256),
+            "initialAdmissionData": value(row.initialAdmissionData),
+            "initialAdmissionSHA256": value(row.initialAdmissionSHA256),
+            "initialCompletionData": value(row.initialCompletionData),
+            "initialCompletionSHA256": value(row.initialCompletionSHA256)
         ]
     }
     static func fields(_ row: SharedMediaDerivativePairRecord) throws -> Fields {

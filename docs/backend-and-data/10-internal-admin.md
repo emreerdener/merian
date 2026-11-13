@@ -276,6 +276,13 @@ Identification state is advisory only in V1: changing a case does not change the
 identification. `scans.is_flagged` is recomputed from whether any matching
 identification case remains `open` or `in_review`.
 
+The public website adds a pending-review quarantine: open/in-review post or
+identification cases hide the affected post until cleared. This does not change
+native viewer-specific report preferences. Source `explore_post_reports.status`
+is not the restoration authority; grouped case status is. The website rechecks
+already-open pages and fails closed when eligibility cannot be refreshed. See
+[the API contract](./05-api-contracts.md#website-review-quarantine).
+
 Hide/restore and case resolution are deliberately independent:
 
 - Hiding sets the reversible moderation fields and removes the post/comment from

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// A final explicit evidence selection. Construct once; never mint replacement IDs on retry.
 struct ObservationReanalysisPreparationPlan: Sendable {
@@ -6,6 +7,7 @@ struct ObservationReanalysisPreparationPlan: Sendable {
         case original(ObservationHistoryPhotoReference)
         case added(Data)
         case edited(ObservationHistoryPhotoReference, Data)
+        case retained(ObservationReanalysisRetainedInput.Photo, Data, edited: Bool)
     }
     enum Choice: Sendable { case photo(Photo), description(String) }
     enum Item: Sendable { case photo(UUID, Photo), description(String) }
@@ -13,11 +15,18 @@ struct ObservationReanalysisPreparationPlan: Sendable {
     let analysisID: UUID
     let items: [Item]
 
+    var retainedOrigins: [ObservationReanalysisRetainedInput.Origin] {
+        items.compactMap { if case let .photo(_, .retained(photo, _, _)) = $0 { return photo.origin }; return nil }
+    }
+
     init(source: ObservationReanalysisSource, choices: [Choice], analysisID: UUID = UUID(), makeMediaID: () -> UUID = UUID.init) throws {
         guard source.audio == nil, (1...64).contains(choices.count), analysisID != source.observationID, analysisID != source.analysisID else {
             throw MerianError.invalidResponse
         }
         var used = Set(source.photos.map(\.mediaID) + [source.observationID, source.analysisID, analysisID, source.ownerID])
+        for choice in choices {
+            if case let .photo(.retained(photo, _, _)) = choice { used.formUnion([photo.pairID, photo.roleID]) }
+        }
         var items: [Item] = [], count = 0, bytes = 0, textUnits = 0
         for choice in choices {
             switch choice {
@@ -35,6 +44,9 @@ struct ObservationReanalysisPreparationPlan: Sendable {
                     guard source.photos.contains(reference) else { throw MerianError.invalidResponse }
                     length = data.count
                 case let .added(data): length = data.count
+                case let .retained(origin, data, edited):
+                    try origin.validate(source: source, bytes: data, edited: edited)
+                    length = data.count
                 }
                 count += 1
                 guard count <= 5, length > 0, length <= ObservationEvidenceUpload.maximumBytes - bytes else { throw MerianError.invalidResponse }
@@ -46,5 +58,15 @@ struct ObservationReanalysisPreparationPlan: Sendable {
         }
         guard count > 0 else { throw MerianError.invalidResponse }
         self.source = source; self.analysisID = analysisID; self.items = items
+    }
+
+    @MainActor func validateRetained(context: ModelContext) throws {
+        for origin in retainedOrigins { try origin.validate(context: context) }
+    }
+
+    @MainActor func validateRetained(container: ModelContainer?) throws {
+        guard !retainedOrigins.isEmpty else { return }
+        guard let container else { throw ObservationHistoryError.unavailable }
+        try ConfirmedSpeciesReviewPersistence.transaction { try validateRetained(context: ModelContext(container)) }
     }
 }

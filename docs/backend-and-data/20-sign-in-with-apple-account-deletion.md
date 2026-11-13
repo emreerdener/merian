@@ -230,6 +230,39 @@ returns `account_deletion_recovery_expired` and authorizes conservative local
 cleanup while forcing the manual Apple notice. This acknowledgement never claims
 automatic Apple-provider revocation.
 
+Local cleanup sequencing revalidates the owned transition/session and exact
+accepted-cleanup marker before sign-out and after each awaited sign-out, purge,
+and acknowledgement. Installed retirement and legacy cleanup use their exact
+respective markers. Cleanup also compares the exact durable recovery and
+acknowledgement proof values and protocol; creation metadata is not proof
+identity. Verified proof absence is supported for installed retirement, but
+unreadable storage is never absence. Prepared/committed intake and recovered
+receipts recheck their captured marker and proof before classification or phase
+advancement. If that context changes, later effects stop and remaining
+proof/markers stay available for recovery.
+
+`AccountDeletionLocalCleanupStore.RecoveryScope` carries the exact stage and
+proof plus an owned-session predicate and the original library-container
+predicate captured by App composition before suspension. `AuthRecoveryAuthority`
+preserves separate library-sign-out and deletion variants through the nested
+drain and SDK sign-out checks. Intake may join active runtime work despite
+retained storage, but cannot authorize purge. Only accepted cleanup, installed
+retirement and supported legacy accepted cleanup permit erasure of the captured
+container. Unknown/rejection-only states do not grant this authority.
+
+Settings and launch recovery pass that scope into the repository's required
+purge validator. Full success and fresh context are required before the exact
+terminal host acknowledges storage removal; acknowledgement precedes remote
+recovery acknowledgement and proof/marker retirement, and never reopens the
+host. A changed container or failed purge/host acknowledgement preserves
+recovery state. The focused nested integration passed native247 with independent
+review: the first run's 142 passing methods were retained, its obsolete
+source-test failure was corrected, and all 52 affected rerun methods passed. The
+review-discovered remote-response container gap received a concrete fix and
+deterministic tests; HQ252/HQ253 are closed only within this component. Live
+SDK, pre-stable-Auth startup, later lifetime renewal and cumulative all-media
+acceptance remain open.
+
 Native ownership is intentionally split.
 `Core/Network/Auth/Policies/AccountDeletionTransitionPolicy.swift` classifies
 definitive intake rejection, matched-expired or unknown recovery, and exact

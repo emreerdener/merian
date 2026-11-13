@@ -277,21 +277,36 @@ struct SharedMediaNativePhotoAllocationTests {
     @Test func sidecarSealRejectsExtraDirtyRowAndPreservesImmutableBytes() async throws {
         let (h, owner, p) = try await fixture()
         let unresolved = try await owner.allocateAppPhoto(p, authorizeCreate: { value, _ in try self.authorization(value) }) { _, _, _ in .held(.notFound) }
-        let before = try row(h), context = h.context(), id = h.packageID, inventoryID = h.inventoryID
+        let before = try row(h), beforeRevision = try revision(h), context = h.context(), id = h.packageID, inventoryID = h.inventoryID
         let inventory = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let slot = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id }))
         let package = try h.package(in: context), after = try unresolved.settling(receipt)
-        let seal = try SharedMediaNativePhotoAllocationPoststate(row: slot, inventory: inventory, after: after, prepared: p, context: context)
+        let seal = try NativePhotoAllocationPoststate(row: slot, inventory: inventory, after: after, prepared: p, context: context)
         slot.allocationData = try after.encoded()
         slot.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(slot.allocationData!)
         inventory.revision += 1
         try seal.validate(context, row: slot, inventory: inventory)
+        // Same-row writes evade a changed-model identity check. Every new
+        // initial-analysis field must remain nil before this allocation save.
+        slot.initialAdmissionData = Data([0])
+        #expect(throws: SharedMediaStorageFailure.closed) { try seal.validate(context, row: slot, inventory: inventory) }
+        slot.initialAdmissionData = nil
+        slot.initialAdmissionSHA256 = "partial"
+        #expect(throws: SharedMediaStorageFailure.closed) { try seal.validate(context, row: slot, inventory: inventory) }
+        slot.initialAdmissionSHA256 = nil
+        slot.initialCompletionData = Data([0])
+        #expect(throws: SharedMediaStorageFailure.closed) { try seal.validate(context, row: slot, inventory: inventory) }
+        slot.initialCompletionData = nil
+        slot.initialCompletionSHA256 = "partial"
+        #expect(throws: SharedMediaStorageFailure.closed) { try seal.validate(context, row: slot, inventory: inventory) }
+        slot.initialCompletionSHA256 = nil
+        try seal.validate(context, row: slot, inventory: inventory)
         package.revision += 1
         #expect(throws: SharedMediaStorageFailure.conflict) { try seal.validate(context, row: slot, inventory: inventory) }
         context.rollback()
-        #expect(try row(h) == before)
+        #expect(try row(h) == before && revision(h) == beforeRevision)
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
@@ -309,7 +324,7 @@ struct SharedMediaNativePhotoAllocationTests {
         func slot(_ c: ModelContext) throws -> SharedMediaReceivingIntentRecord {
             try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == packageID }))
         }
-        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
+        let initial = AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
             observationID: prepared.observationID, operationID: prepared.operationID))
         let first = try initial.reserve(id: UUID()).reserved.encoded(), second = try initial.reserve(id: UUID()).reserved.encoded()
         #expect(first.count == second.count && first != second)
@@ -317,7 +332,7 @@ struct SharedMediaNativePhotoAllocationTests {
         for (before, afterBytes) in changes {
             let seed = h.context(); try queue(seed).recoveryPresentationData = before; try seed.save()
             let c = h.context(), r = try slot(c), i = try inventory(c), after = try unresolved.settling(receipt)
-            let seal = try SharedMediaNativePhotoAllocationPoststate(row: r, inventory: i, after: after, prepared: prepared, context: c)
+            let seal = try NativePhotoAllocationPoststate(row: r, inventory: i, after: after, prepared: prepared, context: c)
             let unchanged = h.context()
             try seal.requirePredecessor(row: slot(unchanged), inventory: inventory(unchanged), context: unchanged)
             r.allocationData = try after.encoded(); r.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(r.allocationData!)

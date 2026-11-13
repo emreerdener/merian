@@ -3,6 +3,18 @@
 The `Media` directory manages the mixed-media presentation associated with a
 scan.
 
+## Inactive retained-photo display candidate
+
+Native initial photos now enter the existing carousel as
+`MediaItem.retainedDisplayImage`, with stable pair identity and verified display
+bytes. This transient case has no legacy path, upload input or original-export
+permission. Inline/fullscreen galleries and original-capture review views render
+it; Field Chat excludes it, and download/sharing remain withheld until original
+export is separately qualified. Exact initial supporting contexts accompany the
+photos while the current selected result remains unchanged. Source review and
+focused runtime validation passed with independent verification. See the
+[canonical journey](../../../../../../docs/development-guides/25-scan-to-history.md#retained-initial-photo-display-candidate).
+
 ## Purpose
 
 This area drives the interactive mixed-media carousel at the top of an Insight

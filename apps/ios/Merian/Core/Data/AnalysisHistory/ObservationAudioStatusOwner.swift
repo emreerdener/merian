@@ -19,6 +19,7 @@ final class ObservationAudioStatusOwner {
     private enum Page: Sendable {
         case legacy(ObservationAudioSavedStatus.Page)
         case source(ObservationAudioSourceSavedStatus.Page)
+        case video(ObservationVideoSavedStatus.Page)
     }
     private struct Entry {
         let scope: Scope
@@ -56,6 +57,21 @@ final class ObservationAudioStatusOwner {
                     limit: limit, container: container, isCurrent: current))
             }
         guard case let .source(page) = result else { throw ObservationHistoryError.resultConflict }
+        return page
+    }
+
+    /// Video shares the same bounded read slots and Auth drain; it cannot bypass capacity through a new owner.
+    func videoPage(ownerID: UUID, observationID: UUID, session: AuthTransitionSession, generation: UInt64,
+                   after cursor: ObservationVideoSavedStatus.Cursor? = nil, limit: Int = 20, container: ModelContainer,
+                   reader: ObservationVideoSavedStatus, account: ObservationHistoryCloudClient,
+                   isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationVideoSavedStatus.Page {
+        let result = try await retainedPage(ownerID: ownerID, observationID: observationID, session: session,
+            generation: generation, cursor: cursor, limit: limit, route: .video, container: container,
+            account: account, isCurrent: isCurrent) { current in
+                .video(try await reader.page(ownerID: ownerID, observationID: observationID, after: cursor,
+                    limit: limit, container: container, isCurrent: current))
+            }
+        guard case let .video(page) = result else { throw ObservationHistoryError.resultConflict }
         return page
     }
 

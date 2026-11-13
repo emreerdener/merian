@@ -6,12 +6,14 @@ enum ModelContainerBootstrapper {
     @MainActor
     static func bootstrap() -> ModelContainerBootstrapOutcome {
         bootstrap(isTesting: TestExecutionCoordinator.isRunningTests,
+                  preserveExistingStore: MerianEnvironment.preservesExistingLibrary,
                   makeSession: PersistentStoreBootstrapSession.production)
     }
 
     @MainActor
     private static func bootstrap(
         isTesting: Bool,
+        preserveExistingStore: Bool,
         makeSession: () throws -> PersistentStoreBootstrapSession
     ) -> ModelContainerBootstrapOutcome {
         // Before diagnostics, metadata or any production path/fence access.
@@ -27,7 +29,7 @@ enum ModelContainerBootstrapper {
         }
         do {
             let session = try makeSession()
-            return try bootstrap(session: session)
+            return try bootstrap(session: session, preserveExistingStore: preserveExistingStore)
         } catch {
             return fallbackInMemoryBootstrap(
                 reason: "Naturebook could not safely open the local library. Restart the app to try again.",
@@ -40,17 +42,18 @@ enum ModelContainerBootstrapper {
     @MainActor
     static func fixtureBootstrap(
         isTesting: Bool = false,
+        preserveExistingStore: Bool = false,
         makeSession: () throws -> PersistentStoreBootstrapSession
     ) -> ModelContainerBootstrapOutcome {
         guard TestExecutionCoordinator.isRunningTests else {
             return fallbackInMemoryBootstrap(reason: "Fixture bootstrap is unavailable.")
         }
-        return bootstrap(isTesting: isTesting, makeSession: makeSession)
+        return bootstrap(isTesting: isTesting, preserveExistingStore: preserveExistingStore, makeSession: makeSession)
     }
     #endif
 
     @MainActor
-    private static func bootstrap(session: PersistentStoreBootstrapSession) throws -> ModelContainerBootstrapOutcome {
+    private static func bootstrap(session: PersistentStoreBootstrapSession, preserveExistingStore: Bool) throws -> ModelContainerBootstrapOutcome {
         try session.check()
         logBootstrapDiagnostics()
         let storeURL = session.storeURL
@@ -87,7 +90,7 @@ enum ModelContainerBootstrapper {
             )
             return recoverFromPersistentStoreFailure(
                 error, decision: decision, storeURL: storeURL,
-                diagnostic: diagnostic, session: session
+                diagnostic: diagnostic, session: session, preserveExistingStore: preserveExistingStore
             )
         }
     }
@@ -166,8 +169,15 @@ enum ModelContainerBootstrapper {
         decision: ModelStoreRecoveryCoordinator.StoreMigrationDecision,
         storeURL: URL,
         diagnostic: StartupStoreDiagnostic,
-        session: PersistentStoreBootstrapSession
+        session: PersistentStoreBootstrapSession,
+        preserveExistingStore: Bool
     ) -> ModelContainerBootstrapOutcome {
+        guard !preserveExistingStore else {
+            return fallbackInMemoryBootstrap(
+                reason: "The existing library could not be opened. It has been preserved; stop testing and review the startup failure before continuing.",
+                telemetryReason: "existing_store_preserved", startupDiagnostic: diagnostic
+            )
+        }
         var diagnostic = diagnostic
         if ModelStoreRecoveryCoordinator.shouldQuarantineStore(
             for: error,

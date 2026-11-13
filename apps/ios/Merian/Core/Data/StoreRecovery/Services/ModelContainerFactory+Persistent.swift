@@ -7,15 +7,18 @@ extension ModelContainerFactory {
     struct Persistent {
         let session: PersistentStoreBootstrapSession
 
+        // Bootstrap outcome details belong to the persistent-store factory.
+        // swiftlint:disable:next nesting
         struct Opened {
+            // Bootstrap outcome details belong to the persistent-store factory.
+            // swiftlint:disable:next nesting
             enum Disposition { case firstSuccess, retried }
             let container: ModelContainer
             let disposition: Disposition
         }
 
         private func optionalRecovery(_ body: () throws -> ModelContainer) throws -> ModelContainer? {
-            do { return try body() }
-            catch {
+            do { return try body() } catch {
                 try session.requireRecoverable(error)
                 return nil
             }
@@ -126,6 +129,10 @@ extension ModelContainerFactory {
                     "ModelContainer current-store retry failed: \(currentStoreError.localizedDescription, privacy: .private)"
                 )
             }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV68MigrationPlan.self, named: "checksum-recent-v68", diagnostic: &diagnostic
+            ) }) { return recovered }
 
             if let recovered = try optionalRecovery({ try makePersistentContainer(
                 migrationPlan: MerianRecentV67MigrationPlan.self, named: "checksum-recent-v67", diagnostic: &diagnostic
@@ -436,6 +443,8 @@ extension ModelContainerFactory {
             diagnostic: inout StartupStoreDiagnostic
         ) throws -> ModelContainer {
             switch source {
+            case .v68:
+                return try makePersistentContainer(migrationPlan: MerianRecentV68MigrationPlan.self, named: "recent-v68", diagnostic: &diagnostic)
             case .v67:
                 return try makePersistentContainer(migrationPlan: MerianRecentV67MigrationPlan.self, named: "recent-v67", diagnostic: &diagnostic)
             case .v66:

@@ -34,8 +34,7 @@ enum SharedMediaNativeOriginalRemovalRecovery {
                      header: () throws -> SharedMediaNativeAppEligibility.Header) throws -> Values.Progress {
         let pinned = try header(), c = ModelContext(container); c.autosaveEnabled = false
         let saved = try snapshot(a.before, context: c, header: pinned)
-        if saved.release.progress == a.before { try a.requirePredecessor(c, header: pinned) }
-        else {
+        if saved.release.progress == a.before { try a.requirePredecessor(c, header: pinned) } else {
             guard saved.release.progress == a.after,
                   pinned == (try SharedMediaNativeAppMetadataFacts.successor(a.header)) else { throw SharedMediaStorageFailure.stale }
             try a.seal.requireSavedSuccessor(c)

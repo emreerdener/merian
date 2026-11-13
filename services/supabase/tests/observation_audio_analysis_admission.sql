@@ -256,7 +256,8 @@ SELECT extensions.is(pg_temp.review_action(10),(SELECT review FROM old_actions),
 SELECT extensions.is(pg_temp.confirm_action(10),(SELECT confirmation FROM old_actions),'reader10 confirmation prepare replay precedes fresh gate on mixed history');
 SELECT extensions.is(pg_temp.confirm_action(10,TRUE),(SELECT confirmation FROM old_actions),'reader10 confirmation complete replay precedes fresh gate on mixed history');
 SELECT extensions.throws_ok('SELECT pg_temp.select_action(NULL)','22023','invalid_analysis_history','null reader is not compatible');
-SELECT extensions.throws_ok('SELECT pg_temp.review_action(11)','22023','invalid_analysis_history','unknown reader is not compatible');
+SELECT extensions.is(pg_temp.review_action(11),(SELECT review FROM old_actions),'reader11 preserves exact audio review replay');
+SELECT extensions.throws_ok('SELECT pg_temp.review_action(12)','22023','invalid_analysis_history','unknown reader is not compatible');
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a909',TRUE);
 SELECT extensions.throws_ok('SELECT pg_temp.target_state(10)','P0002','analysis_history_not_found','foreign owner cannot read audio');
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000a901',TRUE);

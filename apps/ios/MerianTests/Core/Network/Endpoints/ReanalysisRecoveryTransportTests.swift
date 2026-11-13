@@ -14,8 +14,8 @@ struct ReanalysisRecoveryTransportTests {
         state["owner_id"] = owner.uuidString.lowercased()
         state["observation_id"] = request.observationID.uuidString.lowercased()
         var analysis = try #require(state["analysis"] as? [String: Any])
-        analysis["snapshot"] = try #require(String(bytes: bytes, encoding: .utf8)); state["analysis"] = analysis
-        return (request, Reply(bytes: bytes, body: try #require(String(bytes: JSONSerialization.data(withJSONObject: state), encoding: .utf8))))
+        analysis["snapshot"] = (try #require(String(bytes: bytes, encoding: .utf8))) as String; state["analysis"] = analysis
+        return (request, Reply(bytes: bytes, body: (try #require(String(bytes: JSONSerialization.data(withJSONObject: state), encoding: .utf8))) as String))
     }
 
     @Test func recoversExactChildBeforeInferenceConsentWithoutChangingSelection() async throws {
@@ -46,13 +46,13 @@ struct ReanalysisRecoveryTransportTests {
         var snapshot = try #require(JSONSerialization.jsonObject(with: reply.bytes) as? [String: Any])
         snapshot["schema_version"] = 4
         snapshot["evidence_manifest"] = try ObservationHistorySyncTests().audioSnapshot()["evidence_manifest"]
-        target["snapshot"] = try #require(String(data: JSONSerialization.data(withJSONObject: snapshot), encoding: .utf8))
+        target["snapshot"] = (try #require(String(data: JSONSerialization.data(withJSONObject: snapshot), encoding: .utf8))) as String
         state["analysis"] = target
         let bytes = try JSONSerialization.data(withJSONObject: state)
         let request = ObservationHistoryStateRequest(observation_id: input.observationID.uuidString.lowercased(),
                                                     analysis_id: input.analysisID.uuidString.lowercased())
         #expect(try ObservationHistoryState.decode(bytes, request: request, ownerID: owner).result.version == 4)
-        let response = try #require(String(data: bytes, encoding: .utf8)), sends = OSAllocatedUnfairLock(initialState: 0)
+        let response = (try #require(String(data: bytes, encoding: .utf8))) as String, sends = OSAllocatedUnfairLock(initialState: 0)
         network.transport.register(path: "/get_owned_observation_analysis_state") { wire in
             sends.withLock { $0 += 1 }
             return try NetworkEndpointTestSupport.response(to: wire, json: response)
@@ -72,6 +72,31 @@ struct ReanalysisRecoveryTransportTests {
                 json: #"{"code":"P0002","message":"analysis_history_not_found","details":null,"hint":null}"#)
         }
         #expect(try await network.client.recoverObservationAnalysis(input, expectedAuthUserID: owner, validateAttempt: {}) == nil)
+    }
+
+    @Test(arguments: [true, false])
+    func postgRESTGatewayHeadersPreserveExactMissingClassification(missing: Bool) async throws {
+        let network = NetworkEndpointFixture(); defer { network.close() }
+        let owner = try #require(network.client.overridingAuthUserID), (input, _) = try fixture(owner: owner)
+        let sends = OSAllocatedUnfairLock(initialState: 0)
+        let body = missing
+            ? #"{"code":"P0002","message":"analysis_history_not_found","details":null,"hint":null}"#
+            : #"{"code":"PGRST202","message":"RPC not found"}"#
+        network.transport.register(path: "/get_owned_observation_analysis_state") { wire in
+            sends.withLock { $0 += 1 }
+            let url = try #require(wire.url)
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 404,
+                httpVersion: nil, headerFields: ["Content-Type": "application/json", "SB-Gateway-Version": "1"]))
+            return (response, Data(body.utf8))
+        }
+        if missing {
+            #expect(try await network.client.recoverObservationAnalysis(input, expectedAuthUserID: owner, validateAttempt: {}) == nil)
+        } else {
+            await #expect(throws: MerianError.httpError(statusCode: 404, message: body)) {
+                try await network.client.recoverObservationAnalysis(input, expectedAuthUserID: owner, validateAttempt: {})
+            }
+        }
+        #expect(sends.withLock { $0 } == 1)
     }
 
     @Test(arguments: [
@@ -211,7 +236,7 @@ struct ObservationExecutionStatusTransportTests {
     func fixedBoundedReadNeverRetries(status: Int) async throws {
         let network = NetworkEndpointFixture(); defer { network.close() }
         let owner = try #require(network.client.overridingAuthUserID), input = ObservationAnalysisExecutionLookup(try ObservationReanalysisResultTests().fixture().0)
-        let body = try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))
+        let body = (try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))) as String
         let sends = OSAllocatedUnfairLock(initialState: 0), refreshes = OSAllocatedUnfairLock(initialState: 0)
         network.client.overridingInferenceConsentCheck = { throw MerianError.aiConsentRequired }
         network.client.overridingAuthSessionRefresh = { refreshes.withLock { $0 += 1 }; return true }
@@ -241,7 +266,7 @@ struct ObservationExecutionStatusTransportTests {
     func staleClaimBeforeDispatchOrAfterReplyCannotReturnStatus(afterReply: Bool) async throws {
         let network = NetworkEndpointFixture(); defer { network.close() }
         let owner = try #require(network.client.overridingAuthUserID), input = ObservationAnalysisExecutionLookup(try ObservationReanalysisResultTests().fixture().0)
-        let body = try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))
+        let body = (try #require(String(data: JSONSerialization.data(withJSONObject: reply(input, owner: owner)), encoding: .utf8))) as String
         let stale = OSAllocatedUnfairLock(initialState: false), sends = OSAllocatedUnfairLock(initialState: 0)
         network.transport.register(path: "/get_owned_observation_analysis_execution") { wire in
             sends.withLock { $0 += 1 }; stale.withLock { $0 = true }
@@ -299,7 +324,7 @@ struct AnalysisRetirementTransportTests {
     func fixedMutationNeverRetriesOrRequiresInferenceConsent(status: Int) async throws {
         let network = NetworkEndpointFixture(); defer { network.close() }
         let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
-        let bytes = try reply(input), text = try #require(String(data: bytes, encoding: .utf8))
+        let bytes = try reply(input), text = (try #require(String(data: bytes, encoding: .utf8))) as String
         let sends = OSAllocatedUnfairLock(initialState: 0), refreshes = OSAllocatedUnfairLock(initialState: 0)
         network.client.overridingInferenceConsentCheck = { throw MerianError.aiConsentRequired }
         network.client.overridingAuthSessionRefresh = { refreshes.withLock { $0 += 1 }; return true }
@@ -325,7 +350,7 @@ struct AnalysisRetirementTransportTests {
     func distinctDispatchAndSettlementClaimFences(afterReply: Bool) async throws {
         let network = NetworkEndpointFixture(); defer { network.close() }
         let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
-        let bytes = try reply(input), text = try #require(String(data: bytes, encoding: .utf8))
+        let bytes = try reply(input), text = (try #require(String(data: bytes, encoding: .utf8))) as String
         let sends = OSAllocatedUnfairLock(initialState: 0)
         network.transport.register(path: "/retire-observation-analysis") { wire in
             sends.withLock { $0 += 1 }; return try NetworkEndpointTestSupport.response(to: wire, json: text)
@@ -342,7 +367,7 @@ struct AnalysisRetirementTransportTests {
     @Test func cancelledKnownAnswerStillReachesSettlementButChangedOwnerDoesNot() async throws {
         let network = NetworkEndpointFixture(); defer { network.close() }
         let owner = try #require(network.client.overridingAuthUserID), input = try fixture()
-        let data = try reply(input), text = try #require(String(data: data, encoding: .utf8))
+        let data = try reply(input), text = (try #require(String(data: data, encoding: .utf8))) as String
         let taskBox = OSAllocatedUnfairLock<Task<ObservationAnalysisRetirementReceipt, Error>?>(initialState: nil)
         network.transport.register(path: "/retire-observation-analysis") { wire in
             try NetworkEndpointTestSupport.response(to: wire, json: text)

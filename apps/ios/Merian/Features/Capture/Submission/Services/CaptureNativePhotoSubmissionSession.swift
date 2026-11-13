@@ -9,6 +9,26 @@ final class CaptureNativePhotoSubmissionSession {
     let selection: CaptureNativePhotoSubmissionSelection
     private let resolveOwner: () async throws -> SharedMediaNativeOriginalOwner
     private let preflight: Preflight?
+    #if DEBUG
+    var beforeReceiveForTesting: (@MainActor (SharedMediaNativeReceivingIntent.Prepared) async throws -> Void)?
+    #endif
+    struct FirstTransfer {
+        let catalog: InitialPhotoUploadDestination.Catalog
+        let send: InitialPhotoTransferRequest.Send
+        let makeTask: @MainActor () -> PinnedPhotoUploadTask
+        let admission: SharedMediaNativePhotoAllocationAccess.CohortAdmission?
+        init(catalog: InitialPhotoUploadDestination.Catalog, send: @escaping InitialPhotoTransferRequest.Send,
+             makeTask: @escaping @MainActor () -> PinnedPhotoUploadTask,
+             admission: SharedMediaNativePhotoAllocationAccess.CohortAdmission? = nil) {
+            self.catalog = catalog
+            self.send = send
+            self.makeTask = makeTask
+            self.admission = admission
+        }
+    }
+    private let firstTransfer: FirstTransfer?
+    private var freshReceive: SharedMediaNativePhotoAllocationAccess.FreshReceive?
+    private var firstStart: SharedMediaNativePhotoAllocationAccess.FirstStart?
     private let allocationAccess: SharedMediaNativePhotoAllocationAccess?
     private var owner: SharedMediaNativeOriginalOwner?
     private var frozen: CaptureNativePhotoSubmissionSnapshot?
@@ -17,11 +37,14 @@ final class CaptureNativePhotoSubmissionSession {
     private(set) var allocation: SharedMediaNativePhotoAllocation?
     private(set) var isBusy = false
     private(set) var attemptID: UUID?
+    private(set) var hasOriginalAdmission = false
 
     init(selection: CaptureNativePhotoSubmissionSelection,
          preflight: Preflight? = nil,
          allocationAccess: SharedMediaNativePhotoAllocationAccess? = nil,
+         firstTransfer: FirstTransfer? = nil,
          resolveOwner: @escaping () async throws -> SharedMediaNativeOriginalOwner) {
+        self.firstTransfer = firstTransfer
         self.selection = selection; self.preflight = preflight; self.allocationAccess = allocationAccess; self.resolveOwner = resolveOwner
     }
 
@@ -40,6 +63,7 @@ final class CaptureNativePhotoSubmissionSession {
         })
     }
 
+    var hasFreshFirstTransfer: Bool { firstTransfer != nil && firstStart != nil }
     var canAllocate: Bool { allocationAccess != nil && prepared?.photoAdmission != nil && receipt != nil }
 
     /// Explicit phase after local receipt. Errors retain the frozen local
@@ -56,8 +80,35 @@ final class CaptureNativePhotoSubmissionSession {
             guard frozen == snapshot, attemptID == attempt else { throw SharedMediaStorageFailure.stale }
         }
         try validate()
-        allocation = try await allocationAccess.allocate(owner: owner, prepared: prepared, validate: validate)
+        let fresh = freshReceive
+        freshReceive = nil; firstStart = nil
+        allocation = try await allocationAccess.allocate(owner: owner, prepared: prepared, validate: validate,
+            freshReceive: fresh, onFirstStart: { self.firstStart = $0 })
         return attempt
+    }
+
+    /// Optional qualified composition only. Reopening an existing submission
+    /// or losing a reply never recreates this fresh local receipt.
+    func startFirstTransferIfPresent(_ snapshot: CaptureNativePhotoSubmissionSnapshot, after attempt: UUID,
+                                     validate: @escaping Validator) async throws {
+        guard let firstTransfer, let firstStart else { return }
+        self.firstStart = nil
+        guard !isBusy, attemptID == attempt, frozen == snapshot, let owner, let prepared,
+              let allocation, allocation.version == 6 else { throw SharedMediaStorageFailure.closed }
+        isBusy = true
+        defer { isBusy = false }
+        let check: Validator = { [self] in
+            try validate(); try Task.checkCancellation(); try selection.validate(snapshot)
+            guard attemptID == attempt, frozen == snapshot else { throw SharedMediaStorageFailure.stale }
+        }
+        try check()
+        try await firstStart.authorizeStart(check, send: firstTransfer.send, admission: firstTransfer.admission)
+        try check()
+        let result = try await owner.transferAppPhoto(prepared, firstStart: firstStart,
+            catalog: firstTransfer.catalog, send: firstTransfer.send, makeTask: firstTransfer.makeTask)
+        try check()
+        guard let result, (200..<300).contains(result) else { throw SharedMediaStorageFailure.unavailable }
+        hasOriginalAdmission = firstTransfer.admission != nil
     }
 
     static var appPreflight: Preflight {
@@ -73,13 +124,14 @@ final class CaptureNativePhotoSubmissionSession {
         guard !isBusy else { throw SharedMediaStorageFailure.closed }
         try selection.validate(snapshot)
         guard frozen == nil || frozen == snapshot else { throw SharedMediaStorageFailure.stale }
+        freshReceive = nil; firstStart = nil
         frozen = snapshot
+        hasOriginalAdmission = false
         let attempt = UUID(); attemptID = attempt; isBusy = true
         defer { isBusy = false }
         try Task.checkCancellation()
         let admitted: SharedMediaNativeOriginalOwner
-        if let owner { admitted = owner }
-        else { admitted = try await resolveOwner(); owner = admitted }
+        if let owner { admitted = owner } else { admitted = try await resolveOwner(); owner = admitted }
         try Task.checkCancellation()
         let saved = try await admitted.discoverAppPhotoSubmission(packageID: selection.identity.packageID)
         let selected: SharedMediaNativeReceivingIntent.Prepared
@@ -98,7 +150,15 @@ final class CaptureNativePhotoSubmissionSession {
         try requireExact(selected)
         prepared = selected
         try Task.checkCancellation()
-        receipt = try await admitted.receiveAppPrepared(selected)
+        #if DEBUG
+        if let beforeReceiveForTesting { try await beforeReceiveForTesting(selected) }
+        #endif
+        if saved == nil, firstTransfer != nil {
+            let received = try await SharedMediaNativePhotoAllocationAccess.receive(selected, owner: admitted)
+            receipt = received.0; freshReceive = received.1
+        } else {
+            receipt = try await admitted.receiveAppPrepared(selected)
+        }
         return attempt
     }
 

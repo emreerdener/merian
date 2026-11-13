@@ -50,6 +50,15 @@ struct AnalysisRecoveryPresentation: Equatable, Sendable {
             chargedMilliseconds: Self.visibleLimitMilliseconds, activeReservationID: id))
     }
 
+    /// Value-only conservative successor. A native owner must separately prove
+    /// no live clock, exact predecessor and durable save before using it.
+    func forfeitingUnownedReservation() throws -> Self {
+        guard activeReservationID != nil, revision % 2 == 1,
+              chargedMilliseconds == Self.visibleLimitMilliseconds, remainingTransitions >= 1 else { throw Failure.stale }
+        return .init(identity: identity, revision: revision + 1,
+            chargedMilliseconds: chargedMilliseconds, activeReservationID: nil)
+    }
+
     struct Reservation: Equatable, Sendable {
         let predecessor: AnalysisRecoveryPresentation
         let reserved: AnalysisRecoveryPresentation

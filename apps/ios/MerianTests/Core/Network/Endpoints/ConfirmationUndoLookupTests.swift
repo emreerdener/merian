@@ -17,7 +17,7 @@ struct ConfirmationUndoLookupTests {
             #expect(request.value(forHTTPHeaderField: "Idempotency-Key") == nil)
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let parameters = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(Set(parameters.keys) == ["p_request", "p_reader"] && parameters["p_reader"] as? Int == 10)
+            #expect(Set(parameters.keys) == ["p_request", "p_reader"] && parameters["p_reader"] as? Int == 11)
             return try NetworkEndpointTestSupport.response(to: request, json: response)
         }
         var validated = 0

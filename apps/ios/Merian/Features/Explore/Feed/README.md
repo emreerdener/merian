@@ -184,6 +184,12 @@ out independently.
 
 ## Post-detail presentation ownership
 
+Post detail uses a persistent inline **Observation** navigation title, matching
+the Profile sheet. The species name remains in the content below the hero.
+
+Owned feed and detail menus label the action opening the existing account scan
+**View your scan**.
+
 The detail stack places Field notes directly below Overview (or its Species
 Dictionary fallback) and above Observation, only when the public post detail
 contains nonempty published notes. Private local notes never appear in the

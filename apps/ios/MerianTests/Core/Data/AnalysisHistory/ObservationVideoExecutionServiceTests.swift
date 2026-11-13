@@ -22,9 +22,13 @@ struct ObservationVideoExecutionServiceTests {
     }
     func owned(_ saved: Store.Snapshot, _ seed: Seed,
         _ body: @escaping @MainActor (ObservationVideoExecutionOwner.Scope, ObservationVideoExecutionOwner) async throws -> Void) async throws {
+        try await owned(saved, source: seed.source, container: seed.container, body)
+    }
+    func owned(_ saved: Store.Snapshot, source: ObservationReanalysisSource, container: ModelContainer,
+        _ body: @escaping @MainActor (ObservationVideoExecutionOwner.Scope, ObservationVideoExecutionOwner) async throws -> Void) async throws {
         let owner = ObservationVideoExecutionOwner(), support = ObservationVideoExecutionOwnerTests()
-        let key = ObservationVideoExecutionOwner.Key(snapshot: saved, session: .init(userID: seed.source.ownerID, isAnonymous: false),
-            generation: 1, container: ObjectIdentifier(seed.container))
+        let key = ObservationVideoExecutionOwner.Key(snapshot: saved, session: .init(userID: source.ownerID, isAnonymous: false),
+            generation: 1, container: ObjectIdentifier(container))
         let exit = AsyncStream<Void>.makeStream(); defer { exit.continuation.finish() }
         var result: Result<Void, Error>?
         #expect(owner.start(key, account: support.account(key), isCurrent: { true }, operation: { scope in
@@ -34,12 +38,18 @@ struct ObservationVideoExecutionServiceTests {
         try #require(result).get()
     }
     @MainActor final class Boundary {
-        let seed: Seed
+        let seed: (source: ObservationReanalysisSource, preparation: ObservationVideoPreparation, container: ModelContainer)
         var events: [String] = []
         var hook: (String) throws -> Void = { _ in }
         var reply: ObservationAnalysisReceipt.State = .complete
         var bytes: Data?
-        init(_ seed: Seed) throws { self.seed = seed; bytes = try ObservationVideoCompletionTests().result(seed.preparation.request) }
+        convenience init(_ seed: Seed) throws {
+            try self.init(source: seed.source, preparation: seed.preparation, container: seed.container)
+        }
+        init(source: ObservationReanalysisSource, preparation: ObservationVideoPreparation, container: ModelContainer) throws {
+            seed = (source, preparation, container)
+            bytes = try ObservationVideoCompletionTests().result(preparation.request)
+        }
         func hit(_ phase: String) throws { events.append(phase); try hook(phase) }
         var service: Service {
             Service(dependencies: .init(authorize: { [self] owner, validate in

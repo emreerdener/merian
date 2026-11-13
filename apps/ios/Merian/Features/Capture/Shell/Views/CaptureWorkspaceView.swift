@@ -41,6 +41,7 @@ struct CaptureWorkspaceView: View {
         CaptureGoalIndicatorExpansionState = .collapsed
 
     // MARK: - Zoom Drag Lock
+    @State private var isViewfinderVisible = false
     @State private var isVerticalZooming: Bool = false
     @State private var isToggleDragging: Bool = false
 
@@ -132,6 +133,7 @@ struct CaptureWorkspaceView: View {
             .modifier(CaptureWorkspaceOrchestrationModifier(
                 viewModel: viewModel,
                 coordinator: coordinator,
+                isViewfinderVisible: $isViewfinderVisible,
                 captureMode: $captureMode,
                 observationContext: descriptionBinding,
                 describePromptViewModel: describePromptViewModel,
@@ -176,6 +178,7 @@ struct CaptureWorkspaceView: View {
                                         // MARK: Visual page — Camera
                                         VisualCaptureView(
                                             viewModel: viewModel,
+                                            isCameraVisible: isViewfinderVisible,
                                             isVerticalZooming: $isVerticalZooming
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
@@ -306,15 +309,6 @@ struct CaptureWorkspaceView: View {
                                     )
                                 }
                             )
-
-                            if viewModel.dependencies.submission.nativeRecoveryFactory != nil {
-                                Button("Pending submissions", systemImage: "clock.arrow.circlepath") {
-                                    viewModel.presentNativeRecovery()
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(!viewModel.canPresentNativeRecovery)
-                                .accessibilityIdentifier("CapturePendingSubmissions")
-                            }
 
                             if shouldShowCaptureGoalPresentation,
                                let presentation = activeCaptureGoalPresentation {

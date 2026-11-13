@@ -405,8 +405,7 @@ final class PhotoPreparationRepository {
         }
         let s = try state()
         guard let lease = s.leases.first(where: { $0.id == leaseID }) else { throw PhotoPreparationFailure.staleGeneration }
-        if lease.writerStateRaw == "closedSourceRetained" { s.context.delete(lease) }
-        else {
+        if lease.writerStateRaw == "closedSourceRetained" { s.context.delete(lease) } else {
             lease.allocatedByteCount = 0
             lease.sourceIdentity = nil
             lease.writerStateRaw = "closedNeedsAttention"
@@ -563,8 +562,7 @@ final class PhotoPreparationRepository {
         for edge in s.references where deletedIDs.contains(edge.assetID) || !edge.isLive { s.context.delete(edge) }
         for lease in s.leases where tokens.contains(lease.finalFileToken) && lease.allocatedByteCount == 0 { s.context.delete(lease) }
         for record in s.records {
-            if record.retirementRequested { s.context.delete(record) }
-            else {
+            if record.retirementRequested { s.context.delete(record) } else {
                 let ids = Set(s.references.filter { $0.packageID == record.id && $0.isLive }.map(\.assetID))
                 record.allocatedByteCount = try PhotoPreparationPolicy.add(s.assets.filter { ids.contains($0.id) }.map(\.byteCount))
             }

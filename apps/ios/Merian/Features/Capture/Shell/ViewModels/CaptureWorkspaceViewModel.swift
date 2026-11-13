@@ -22,6 +22,7 @@ final class CaptureWorkspaceViewModel {
         let destination: ActiveSheet
         let style: PresentationStyle
         let routeRequestID: UUID?
+        var localScanID: String?
     }
 
     // MARK: - Dependencies
@@ -96,6 +97,7 @@ final class CaptureWorkspaceViewModel {
     var audioDraftOperation: CaptureDraftSession.Operation?
     var draftOwnedFiles: Set<String> = []
     var selectedPhotoItems: [PhotosPickerItem] = []
+    var isPhotoLibraryPresented = false
     var isCheckingScanAdmission = false
     /// Set in the same MainActor mutation that stages an eligible single capture.
     /// This keeps the manual Identify toolbar from appearing before the async

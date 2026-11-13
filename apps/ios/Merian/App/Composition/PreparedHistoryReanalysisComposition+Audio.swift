@@ -56,7 +56,23 @@ extension PreparedHistoryReanalysisComposition {
             guard queue.modelContext?.container === container else { return .unavailable }
             return queue.requestAudioExecution(key, proof: proof, account: cloud,
                 service: .init(dependencies: .live(files: files, client: client)), erasure: queue.reanalysisErasureOwner,
-                isCurrentAccount: audioAccountScope(in: dependencies), didComplete: { dependencies.appEventPublisher.send(.scanLibraryChanged) })
+                isCurrentAccount: preparedAccountScope(in: dependencies), didComplete: { dependencies.appEventPublisher.send(.scanLibraryChanged) })
+        }, recover: { key, proof, container, files in
+            guard key.snapshot.work.consumedAttempt != nil, queue.modelContext?.container === container else { throw ObservationHistoryError.unavailable }
+            let current = preparedAccountScope(in: dependencies)
+            let admission = queue.requestAudioExecution(key, proof: proof, account: cloud,
+                service: .init(dependencies: .live(files: files, client: client)), erasure: queue.reanalysisErasureOwner,
+                isCurrentAccount: current, didComplete: { dependencies.appEventPublisher.send(.scanLibraryChanged) })
+            switch admission {
+            case .unavailable: throw ObservationHistoryError.unavailable
+            case .started, .coalesced: break
+            }
+            // Capture synchronously after admission, before yielding to the retained task.
+            guard let exit = queue.audioExecutionOwner.captureActualExit(key) else { throw ObservationHistoryError.unavailable }
+            await exit.wait()
+            return try ObservationReanalysisRecoveredResult.contains(key.snapshot.work.intent.identity, container: container,
+                isCurrent: { current(key.session, key.generation) && queue.modelContext?.container === container },
+                decode: { try ObservationReanalysisResult.decode($0, matching: key.snapshot.work.intent.request) })
         })
     }
 
@@ -78,12 +94,12 @@ extension PreparedHistoryReanalysisComposition {
             guard queue.modelContext?.container === container else { return .unavailable }
             return queue.requestAudioSourceSubmission(key, proof: proof, account: cloud,
                 source: .live(client: client), execution: .init(dependencies: .live(files: files, client: client)),
-                erasure: queue.reanalysisErasureOwner, isCurrentAccount: audioAccountScope(in: dependencies), didChange: { dependencies.appEventPublisher.send(.scanLibraryChanged) })
+                erasure: queue.reanalysisErasureOwner, isCurrentAccount: preparedAccountScope(in: dependencies), didChange: { dependencies.appEventPublisher.send(.scanLibraryChanged) })
         }
     }
 
     @MainActor
-    private static func audioAccountScope(in dependencies: AppDIContainer) -> @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool {
+    static func preparedAccountScope(in dependencies: AppDIContainer) -> @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool {
         let manager = dependencies.supabaseManager
         return { session, generation in
             manager.allowsUnownedAccountBoundWork && manager.authSessionGeneration == generation &&

@@ -122,7 +122,7 @@ enum SharedMediaNativeOriginalLiability {
             context: context, checkpoint: checkpoint)
     }
     static func requireRetainedSurvivors(assetID: UUID, excludingID: UUID? = nil, expectedCount: Int64,
-                                        context: ModelContext, checkpoint: () throws -> Void = {}) throws {
+                                         context: ModelContext, checkpoint: () throws -> Void = {}) throws {
         var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == assetID }, sortBy: [SortDescriptor(\.id)])
         query.fetchLimit = SharedMediaStoragePolicy.pageSize
         var offset = 0, total: Int64 = 0
@@ -143,7 +143,7 @@ enum SharedMediaNativeOriginalLiability {
     }
     /// Same retained-only validation used by prospective held disposition.
     static func requireRetainedReference(_ ref: PhotoPreparationReference, context: ModelContext,
-                                        checkpoint: () throws -> Void = {}) throws {
+                                         checkpoint: () throws -> Void = {}) throws {
         let packageID = ref.packageID
         let package = try one(context, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
         guard ref.isLive, package.accountingTierRaw == "retained", !package.retirementRequested,

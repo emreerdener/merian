@@ -1,10 +1,92 @@
+## Initial audio/video completion UI candidate
+
+The Debug-only `-seedInitialMediaHistory` fixture exercises ordinary initial
+audio and video, each with and without optional text, through the existing
+submission, terminal completion and explicit History enrollment owners. It
+retains one private disposable store across clean process relaunch.
+Queue-adopted media and exact submitted text/order are frozen before completion;
+video original clip, prepared playback, inference frames and extracted audio
+remain distinct.
+
+The real terminal owner must preserve its original account/generation proof,
+publish exactly once and release its account lease before the fixture is ready.
+The actual Insight sheet opens from the captured queue context after its queue
+row retires. Explicit enrollment uses a synthetic V3 imported baseline derived
+from the immutable completion proof; original provider/media evidence remains
+unavailable in that History baseline. Relaunch opens the persisted result and
+History without resubmission or reenrollment. The four UI selectors are in
+`InitialMediaHistoryUITests`. Native29205 passes all four audio/video
+optional-text journeys and all fourteen lifecycle-provider tests. Engine
+directly verified the XCResult and 4,253 unchanged inputs. The batch remains
+red: 30 methods passed, two architecture checks failed, zero skipped, two
+structured QoS warnings. Seventeen coordinator methods passed in the interrupted
+prior run and remain separate reused evidence.
+
+Earlier failures are retained: the result-title oracle (HQ-315), controlled weak
+AVAsset lifetime reproduction/correction (HQ-316), synthetic funding state lost
+during initial Auth cleanup (HQ-317), and a cancelled-stream test-helper hang
+(HQ-318). The corrected Debug join observes actual initial handler exit before
+one-time synthetic setup and rejects superseded work. All four scoped fixes are
+independently verified. The interrupted run is not a green batch or evidence of
+a production deadlock. The exact transport inventory correction (HQ-320) passed
+its single-method native29207 check with independent verification; the Auth
+aggregate budget (HQ-319) remains open pending an explicit decision on the
+separately reviewed, unapplied Debug-only allowance. No existing architecture
+limit has been changed.
+
+The synthetic account, entitlement override, running-state transition and server
+response do not qualify live Auth, paid dispatch/server admission, upload,
+uncertain legacy recovery, abrupt crash, resource bounds, phone installation or
+cumulative acceptance. Existing reanalysis review/Undo evidence remains
+separate. Shared test seams are restored; fixture-owned retained media and
+evidence remain available after the run. Production installation/activation
+holds are unchanged.
+
+## Successful persisted reanalysis UI candidate
+
+The additional Debug-only `-seedReanalysisRecoverySuccess` mode supplies an
+independent durable synthetic-server ledger to the existing reanalysis restart
+fixture. It is unavailable without the existing explicit fixture opt-in. The
+three new selectors exhaust the real persisted 30-second checking allowance,
+close, make only the synthetic original result available, relaunch, then request
+one explicit exact recovery. No new provider dispatch is permitted.
+
+Photo and video use their current completion stores. Audio uses the existing
+recovery-only claim/service owner and joins its actual exit; read, upload,
+authorize and analyze boundaries fail if invoked. The canonical result binds the
+original saved request. Existing History session, selection and review owners
+write application records; the separate server ledger validates exact request
+identity, revisions and operation replay before returning receipts.
+
+The candidate checks three preserved immutable versions, explicit selection,
+rejection/review Undo, a fresh selection Undo, and terminal process relaunch.
+After completion, the original fingerprint is retained as a witness; separate
+checks verify actual terminal records, selection, review receipts and unchanged
+submitted media. Real pending erasure receipts are required, but cleanup is
+intent-only: this fixture does not delete media or qualify filesystem cleanup.
+Terminal charge is the independent exhausted-budget witness, not a live sidecar
+after completion. Native29101 compiled and passed three architecture checks; all
+three UI cases failed on an incorrect acknowledgement-message oracle after
+review revision invalidation. The source-reviewed test correction requires the
+actual stale preview message, explicit Refresh and receipt-backed child
+authority/Undo. Corrected native29102 passed all three media UI cases with zero
+failures/skips, 4,248 unchanged inputs and independent fix/runtime verification.
+Three unchanged architecture01 passes remain applicable: six distinct methods
+across the runs. Both01 and02 have a structured QoS priority-inversion warning;
+retain both and the original failures. Full iOS tooling01 passed with unchanged
+tooling inputs. This qualifies the bounded rendered journey described here.
+Synthetic Auth/results, clean restart and local persisted UI do not establish
+hosted/phone, abrupt-crash, resource or cumulative functional acceptance.
+
 # Identification history
 
-Prepared history presentation. Normal Shell access remains nil: the App
-installation boundary is fixed false and does not construct the prepared bundle.
-Only explicit test injection currently opens this screen. When qualified, all
-Insight hosts receive History, status and saved-result entry together from the
-same App-owned bundle as Capture; reading history never enrolls an observation.
+History presentation. Ordinary Release composition remains disabled; the local
+HistoryTesting configuration enables the App-owned bundle with normal OAuth. All
+enabled Insight hosts receive History, status and saved-result entry together
+from the same bundle as Capture; reading history never enrolls an observation.
+Selected-result menu sessions use the canonical lowercase observation identifier
+and the same strict pending-review and Undo-eligibility reads as History
+previews.
 
 - `Models` maps each result's own display and authority to bounded rows/details.
 - `Services` owns the account-session adapter to Core listing, preview,
@@ -17,6 +99,14 @@ same App-owned bundle as Capture; reading history never enrolls an observation.
   read.
 - `Views` renders a native list/preview in Shell's existing modal slot. Opening
   a row never chooses it; Use this identification is explicit.
+
+Selection completion releases command/task ownership before notifying the parent
+Insight to reload acknowledged state. The notification is coalesced, revalidates
+presentation scope and remains deliverable when the post-acknowledgement page
+read fails. Review completion automatically requests a fresh bounded list even
+when revision validation has already discarded its old review ticket; negative
+terminal receipts also refresh without reusing that ticket. Refresh does not
+select a version or submit another review.
 
 Back cannot abandon an active selection dispatch. Optional alternatives from an
 incompatible legacy candidate schema are omitted without blocking a valid saved
@@ -59,6 +149,26 @@ owns persistence and authority. Verification lives in
 `ObservationHistoryListingTests` and `IdentificationHistoryUITests`; the runtime
 audit manifest registers the UI flow.
 
+## Saved-photo original preview candidate
+
+The status screen has a separate View saved photos action for its exact saved
+child. The local access verifies the entire immutable cohort under the existing
+preparation/file owners, then downsamples only the selected original to one
+2048-pixel display image. Paging reads the same saved cohort; no path, temporary
+export, consent, execution or adoption capability is exposed. Pending, submitted
+and bound envelopes reuse their strict persistence validators. Current v6
+admission and consent-held wrappers use the admission owner’s context-only
+snapshot without claiming or rearming work; full wrapper equality remains
+required throughout the read and display lifetime. Missing or changed files show
+an unavailable explanation and preserve the request.
+
+Close, background, refresh and account/source/job invalidation clear the image.
+A local scope check exists only while the image is displayed; it performs no
+network polling. Native27702 qualifies the focused local reader, wrapper,
+paging/cohort and presentation checks (29 methods/62 cases across its four
+suites, zero skips). It does not qualify initial-native/video originals, UI
+accessibility or devices.
+
 ## Prepared reanalysis status
 
 `ReanalysisStatusAccess` is a separate optional Shell entry, independent of the
@@ -73,6 +183,9 @@ cancels and clears them on account, parent or presentation invalidation. The
 native `ReanalysisStatusSheet` offers refresh and bounded paging, with distinct
 consent, unavailable-evidence, reconciliation, retry-limit and terminal-failure
 copy. Typed affordances are derived from durable snapshots, not those labels.
+Photo preview, outcome checking and retirement use explicitly isolated button
+styles within each status row, so a tap invokes only its named action. The UI
+regression checks preview without a recovery read and recovery without preview.
 “Try to stop this reanalysis” freezes a UUID at the final tap, then uses the
 retained preparation owner for an exact read-only server check. Only a consumed
 or legacy-unknown running/waiting request with fresh admitted evidence can stage
@@ -90,6 +203,16 @@ retry exhaustion (including a bound request whose dispatch remains ready) is
 displayed separately from exhausted result checks. Closing withholds late
 private UI values; pending library refreshes flush after the action exits,
 including save-then-throw, without repeating the remote lookup.
+
+`AnalysisRecoveryCheckingModel` reserves durable presentation time before
+showing the checking spinner. It pauses visible time on background/close while
+the accepted exact-result operation remains retained. Background completion is
+presented once on return only after fresh account and parent validation; closing
+never reopens the sheet. The existing V68 sidecar stores the bounded budget,
+without changing execution authority. The
+[integration guide](../../../../../../docs/development-guides/25-scan-to-history.md#current-integration-boundary)
+records all-media model evidence and the remaining saved-media, accessibility
+and installed qualification work.
 
 Actual execution-owner exit advances an
 account/context/Auth-generation-qualified observable generation. The presented

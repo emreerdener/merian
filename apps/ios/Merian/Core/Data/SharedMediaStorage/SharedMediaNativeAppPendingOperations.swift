@@ -187,8 +187,9 @@ final class SharedMediaNativeAppPendingOperations {
     #endif
 }
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
 /// Can only be minted by the V2 owner after a fresh exact saved-intent read.
-struct SharedMediaNativeAppPendingDisposalWitness: Sendable {
+struct SharedMediaNativeAppPendingDisposalWitness: Sendable { // swiftlint:disable:this type_name
     let state: SharedMediaNativePendingState
     let binding: SharedMediaNativeBinding
     fileprivate init(state: SharedMediaNativePendingState, binding: SharedMediaNativeBinding) { self.state = state; self.binding = binding }

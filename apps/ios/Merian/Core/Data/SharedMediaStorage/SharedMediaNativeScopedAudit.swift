@@ -70,26 +70,78 @@ struct SharedMediaNativeScopedAudit {
     /// supplies only read validation and retains every grant and file fence.
     static func runApp(container: ModelContainer, profile: () throws -> SharedMediaNativeAppProfile,
                        header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                       readCheckpoint: (() throws -> SharedMediaNativeAppEligibility.Header)? = nil,
                        betweenPages: @escaping () async throws -> Void,
                        configure: (inout Self) -> Void) async throws -> SharedMediaNativeScopedSnapshot {
         let expected = try header(), profile = try profile()
+        let read = readCheckpoint ?? header
+        let boundary: (() throws -> Void)? = readCheckpoint.map { _ in
+            { guard try header() == expected else { throw SharedMediaStorageFailure.conflict } }
+        }
         #if DEBUG
         var trace: SharedMediaNativeDebugHooks.InspectionTrace?
+        var readFault: (() throws -> Void)?
+        var pageFault: (() async throws -> Void)?
         #endif
         var audit = try Self(app: container, profile: profile, expected: expected.inventory, check: {
             #if DEBUG
+            try readFault?()
             let started = trace == nil ? nil : ContinuousClock.now
             defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
             #endif
-            guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
-        }, betweenPages: betweenPages)
+            try Task.checkCancellation()
+            guard try read() == expected else { throw SharedMediaStorageFailure.conflict }
+        }, betweenPages: {
+            #if DEBUG
+            try await pageFault?()
+            #endif
+            try await betweenPages()
+        }, fullBoundaryCheck: boundary)
         configure(&audit)
         #if DEBUG
-        trace = audit.inspectionTrace
+        trace = audit.inspectionTrace; readFault = audit.inspectionReadFault; pageFault = audit.inspectionPageFault
         #endif
         let result = try await audit.run()
         guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
         return result
+    }
+
+    /// Read-only construction for the allocation owner's retained operation.
+    /// Grant creation and all writes remain in AppPhotoAllocationOperations.
+    static func runAllocation(container: ModelContainer, authority: SharedMediaNativeAppOperationAuthority,
+                              readCheckpoint: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                              configureAudit: (inout Self) -> Void) async throws -> SharedMediaNativeAppEligibility.Header {
+        #if DEBUG
+        var trace: SharedMediaNativeDebugHooks.InspectionTrace?
+        var readFault: (() throws -> Void)?
+        var pageFault: (() async throws -> Void)?
+        #endif
+        let expected = try authority.header(container)
+        var audit = try SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
+            check: {
+                #if DEBUG
+                try readFault?()
+                let started = trace == nil ? nil : ContinuousClock.now
+                defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
+                #endif
+                try Task.checkCancellation()
+                guard try readCheckpoint() == expected else { throw SharedMediaStorageFailure.stale }
+            }, betweenPages: {
+                #if DEBUG
+                try await pageFault?()
+                #endif
+                await Task.yield()
+            }, fullBoundaryCheck: {
+                guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
+            })
+        configureAudit(&audit)
+        #if DEBUG
+        trace = audit.inspectionTrace; readFault = audit.inspectionReadFault; pageFault = audit.inspectionPageFault
+        defer { trace?.finish() }
+        #endif
+        _ = try await audit.run()
+        guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
+        return expected
     }
 
     private func checkBoundary() throws { try (fullBoundaryCheck ?? check)() }
@@ -140,6 +192,8 @@ struct SharedMediaNativeScopedAudit {
             } else if row.kindRaw == "queue", let staged = try staged(row.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo) {
                 _ = try SharedMediaNativeConsumerGraph.validateStagedReceived(row, origin: staged.origin,
                     context: context, checkpoint: check)
+            } else if let applied = try applied(row.packageID, context: context, inventory: inventory) {
+                try applied.requireConsumerLink(row, context: context)
             } else {
                 _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, checkpoint: check)
             }
@@ -211,6 +265,7 @@ struct SharedMediaNativeScopedAudit {
         query.fetchOffset = offset; query.fetchLimit = SharedMediaStoragePolicy.pageSize
         let rows = try context.fetch(query)
         var terminals: [SharedMediaNativeReceivingTerminal.Snapshot] = []
+        var retained: [SharedMediaNativePhotoAllocationSnapshot.Applied] = []
         #if DEBUG
         inspectionTrace?.enter(.receivingLeaves)
         #endif
@@ -219,22 +274,28 @@ struct SharedMediaNativeScopedAudit {
             if row.phaseRaw == "released" {
                 terminals.append(try SharedMediaNativeReceivingTerminal.read(row, context: context,
                     inventory: inventory, checkpoint: check))
-            } else {
-                guard let witness = roots[row.id] else { throw SharedMediaStorageFailure.conflict }
+            } else if let witness = roots[row.id] {
                 let saved: SharedMediaNativeReceivingIntentGraph.Row
                 switch witness {
-                case .allocating(let value): saved = value.row
+                case .allocating(let value), .initial(let value): saved = value.row
                 case .generic(let value): saved = value.row
                 case .releasing(let value): saved = value.release.slot
                 case .staged(let value): saved = value.origin.row
                 }
                 guard saved == SharedMediaNativeReceivingIntentGraph.Row(row) else { throw SharedMediaStorageFailure.stale }
+            } else {
+                // Missing roots are not sufficient: the explicit reader must
+                // establish the complete retained original and reverse links.
+                retained.append(try SharedMediaNativePhotoAllocationSnapshot.Applied.read(row,
+                    inventory: inventory, context: context, checkpoint: check))
             }
         }
         #if DEBUG
         inspectionTrace?.enter(.receivingIdentities)
         #endif
         try SharedMediaNativeTerminalIdentity.auditPage(terminals, live: roots, context: context,
+            expectedHeader: appHeader, checkpoint: check)
+        try SharedMediaNativeTerminalIdentity.auditAppliedPage(retained, live: roots, context: context,
             expectedHeader: appHeader, checkpoint: check)
         // Fresh full pending-root/runway validation, not a header-only fence or
         // reuse of the page's projection memo, before any page suspension.
@@ -305,7 +366,11 @@ struct SharedMediaNativeScopedAudit {
             }
         } else {
             guard row.accountingTierRaw == "retained", let consumer, consumer.kindRaw != "queue" else { throw SharedMediaStorageFailure.conflict }
-            _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
+            if let applied = try applied(id, context: context, inventory: inventory) {
+                try applied.requireConsumerLink(consumer, context: context)
+            } else {
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
+            }
         }
         if let consumer {
             guard consumer.inventoryID == inventory.id, consumer.inventoryGeneration == inventory.generation,
@@ -381,13 +446,26 @@ struct SharedMediaNativeScopedAudit {
         return snapshot
     }
 
+    private func applied(_ packageID: UUID, context: ModelContext,
+                         inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativePhotoAllocationSnapshot.Applied? {
+        guard format == .appV2, let consumer = try SharedMediaConsumerLookup.one(context, packageID: packageID),
+              SharedMediaNativeConsumerCohort.AppliedInitialFormat(rawValue: consumer.contractVersion) != nil else { return nil }
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return try .read(row, inventory: inventory, context: context, checkpoint: check)
+    }
+
     private func allocating(_ packageID: UUID, context: ModelContext,
                             inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativePhotoAllocationSnapshot? {
         guard format == .appV2,
               let row = try SharedMediaNativeReceivingPhaseGraph.row(packageID, in: context),
               row.allocationData != nil || row.allocationSHA256 != nil else { return nil }
-        return try SharedMediaNativePhotoAllocationSnapshot.read(.init(row), inventory: inventory,
-            context: context, checkpoint: check)
+        let hasInitial = row.initialAdmissionData != nil || row.initialAdmissionSHA256 != nil
+            || row.initialCompletionData != nil || row.initialCompletionSHA256 != nil
+        return try hasInitial
+            ? SharedMediaNativePhotoAllocationSnapshot.readInitial(.init(row), inventory: inventory, context: context, checkpoint: check)
+            : SharedMediaNativePhotoAllocationSnapshot.read(.init(row), inventory: inventory, context: context, checkpoint: check)
     }
 
     private func staged(_ packageID: UUID, context: ModelContext,
@@ -425,7 +503,7 @@ struct SharedMediaNativeScopedAudit {
         return row
     }
     private func page<T: PersistentModel>(_ descriptor: FetchDescriptor<T>,
-        body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) async throws -> Int64 {
+                                          body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) async throws -> Int64 {
         var offset = 0, total: Int64 = 0
         while true {
             try Task.checkCancellation(); try checkBoundary()
@@ -441,7 +519,7 @@ struct SharedMediaNativeScopedAudit {
         }
     }
     private func readPage<T: PersistentModel>(_ descriptor: FetchDescriptor<T>, offset: Int,
-        body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) throws -> Int {
+                                              body: (T, ModelContext, SharedMediaInventoryRecord, ProjectionMemo) throws -> Void) throws -> Int {
         let projectionMemo = ProjectionMemo()
         let context = freshContext(), inventory = try header(context, projectionMemo: projectionMemo)
         var query = descriptor; query.fetchLimit = SharedMediaStoragePolicy.pageSize; query.fetchOffset = offset

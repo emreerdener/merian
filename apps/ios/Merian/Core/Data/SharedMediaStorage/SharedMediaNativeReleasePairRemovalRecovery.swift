@@ -4,6 +4,8 @@ import SwiftData
 /// Read-only classification of the same persisted cleanup operation. An intact
 /// retiring predecessor is a restart obligation, never an absence assertion.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReleasePairRemovalRecovery {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot

@@ -4,6 +4,8 @@ import SwiftData
 /// Exact terminal transaction: two updates and six deletions. No other row
 /// may change, including submitted media, historical analyses or selections.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeReceivingTerminalPoststate {
     private typealias Raw = SharedMediaNativeReleasePairRaw
     private struct Row {
@@ -66,7 +68,7 @@ struct SharedMediaNativeReceivingTerminalPoststate {
         for row in rows {
             if let after = row.after {
                 guard let current = try row.read(context), current.0 == row.before.0, current.1 == after,
-                      (after == row.before.1 || updated.insert(current.0).inserted) else { throw SharedMediaStorageFailure.conflict }
+                      after == row.before.1 || updated.insert(current.0).inserted else { throw SharedMediaStorageFailure.conflict }
             } else {
                 guard deleted.insert(row.before.0).inserted, try row.deletedFields() == row.before.1 else {
                     throw SharedMediaStorageFailure.conflict
@@ -80,7 +82,7 @@ struct SharedMediaNativeReceivingTerminalPoststate {
         }
     }
     private mutating func update<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
         let row = try SharedMediaNativePairPlanGraph.one(context, query), before = try fields(row)
         guard Set(changes.keys).isSubset(of: Set(before.keys)) else { throw SharedMediaStorageFailure.conflict }
         var after = before; after.merge(changes) { _, next in next }
@@ -88,7 +90,7 @@ struct SharedMediaNativeReceivingTerminalPoststate {
             read: reader(query, fields), deletedFields: { try fields(row) }))
     }
     private mutating func remove<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields) throws {
         let row = try SharedMediaNativePairPlanGraph.one(context, query)
         rows.append(.init(before: (row.persistentModelID, try fields(row)), after: nil,
             read: reader(query, fields), deletedFields: { try fields(row) }))

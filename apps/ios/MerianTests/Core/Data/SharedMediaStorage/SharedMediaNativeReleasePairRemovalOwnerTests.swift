@@ -171,10 +171,14 @@ struct SharedMediaNativeReleasePairRemovalOwnerTests {
         // This thread cannot call MainActor or the permit. It releases the
         // descriptor section even when shutdown is synchronously waiting on it.
         let unblock = Task.detached(priority: .userInitiated) {
-            let didStart = draining.wait(timeout: .now() + 5) == .success
-            _ = DispatchSemaphore(value: 0).wait(timeout: .now() + 0.1)
-            release.signal()
-            return didStart
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let didStart = draining.wait(timeout: .now() + 5) == .success
+                    _ = DispatchSemaphore(value: 0).wait(timeout: .now() + 0.1)
+                    release.signal()
+                    continuation.resume(returning: didStart)
+                }
+            }
         }
         let drain = Task { draining.signal(); return await owner.invalidateAndAwaitForAccountTransition() }
         await #expect(throws: (any Error).self) { _ = try await operation.value }

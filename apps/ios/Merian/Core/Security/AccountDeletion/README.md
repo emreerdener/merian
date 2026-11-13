@@ -73,6 +73,16 @@ retire a proof.
   retry; local receipt work is drained under the existing Auth barrier.
   Definitively uncommitted protocol-v2 intake may retire only its unused
   capability without erasing account-local data.
+- `matchesExisting(_:)` compares protocol and both proof values against a fresh
+  throwing secure-store read. It ignores creation metadata, admits absence only
+  when verified and never treats a storage error as absence.
+- `retireVerified()` adapts verified secure-store removal for workflow callers;
+  any failed removal returns false and retains the recovery barrier. It does not
+  grant deletion authority or change the capability format.
+- `AccountDeletionLocalCleanupStore.RecoveryScope` retains exact stage/proof
+  evidence with injected session and original-container predicates. Intake
+  permits runtime joining only; accepted cleanup/retirement/legacy cleanup may
+  permit a purge of that exact container. It imports no SwiftData or SDK owner.
 - Unknown recovery phases and uncertain storage remain fail closed.
 
 ## Verification

@@ -257,6 +257,7 @@ struct LibraryMutationInventoryTests {
         let source = UUID(), other = UUID()
         #expect(LibraryAccountOwnershipPolicy.requiresRecovery(owner: source, session: other, libraryIsEmpty: false))
         #expect(LibraryAccountOwnershipPolicy.requiresRecovery(owner: source, session: nil, libraryIsEmpty: false))
+        #expect(!LibraryAccountOwnershipPolicy.requiresRecovery(owner: source, session: nil, libraryIsEmpty: true))
         #expect(!LibraryAccountOwnershipPolicy.requiresRecovery(owner: source, session: other, libraryIsEmpty: true))
         #expect(!LibraryAccountOwnershipPolicy.requiresRecovery(owner: source, session: source, libraryIsEmpty: false))
     }

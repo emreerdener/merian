@@ -4,7 +4,7 @@ import SwiftData
 /// One fresh persistence boundary inside the retained receiving owner. Allocation
 /// requests release coordinator locks; transfer/status operations retain them.
 @MainActor
-final class SharedMediaNativeAppPhotoAllocationOperations {
+final class NativeAppPhotoAllocationOperations {
     typealias Allocation = SharedMediaNativePhotoAllocation
     typealias Snapshot = SharedMediaNativePhotoAllocationSnapshot
     private let container: ModelContainer
@@ -31,36 +31,8 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void,
                         readCheckpoint: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
                         configureAudit: (inout SharedMediaNativeScopedAudit) -> Void = { _ in }) async throws -> Self {
-        #if DEBUG
-        var trace: SharedMediaNativeDebugHooks.InspectionTrace?
-        var readFault: (() throws -> Void)?
-        var pageFault: (() async throws -> Void)?
-        #endif
-        let expected = try authority.header(container)
-        var audit = try SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
-            check: {
-                #if DEBUG
-                try readFault?()
-                let started = trace == nil ? nil : ContinuousClock.now
-                defer { if let started { trace?.checkpoint(started.duration(to: .now)) } }
-                #endif
-                try Task.checkCancellation()
-                guard try readCheckpoint() == expected else { throw SharedMediaStorageFailure.stale }
-            }, betweenPages: {
-                #if DEBUG
-                try await pageFault?()
-                #endif
-                await Task.yield()
-            }, fullBoundaryCheck: {
-                guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
-            })
-        configureAudit(&audit)
-        #if DEBUG
-        trace = audit.inspectionTrace; readFault = audit.inspectionReadFault; pageFault = audit.inspectionPageFault
-        defer { trace?.finish() }
-        #endif
-        _ = try await audit.run()
-        guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
+        let expected = try await SharedMediaNativeScopedAudit.runAllocation(container: container, authority: authority,
+            readCheckpoint: readCheckpoint, configureAudit: configureAudit)
         return Self(container: container, authority: authority, io: io, sealTransfer: sealTransfer, expected: expected,
             availableBytes: availableBytes, boundary: boundary)
     }
@@ -69,20 +41,92 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     func saved(_ prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation? {
         try validate(); guard prepared.profile == authority.profile else { throw SharedMediaStorageFailure.closed }
         let context = fresh(), inventory = try inventory(context)
-        guard let witness = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)[prepared.package.id] else {
-            throw SharedMediaStorageFailure.stale
+        return try Snapshot.saved(prepared, context: context, inventory: inventory)
+    }
+
+    /// Inactive trusted-reader composition under the retained account and receiving
+    /// locks. The injected reader must authenticate the saved owner/backend and
+    /// return only the private original-admission reply; no serving adapter is installed.
+    func recoverInitialAdmission(_ prepared: SharedMediaNativeReceivingIntent.Prepared, caller: @escaping SharedMediaNativePhotoAllocationAccess.Validator = {},
+                                 readOriginal: @MainActor (Allocation, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data?) async throws -> InitialCompletionDocuments.CpmAdmission? {
+        try validate()
+        guard !consumed, prepared.profile == authority.profile else { throw SharedMediaStorageFailure.closed }
+        let context = fresh(), inventory = try inventory(context)
+        let before = try Snapshot.initialCandidate(prepared, context: context, inventory: inventory)
+        _ = try InitialCompletionDocuments.CpmBinding.saved(before.allocation)
+        let check: @MainActor @Sendable () throws -> Void = {
+            try caller(); try self.validate(); try before.requireCurrent(context: self.fresh())
         }
-        switch witness {
-        case .allocating(let snapshot):
-            guard snapshot.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
-            guard try snapshot.prepared.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.stale }
-            return snapshot.allocation
-        case .generic(let value):
-            guard value.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
-            guard case .received(let p, _, _) = value.slot, try p.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.closed }
-            return nil
-        case .staged, .releasing: throw SharedMediaStorageFailure.closed
+        try check()
+        let bytes = try await readOriginal(before.allocation, check)
+        try check()
+        guard let bytes else { return before.initialPin?.admission }
+        let admission = try InitialCompletionDocuments.CpmAdmission(acknowledgement: bytes, original: .saved(before.allocation))
+        if let saved = before.initialPin?.admission {
+            guard saved == admission else { throw SharedMediaStorageFailure.conflict }
+            return saved
         }
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else { throw SharedMediaStorageFailure.stale }
+        let seal = try NativePhotoAllocationPoststate.InitialPin(before: before,
+            acknowledgement: bytes, row: row, inventory: inventory, context: context)
+        try persistInitial(seal, context: context, row: row, inventory: inventory, check: check, caller: caller)
+        return admission
+    }
+
+    /// Validated full evidence enters only through the trusted original reader;
+    /// the durable successor is the compact recovery record, never local AI data.
+    func recoverInitialCompletion(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                  readOriginal: @MainActor (InitialCompletionDocuments.CpmAdmission, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialCompletionDocuments.CpmAcquisition?) async throws -> InitialCompletionDocuments.CpmRecoveryRecord? {
+        try validate()
+        guard !consumed, prepared.profile == authority.profile else { throw SharedMediaStorageFailure.closed }
+        let context = fresh(), inventory = try inventory(context)
+        let before = try Snapshot.initialCandidate(prepared, context: context, inventory: inventory)
+        guard let pin = before.initialPin else { throw SharedMediaStorageFailure.closed }
+        let check: @MainActor @Sendable () throws -> Void = {
+            try self.validate(); try before.requireCurrent(context: self.fresh())
+        }
+        try check()
+        let acquisition = try await readOriginal(pin.admission, check)
+        try check()
+        guard let acquisition else { return pin.completion }
+        let record = try InitialCompletionDocuments.CpmRecoveryRecord.decode(acquisition.record.bytes, admission: pin.admission)
+        if let saved = pin.completion {
+            guard saved == record else { throw SharedMediaStorageFailure.conflict }
+            return saved
+        }
+        guard let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else { throw SharedMediaStorageFailure.stale }
+        let seal = try NativePhotoAllocationPoststate.InitialPin(before: before,
+            acquisition: acquisition, row: row, inventory: inventory, context: context)
+        try persistInitial(seal, context: context, row: row, inventory: inventory, check: check)
+        return record
+    }
+
+    private func persistInitial(_ seal: NativePhotoAllocationPoststate.InitialPin, context: ModelContext,
+                                row: SharedMediaReceivingIntentRecord, inventory: SharedMediaInventoryRecord,
+                                check: () throws -> Void, caller: () throws -> Void = {}) throws {
+        try seal.requireReservation(context, inventory: inventory, availableBytes: availableBytes)
+        do {
+            row.initialAdmissionData = seal.after.initialAdmissionData
+            row.initialAdmissionSHA256 = seal.after.initialAdmissionSHA256
+            row.initialCompletionData = seal.after.initialCompletionData
+            row.initialCompletionSHA256 = seal.after.initialCompletionSHA256
+            inventory.revision = try SharedMediaStoragePolicy.add(expected.inventory.revision, 1)
+            try seal.validate(context, row: row, inventory: inventory)
+            try boundary(.beforeSave); try check()
+            let current = fresh(), currentInventory = try self.inventory(current)
+            try seal.requireReservation(current, inventory: currentInventory, availableBytes: availableBytes)
+            try seal.validate(context, row: row, inventory: inventory); try validate()
+            try caller()
+            consumed = true
+            do { try context.save(); try boundary(.afterSave) } catch { context.rollback() }
+            try boundary(.beforeReadback)
+            let header = try authority.header(container)
+            guard header == (try SharedMediaNativeAppMetadataFacts.successor(expected)) else { throw SharedMediaStorageFailure.stale }
+            let saved = fresh()
+            try seal.requireSuccessor(saved, inventory: self.inventory(saved))
+            guard try authority.header(container) == header else { throw SharedMediaStorageFailure.stale }
+            try caller()
+        } catch { context.rollback(); throw error }
     }
 
     func claim(_ prepared: SharedMediaNativeReceivingIntent.Prepared, attemptID: UUID, reserveRoleMapping: Bool = false, reserveBackendBinding: Bool = false, beforeClaimSave: () throws -> Void = {}) throws -> SharedMediaNativePhotoAllocationDispatch {
@@ -100,32 +144,6 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         let acknowledged = try persist(allocation, prepared: prepared, context: context, inventory: inventory, beforeSave: beforeClaimSave)
         // Exact readback of an uncertain acknowledgement deliberately mints no create authority.
         return .init(allocation: allocation, create: acknowledged)
-    }
-
-    /// Recovery cannot create or upgrade a claim. The saved format selects its
-    /// original response projection; no persistence occurs before the status await.
-    func recoverAllocationStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                                 transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> Allocation {
-        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
-        let projection: InitialPhotoAllocationRequest.Projection
-        switch current.version {
-        case 1: projection = .legacy
-        case 2: projection = .roles
-        case 6: projection = .boundRoles
-        default: throw SharedMediaStorageFailure.closed
-        }
-        guard transport.projection == projection else { throw SharedMediaStorageFailure.closed }
-        let request = try InitialPhotoAllocationRequest(allocation: current, action: .status, projection: projection)
-        let check: @MainActor @Sendable () throws -> Void = {
-            guard try self.saved(prepared) == current else { throw SharedMediaStorageFailure.stale }
-        }
-        try check()
-        let reply = try await transport.send(request, validate: check, settle: check)
-        try check()
-        switch reply {
-        case .legacy(let value): return try settle(value, request: current, prepared: prepared)
-        case .roles(let value): return try enrich(value, request: current, prepared: prepared)
-        }
     }
 
     /// Upgrade an existing claim only. Even an unresolved legacy claim can never
@@ -176,20 +194,12 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         return try saveRemoteAttempt(request.observing(status), replacing: request, prepared: prepared)
     }
 
-    /// One read-only query followed by at most one existing observation save.
-    /// The retained account/receiving operation owns the complete transport drain.
-    func recoverTransferStatus(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                               send: @MainActor (InitialPhotoTransferRequest, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data) async throws -> Allocation {
-        guard let current = try saved(prepared), let transfer = current.transferReservation else { throw SharedMediaStorageFailure.closed }
-        let request = try InitialPhotoTransferRequest(allocation: current, action: .status)
-        let check: @MainActor @Sendable () throws -> Void = {
-            guard try self.saved(prepared) == current else { throw SharedMediaStorageFailure.stale }
-        }
-        try check()
-        let bytes = try await send(request, check)
-        try check()
-        let status = try InitialPhotoUploadStatus(data: bytes, allocation: current, objectID: transfer.selection.objectID)
-        return try observeRemoteAttempt(status, request: current, prepared: prepared)
+    func retainRoleProgress(_ prepared: SharedMediaNativeReceivingIntent.Prepared, beforeObservationSave: @MainActor () throws -> Void = {}, onAcknowledged: () -> Void = {},
+                            send: InitialPhotoTransferRequest.Send) async throws -> Allocation {
+        let proof = try await readRoleProgress(prepared, send: send)
+        guard let current = try saved(prepared) else { throw SharedMediaStorageFailure.closed }
+        try beforeObservationSave()
+        return try saveRemoteAttempt(current.retainingLiveRole(proof), replacing: current, prepared: prepared, onAcknowledged: onAcknowledged)
     }
 
     /// Only the retained fresh-ticket composition may request this marker.
@@ -220,18 +230,12 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         let destination = try catalog.resolve(binding)
         let request = try InitialPhotoTransferRequest(allocation: current.startingTicketRequest(), action: .issue)
         guard let continuation = try beginTicketRequest(prepared, putReserved: true) else { return nil }
-        defer { continuation.close() }
-        guard continuation.allocation == request.allocation else { throw SharedMediaStorageFailure.stale }
-        try continuation.consume()
-        let bytes = try await send(request, { try continuation.validateConsumed() })
-        let ticket = try continuation.decodeResponse(bytes, destination: destination, nowMilliseconds: now())
-        guard ticket.outcome == .issued else { return nil }
-        return try await finish(continuation)
+        return try await sendPutTicket(continuation, request: request, destination: destination, send: send, now: now, finish: finish)
     }
 
     func persistPut(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                     continuation: SharedMediaNativePhotoTicketContinuation) throws -> SharedMediaNativePhotoPutAuthorization? {
-        guard let current = try saved(prepared), current.version == 11,
+        guard let current = try saved(prepared), current.transferPhase == 11,
               current == continuation.allocation else { throw SharedMediaStorageFailure.stale }
         let ticket = try continuation.takeIssued()
         guard let attempt = ticket.issuedAttempt else { throw SharedMediaStorageFailure.closed }
@@ -282,7 +286,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     #endif
 
     private func saveRemoteAttempt(_ after: Allocation, replacing current: Allocation,
-                                   prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+                                   prepared: SharedMediaNativeReceivingIntent.Prepared, onAcknowledged: () -> Void = {}) throws -> Allocation {
         guard after != current else { return current }
         let context = fresh(), inventory = try inventory(context)
         let witnesses = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory)
@@ -290,7 +294,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             throw SharedMediaStorageFailure.stale
         }
         try requireReservation(after, replacing: current, context: context, inventory: inventory, witnesses: witnesses)
-        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        if try persist(after, prepared: prepared, context: context, inventory: inventory) { onAcknowledged() }
         return after
     }
 
@@ -315,9 +319,9 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     /// Inactive concrete file handoff. A response code is only a local transport
     /// observation: it neither settles remote closure nor releases the hold.
     func uploadTransfer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                        upload: SharedMediaNativePhotoUpload) async throws -> Int {
+                        upload: SharedMediaNativePhotoUpload, start: SharedMediaNativePhotoAllocationAccess.FirstStart? = nil, retired: ((@escaping NextRoleStart) -> Void)? = nil) async throws -> Int {
         let allocation = upload.allocation
-        guard try saved(prepared) == allocation, (3...5).contains(allocation.version) || allocation.version == 12,
+        guard try saved(prepared) == allocation, (3...5).contains(allocation.version) || allocation.transferPhase == 12,
               let reservation = allocation.transferReservation else { throw SharedMediaStorageFailure.stale }
         let state = try SharedMediaNativePhotoTransferReadback.state(prepared, reservation: reservation, context: fresh())
         let result = try await io.uploadTransfer(state, reservation: reservation, upload: upload) {
@@ -332,37 +336,44 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         }
         try sealTransfer(result.inspection, result.completion)
         try validate()
+        if let start, let retired, (200..<300).contains(result.statusCode), upload.hasFinishedOwnedTask,
+           allocation.transferPhase == 12 {
+            let epoch = authority.writerEpoch, originalContainer = container
+            var spent = false
+            retired { operation, confirmation in
+                guard !spent else { throw SharedMediaStorageFailure.closed }
+                spent = true
+                try start.validate()
+                guard operation.container === originalContainer, operation.authority.writerEpoch == epoch,
+                      let current = try operation.saved(prepared) else { throw SharedMediaStorageFailure.stale }
+                try confirmation.take(for: start, current: current)
+                try current.requireRetiredOriginal(allocation)
+                guard let mapping = current.roleMapping else { throw SharedMediaStorageFailure.conflict }
+                let index = (current.completedRoles?.count ?? 0) + 1
+                let context = operation.fresh(), inventory = try operation.inventory(context)
+                if index == mapping.entries.count {
+                    let final = try current.sealingCompletedRoster()
+                    guard try operation.persist(final, prepared: prepared, context: context, inventory: inventory, beforeSave: start.validate) else { return .held }
+                    return .complete {
+                        try start.validate(); try operation.readback(final, prepared: prepared)
+                        return final
+                    }
+                }
+                guard index < mapping.entries.count else { throw SharedMediaStorageFailure.conflict }
+                let next = try SharedMediaNativePhotoTransferReservation(prepared: prepared, selection: mapping.entries[index])
+                let successor = try current.reservingFollowingRole(next)
+                guard try operation.persist(successor, prepared: prepared, context: context, inventory: inventory, beforeSave: start.validate) else { return .held }
+                return .ticket(.init(allocation: successor, validate: { try start.validate(); try operation.readback(successor, prepared: prepared) }))
+            }
+        }
         return result.statusCode
     }
 
     private func requireReservation(_ allocation: Allocation, replacing oldAllocation: Allocation?,
-        context: ModelContext, inventory: SharedMediaInventoryRecord,
-        witnesses: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]) throws {
-        let charge = try allocation.storageCharge, oldCharge = try oldAllocation?.storageCharge ?? 0
-        guard charge >= oldCharge else { throw SharedMediaStorageFailure.conflict }
-        let packageID = allocation.claim.packageID
-        let budget = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context,
-            inventory: inventory, ownerID: authority.profile.ownerID, format: .appV2)
-        guard let old = budget.metadataByPackage[packageID], old >= oldCharge,
-              try PhotoPreparationPolicy.add([old - oldCharge, charge]) <= PhotoPreparationPolicy.metadata else {
-            throw SharedMediaStorageFailure.capacity
-        }
-        let package = try SharedMediaNativePairPlanGraph.one(context,
-            FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
-        guard try PhotoPreparationPolicy.add([package.allocatedByteCount, old - oldCharge, charge]) <= PhotoPreparationPolicy.package else {
-            throw SharedMediaStorageFailure.capacity
-        }
-        var totals = budget.totals
-        try totals.includePhotoPhysical(materialized: 0, reserved: charge - oldCharge)
-        if allocation.transferReservation != nil, oldAllocation?.transferReservation == nil {
-            try totals.include(.init(packageID: packageID, pool: .transfer, materialized: 0,
-                reserved: SharedMediaNativePhotoTransferReservation.copyAllowance))
-        }
-        try totals.checkAvailable(availableBytes())
-        let terminal = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
-        try SharedMediaNativeReceivingCleanGraph.requireReplacementRunway(inventoryRevision: inventory.revision,
-            packageID: packageID, executionAdvances: allocation.remainingAdvances, saveAdvances: 1,
-            witnesses: witnesses, terminalConsumptionAdvances: terminal)
+                                    context: ModelContext, inventory: SharedMediaInventoryRecord,
+                                    witnesses: [UUID: SharedMediaNativeReceivingCleanGraph.Witness]) throws {
+        try Snapshot.requireReservation(allocation, replacing: oldAllocation, context: context,
+            inventory: inventory, witnesses: witnesses, availableBytes: availableBytes)
     }
 
     func settle(_ reply: InitialPhotoAllocationReply, request: Allocation,
@@ -389,7 +400,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
     /// Persist the complete mapping atomically, only against a durably reserved
     /// request. Holds and exact replays do not save or release any liability.
     func enrich(_ reply: InitialPhotoAllocationRoleReply, request: Allocation,
-                prepared: SharedMediaNativeReceivingIntent.Prepared) throws -> Allocation {
+                prepared: SharedMediaNativeReceivingIntent.Prepared, onAcknowledged: () -> Void = {}) throws -> Allocation {
         guard request.version == 2 || request.version == 6, let current = try saved(prepared), current.version == request.version,
               current.claim == request.claim else { throw SharedMediaStorageFailure.stale }
         if let receipt = request.receipt, receipt != current.receipt { throw SharedMediaStorageFailure.conflict }
@@ -404,7 +415,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
             throw SharedMediaStorageFailure.stale
         }
         guard try after.storageCharge <= current.storageCharge else { throw SharedMediaStorageFailure.capacity }
-        _ = try persist(after, prepared: prepared, context: context, inventory: inventory)
+        if try persist(after, prepared: prepared, context: context, inventory: inventory) { onAcknowledged() }
         return after
     }
 
@@ -416,7 +427,7 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         guard !consumed, let row = try SharedMediaNativeReceivingPhaseGraph.row(prepared.package.id, in: context) else {
             throw SharedMediaStorageFailure.closed
         }
-        let seal = try SharedMediaNativePhotoAllocationPoststate(row: row, inventory: inventory, after: allocation, prepared: prepared, context: context)
+        let seal = try NativePhotoAllocationPoststate(row: row, inventory: inventory, after: allocation, prepared: prepared, context: context)
         do {
             row.allocationData = try allocation.encoded()
             row.allocationSHA256 = SharedMediaAcquisitionEncoding.digest(row.allocationData!)
@@ -467,6 +478,11 @@ final class SharedMediaNativeAppPhotoAllocationOperations {
         guard try authority.header(container) == header else { throw SharedMediaStorageFailure.stale }
     }
 
+    func initialApplication() throws -> NativeInitialApplicationOperations {
+        try validate(); guard !consumed else { throw SharedMediaStorageFailure.closed }; consumed = true
+        return .init(container: container, authority: authority, io: io, seal: sealTransfer, expected: expected, availableBytes: availableBytes, boundary: boundary)
+    }
+
     private func validate() throws {
         guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale }
     }
@@ -504,6 +520,7 @@ final class SharedMediaNativePhotoTicketContinuation {
     private var consumed = false
     private var closed = false
     private var responseConsumed = false
+    private var followingExchangeStarted = false
     private var issuedTicket: InitialPhotoUploadTicket?
     fileprivate init(allocation: SharedMediaNativePhotoAllocation, validate: @escaping () throws -> Void) {
         self.allocation = allocation; check = validate
@@ -517,6 +534,11 @@ final class SharedMediaNativePhotoTicketContinuation {
         guard !closed, consumed, let check else { throw SharedMediaStorageFailure.closed }
         try check()
     }
+    func consumeFollowingExchange(for original: SharedMediaNativePhotoAllocation) throws {
+        guard !followingExchangeStarted, allocation.version == 14, allocation == original else { throw SharedMediaStorageFailure.closed }
+        try validateConsumed()
+        followingExchangeStarted = true
+    }
     /// One response observation while the exact receiving/account operation is
     /// retained. This never constructs a request or promotes metadata to PUT authority.
     func decodeResponse(_ data: Data, destination: InitialPhotoUploadDestination,
@@ -527,17 +549,17 @@ final class SharedMediaNativePhotoTicketContinuation {
         let result = try InitialPhotoUploadTicket(data: data, allocation: allocation,
             destination: destination, nowMilliseconds: nowMilliseconds)
         try validateConsumed()
-        if allocation.version == 11, result.outcome == .issued { issuedTicket = result }
+        if allocation.transferPhase == 11, result.outcome == .issued { issuedTicket = result }
         return result
     }
     fileprivate func takeIssued() throws -> InitialPhotoUploadTicket {
         let ticket = issuedTicket; issuedTicket = nil
         defer { close() }
         try validateConsumed()
-        guard allocation.version == 11, let ticket else { throw SharedMediaStorageFailure.closed }
+        guard allocation.transferPhase == 11, let ticket else { throw SharedMediaStorageFailure.closed }
         return ticket
     }
-    fileprivate func close() {
+    func close() {
         closed = true
         // A closed handle must not retain the repository's file ownership.
         check = nil; issuedTicket = nil

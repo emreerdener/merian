@@ -105,6 +105,8 @@ node_modules/
 # Environment configuration files
 *.xcconfig
 !Config.xcconfig
+!HistoryQualification.xcconfig
+HistoryQualificationApproval.xcconfig
 !Config.local.example.xcconfig
 !Signing.xcconfig
 !Signing.local.example.xcconfig

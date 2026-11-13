@@ -22,6 +22,7 @@ final class AudioReanalysisSheetUIFixture {
     private(set) var savedIdentity = "No request"
     private(set) var authorizations = 0
     private(set) var starts = 0
+    private(set) var checks = 0
     private var accountCurrent = true
     private var bundle: PreparedHistoryReanalysisComposition?
     private var proof: ObservationAudioPreparation.Verified?
@@ -63,6 +64,18 @@ final class AudioReanalysisSheetUIFixture {
                 } catch { savedIdentity = "Persistence failure" }
                 // No provider, upload, receipt fabrication or consumption; the exact bound request stays durable.
                 return .unavailable
+            }, recover: { [weak self] key, proof, candidate, _ in
+                guard let self, accountCurrent, candidate === container,
+                      key.snapshot.work.consumedAttempt != nil,
+                      let original, original == key.snapshot,
+                      try ObservationAudioExecutionStore.read(proof, container: candidate,
+                          isCurrent: { self.accountCurrent }) == original else {
+                    throw ObservationHistoryError.unavailable
+                }
+                checks += 1
+                // Synthetic absence from the exact outcome reader. No broad
+                // execution start, authorization, files, or provider request.
+                return false
             })
         let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: seed.cloud,
             currentOwner: { [weak self] in self?.accountCurrent == true ? owner : nil }, generation: { 1 },
@@ -115,7 +128,7 @@ struct AudioReanalysisSheetUITestPresentation: ViewModifier {
                     Text(fixture.savedIdentity).accessibilityIdentifier("AudioFixtureSavedIdentity")
                     Button("Prepare consumed recovery") { fixture.prepareConsumedRecovery() }.accessibilityIdentifier("AudioFixtureConsume")
                     Button("Open saved requests") { fixture.openSaved() }.accessibilityIdentifier("AudioFixtureSavedOpen")
-                    Text("\(fixture.starts):\(fixture.authorizations)").accessibilityIdentifier("AudioFixtureCounts")
+                    Text("\(fixture.starts):\(fixture.authorizations):\(fixture.checks)").accessibilityIdentifier("AudioFixtureCounts")
                 }
                 .padding().background(.regularMaterial)
             }

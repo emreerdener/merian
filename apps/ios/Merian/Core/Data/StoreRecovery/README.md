@@ -1,3 +1,27 @@
+## November 8 CST — primary-app qualification preparation
+
+Completion269 follows the user's primary-app testing decision. The qualification
+configuration reuses ordinary app/companion identities, data containers and
+Google registration while retaining its compiled target/account gates and
+internal Auth transaction journal. Ordinary SDK session bytes remain untouched;
+no refresh token is cloned. Sign-out and inherited sign-out recovery hold before
+destructive effects; failed store startup cannot quarantine/rescue/recreate the
+primary library in qualification. Implementation and local checks do not
+establish signed install-over or rollback compatibility; the device-review guide
+owns those remaining gates.
+
+## November 4 — V69 original binding storage candidate
+
+V69 adds nil-default original admission/completion fields on the receiving slot.
+V68 was frozen and compiled first. Startup selects
+`MerianRecentV68MigrationPlan` for V68 stores, including the ordered checksum
+fallback; all earlier forward plans retain their stages and append V68→V69.
+Rescue matching and plan-free current stores are unchanged. Source review and
+guardrails passed; full migration/startup runtime checks are in progress. The
+[current schema contract](../../../../../../docs/backend-and-data/04-database-schema.md#november-4--v69-original-admission-and-completion-storage-candidate)
+owns field semantics and qualification limits. Earlier dated sections retain
+historical evidence and do not describe the current schema.
+
 ## October 31 — V68 presentation storage candidate
 
 The current schema adds a nullable queue presentation field through lightweight

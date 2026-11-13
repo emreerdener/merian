@@ -1,4 +1,35 @@
+## Private cleanup dispatch correlation
+
+The local `20261111200839` migration and compatible worker bind each new
+transport request to a durable random UUID and strict v2 terminal receipt.
+Legacy in-flight slots remain held without backfill. pg_net transaction-start
+timestamps are conservative ages, not HTTP completion clocks. See the
+[worker contract](functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes)
+and
+[incident](../../docs/incidents/2026-11-private-evidence-dispatch-correlation.md).
+The migration changes no gates, schedules or credentials. Deploy the compatible
+worker before allowing new dispatch where practical; an old worker response to
+the new scheduler safely holds. Original-slot recovery requires separate exact
+maintenance approval. The cleanup SQL catalog and worker receipt tests own
+regression coverage; no Swift/client wire boundary changes.
+
+## Private qualified-context parse reuse
+
+The local `20261111030135` migration reuses already validated candidate/profile
+values within one qualified-context invocation. Direct entry points retain full
+parsing, and new semantic helpers remain private with no live-row authority. The
+[database contract](../../docs/backend-and-data/04-database-schema.md#private-qualified-context-parse-reuse)
+owns these boundaries; `tests/initial_qualified_codecs.sql` covers independent
+historical context and direct-entry parity, intended denials and privileges. No
+deadline, callback, rollout gate or hosted state changes. Full successor
+qualification is pending.
+
 ## Local CPM admission bridge qualification
+
+For a hosted migration-version inventory using existing Production secrets, see
+the
+[manual read-only inspection](../../docs/backend-and-data/06-supabase-deployment-runbook.md#manual-read-only-migration-inspection).
+It has its own manual workflow and does not deploy or require a local password.
 
 `initial_cpm_admission_bridge_races.py` uses the existing atomic-admission
 qualification/session owners and requires a fresh owned disposable replay for
@@ -62,6 +93,37 @@ Synthetic identities/replies remain in memory; retained output is counts, hashes
 and timing. The child clears inherited credential values and allows only the
 existing credential resolver's environment names. Never expose the shim beyond
 loopback.
+
+Use `--request-journey` on its own fresh disposable replay to continue from
+admission through an original dispatch, result and completion. For example:
+
+```sh
+python3 -B services/supabase/scripts/initial_cpm_runtime_contract.py \
+  --container "$owned_container" --replay-manifest "$owned_replay_manifest" \
+  --evidence-directory "$new_evidence_dir" --request-journey
+```
+
+The fixture sends six distinct synthetic JPEGs through verification. Only the
+two assigned AI images enter the private English Gemini request. The parent
+keeps the request in memory, commits the original database reservation, and
+passes the fresh invocation to a network-denied fixture receiver. That receiver
+checks the same model, AI-image digests and ordered descriptions before
+producing its synthetic reply and usage. The preparer's actual SDK wire
+serialization is exercised separately inside its Deno test. The real private SQL
+owners record usage, retain the result, recover its exact bytes, verify all six
+terminal objects, and complete the original scan. The fixture compares replay
+with the original two-photo completion. Original status reads exercise the
+pre-dispatch refusal, the same pending bytes after dispatch and result storage,
+and the exact found result after completion. Its temporary service-role adapters
+exist only in that owned database. The installed executable, actual provider,
+hosted charging and native presentation each require their own evidence.
+
+For troubleshooting, distinguish a refusal before dispatch from a failure after
+the original grant. Compare the saved model/profile first. Once dispatch
+commits, use the original invocation and receipt for recovery. A terminal object
+response requires its original path, declared type and length, and
+`Cache-Control: private, no-store`. The evidence records counts, hashes and
+failure stages.
 
 The mutually exclusive `--pending-commit` mode keeps the actual admission
 transaction open after its SELECT until the client's timed-out HTTP call starts
@@ -332,6 +394,15 @@ hold. Follow the
 
 ## Local atomic admission and cancellation qualification
 
+The preparation execution contention fixture keeps exact errors for raw writer
+competition. Invocation inserts encounter the dispatch-authority trigger first
+after the operation fence commits, including after cancellation. The fixture
+also directly proves the preparation helper rejects that same identity, its
+permanent source barrier stays blocked, and no invocation row was written.
+In-flight allocation still requires the preparation scope-busy error; stale
+snapshots still require the isolation error. Production trigger order and guards
+remain intact.
+
 `test_initial_atomic_admission_c1.py` prepares a synthetic complete committed
 admission and exercises actual service-role C1 cancellation, proof/role
 boundaries and terminal replay. Its `explicit`, `terminal`, `terminal-held`,
@@ -357,9 +428,10 @@ own connections rolls back unfinished transactions.
 
 The absent-credit `explicit-edges` suite retains reviewed proof-drift, injected
 failure, original-owner seam and precedence checks. Every case restores the
-original 21-relation projection. Deliberately invalid corruption fixtures roll
-back; they do not establish deferred integrity of the injected state. Authentic
-completion and partial-stage checks retain their original constraint flushes.
+original 21-relation projection plus accounting events. Deliberately invalid
+corruption fixtures roll back; they do not establish deferred integrity of the
+injected state. Authentic completion and partial-stage checks retain their
+original constraint flushes.
 
 The `cross-owner` suite exercises actual public service-role cancellation in
 both valid/foreign caller orders. It observes blocking, requires exact foreign
@@ -395,6 +467,24 @@ counters and peer images stay in memory. Observed transaction-ID waits, counter
 relation access and actual same-IP key/window equality provide bounded wait
 attribution; no third lock scheduler is used. This does not qualify public
 admission, production timing or all possible lock graphs.
+
+Before either admission in each order, the fixture reads the selected
+complimentary policy and verifies its 60-second user/IP windows and daily
+counter. A fresh database clock sample must leave at least 50 seconds in the
+minute/day; at most one wait and one resample are allowed, with a 55-second
+total wait budget. Sample calls use at most five seconds of the remaining budget
+and a two-second SQL statement limit; their measured latency is deducted from
+the available runway. A planned sleep that exceeds the remaining budget is
+rejected. This establishes the same-window scheduling precondition without
+retrying admissions or changing clocks, policies or execution deadlines. The
+original exact counter assertions and observed shared-counter lock dependency
+remain mandatory; an order that crosses the boundary still fails. Sanitized
+counter diagnostics retain only scope/owner labels, window/count/timestamp
+metadata, equality and staging count before asserting. Full counter and peer
+images remain in memory. The deterministic precondition tests run through
+`initial_counter_window_test.sh` in the normal tooling gate. A forced rollover
+reproduced the old assertion's susceptibility; it does not establish the cause
+of the original CI515 failure, whose counter images were not retained.
 
 The `scan-delete-order` suite exercises the public scan-deletion `not_found`
 path against C1 in both observed orders. It proves no scan or deletion tombstone
@@ -476,16 +566,33 @@ qualifies production workers, providers, HTTP or media blob processing.
 
 The fixture uses the checked-in stage catalog's explicit composer marker and
 performs original funding, materialization, ledger freeze and completion of
-admission before testing public cancellation. Trusted unknown/authorized state
-fixtures are synthetic projections, not successful provider dispatch. Full
-runtime/concurrency packaging, production timing and installed qualification
-remain separate acceptance requirements. Activation stays disabled outside
-synthetic setup; receipts contain source hashes and bounded results, never SQL,
-input descriptions or response bodies. Migration version checks alone do not
-prove SQL byte identity: bind receipts to the caller's exact fresh-replay
-manifest.
+admission before testing public cancellation. Authorized terminal fixtures
+commit the existing synthetic dispatch owner in a separate transaction for the
+exact selected scan, preserving its invocation and committed funding before
+testing cancellation. They require unchanged funding, exact invocation
+retirement and one unknown accounting event matched against the original
+invocation identity, owner, scan and provenance. Late-fault and replay
+projections include accounting events. Unknown-lifecycle fixtures remain
+explicitly synthetic conservative recovery; an authorized flag without an
+invocation must deny. The completed receipt precedence fixture remains
+privileged and rollback-only, including its required projection object; it does
+not qualify completion construction. Full runtime/concurrency packaging,
+production timing and installed qualification remain separate acceptance
+requirements. Activation stays disabled outside synthetic setup; receipts
+contain source hashes and bounded results, never SQL, input descriptions or
+response bodies. Migration version checks alone do not prove SQL byte identity:
+bind receipts to the caller's exact fresh-replay manifest.
 
 ## Private handoff runtime qualification
+
+The state fixture asserts the exact current 32-member snapshot inventory,
+including an empty CPM photo mapping on legacy media, and seven parented
+deletion frames with one empty CPM mapping frame. The shared transfer/C1 test
+catalog contains all 20 cancellation members, including CPM mapping in
+terminal-state digests. Keep these explicit expectations aligned with forward
+catalog migrations; do not replace exact equality with a relaxed minimum count.
+Historical CI512 and local pre-correction failures remain in the qualification
+findings record.
 
 `python3 services/supabase/scripts/run_initial_media_handoff_qualification.py
 --suite all`
@@ -517,6 +624,33 @@ suite's output directory, including reservation, starting, failed startup and
 disposal. The `--snapshot-ownership --evidence-directory <output>` mode reads
 only the fixed receipt and saves its sanitized current metadata; it never calls
 Docker, provisions, retries or cleans up. Unknown future fields are excluded.
+
+A reconciled failed suite has a separate explicit local teardown mode:
+`--dispose-reconciled-failure <reconciliation.json> --evidence-directory <new-directory>`.
+It never runs from the failure handler and does not weaken the passing-suite
+residual expectations. The reconciliation must bind version 1,
+`qualificationPassed: false`, the exact retained ownership SHA-256,
+suite/project/ container/workdir/Unix endpoint identity, original failure
+directory and failure/ replay hashes, and the observed failed-state counts. The
+failure and replay must carry the original matching migration and runner-source
+manifests. An OS-held nonblocking exclusive lock is acquired before reading the
+fixed ownership/proof and held through disposition. Never unlink its file:
+process death releases the lock, while durable non-ready ownership still denies
+a blind repeat. Before stop, the runner rechecks project labels and copied
+configuration/migration bytes, inactive rollout, zero invocations and client
+sessions, absence of rows in the three checked staging tables (handoff,
+preparation admission and admitted cancellation), exact observed residuals and
+unchanged evidence. A changed or missing fact denies teardown.
+
+This mode preserves original failed receipts and emits `failed-disposition.json`
+with `qualificationPassed: false`, original hashes, a separate recovery-tool
+hash, observed residuals and durable disposing/stopped/disposal_failed/disposed
+states. It clears the fixed receipt only after verifying container absence and
+removing its exact owned temporary project; it never emits a passing
+`result.json`, executes cancellation/refunds or automatically starts another
+test. Interruption retains ownership and disposition evidence for read-only
+reconciliation; do not repeat stop or remove the receipt to work around an
+incomplete disposition.
 
 Failure stops the sequence and retains the live ownership receipt. Before
 disposal, the original database is retained for read-only outcome
@@ -583,20 +717,35 @@ does not exercise its nested thumbnail helper.
 
 `.github/workflows/supabase-candidate-validation.yml` is the reusable backend
 evidence gate. It reports a stable **Candidate readiness** result on every pull
-request, supports manual dispatch, and is called by
-`.github/workflows/deploy.yml` before the Production job. Its full-history scope
-detector treats `.github`, `apps`, `docs`, `scripts`, `services/supabase`, and
-the maintained root contract files as inputs because the executable suite reads
-or scans them. Resolution failure and unclassified new roots force complete
-validation; manual, merge-queue, and reusable non-PR invocations are never
-scoped out. It checks an exact clean checkout, pins Deno `2.9.4` and Supabase
-CLI `2.109.1`, validates the complete Function dependency graph and tooling
-contracts, replays every migration into a disposable database, discovers every
-pgTAP catalog, executes the complete Edge/database-concurrency suite, and runs
-database lint plus security/performance advisors. The repository-local Deno
-setup action retries the immutable reviewed installer at most three times for
-transient GitHub release-download failures, verifies the installed runtime is
-exactly `2.9.4`, and fails closed after the final attempt.
+request, supports manual dispatch, and is required by
+`.github/workflows/deploy.yml` before the Production job. Deployment first
+checks whether the latest standalone same-SHA run can be reused: successful
+current attempt within 24 hours, all required jobs/steps passed, and retained
+C1/handoff artifact provenance. An active run stops duplicate execution; missing
+or unverifiable evidence falls back to the full reusable workflow. See the
+[deployment contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#production-path).
+Downstream jobs explicitly reject cancellation and require successful validation
+and release prerequisites while permitting the intentional fresh-gate skip. An
+overall green run with a skipped `deploy` job is not a deployment. The resolver
+grants no production authority. Its full-history scope detector treats
+`.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the maintained
+root contract files as inputs because the executable suite reads or scans them.
+Resolution failure and unclassified new roots force complete validation; manual,
+merge-queue, and reusable non-PR invocations are never scoped out. It checks an
+exact clean checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`, validates
+the complete Function dependency graph and tooling contracts, replays every
+migration into a disposable database, discovers every pgTAP catalog, executes
+the complete Edge/database-concurrency suite, and runs database lint plus
+security/performance advisors. The repository-local Deno setup action retries
+the immutable reviewed installer at most three times for transient GitHub
+release-download failures, verifies the installed runtime is exactly `2.9.4`,
+and fails closed after the final attempt.
+
+The local initial-History routine repair preserves final replayed definitions
+and private ACLs while correcting volatility, casts and unused declarations. See
+[the schema contract](../../docs/backend-and-data/04-database-schema.md#initial-history-routine-lint-repair-local-candidate)
+for its exact migration and passing local checks. Successor CI remains pending;
+no deployment or rollout is implied.
 
 After validating the pinned Supabase CLI, candidate validation clears the image
 registry override exported by `supabase/setup-cli`. CLI `2.109.1` then uses its
@@ -1657,6 +1806,16 @@ proves direct detail and atomic page reads return no row after canonical
 moderation exclusion. The complete production negative-state matrix and
 exact-SHA evidence are tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
+
+The additive `20261108062742_public_web_explore_pagination.sql` migration adds
+`get_public_web_explore_posts_page(integer,timestamptz,uuid)` for the public
+Explore canvas. It keeps the canonical anonymous projection, paired keyset
+cursor, limit 1–48 plus one lookahead row, service-role guard and
+exact-signature allowlist. Existing post/detail/page readers are unchanged. The
+catalog `tests/public_web_explore_pagination.sql` covers role denial, tied
+timestamps, lookahead, end-of-feed and withdrawn/moderated posts. Deploy the
+reviewed migration before the corresponding web bundle; preparation is not
+deployment.
 
 ### Public Web Waitlist Boundary
 
@@ -3930,3 +4089,14 @@ legacy duplicates. It never selects the latest operation, exposes consent or
 creates work. Native target transport remains unconnected and all gates stay
 false. See the
 [target recovery contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-target-recovery).
+
+### Prepared public website quarantine
+
+`20261108185855_quarantine_public_web_explore.sql` adds website-only
+pending-review filtering to existing public readers and a service-only 128-ID
+eligibility RPC. Open website pages consume scoped visibility snapshots without
+accessing report records. Apply this migration through the separately authorized
+infrastructure release before the frontend. See the
+[API contract](../../docs/backend-and-data/05-api-contracts.md#website-review-quarantine)
+and `tests/public_web_explore_quarantine.sql`. No hosted application or
+deployment is performed by local implementation/validation.

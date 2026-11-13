@@ -1,3 +1,6 @@
+import { requireServerApiKeyFromEnvironment } from "../_shared/serviceRoleAuth.ts";
+import { readInitialRecoveryHttp } from "./initialRecovery.ts";
+import { readScanObservationHttp } from "./observation.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -19,6 +22,7 @@ import {
   fetchScanStatusMedia,
 } from "./db.ts";
 import {
+  hasInitialRecoveryRequest,
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
@@ -91,8 +95,25 @@ async function buildScanStatusResponse(
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    // A reserved phase header must not enter ordinary legacy repair, even when
+    // its body is malformed or lacks the reserved JSON marker.
+    if (req.headers.has("x-merian-initial-recovery")) {
+      if (req.headers.get("x-merian-initial-recovery") === "observe-v1") {
+        return await readScanObservationHttp(req, user.id, supabaseAdmin);
+      }
+      return await readInitialRecoveryHttp(req, user.id, {
+        origin: Deno.env.get("SUPABASE_URL") ?? "",
+        serverApiKey: requireServerApiKeyFromEnvironment(),
+      });
+    }
     const body = await parseJsonBody(req, { limit: "standard" });
     if (body instanceof Response) return body;
+
+    // Recovery bodies require a reserved header; headerless or mixed bodies
+    // cannot enter ordinary missing-scan repair.
+    if (hasInitialRecoveryRequest(body)) {
+      return jsonResponse({ error: "initial_recovery_unavailable" }, 503);
+    }
 
     if (Array.isArray(body.scans)) {
       if (body.scans.length > 50) {

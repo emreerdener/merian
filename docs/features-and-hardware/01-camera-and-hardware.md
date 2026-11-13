@@ -57,6 +57,17 @@ and complete native journeys remain unqualified. See the
 
 ## The Core Pipeline
 
+Camera startup and physical photo/audio capture do not wait for library Auth
+recovery or scan-availability networking. Captures remain local drafts until
+identification passes admission and durable queue ownership checks. Sign-in
+recovery is presented inside Scans/Profile and other private routes, with a
+return to the camera. Hardware permissions, thermal controls, local Pro-video
+capability, and media capacity remain enforced. Gallery imports keep their
+existing entry-admission checks. See the
+[library transition contract](../backend-and-data/21-guest-library-transitions.md)
+and
+[draft ownership rules](./29-staged-capture-review.md#readiness-and-automatic-capture-attempts).
+
 ### `CameraManager` and `CameraSessionController`
 
 `CameraManager` exposes app-facing state and delegates. The controller is the
@@ -311,36 +322,40 @@ feedback boundary; the slider never resolves a haptic service.
   to `1.0` when the session stops, so without `isSessionRunning` the slider
   would appear prematurely on session restart (e.g., returning from audio mode)
   while the camera is still spinning up. The Simulator's explicit no-preview
-  path publishes its simulated running state directly. The 0.5s `easeIn` fade
-  applies when the combined condition first becomes `true`, after the live
-  viewfinder is already active.
+  path publishes its simulated running state directly. A 0.4s `easeOut`
+  move-and-opacity transition applies when the combined condition becomes
+  `true`, after the live viewfinder is already active.
 - Hidden when `activeScanImages.count >= 2` (multi-capture staging mode) via the
   guard in `MainOverlayView`'s `.overlay`.
 - **Side placement**: Sits flush against the trailing screen edge by default (no
   horizontal padding). `@AppStorage(UserDefaultsKeys.zoomSideLeft)` flips it to
   the leading edge; `MainOverlayView` switches the overlay alignment
   accordingly. The view mirrors horizontally via
-  `.scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)` — no Canvas math changes
-  required.
+  `.scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)`. Dot centers rest 8pt inside
+  the selected viewport edge (a 6pt clear gap for 4pt dots) and move inward to
+  an 18pt inset during zoom. The 52pt-wide touch area does not shrink.
 - **Drag gesture**: `DragGesture(minimumDistance: 1)` on the slider lets users
   zoom by dragging directly on the ruler. Uses log-space delta —
   `newFactor = startFactor × exp((dy / trackHeight) × log(maxZoom))` — so the
-  indicator tracks the finger pixel-perfectly on the logarithmic ruler.
-  `isDragging ? nil : spring` animation gives direct-manipulation feel during
-  drag and a spring on programmatic changes. On drag end,
+  indicator tracks the finger pixel-perfectly on the logarithmic ruler. The
+  indicator tracks vertical movement directly during drag and uses a 0.25s
+  `easeOut` offset animation for other zoom changes. That animation is scoped to
+  the offset so it does not override the shared activity animation. On drag end,
   `CameraManager.snapToNearestOpticalStop()` snaps the zoom to the nearest
   optical stop, mirroring the pinch and viewfinder swipe behaviour. Coexists
   with pinch and viewfinder swipe, all routing through
   `CameraManager.setZoom(factor:)`.
 - **Tick-mark ruler**: A `Canvas`-drawn ruler of 32 evenly-spaced ticks across a
-  220pt track (52pt wide component). All ticks are rendered at the same length
-  (`shortTickWidth = 14pt`, with a 4pt inset from the trailing edge). Optical
-  stop ticks and the max zoom end tick are drawn in `white.opacity(0.8)`;
-  standard ticks in `white.opacity(0.45)`. Each optical stop and the max zoom
-  position carry a 4pt white dot 18pt from the trailing edge. The tick-to-zoom
-  mapping uses **log-space**: `tickLog = (1 − t) × logMax` (default) or
-  `t × logMax` (inverted), so ticks are spaced logarithmically and align exactly
-  with the indicator position and drag gesture.
+  220pt track (52pt wide component). At full activity, the base line length is
+  10pt (`shortTickWidth = 14pt` minus `opticalTickInset = 4pt`), plus the moving
+  Gaussian bulge described below. Optical-stop and endpoint lines use
+  `white.opacity(0.8)`; standard lines use `white.opacity(0.45)`. The entire
+  length scales with activity, and zero activity skips every line stroke.
+  Minimum, maximum, and interior optical stops retain 4pt white dots. Their
+  centers interpolate from an 8pt edge inset at rest to 18pt during zoom. The
+  tick-to-zoom mapping uses **log-space**: `tickLog = (1 − t) × logMax`
+  (default) or `t × logMax` (inverted), so ticks align with the indicator
+  position and drag gesture.
 - **Logarithmic position mapping**: Both the tick ruler and `fillFraction(for:)`
   use `log(factor) / log(maxZoomFactor)`. This ensures the indicator and
   optical-stop dots stay in perfect sync at all zoom levels — optical stops are
@@ -351,37 +366,27 @@ feedback boundary; the slider never resolves a haptic service.
   where `indicatorTickOffset = 5` compensates for the Canvas's 4pt internal
   y-start and the `rulerView`'s 11pt top padding, minus half the 20pt indicator
   frame height, ensuring the indicator center lands precisely on each tick line.
-- **Current zoom indicator**: Floats along the ruler as `camera.zoomFactor`
-  changes, animated with `.spring(response: 0.4, dampingFraction: 0.75)`. Two
-  display states driven by `showText = isActivelyZooming || showInitialLabel`:
-  - **Pill** (`showText = true`): Yellow (`rgb(255, 204, 0)`) `Capsule` badge,
-    10pt SF Rounded Bold black label, with `.contentTransition(.numericText())`
-    for smooth digit morphing. A 1.5pt white hairline connects it to the ruler.
-  - **Dot** (`showText = false`): 5pt yellow circle with a 0.5pt white hairline
-    at 15% opacity.
-  - Pill ↔ dot swap uses `.scale(0.7).combined(with: .opacity)` transition,
-    animated with `.spring(response: 0.25, dampingFraction: 0.8)`.
-- **Initial label**: A lifecycle-owned `.task` starts with
-  `showInitialLabel == true`, showing the "1×" pill immediately so users
-  understand the control on first load. After two seconds it clears the label
-  and collapses the pill to a dot; unmounting cancels the task automatically.
-  Once dismissed it stays a dot until the user zooms.
-- **Active zoom detection**: `isActivelyZooming` is set `true` on every
-  `.onChange(of: camera.zoomFactor)` frame and cleared by a replaceable
-  1.5-second idle task. The previous task is cancelled on every zoom update and
-  on view disappearance, so it cannot retain or mutate an obsolete slider. This
-  drives `showText` so the label is visible while the user is actively pinching
-  or swiping, then retreats to a dot once zoom settles.
-- **Tick-elongation effect**: `zoomActivityStrength: CGFloat` (`@State`, 0–1)
-  gates a Gaussian falloff applied to each tick's Canvas draw. When zooming
-  starts, `withAnimation(.easeOut(duration: 0.12))` ramps `zoomActivityStrength`
-  to 1.0; when the 1.5s idle timer fires,
-  `withAnimation(.easeOut(duration: 0.5))` collapses it back to 0. Each tick's
-  extra length is `influence × 8 pt`, where `influence = exp(-d²/(2σ²))` with σ
-  = 0.18 (~5–6 ticks either side of the current position). The collapse
-  animation is driven from a synchronous `onChange(of: isActivelyZooming)` — if
-  it were inside the async `Task`, `withAnimation` might not execute within
-  SwiftUI's update cycle.
+- **Current zoom indicator**: `ZoomActivityIndicator` interpolates the same
+  activity progress as `TickRulerCanvas`. During zoom it displays a yellow
+  (`rgb(255, 204, 0)`) capsule with a 10pt bold black numeric label and a 1.5pt
+  white connector. As activity declines, the capsule scales and fades into a 4pt
+  yellow dot, the connector retracts and fades completely, and the dot moves
+  outward with the white dots. At rest only dots remain; the yellow dot's center
+  shares their 8pt edge inset. The control starts in this settled state, with no
+  introductory label.
+- **Active zoom detection**: Each visible `.onChange(of: camera.zoomFactor)`
+  sets `isActivelyZooming` and replaces a cancellable 0.8-second idle task. The
+  previous task is cancelled on every zoom update. Hiding the control, stopping
+  the camera session, or removing the view cancels pending work and resets
+  presentation without animation. Hidden zoom updates do not expand it.
+- **Expansion and settling**: `zoomActivityStrength` animates from 0 to 1 over
+  0.12s with `easeOut`. After 0.8s without a zoom change, a synchronous
+  `onChange(of: isActivelyZooming)` animates it back to 0 over 0.5s with
+  `easeOut`. The same progress controls tick length, white/yellow dot inset,
+  capsule visibility, and connector retraction. Renewed zoom reverses from the
+  current presentation. The tick bulge retains Gaussian falloff with σ = 0.18
+  and up to 8pt extra length at full activity; its center follows the current
+  zoom fraction. No tick or connector remains visible after settling.
 - **Visibility toggle**: Gated by
   `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`. The
   `zoomSliderVisible` flag (`@AppStorage(UserDefaultsKeys.zoomSliderVisible)`,
@@ -513,27 +518,40 @@ Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder.
 Bridges `ViewfinderIntelligence` output to the user without blocking the shutter
 path.
 
-- Shows "Tap to identify. Hold to record video" on first appear for 3.5 seconds
-  (or "Add another photo" when `isRefining == true`), then fades it out over 0.3
-  s.
-- **`isRefining` mode**: `MainOverlayView` passes
-  `isRefining: viewModel.baseRefinementRecord != nil`. When this flips to
-  `true`, `onChange(of: isRefining)` cancels any in-flight prompt task and
-  re-shows the refinement-specific prompt ("Add more to improve identification")
-  so the user has clear context that the camera is staged for supplementary
-  capture.
-- **`vuiHintsAllowed` gate**: VUI hints (`vui.currentHint`) are suppressed until
-  0.35 s after the initial prompt finishes fading, preventing a cross-fade where
-  both texts are simultaneously visible during the dismissal animation. Only
-  after `vuiHintsAllowed = true` is set can a non-optimal hint appear.
-- The prompt task is explicitly cancelled on replacement and disappearance, and
-  the entire hint surface disables hit testing so it never intercepts shutter or
-  viewfinder gestures. Tap-focus indicators follow the same cancellable
-  1.5-second teardown and pass-through policy.
-- Rendered by `MainOverlayView` only when `activeScanImages.count < 2` (hidden
-  during multi-capture staging). Hidden entirely when
-  `activeScanImages.count >= 2` via `MainOverlayView`'s conditional — the same
-  guard that hides the `ZoomSliderView`.
+- On the first visible, empty camera visit of each app process, shows "Tap to
+  identify" for 3.5 seconds for everyone. Eligible Pro users then see "Hold to
+  record video" for another 3.5 seconds; Free users proceed directly to
+  dismissal. Each transition uses a 0.3-second opacity animation, disabled for
+  Reduce Motion. There is no upgrade message.
+- `ViewfinderHintLaunchState` is retained by `AppDIContainer` and exposed
+  through `CaptureWorkspaceDependencies.claimViewfinderIntroduction`. Claiming
+  occurs only when the foreground visual camera is uncovered and its draft is
+  empty. Launch-time What's New and Explore do not consume it. Shell keeps
+  presentation occupancy through the actual sheet-dismissal callback. Returning
+  from sheets, results, other modes, or the background never replays a claimed
+  introduction; remounting the view does not reset the claim.
+- `ViewfinderHintPresentation` owns the identify, video, refinement, and
+  finished phases, cancellable timing, and guidance handoff. Capture or leaving
+  the camera cancels the sequence without resuming it. Video eligibility is
+  evaluated at the transition; losing eligibility dismisses the video hint. A
+  later upgrade does not restart a finished sequence.
+- Refinement retains its independent "Add another" prompt for 3.5 seconds on
+  entry. Recording countdown takes priority over all instructional or contextual
+  hints. Neither requires a fresh launch-introduction claim.
+- Contextual VUI guidance remains suppressed until 0.35 seconds after the final
+  prompt starts fading, preventing instructional and guidance text overlap.
+  Replacement and disappearance cancel pending tasks, and obsolete timer
+  completions cannot overwrite a newer prompt. The hint surface disables hit
+  testing so it never intercepts shutter or viewfinder gestures.
+- Hint eligibility follows `shouldShowViewfinderHints`, which checks remaining
+  staged-evidence capacity (including Free's single slot). Zoom eligibility uses
+  its own visual-media count guard; the two are not a shared two-image limit.
+- `ViewfinderHintPresentationTests` covers timing, eligibility changes, deferred
+  startup, cancellation, refinement, and launch ownership.
+  `ViewfinderHintUITests` covers launch-sheet dismissal, no replay after
+  Explore, and visible expiry. The Debug-only `-keepViewfinderHintVisible`
+  override freezes an eligible prompt for layout checks without bypassing
+  visibility, cancellation, or launch claims.
 - The camera page spans the physical screen while the shutter is positioned
   relative to the safe area. `MainOverlayView` uses the baseline 250 pt
   full-screen clearance plus the adaptive staging delta from

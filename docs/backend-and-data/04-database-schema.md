@@ -1,3 +1,161 @@
+## November 9 — prepared original recovery service reads
+
+The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
+candidate exposes two service-only wrappers for the existing locked immutable
+readers: `discover_initial_completion_v1` and
+`read_initial_cpm_saved_admission_v1`. Each checks the service caller inside a
+postgres-owned SECURITY DEFINER function with an empty search path and a
+five-second statement-timeout configuration. The existing abortable transport
+deadline remains required; this catalog setting alone does not qualify server
+execution or lock-wait duration. Exact signatures are registered in the existing
+privileged-routine allowlist. Anonymous/authenticated callers and direct
+internal access remain denied.
+
+The wrappers delegate original owner/admission/dispatch/funding and
+cancellation/deletion validation without copying those rules or adding writes.
+The saved-admission response includes private assignment context for server
+validation; it must never be relayed as the native acknowledgement. The local
+status route now composes these readers through the existing
+`initialRecovery.ts` owner. Full S0 admission, media/execution/settlement and
+old-writer quiescence prerequisites remain. Ordinary legacy absence cannot gain
+an immutable result through these reads.
+
+Local validation passed: full 516-migration replay, 190 catalog files with
+10,384 executed assertions and two existing declared skips, strict
+public/internal SQL lint, and four owned recovery journeys with 341 checks.
+Independent review verified the permission-test correction, source applicability
+and owned cleanup. The migration remains unpublished and unapplied to hosted
+environments. These synthetic SQL journeys do not qualify the HTTP route,
+concurrent deletion/merge, server timeout or native integration;
+initial-recovery acceptance remains open.
+
+The composed local HTTP recovery owner additionally passed four SQL-response
+bridge journeys (341 checks), the full Edge suite (4,390 tests/1,170 steps),
+whole-tree lint and 125 deployable entrypoint checks. Focused native wire tests
+passed four methods/17 cases in the integrated app checkout. The tooling
+components passed across retained split execution: the original monolithic run
+failed because the sandbox denied synthetic hidden-input terminal access; the
+unchanged fake-provider PTY test and remaining shell tests then passed with
+terminal permission. Independent review verified these scoped results and
+cleanup. Durable original recovery-to-History, actual audio/video queued UI
+restart and broader S0/RUX/cumulative acceptance remain open.
+
+## November 4 — V69 original admission and completion storage candidate
+
+Current source schema V69 adds four nullable fields to the existing
+`SharedMediaReceivingIntentRecord`: `initialAdmissionData`,
+`initialAdmissionSHA256`, `initialCompletionData` and `initialCompletionSHA256`.
+They reserve separate original server facts; `resultData` retains its existing
+local Received-transition meaning. The staged reader and inactive admission-only
+save composition now exist. An inactive completion-save candidate also exists;
+no authenticated runtime adapter is installed. Populated or partial new pairs
+remain closed to ordinary receiving, allocation and release mutation owners.
+Complete raw snapshots include every new field. Qualification found an omission
+in the allocation poststate after-image guard. The guard is now corrected and a
+same-row mutation regression covers each new field. Both the regression and
+positive allocation journey passed focused runtime verification and independent
+review. Scalar ownership fields remain lookup aids, never authorization.
+
+V68 was frozen and compiled before active-model edits; its queue presentation
+bytes and all relationship types remain preserved. Lightweight V68→V69 leaves
+all four new fields nil and never infers admission, results or retry authority.
+All forward plans append the stage; startup selects an exact V68 plan and tries
+that checksum representative before older sources. Current-store plan-free
+opening and rescue/quarantine signatures are unchanged. Independent source
+review and migration source guardrails passed. Selected disk upgrade/reopen,
+migration, startup, receiving and populated-field rejection tests passed. That
+run retained two stale architecture-inventory failures; their exact V68 path
+corrections subsequently passed focused verification and independent review.
+This is not complete functional qualification. Native authenticated admission
+acquisition, first result pinning and History import remain unfinished. Follow
+the [scan-to-History entry point](../development-guides/25-scan-to-history.md)
+for the integration boundary; dated schema evidence below applies to its
+recorded candidate.
+
+### Planned staged native pin accounting
+
+The reviewed next stage reserves the exact immutable admission acknowledgement
+and its separate SHA plus the maximum encoded completion recovery record and its
+separate SHA. The record includes the seven-field original result reference
+(including invocation ID), result digest, full original provenance (64 KiB
+maximum) and digest, exact receipt (16 KiB) and projection (64 KiB), and the
+acknowledgement SHA. Base64 payloads use measured canonical framing overhead.
+The full AI result remains server-owned and is recovered only under the pinned
+reference/digests; a missing result remains held. This does not increase the
+existing package, metadata or global storage limits.
+
+Before the admission save, the existing receiving/allocation owner must reserve
+that save and the remaining completion-pin save while preserving allocation,
+presentation, peer and terminal obligations. Exact replay performs no save. The
+completion-pinned state remains a retained hold. Application, enrollment and
+cleanup remain closed until their own successor chain is implemented and
+reserved atomically; this staged budget does not promise eventual application.
+The all-removed Released terminal is not a successful completion handoff.
+
+`InitialCompletionDocuments.CpmRecoveryRecord` now defines the inactive byte
+representation and measured bound. All eight document methods passed focused
+native validation; source review passed within this inactive scope. It validates
+document consistency and preserves original provenance bytes, but neither
+validates the full AI result nor authenticates a response. The full-result
+validator now passed scoped parity checks, and the inactive completion writer
+below consumes it. No new History envelope is installed. IC-1 retains existing
+server V3 enrollment and the existing History page importer.
+
+The dedicated `PhotoAllocationSnapshot.readInitial` reader and explicit
+`ReceivingCleanGraph.initial` witness now validate the external saved SHA and
+preserve the original allocation. Budget/peer accounting includes actual
+admission bytes and the 197,533-byte completion reservation (record plus SHA),
+with one remaining completion-pin advance alongside all existing liabilities.
+Ordinary allocation, release and presentation mutation remain closed to this
+state. Source review and focused reader/accounting runtime verification passed.
+The original failed cached-model rollback assertion remains recorded; its
+fresh-context correction and pre-hash byte bounds passed independent
+verification.
+
+`SharedMediaNativeAppPhotoAllocationOperations.recoverInitialAdmission` now owns
+an inactive admission-only save composition through the existing account lease
+and receiving locks. Its trusted injected reader must authenticate the original
+owner/backend; no runtime reader adapter is installed. The save changes only the
+admission bytes/SHA and inventory revision.
+`PhotoAllocationPoststate.InitialPin` checks the complete expected receiving
+row, preserves every submitted field and allocation, and rechecks the fresh
+predecessor and storage/runway reservation immediately before saving. Exact
+replay does not save; an uncertain save can return the admission only after
+exact fresh successor readback. This return value grants no execution authority.
+Focused writer validation and independent applied-fix verification passed; prior
+failures remain retained in the findings register. Completion pinning, protected
+delivery and application remain unfinished.
+
+`recoverInitialCompletion` now composes the trusted admission-bound reader with
+`CpmAcquisition`: full frozen result validation must agree with the completion
+receipt before any compact recovery record can be saved. The complete-row seal
+changes only completion bytes/SHA and inventory revision. It consumes the one
+reserved pin advance and adds no charge because the full maximum record remains
+reserved in the predecessor; the successor remains a retained hold. Replay is
+exact, absence grants no execution, and ambiguous save requires fresh exact
+readback. Engine source accounting review passed; integrated runtime checks are
+pending. Authenticated transport and application remain unfinished.
+
+## November 3 — private CPM atomic adoption candidate
+
+The uncommitted consuming migration adds a private immutable terminal-retention
+policy catalog and an original-bound `completion_adoption` payload to the
+existing transaction stage. `complete_initial_analysis_cpm_v1` reuses original
+settlement and ordered completion events to insert a v4 transfer receipt, scan
+and immutable completion together. Original source/AI/display objects remain in
+place. Legacy v3 transfer keeps its existing copy/retire semantics.
+
+The transfer event checks fresh verification again after settlement. Historical
+replay validates the saved policy and original cohort without requiring renewed
+eligibility. Adopted sources and their intent cannot be retired by ordinary
+expiry; existing scan/account erasure fences authorize their retirement and
+transfer removal. No policy, API grant, serving route or activation is
+installed. The
+[owner contract](../../services/supabase/functions/_shared/initialAnalysis/README.md#cpm-terminal-retention-preparation-inactive)
+describes bindings, time bounds and pending qualification. Local integration
+qualification is in progress; physical retention and native delivery are not
+qualified by this candidate.
+
 ## November 2 — dormant CPM admission service boundary
 
 The new service-only read/begin/admit wrappers reuse existing private
@@ -20,17 +178,17 @@ unchanged and no serving route or feature activation is installed.
 
 ## October 31 — V68 recovery presentation storage candidate
 
-Current source schema V68 adds nullable
-`OfflineQueuedScan.recoveryPresentationData` through lightweight V67→V68. This
-is the storage prerequisite for RUX-1's operation-bound, restart-stable visible
-checking budget. No existing metadata carrier is safe: native receiving
-job/event metadata forms part of immutable submitted bytes, and retry/execution
-fields retain their existing meanings. The field belongs to the existing queue
-lifecycle; it creates no new job or execution owner. Migration leaves it nil for
-every existing operation and preserves media, request, allocation, retry and
-funding state. No presentation writer, timer or remote UI caller is installed in
-this checkpoint. Native receiving rejects populated presentation storage until
-its typed owner is qualified, and transaction seals include the field.
+The V68 checkpoint added nullable `OfflineQueuedScan.recoveryPresentationData`
+through lightweight V67→V68. This is the storage prerequisite for RUX-1's
+operation-bound, restart-stable visible checking budget. No existing metadata
+carrier is safe: native receiving job/event metadata forms part of immutable
+submitted bytes, and retry/execution fields retain their existing meanings. The
+field belongs to the existing queue lifecycle; it creates no new job or
+execution owner. Migration leaves it nil for every existing operation and
+preserves media, request, allocation, retry and funding state. No presentation
+writer, timer or remote UI caller is installed in this checkpoint. Native
+receiving rejects populated presentation storage until its typed owner is
+qualified, and transaction seals include the field.
 
 V67 was frozen and compiled before active model changes, retaining the closed
 V64 relationship graph and exact V67 receiving shape. All forward plans append
@@ -4133,12 +4291,33 @@ coordinates to the client contract.
   shadowban, and block filters as the feed. Post `location_sharing` is returned
   so edit surfaces can hydrate the saved post-level location choice, but it does
   not hide an otherwise visible detail page.
+- `public.get_public_web_explore_visibility(p_post_ids UUID[])`: Service-only
+  eligibility recheck for 1–128 non-null public post IDs. Returns only IDs that
+  pass canonical anonymous visibility and the website review quarantine. The
+  private `internal.public_web_explore_review_clear(post_id, scan_id)` checks
+  open/in-review post and identification cases plus the scan flag. All three web
+  card/pagination/detail wrappers apply it; the combined page inherits it. Case
+  dismissal/resolution permits restoration only after every other visibility
+  rule passes. Native projections remain unchanged. The additive migration is
+  `20261108185855_quarantine_public_web_explore.sql`; it must precede frontend
+  release. No new tables, client table grants, or Realtime publication are
+  added.
 - `public.get_public_web_explore_posts(target_post_id UUID, max_limit INTEGER)`:
   Service-only, fixed-anonymous web projection over
   `explore_projected_post_cards(NULL)`. It returns one post or a
   reverse-chronological page of at most 48 cards, includes copied public
   username/Pro state, and forces engagement counts to zero plus viewer/ownership
   flags to false. It is revoked from `PUBLIC`, `anon`, and `authenticated`.
+- `public.get_public_web_explore_posts_page(p_max_limit INTEGER,
+  p_before_shared_at TIMESTAMPTZ, p_before_post_id UUID)`:
+  Additive service-only keyset reader for the Explore homepage. Reuses the
+  fixed-anonymous canonical projection and existing card shape, accepts limits
+  1–48 and a paired finite timestamp/UUID cursor, orders by
+  `(shared_at, post_id)` descending, and returns at most `limit + 1` rows for
+  server-side lookahead. Browser roles remain denied; the prior card/detail/page
+  signatures remain unchanged. Migration
+  `20261108062742_public_web_explore_pagination.sql` also records its exact
+  service-role signature in the privileged routine allowlist.
 - `public.get_public_web_explore_post_detail(target_post_id UUID)`:
   Service-only, fixed-anonymous wrapper over
   `get_explore_post_detail(NULL, target_post_id)` that independently inner-joins
@@ -6196,7 +6375,7 @@ evidence. See the
 separate server boundary and remaining end-to-end integration.
 
 **Historical V66 foundation (October 22):** the following paragraphs retain that
-checkpoint's contract and evidence; the current schema is V68 and typed
+checkpoint's contract and evidence; the current schema is V69 and typed
 release-stage/start owners have since been integrated separately.
 
 `MerianSchemaV66` owned the active global models. Its lightweight V65→V66 stage
@@ -6311,39 +6490,40 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV68`; see the presentation-storage
-candidate and qualification limits above. V67 added nil-default allocation
-columns through lightweight V66→V67; these remain closed to existing owners
-until the dedicated allocation lifecycle is qualified. V66 added optional
-release-request columns through lightweight V65→V66. V65 added an empty
-receiving intent table through lightweight V64→V65. Canonical codec and
-reservation validation are separate from typed staging/receiving and Capture
-acceptance; the schema does not activate those paths. V64 added an empty
-acquisition receipt table through lightweight V63→V64. V63 added explicit native
-consumer authority and pending/retained accounting through lightweight V62→V63.
-All existing rows retain their legacy semantics. V62 added
-`SharedMediaDerivativePairRecord` and `SharedMediaDerivativeWorkRecord` through
-lightweight V61→V62. Pair rows bind an exact original, revision and AI/display
-membership; work rows retain prepared identities, writer state and explicit
-retirement facts. Existing data is never reinterpreted as derivative ownership.
-The schema prerequisite rejects nonempty derivative rows until the paired owner
-is implemented and qualified. V60 added scalar `SharedMediaInventoryRecord`,
-`SharedMediaAllocationRecord`, `SharedMediaReferenceRecord` and
-`SharedMediaLeaseRecord` through lightweight V59→V60. V61 adds
-`SharedMediaInboxSourceRecord` and `SharedMediaInboxHandoffRecord` through
-lightweight V60→V61, retaining typed source identity, writer state, fixed
-destinations and exact handoff ownership. These rows grant no live capture or
-deletion authority. Migration starts these tables empty and does not inventory
-files. The inactive repository requires explicit qualification roots and
-persists root/store binding, generation/revision, reservations and logical
-holds. Legacy observations never grant completeness, admission or deletion
-authority. Any new row blocks identity replacement and library purge before
-existing callbacks; only future reviewed owner adapters can release that
-barrier. The isolated `p1Qualification` adapter uses existing fields for joint
-P1/shared reservation and completion, with explicit asset/reference/lease
-identities and held interruption states. Its logical acquisition and metadata
-budgets do not add a second physical-file reservation. It exposes no deletion or
-barrier release. No live producer uses the new allocator. See the
+The current source schema is `MerianSchemaV69`; see the original-admission
+storage candidate and qualification limits above. V68 added queue presentation
+storage. V67 added nil-default allocation columns through lightweight V66→V67;
+these remain closed to existing owners until the dedicated allocation lifecycle
+is qualified. V66 added optional release-request columns through lightweight
+V65→V66. V65 added an empty receiving intent table through lightweight V64→V65.
+Canonical codec and reservation validation are separate from typed
+staging/receiving and Capture acceptance; the schema does not activate those
+paths. V64 added an empty acquisition receipt table through lightweight V63→V64.
+V63 added explicit native consumer authority and pending/retained accounting
+through lightweight V62→V63. All existing rows retain their legacy semantics.
+V62 added `SharedMediaDerivativePairRecord` and
+`SharedMediaDerivativeWorkRecord` through lightweight V61→V62. Pair rows bind an
+exact original, revision and AI/display membership; work rows retain prepared
+identities, writer state and explicit retirement facts. Existing data is never
+reinterpreted as derivative ownership. The schema prerequisite rejects nonempty
+derivative rows until the paired owner is implemented and qualified. V60 added
+scalar `SharedMediaInventoryRecord`, `SharedMediaAllocationRecord`,
+`SharedMediaReferenceRecord` and `SharedMediaLeaseRecord` through lightweight
+V59→V60. V61 adds `SharedMediaInboxSourceRecord` and
+`SharedMediaInboxHandoffRecord` through lightweight V60→V61, retaining typed
+source identity, writer state, fixed destinations and exact handoff ownership.
+These rows grant no live capture or deletion authority. Migration starts these
+tables empty and does not inventory files. The inactive repository requires
+explicit qualification roots and persists root/store binding,
+generation/revision, reservations and logical holds. Legacy observations never
+grant completeness, admission or deletion authority. Any new row blocks identity
+replacement and library purge before existing callbacks; only future reviewed
+owner adapters can release that barrier. The isolated `p1Qualification` adapter
+uses existing fields for joint P1/shared reservation and completion, with
+explicit asset/reference/lease identities and held interruption states. Its
+logical acquisition and metadata budgets do not add a second physical-file
+reservation. It exposes no deletion or barrier release. No live producer uses
+the new allocator. See the
 [owner README](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md).
 
 V59 adds `PhotoPreparationRecord`, `PhotoPreparationAsset`,
@@ -6397,12 +6577,12 @@ Ordinary Capture access remains nil. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V68 stores open without a migration plan,
+  `ModelContainer`: fresh/current V69 stores open without a migration plan,
   known recent stores use the source-isolated
-  V67/V66/V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
-  plans, and only unknown older stores use the full historical plan. V67 needs
-  only lightweight V67→V68; earlier plans retain their previous stages and
-  append V67→V68. Each V50 plan contains its custom V50→V51 preference-ownership
+  V68/V67/V66/V65/V64/V63/V62/V61/V60/V59/V58/V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42
+  plans, and only unknown older stores use the full historical plan. V68 needs
+  only lightweight V68→V69; earlier plans retain their previous stages and
+  append V68→V69. Each V50 plan contains its custom V50→V51 preference-ownership
   stage followed by
   V51→V52→V53→V54→V55→V56→V57→V58→V59→V60→V61→V62→V63→V64→V65→V66; the V49 plan
   prepends the required lightweight V49→V50 hop. Immediate predecessors
@@ -8123,6 +8303,43 @@ deadline and permanent marker verification; this migration includes no schedule.
 See the
 [API boundary](05-api-contracts.md#prepared-private-evidence-cleanup-rpcs).
 
+The local, not-yet-deployed successor
+`20261112003746_fence_legacy_private_cleanup_acquisition.sql` permanently denies
+and revokes the three original acquisition signatures in place, preserving their
+OIDs. Their unchanged implementations move to new, ungranted private functions.
+The service facades `retire_expired_observation_evidence_for_dispatch(UUID)`,
+`retire_expired_observation_video_evidence_for_dispatch(UUID)` and
+`claim_observation_evidence_erasure_for_dispatch(UUID)` require the current
+pending dispatch and retain the worker singleton lock through acquisition.
+Exact-token finish remains available after dispatch rotation or gate closure.
+Multiple calls with the current UUID remain possible; this is not exactly-once
+delivery. Function replacement does not stop an already executing old body. The
+[deployment runbook](06-supabase-deployment-runbook.md#local-legacy-acquisition-fence-successor-not-deployed)
+requires the separately approved closed-gate cutover and positive drain of
+pre-cutover transactions before activation. This source migration alone does not
+resolve the held legacy request or establish hosted readiness.
+
+`20261110190707_history_private_evidence_drain_health.sql` prepares inactive
+operations for that same private outbox. New obligations gain immutable
+`first_observed_at`; historical rows remain NULL because their original enqueue
+age is unknown. No backfill derives an age from retry eligibility. The private
+RLS singleton `observation_evidence_worker_state` retains an exact pending
+transport slot and sanitized completion counters/times. It stores no credential
+or response body. The forward migration
+`20261111200839_correlate_private_evidence_dispatch.sql` adds nullable private
+`pending_dispatch_id UUID`, generated with the transport enqueue in the same
+transaction. Only one exact-ID response with a closed v2 receipt matching that
+UUID and a finite nonfuture timestamp releases the slot automatically. Numeric
+IDs can repeat after unlogged pg_net recovery; timestamps and boot/catalog
+identities do not replace random correlation. Response time is the conservative
+transaction-start clock, not actual HTTP completion. Legacy NULL slots remain
+held without backfill; missing or ambiguous outcomes require explicit operator
+reconciliation. A collision rolls back both enqueue and state update. The
+service-only aggregate health RPC reads queue partitions, candidate discovery
+estimates, retained bound objects and unknown-age counts without mutating state.
+It exposes no row or request identity. Both scheduler enablement and cron
+registration remain absent until separately authorized.
+
 ### V58 qualified queued reanalysis storage
 
 V58 adds `OfflineQueuedScan.workKindRaw` (default `ordinary`) and nullable
@@ -9128,6 +9345,14 @@ pending V4 children. No grants, default-off gates or execution consumers change.
 Source occupancy remains held: this completion receipt alone is not the required
 source-release proof and grants no erasure or execution authority.
 
+The November 9 completion271 successor adds reader11 to only the existing
+selection, review, confirmation and confirmation/rejection Undo entry points.
+Its shared compatibility guard permits completed V5 action scope only when the
+operation ID argument is null; execution-status and retirement wrappers remain
+readers9/10. Old readers still refuse the whole video history. The migration
+changes no grants, lock order, CAS, receipt replay, deletion checks or rollout
+gates. V5 publication, selected chat and historical-source reuse remain closed.
+
 ### Durable V4 completion source release
 
 Migration `20261010181556_prepare_video_source_completion_release.sql` adds the
@@ -9587,9 +9812,12 @@ adapters, install catalogs, bind a saved assignment, fund an operation or
 authorize transfer. Their future callers must establish the original identity
 and authoritative locked time.
 
-The [handoff RFC](../rfcs/initial-preparation-handoff-2026-10-11.md) still
-describes those later dependencies. No existing preparation or admitted-media
-path calls these helpers; activation and ordinary access remain unchanged.
+The [handoff RFC](../rfcs/initial-preparation-handoff-2026-10-11.md) records the
+original layering. The implemented private qualified-context and admission
+metadata layers now consume these helpers; the
+[scan-to-History guide](../development-guides/25-scan-to-history.md) traces
+their runtime callers. Runtime activation and qualification remain separate
+gates.
 
 SQL's direct NUMERIC clock arguments validate values, not their lexical
 spelling. NUMERIC has no negative-zero state; its zero is accepted. Deno
@@ -9720,10 +9948,26 @@ explicit owner/scan/opaque receipt identity, ordered exact input projection,
 within-ordinal-only byte aliasing and exact bounded destination union. Shared
 synthetic vectors and executable schema equality are checked against Deno.
 
+The forward metadata validation optimization (`20261109071913`) hashes the
+original outcome, phase-window, mapping and media-binding TEXT after their
+strict parsers have already succeeded in the same invocation. Standalone digest
+helpers retain their validation. No cached validation crosses a call, database
+mutation or transaction boundary; semantic checks and resource limits remain.
+The catalog fixture compares complete results and rejection errors with the
+historical validator, including malformed original TEXT. The subsequent
+scalar-child optimization (`20261109072401`) keeps recursive container
+validation while evaluating scalar rules inside the parent call. It preserves
+depth limits, numeric and UTF-8 bounds, nullable handling, three-valued results
+and malformed-rule errors. The independent recursive historical oracle in
+`initial_schema_scalar_inlining.sql` verifies scalar/rule crossings, nested
+parents, invalid rules and depth boundaries; no authority check is removed.
+
 This parity does not qualify storage bytes, registry freshness, current
-eligibility or transaction timing. The complete admitted receipt and durable
-closed accounting proof remain deferred; existing runtime owners and M1/M2
-readers do not adopt these metadata versions. Activation remains false.
+eligibility or transaction timing. Complete admitted proof and durable
+accounting are implemented in the subsequent proof and private runtime layers;
+the [scan-to-History guide](../development-guides/25-scan-to-history.md) traces
+those owners and existing consumers. These pure helpers alone grant no live
+runtime authority and do not activate a route.
 
 ### Inactive complete admitted-proof SQL parity
 
@@ -9756,6 +10000,24 @@ migration contract. This creates no receipt row, RPC grant, trigger, selector,
 funding, recovery or dispatch authority. The complete atomic funded owner,
 original-row comparisons and erasure remain separate prerequisites; activation
 stays false.
+
+### Private initial dispatch transaction (inactive candidate)
+
+The unapplied consuming migration extends `internal.initial_consuming_staging`
+with redacted `dispatch_prestate` and once-attached `dispatch_invocation`.
+`invocation_id` may be null only during the bound dispatch preparation phase;
+report and result phases retain their prior requirements. No permanent dispatch
+table or API execution grant is added.
+
+The private compositor validates original admission and reserved funding under
+the existing owner/scan scope, captures exact counter/link and retained-root
+images, then consumes the original quota, invocation and lifecycle writes.
+Immediate/deferred checks require exact terminal state. Existing invocation and
+quota owners derive their actual IDs, timestamps and prices once; the witness
+consumes those values. Original committed state is recovery-only. See the
+[owning implementation and qualification guide](../../services/supabase/functions/_shared/initialAnalysis/README.md#private-original-dispatch-integration-november-3-inactive).
+This local candidate does not install an executor, activate a feature or qualify
+atomic completion or the app journey.
 
 ### Initial submission JSONB display bounds
 
@@ -9858,3 +10120,40 @@ before-state for CAS; durable output intents retain only its bounded identity,
 recipe, hashes and byte lengths, avoiding recursive edit history. The earlier
 unreachable `attemptBytes` intent codec is rejected, never reinterpreted. No
 runtime pair admission or schema migration is enabled by this codec correction.
+
+### Initial History routine lint repair (local candidate)
+
+`20261109002827_repair_initial_history_routine_lint.sql` preserves the final
+replayed routine bodies, including the accounting delegation installed by the
+CPM atomic-admission migration. It corrects volatility through the affected
+caller chain, makes JSONB/UUID-array initializer casts explicit, and removes
+unused or shadowed declarations without removing validation. Signatures, owners,
+ACLs, empty search paths and lifecycle operations remain unchanged. The two
+cancellation routines that depend on mutable transaction state are VOLATILE;
+JSON/codec-dependent helpers are STABLE. No shared codec is promoted to
+IMMUTABLE. The migration grants no execution or rollout authority.
+
+The static contract is `initialHistoryRoutineLintMigration.test.ts`; the catalog
+contract is `initial_history_routine_lint.sql`. Strict database lint, existing
+admission/consuming/cancellation/completion catalogs and concurrency fixtures
+remain required. The isolated 512-migration replay passed all 188 catalog files
+/ 8,188 assertions, strict lint and both advisor gates. All 39 routine
+identities, ACLs and configuration values were preserved. The earlier
+exact-candidate CI run remains failed; successor CI and its contention stages
+remain pending. This migration is not deployed.
+
+### Private qualified-context parse reuse
+
+The local `20261111030135` forward migration removes repeated declaration
+parsing within `initial_qualified_context`. It validates the original candidate
+TEXT once at the existing assignment-validation point and reuses that decoded
+value, plus the profile already validated by its declaration initializer, for
+profile matching. The two private semantic helpers confer no authority and are
+revoked from PUBLIC and every API role. Independently callable assignment and
+profile entry points still parse fully before sharing those same semantics.
+Initialization and first-error ordering, canonical bytes, live receipt checks,
+deferred callbacks, locks and deadlines remain unchanged. There is no cache
+across calls or deferred events. `initial_qualified_codecs.sql` compares both
+context and direct entry points with independent historical oracles, including
+expected rejection and privilege checks. The migration is local preparation;
+complete candidate qualification and hosted deployment remain separate.

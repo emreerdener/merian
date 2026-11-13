@@ -15,6 +15,7 @@ final class MerianNetworkClient {
     var observationHistoryMutationTransport: ObservationHistoryMutationTransport { transport.history }
     func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { transport.reanalysisStatus() }
     func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { transport.retirement() }
+    func videoEvidenceTransport() -> ObservationVideoEvidenceTransport { transport.videoEvidence() }
     func videoAnalysisTransport() -> ObservationVideoAnalysisTransport { transport.videoAnalysis() }
     func audioAnalysisTransport() -> ObservationAudioAnalysisTransport { transport.audioAnalysis() }
     func audioOutcomeTransport() -> ObservationAudioOutcomeTransport { transport.audioOutcome() }
@@ -22,7 +23,10 @@ final class MerianNetworkClient {
     func nativeReceivedStatusTransport() -> NativeReceivedStatusTransport { transport.nativeReceivedStatus() }
     func sourceReservationTransport() -> ObservationSourceReservationTransport { transport.sourceReservation() }
 
-    init() { transport = NetworkTransportAssembly(baseURL: supabaseUrl, publishableKey: MerianEnvironment.supabaseAnonKey) }
+    init() {
+        MerianEnvironment.requireHistoryQualificationConfiguration()
+        transport = NetworkTransportAssembly(baseURL: supabaseUrl, publishableKey: MerianEnvironment.supabaseAnonKey)
+    }
 
     // MARK: - Test Transport Overrides
 
@@ -231,8 +235,11 @@ final class MerianNetworkClient {
     }
 
     /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
-    func performOwnedIdentificationRead(body: Data, expectedAuthUserID: UUID,
-                                        route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
+    func performOwnedIdentificationRead(
+        body: Data,
+        expectedAuthUserID: UUID,
+        route: AdmissionRPCRequestPolicy.Route = .recipient
+    ) async throws -> Data {
         guard route == .recipient || route == .reanalysisRecipient || route == .analysisState else { throw MerianError.invalidURL }
         let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: route)
         let (data, _) = try await performAuthenticatedRequest(
@@ -292,7 +299,8 @@ final class MerianNetworkClient {
         timeoutInterval: TimeInterval,
         allowsTransientTransportRetry: Bool,
         onRequestBodySent: (@Sendable () -> Void)?,
-        measurementContext: IdentificationMeasurementContext? = nil
+        measurementContext: IdentificationMeasurementContext? = nil,
+        allowsUnauthorizedSessionRecovery: Bool = true
     ) async throws -> Data {
         let request = authenticatedRequest.request
         guard let url = request.url, let bodyData = request.httpBody else {
@@ -305,6 +313,7 @@ final class MerianNetworkClient {
             timeoutInterval: timeoutInterval,
             idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
             allowsTransientTransportRetry: allowsTransientTransportRetry,
+            allowsUnauthorizedSessionRecovery: allowsUnauthorizedSessionRecovery,
             onRequestBodySent: onRequestBodySent,
             expectedAuthUserID: authenticatedRequest.expectedAuthUserID,
             measurementContext: measurementContext,
@@ -380,6 +389,7 @@ final class MerianNetworkClient {
         ownedBy authTransitionOwner: AuthTransitionToken?,
         body: () throws -> Data?
     ) async throws -> (data: Data, statusCode: Int) {
+        try MerianEnvironment.requireQualificationDeletionPermission()
         let url = try endpointURL("safe-delete")
         let bodyData = try body()
         let (data, response) = try await performAuthenticatedRequest(
@@ -396,6 +406,7 @@ final class MerianNetworkClient {
     func performAccountDeletionRecoveryJSONPost(
         body: () throws -> Data
     ) async throws -> (data: Data, statusCode: Int) {
+        try MerianEnvironment.requireQualificationDeletionPermission()
         return try await transport.recovery.post(body: body)
     }
 
@@ -541,6 +552,7 @@ private final class NetworkTransportAssembly {
 
     func reanalysisStatus() -> ObservationReanalysisStatusTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func retirement() -> ObservationAnalysisRetirementTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func videoEvidence() -> ObservationVideoEvidenceTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func videoAnalysis() -> ObservationVideoAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioAnalysis() -> ObservationAudioAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioOutcome() -> ObservationAudioOutcomeTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }

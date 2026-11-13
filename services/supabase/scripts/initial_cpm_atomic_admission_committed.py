@@ -65,8 +65,10 @@ END $$; COMMIT;
 
 
 
-def account_erasure_cases(q, before):
+def account_erasure_cases(q, before, *, classified_invocation=False, reported_invocation=False):
     """Actual service-role account deletion, with rollback and permanent liability checks."""
+    if reported_invocation and not classified_invocation:
+        raise ValueError('reported invocation requires classified account fixture')
     owner = "00000000-0000-4000-8000-00000000f001"
     base = "BEGIN;SELECT set_config('request.jwt.claim.role','service_role',TRUE);"
     call = "SET LOCAL ROLE service_role;SELECT public.apply_user_tombstone('" + owner + "');RESET ROLE;"
@@ -105,6 +107,21 @@ DO $$ BEGIN
 END $$;
 """
     witness = witness.replace("$FUNDING$", funding_projection)
+    if classified_invocation:
+        # Classified work uses permanent scan tombstone authority, never C1.
+        old = "IF TG_NAME='a00_cpm_account_before_fence' AND NOT EXISTS(SELECT 1 FROM internal.initial_analysis_cancellations WHERE scan_id='00000000-0000-4000-8000-00000000f101' AND dispatch='dispatch_outcome_unknown')"
+        new = """IF EXISTS(SELECT 1 FROM internal.initial_analysis_cancellations WHERE scan_id='00000000-0000-4000-8000-00000000f101')
+  OR NOT EXISTS(SELECT 1 FROM internal.scan_deletion_tombstones WHERE scan_id='00000000-0000-4000-8000-00000000f101' AND user_id IS NULL AND completed_at IS NOT NULL)"""
+        if witness.count(old) != 1:
+            raise ValueError('unique unclassified account witness required')
+        witness = witness.replace(old, new)
+        witness = "CREATE TEMP TABLE account_original_event(value JSONB);" + witness
+        witness = witness.replace('  INSERT INTO account_settlement_witness VALUES(TG_NAME);', """
+  IF TG_NAME='a00_cpm_account_before_fence' THEN
+   INSERT INTO account_original_event SELECT to_jsonb(e) FROM public.ai_usage_events e
+    JOIN internal.identification_invocations i ON i.event_id=e.id;
+  END IF;
+  INSERT INTO account_settlement_witness VALUES(TG_NAME);""")
     checked = """
 DO $$ BEGIN IF (SELECT array_agg(kind ORDER BY kind) FROM account_settlement_witness)
  IS DISTINCT FROM ARRAY['a00_cpm_account_before_fence','z99_cpm_account_after_fence']::TEXT[]
@@ -112,6 +129,30 @@ DO $$ BEGIN IF (SELECT array_agg(kind ORDER BY kind) FROM account_settlement_wit
 DROP TRIGGER a00_cpm_account_before_fence ON public.users;
 DROP TRIGGER z99_cpm_account_after_fence ON public.users;
 """
+    if classified_invocation:
+        checked += """
+DO $$ BEGIN
+ IF (SELECT count(*) FROM account_original_event)<>1
+ OR (SELECT to_jsonb(e) FROM public.ai_usage_events e) IS DISTINCT FROM
+   (SELECT value || jsonb_build_object('user_id',NULL,'scan_id',NULL,'source_id',NULL,
+     'conversation_id',NULL,'message_id',NULL,'metadata',(value->'metadata')-ARRAY['user_id','scan_id','conversation_id','message_id'])
+    FROM account_original_event)
+ THEN RAISE EXCEPTION USING ERRCODE='ZX637'; END IF;
+END $$;
+"""
+    retained_invocation = """SELECT encode(extensions.digest(convert_to(
+ COALESCE(jsonb_agg(to_jsonb(i)-ARRAY['user_id','scan_id','reservation_id','lease_sha256','initial_admission_receipt_id','event_id'] ORDER BY i.id),'[]'::JSONB)::TEXT,
+ 'UTF8'),'sha256'),'hex') FROM internal.identification_invocations i;"""
+    if reported_invocation:
+        if retained_invocation.count(",'event_id'") != 1:
+            raise ValueError('unique pending event exclusion required')
+        retained_invocation = retained_invocation.replace(",'event_id'", "")
+    retained_event = """SELECT encode(extensions.digest(convert_to(COALESCE(jsonb_agg(
+ (to_jsonb(e)-ARRAY['user_id','scan_id','source_id','conversation_id','message_id','metadata']) ||
+ jsonb_build_object('metadata',(e.metadata)-ARRAY['user_id','scan_id','conversation_id','message_id']) ORDER BY e.id),
+ '[]'::JSONB)::TEXT,'UTF8'),'sha256'),'hex') FROM public.ai_usage_events e;"""
+    original_event = q.execute('account_original_completed_event', retained_event) if reported_invocation else None
+    original_invocation = q.execute('account_original_invocation_identity', retained_invocation) if classified_invocation else None
     # Whole internal-table images prove rollback restores the original funding,
     # private roots and transients, not just the retained-media subset.
     image = """
@@ -121,6 +162,7 @@ DO $$ DECLARE t RECORD; BEGIN
   EXECUTE format('INSERT INTO account_images SELECT %L,COALESCE(jsonb_agg(to_jsonb(x) ORDER BY to_jsonb(x)::TEXT),''[]''::JSONB) FROM internal.%I x',t.tablename,t.tablename);
  END LOOP;
  INSERT INTO account_images SELECT 'public.users',COALESCE(jsonb_agg(to_jsonb(u) ORDER BY id),'[]'::JSONB) FROM public.users u;
+ INSERT INTO account_images SELECT 'public.ai_usage_events',COALESCE(jsonb_agg(to_jsonb(e) ORDER BY id),'[]'::JSONB) FROM public.ai_usage_events e;
 END $$;
 SELECT encode(extensions.digest(convert_to(jsonb_object_agg(name,value ORDER BY name)::TEXT,'UTF8'),'sha256'),'hex') FROM account_images;
 """
@@ -145,11 +187,26 @@ DO $$ BEGIN
  PERFORM internal.assert_initial_cancellation_transients_absent('00000000-0000-4000-8000-00000000f101');
 END $$;
 """
-    q.execute("account_erasure_rollback_deferred", base + witness + call + checked + assertions + "SET CONSTRAINTS ALL IMMEDIATE;ROLLBACK;")
+    if classified_invocation:
+        original_absence = ' OR EXISTS(SELECT 1 FROM internal.identification_invocations)'
+        if assertions.count(original_absence) != 1:
+            raise ValueError('unique invocation erasure assertion required')
+        assertions = assertions.replace(original_absence, """
+ OR (SELECT count(*) FROM internal.identification_invocations i WHERE internal.initial_invocation_retired(i))<>1
+ OR (SELECT count(*) FROM internal.identification_invocations)<>1
+ OR (SELECT count(*) FROM public.ai_usage_events)<>1
+ OR (SELECT count(*) FROM public.ai_usage_events e JOIN internal.identification_invocations i ON i.event_id=e.id
+      WHERE i.is_initial_analysis AND e.outcome='unknown' AND e.user_id IS NULL AND e.scan_id IS NULL
+       AND e.source_id IS NULL AND e.conversation_id IS NULL AND e.message_id IS NULL
+       AND NOT e.metadata ?| ARRAY['user_id','scan_id','conversation_id','message_id'])<>1
+""")
+    if reported_invocation:
+        assertions = assertions.replace("e.outcome='unknown'", "e.outcome='success' AND e.metadata->>'ai_outcome'='draft'")
+    q.execute("account_erasure_rollback_deferred", base + witness + call + checked + assertions + ("SET LOCAL ROLE service_role;" if classified_invocation else "") + "SET CONSTRAINTS ALL IMMEDIATE;ROLLBACK;")
     restored = q.execute("account_rollback_exact_original_internal_image", "BEGIN;" + image + "ROLLBACK;")
     if original != restored:
         raise ValueError("account erasure rollback changed original internal data")
-    q.execute("account_erasure_commit_deferred", base + witness + call + checked + assertions + "SET CONSTRAINTS ALL IMMEDIATE;COMMIT;")
+    q.execute("account_erasure_commit_deferred", base + witness + call + checked + assertions + ("SET LOCAL ROLE service_role;COMMIT;" if classified_invocation else "SET CONSTRAINTS ALL IMMEDIATE;COMMIT;"))
     after = json.loads(q.execute("account_ownerless_permanent_media", RETAINED))
     for capacity in before["capacity"]:
         if capacity["owner_id"] == owner:
@@ -161,6 +218,10 @@ END $$;
     if before != after:
         raise ValueError("account erasure changed permanent media beyond owner unlink and retirement")
     q.execute("account_fresh_session_erasure_and_liability", assertions)
+    if classified_invocation and original_invocation != q.execute('account_exact_original_invocation_identity', retained_invocation):
+        raise ValueError('account erasure changed retained original invocation fields')
+    if reported_invocation and original_event != q.execute('account_exact_original_completed_event', retained_event):
+        raise ValueError('account erasure changed original completed usage event')
 
 
 def retained_receipt_cases(q):
@@ -220,6 +281,54 @@ DO $$ DECLARE r internal.initial_preparation_admission_receipts; ad TEXT; BEGIN
         raise ValueError("retained reads changed original operation or accounting")
 
 
+def seed_committed_admission(q, funding_mode, *, scan_id='00000000-0000-4000-8000-00000000f101'):
+    """Reuse the guarded committed CPM fixture; snapshots remain in memory."""
+    if funding_mode not in ('absent', 'complimentary'):
+        raise ValueError('known local funding mode required')
+    for path in [FIXTURE, Path(__file__).resolve()]:
+        q.record["source_manifest"][str(path.relative_to(ROOT))] = q.digest(path)
+    q.save()
+    source = FIXTURE.read_text()
+    if source.count(MARKER) != 1:
+        raise ValueError("unique committed fixture boundary required")
+    prefix = source.split(MARKER)[0]
+    if not re.fullmatch('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', scan_id):
+        raise ValueError('canonical synthetic scan identity required')
+    prefix = prefix.replace('00000000-0000-4000-8000-00000000f101', scan_id)
+    if re.search(r"^COMMIT;", prefix, re.M):
+        raise ValueError("fixture must retain its outer transaction")
+    if funding_mode == "complimentary":
+        anchor = "SELECT extensions.no_plan();"
+        if prefix.count(anchor) != 1:
+            raise ValueError("unique fixture start required")
+        prefix = prefix.replace(anchor, anchor + "\nUPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';", 1)
+    q.record["funding_mode"] = funding_mode
+    fixture = prefix + "SELECT * FROM extensions.finish();\nCOMMIT;\n"
+    q.record["fixture_sha256"] = hashlib.sha256(fixture.encode()).hexdigest()
+    output = q.execute("commit_complete_cpm_admission", fixture)
+    assertions = re.findall(r"^ok ([0-9]+) - .*$", output, re.M)
+    if (assertions != [str(i) for i in range(1, 141)]
+            or re.findall(r"^1\.\.([0-9]+)$", output, re.M) != ["140"]
+            or re.search(r"^not ok|#\s*(?:SKIP|TODO)", output, re.M | re.I)):
+        raise ValueError("all 140 fixture assertions and complete unskipped plan required")
+    q.record["fixture_assertions"] = 140
+    q.execute("disable_local_fixture_rollout", "UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;")
+    funding = q.execute("original_funding_mode", """
+SELECT jsonb_build_object('reservations',count(*),'linked',count(complimentary_client_scan_id),
+ 'held',(SELECT count(*) FROM internal.complimentary_scan_usage WHERE state='held'))
+FROM internal.ai_quota_reservations WHERE state='reserved' AND refund_count=0;
+""")
+    expected_credit = 1 if funding_mode == "complimentary" else 0
+    if json.loads(funding) != {"reservations": 1, "linked": expected_credit, "held": expected_credit}:
+        raise ValueError("original reservation and exact requested credit mode required")
+    before = json.loads(q.execute("original_retained_media_snapshot", RETAINED))
+    if (sum(c["state"] == "admitted" for c in before["capacity"]) != 1
+            or len(before["attempts"]) != 3 or len(before["closures"]) != 3
+            or any(a["retired"] for a in before["attempts"])):
+        raise ValueError("exact original admitted media cohort required")
+    return before
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--container", required=True)
@@ -233,45 +342,8 @@ def main():
     try:
         q = Qualification(args.container, args.evidence_directory,
                           "cpm-committed-admission-c1", args.replay_manifest)
-        for path in [FIXTURE, Path(__file__).resolve()]:
-            q.record["source_manifest"][str(path.relative_to(ROOT))] = q.digest(path)
-        q.save()
-        source = FIXTURE.read_text()
-        if source.count(MARKER) != 1:
-            raise ValueError("unique committed fixture boundary required")
-        prefix = source.split(MARKER)[0]
-        if re.search(r"^COMMIT;", prefix, re.M):
-            raise ValueError("fixture must retain its outer transaction")
-        if args.funding_mode == "complimentary":
-            anchor = "SELECT extensions.no_plan();"
-            if prefix.count(anchor) != 1:
-                raise ValueError("unique fixture start required")
-            prefix = prefix.replace(anchor, anchor + "\nUPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';", 1)
-        q.record["funding_mode"] = args.funding_mode
         q.record["operation"] = args.operation
-        fixture = prefix + "SELECT * FROM extensions.finish();\nCOMMIT;\n"
-        q.record["fixture_sha256"] = hashlib.sha256(fixture.encode()).hexdigest()
-        output = q.execute("commit_complete_cpm_admission", fixture)
-        assertions = re.findall(r"^ok ([0-9]+) - .*$", output, re.M)
-        if (assertions != [str(i) for i in range(1, 141)]
-                or re.findall(r"^1\.\.([0-9]+)$", output, re.M) != ["140"]
-                or re.search(r"^not ok|#\s*(?:SKIP|TODO)", output, re.M | re.I)):
-            raise ValueError("all 140 fixture assertions and complete unskipped plan required")
-        q.record["fixture_assertions"] = 140
-        q.execute("disable_local_fixture_rollout", "UPDATE internal.initial_analysis_rollout SET initial_analysis_lifecycle_enabled=FALSE;")
-        funding = q.execute("original_funding_mode", """
-SELECT jsonb_build_object('reservations',count(*),'linked',count(complimentary_client_scan_id),
- 'held',(SELECT count(*) FROM internal.complimentary_scan_usage WHERE state='held'))
-FROM internal.ai_quota_reservations WHERE state='reserved' AND refund_count=0;
-""")
-        expected_credit = 1 if args.funding_mode == "complimentary" else 0
-        if json.loads(funding) != {"reservations": 1, "linked": expected_credit, "held": expected_credit}:
-            raise ValueError("original reservation and exact requested credit mode required")
-        before = json.loads(q.execute("original_retained_media_snapshot", RETAINED))
-        if (sum(c["state"] == "admitted" for c in before["capacity"]) != 1
-                or len(before["attempts"]) != 3 or len(before["closures"]) != 3
-                or any(a["retired"] for a in before["attempts"])):
-            raise ValueError("exact original admitted media cohort required")
+        before = seed_committed_admission(q, args.funding_mode)
         if args.operation == "account-erasure":
             q.record["scope"] = "Committed CPM held/absent admission followed by actual service-role account erasure rollback/commit and ownerless retained liability; no multi-item or concurrent order qualification."
             account_erasure_cases(q, before)

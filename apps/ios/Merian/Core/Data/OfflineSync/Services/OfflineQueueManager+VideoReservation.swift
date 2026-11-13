@@ -5,10 +5,10 @@ extension OfflineQueueManager {
     /// Explicit staged video work only; no discovery, timer or automatic replay.
     @discardableResult
     func requestVideoSourceReservation(_ key: ObservationVideoReservationOwner.Key,
-                                  proof: ObservationVideoPreparation.Verified,
-                                  account: ObservationHistoryCloudClient, service: ObservationVideoReservationService,
-                                  isCurrentAccount: @escaping @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool,
-                                  didComplete: @escaping @MainActor () -> Void) -> ObservationVideoReservationOwner.Admission {
+                                       proof: ObservationVideoPreparation.Verified,
+                                       account: ObservationHistoryCloudClient, service: ObservationVideoReservationService,
+                                       isCurrentAccount: @escaping @MainActor @Sendable (AuthTransitionSession, UInt64) -> Bool,
+                                       didComplete: @escaping @MainActor () -> Void) -> ObservationVideoReservationOwner.Admission {
         guard isOnline, !isCurrentNetworkConstrained, let context = modelContext,
               ObjectIdentifier(context.container) == key.container,
               isCurrentAccount(key.session, key.generation) else { return .unavailable }

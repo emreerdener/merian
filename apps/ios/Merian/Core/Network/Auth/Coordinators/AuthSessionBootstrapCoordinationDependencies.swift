@@ -14,6 +14,7 @@ struct AuthSessionBootstrapSnapshot {
 }
 
 struct AuthSessionBootstrapStateBoundary {
+    let isBootstrapEnabled: @MainActor () -> Bool
     let isTestExecution: @MainActor () -> Bool
     let isAccountDeletionCleanupPending: @MainActor () -> Bool
     let isAuthenticated: @MainActor () -> Bool

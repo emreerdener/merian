@@ -110,6 +110,48 @@ struct IdentificationHistoryReviewLifecycleTests {
         #expect(model.message?.contains("fresh preview") == true)
         #expect(fixture.revision == fixture.review.ticket.observationRevision)
     }
+    @Test(arguments: [false, true], [false, true])
+    func reviewCompletionReloadsWithoutManualRefresh(revisionChanged: Bool, suspendReload: Bool) async throws {
+        let fixture = try Fixture()
+        var dependencies = fixture.dependencies
+        let page = dependencies.page
+        var reads = 0
+        var resume: CheckedContinuation<Void, Never>?
+        dependencies.page = { before in
+            reads += 1
+            if suspendReload && reads == 2 { await withCheckedContinuation { resume = $0 } }
+            return try await page(before)
+        }
+        let model = IdentificationHistoryViewModel(dependencies: dependencies)
+        await model.perform(.newest); await model.perform(.preview(fixture.review.ticket.analysisID))
+        let selected = model.selected
+        let nested = try #require(model.review)
+        nested.submit(.reject)
+        let request = try #require(nested.request)
+        fixture.review.pending = nil
+        fixture.review.receipt = .init(operationID: request.operationID, analysisID: request.analysisID,
+            phase: .complete(.applied(observationRevision: request.expectedObservationRevision + 1,
+                reviewRevision: request.expectedReviewRevision + 1)))
+        if revisionChanged { fixture.revision += 1 }
+        model.refreshReview()
+        // Duplicate delivery/foreground opportunities coalesce with the first
+        // reload; the stale review ticket must never regain action authority.
+        model.refreshReview()
+        if suspendReload {
+            for _ in 0..<100 where resume == nil { await Task.yield() }
+            #expect(resume != nil && model.isBusy)
+            model.refreshReview()
+            resume?.resume()
+        }
+        for _ in 0..<100 where reads < 2 || model.isBusy { await Task.yield() }
+        await Task.yield()
+        #expect(reads == 2 && !model.rows.isEmpty && !model.isBusy)
+        #expect(model.detail == nil && model.review == nil && nested.isClosed)
+        #expect(model.selected == selected && fixture.base.prepares == 0)
+        #expect(fixture.review.saved.count == 1)
+        model.close()
+    }
+
     @Test func freshPendingAndUnavailableReadsFenceSelectionAndReanalysis() async throws {
         let fixture = try Fixture(), model = await fixture.open()
         fixture.review.pending = .init(operationID: UUID(), analysisID: UUID(), phase: .pending)

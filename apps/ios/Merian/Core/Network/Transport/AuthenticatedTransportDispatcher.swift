@@ -154,11 +154,11 @@ final class AuthenticatedTransportDispatcher {
         return try await perform(attempt, protectedChatExpiry: nil, initialPhotoAllocation: true)
     }
 
-    func performInitialPhotoTransfer(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
+    func performInitialPhotoTransfer(_ attempt: AuthenticatedRequestExecutor.TransportAttempt, phase: InitialPhotoAllocationTransport.TransferPhase = .role) async throws -> AuthenticatedRequestExecutor.TransportResult {
         guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
               attempt.identificationAuthorization == nil,
               attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
-        return try await perform(attempt, protectedChatExpiry: nil, initialPhotoTransfer: true)
+        return try await perform(attempt, protectedChatExpiry: nil, initialPhotoTransfer: phase)
     }
 
     func performNativeReceivedStatus(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
@@ -166,6 +166,14 @@ final class AuthenticatedTransportDispatcher {
               attempt.identificationAuthorization == nil,
               attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
         return try await perform(attempt, protectedChatExpiry: nil, nativeReceivedStatus: true)
+    }
+
+    func performNativeInitialRecovery(_ attempt: AuthenticatedRequestExecutor.TransportAttempt,
+                                      phase: NativeReceivedStatusTransport.RecoveryPhase) async throws -> AuthenticatedRequestExecutor.TransportResult {
+        guard attempt.expectedAuthUserID != nil, attempt.validateAttempt != nil,
+              attempt.identificationAuthorization == nil,
+              attempt.authTransitionOwner == nil else { throw MerianError.invalidResponse }
+        return try await perform(attempt, protectedChatExpiry: nil, nativeInitialRecovery: phase)
     }
 
     func performSourceReservation(_ attempt: AuthenticatedRequestExecutor.TransportAttempt) async throws -> AuthenticatedRequestExecutor.TransportResult {
@@ -183,7 +191,7 @@ final class AuthenticatedTransportDispatcher {
     }
 
     private func perform(
-        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false, initialPhotoAllocation: Bool = false, initialPhotoTransfer: Bool = false, nativeReceivedStatus: Bool = false, videoEvidence: Bool = false, videoAnalysis: Bool = false
+        _ attempt: AuthenticatedRequestExecutor.TransportAttempt, protectedChatExpiry: Date?, retirement: Bool = false, audioAnalysis: Bool = false, audioOutcome: Bool = false, sourceReservation: Bool = false, initialPhotoAllocation: Bool = false, initialPhotoTransfer: InitialPhotoAllocationTransport.TransferPhase? = nil, nativeReceivedStatus: Bool = false, nativeInitialRecovery: NativeReceivedStatusTransport.RecoveryPhase? = nil, videoEvidence: Bool = false, videoAnalysis: Bool = false
     ) async throws -> AuthenticatedRequestExecutor.TransportResult {
         let accountWorkLease: AccountBoundWorkLease?
         if attempt.authTransitionOwner == nil {
@@ -226,7 +234,7 @@ final class AuthenticatedTransportDispatcher {
             try await attempt.identificationAuthorization?.validate()
             try await attempt.validateAttempt?()
             #if DEBUG
-            if retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer || nativeReceivedStatus || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
+            if retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer != nil || nativeReceivedStatus || nativeInitialRecovery != nil || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession, overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
             #endif
@@ -245,11 +253,11 @@ final class AuthenticatedTransportDispatcher {
                 request: request,
                 body: attempt.body,
                 onRequestBodySent: attempt.onRequestBodySent,
-                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation, initialPhotoAllocation: initialPhotoAllocation, initialPhotoTransfer: initialPhotoTransfer, nativeReceivedStatus: nativeReceivedStatus, videoEvidence: videoEvidence, videoAnalysis: videoAnalysis
+                protectedChatExpiry: protectedChatExpiry, retirement: retirement, audioAnalysis: audioAnalysis, audioOutcome: audioOutcome, sourceReservation: sourceReservation, initialPhotoAllocation: initialPhotoAllocation, initialPhotoTransfer: initialPhotoTransfer, nativeReceivedStatus: nativeReceivedStatus, nativeInitialRecovery: nativeInitialRecovery, videoEvidence: videoEvidence, videoAnalysis: videoAnalysis
             )
 
             #if DEBUG
-            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer || nativeReceivedStatus || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession,
+            if protectedChatExpiry != nil || retirement || audioAnalysis || audioOutcome || sourceReservation || initialPhotoAllocation || initialPhotoTransfer != nil || nativeReceivedStatus || nativeInitialRecovery != nil || videoEvidence || videoAnalysis, sessionTransport.isUsingOverridingSession,
                overridingAuthUserID != attempt.expectedAuthUserID {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -302,13 +310,24 @@ final class AuthenticatedTransportDispatcher {
         authTransitionOwner: AuthTransitionToken? = nil,
         expectedAuthUserID: UUID?
     ) async throws -> URLRequest {
-        var request = request
         let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders(
             ownedBy: authTransitionOwner,
             expectedUserID: expectedAuthUserID
         )
+        return Self.applyingValidatedAuthHeaders(authHeaders, to: request)
+    }
+
+    static func applyingValidatedAuthHeaders(
+        _ authHeaders: [String: String], to request: URLRequest
+    ) -> URLRequest {
+        var request = request
+        let contentType = request.value(forHTTPHeaderField: "Content-Type")
         for (key, value) in authHeaders {
             request.setValue(value, forHTTPHeaderField: key)
+        }
+        // Auth owns credentials; the endpoint owns the encoding of its body.
+        if let contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         return request
     }
@@ -341,7 +360,7 @@ final class AuthenticatedTransportDispatcher {
     private func dispatch(
         request: URLRequest,
         body: Data?,
-        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool, initialPhotoAllocation: Bool, initialPhotoTransfer: Bool, nativeReceivedStatus: Bool, videoEvidence: Bool, videoAnalysis: Bool
+        onRequestBodySent: (@Sendable () -> Void)?, protectedChatExpiry: Date?, retirement: Bool, audioAnalysis: Bool, audioOutcome: Bool, sourceReservation: Bool, initialPhotoAllocation: Bool, initialPhotoTransfer: InitialPhotoAllocationTransport.TransferPhase?, nativeReceivedStatus: Bool, nativeInitialRecovery: NativeReceivedStatusTransport.RecoveryPhase?, videoEvidence: Bool, videoAnalysis: Bool
     ) async throws -> TransportDispatchResult {
         if videoAnalysis {
             let (data, response) = try await sessionTransport.videoAnalysisData(for: request)
@@ -351,12 +370,16 @@ final class AuthenticatedTransportDispatcher {
             let (data, response) = try await sessionTransport.videoEvidenceData(for: request)
             return TransportDispatchResult(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
         }
+        if let phase = nativeInitialRecovery {
+            let (data, response) = try await sessionTransport.nativeInitialRecoveryData(for: request, phase: phase)
+            return .init(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
+        }
         if nativeReceivedStatus {
             let (data, response) = try await sessionTransport.nativeReceivedStatusData(for: request)
             return .init(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
         }
-        if initialPhotoTransfer {
-            let (data, response) = try await sessionTransport.initialPhotoTransferData(for: request)
+        if let initialPhotoTransfer {
+            let (data, response) = try await sessionTransport.initialPhotoTransferData(for: request, phase: initialPhotoTransfer)
             return .init(data: data, response: response, notifyRequestBodySentIfNeeded: nil)
         }
         if initialPhotoAllocation {

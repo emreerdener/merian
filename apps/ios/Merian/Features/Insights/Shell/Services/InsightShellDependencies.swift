@@ -10,7 +10,7 @@ struct InsightAuthenticationSnapshot: Equatable {
 struct InsightShellDependencies {
     var protectedChatAccess: ProtectedInsightChatAccess?
     var selectedReviewAccess: SelectedAnalysisReviewAccess?
-    var historyAccess: IdentificationHistoryAccess? = nil
+    var historyAccess: IdentificationHistoryAccess?
     var reanalysisStatusAccess: ReanalysisStatusAccess?
     var savedReanalysisAccess: SavedIdentificationReanalysisAccess?
     let candidateRendering: CandidateReviewRendering

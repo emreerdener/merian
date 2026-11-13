@@ -2544,7 +2544,12 @@ Accepted legacy deletion proceeds as follows:
    the scan generation, verifies exact ownership, inserts a private deletion
    tombstone, and terminal-marks any noncomplete ingestion job. From that commit
    onward, inserts, updates, provider completion, replay, and owner-row recovery
-   for the UUID fail closed.
+   for the UUID fail closed. The inactive initial-completion implementation
+   classifies a completed scan under these locks before tombstone cleanup and
+   skips legacy failed-job settlement for that scan: its original funding
+   already settled. This does not grant initial completion API access or qualify
+   private-media cleanup; see the
+   [initial completion owner](../../services/supabase/functions/_shared/initialAnalysis/README.md#original-completion-preparation-private-inactive).
 3. **Owner-bound R2 Deletion**: The function reads canonical source and derived
    media only after the fence. A candidate is deletable only when it is an exact
    HTTPS URL on `media.merian.app` with the flat key

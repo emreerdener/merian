@@ -16,6 +16,11 @@ struct ReanalysisStatusSheet: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(title(row.phase)).font(.headline)
                                 Text(detail(row.phase)).font(.callout).foregroundStyle(.secondary)
+                                if model.allowsPhotoPreview {
+                                    Button("View saved photos") { model.viewPhoto(row) }
+                                        .disabled(model.isBusy)
+                                        .accessibilityIdentifier("ReanalysisPhotos_\(row.id.uuidString.lowercased())")
+                                }
                                 if model.allowsOutcomeRecovery, row.canCheckOutcome {
                                     Button("Check for the original result") { model.checkOutcome(row) }
                                         .disabled(model.isBusy)
@@ -28,6 +33,7 @@ struct ReanalysisStatusSheet: View {
                                     .accessibilityIdentifier("ReanalysisRetirement_\(row.id.uuidString.lowercased())")
                                 }
                             }
+                            .buttonStyle(.borderless)
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("ReanalysisStatus_\(row.id.uuidString.lowercased())")
                         }
@@ -37,11 +43,27 @@ struct ReanalysisStatusSheet: View {
                     } footer: {
                         Text("Your current identification stays in place. Completed results appear in identification history.")
                     }
+                    Text("Checking for a result requires an internet connection. Background completion is not guaranteed.")
+                        .font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("ReanalysisRecoveryConnectivity")
+                    if let photo = model.photo, let row = model.photoRow {
+                        Section("Original submitted photo \(photo.index + 1) of \(photo.count)") {
+                            Image(decorative: photo.image.cgImage, scale: 1).resizable().scaledToFit()
+                                .accessibilityLabel("Saved submitted photo \(photo.index + 1) of \(photo.count)")
+                            if photo.index > 0 {
+                                Button("Previous photo") { model.viewPhoto(row, index: photo.index - 1) }.disabled(model.isBusy)
+                            }
+                            if photo.index + 1 < photo.count {
+                                Button("Next photo") { model.viewPhoto(row, index: photo.index + 1) }.disabled(model.isBusy)
+                            }
+                            Button("Close photo preview") { model.closePhoto() }
+                        }
+                    }
                     if model.next != nil {
                         Button("More requests") { model.start(more: true) }.disabled(model.isBusy).accessibilityIdentifier("ReanalysisStatusMore")
                     }
                     if let message = model.message { Text(message) }
-                    if model.isBusy { ProgressView().accessibilityLabel("Loading reanalysis status") }
+                    if let message = model.recoveryMessage { Text(message).accessibilityIdentifier("ReanalysisRecoveryMessage") }
+                    if model.showsProgress { ProgressView().accessibilityLabel("Loading reanalysis status") }
                 }
             }
             .navigationTitle("Reanalysis status")
@@ -58,9 +80,16 @@ struct ReanalysisStatusSheet: View {
         .accessibilityIdentifier("ReanalysisStatusSheet")
         .presentationDetents([.medium, .large])
         .task { model.start() }
+        .task(id: model.photo != nil) {
+            while model.photo != nil, !Task.isCancelled {
+                model.checkPhotoScope()
+                guard model.photo != nil else { return }
+                do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            }
+        }
         .onChange(of: model.deliveryGeneration) { _, _ in model.refreshForLibraryChange() }
         .onChange(of: model.isSessionCurrent, initial: true) { _, current in if !current { model.close() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.validate() } }
+        .onChange(of: scenePhase) { _, phase in model.setVisible(phase == .active) }
         .onDisappear { model.close() }
     }
     private func title(_ phase: ObservationReanalysisOperationStatus.Phase) -> String {

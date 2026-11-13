@@ -102,7 +102,22 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     /// Durable uncertainty before a fresh ticket request, never PUT authority.
     let ticketRequestStarted: Bool?
     let backendBinding: BackendBinding?
+    /// Accepted V13 records retain the exact positive response without retiring
+    /// the original role, remote attempt, or its copy liability.
+    let liveRoleReceipt: Data?
+    /// V14…16 retain earlier roles in original assignment order and use the
+    /// same request, PUT, observation and receipt phases as V11…13.
+    struct CompletedRole: Codable, Sendable, Equatable {
+        let transfer: SharedMediaNativePhotoTransferReservation
+        let attempt: RemoteAttempt
+        let liveReceipt: Data
+    }
+    let completedRoles: [CompletedRole]?
+    var transferPhase: Int { (14...16).contains(version) ? version - 3 : version }
     var remainingAdvances: Int64 {
+        if version == 17 { return 0 }
+        if completedRoles != nil { return activeRole.remainingAdvances }
+        if version == 13 { return 0 }
         if version == 6 { return (receipt == nil ? 1 : 0) + (backendBinding == nil ? 1 : 0) }
         if version == 7 { return 0 }
         if version == 10 || version == 11 { return (version == 10 ? 2 : 1) + (remoteAttempt?.remainingAdvances ?? 3) }
@@ -112,8 +127,10 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     init(claim: Claim) { self.init(version: 1, claim: claim, receipt: nil, roleMapping: nil) }
-    private init(version: Int, claim: Claim, receipt: Receipt?, roleMapping: SharedMediaNativePhotoRoleMapping?, transferReservation: SharedMediaNativePhotoTransferReservation? = nil, remoteAttempt: RemoteAttempt? = nil, ticketRequestStarted: Bool? = nil, backendBinding: BackendBinding? = nil) {
+    private init(version: Int, claim: Claim, receipt: Receipt?, roleMapping: SharedMediaNativePhotoRoleMapping?, transferReservation: SharedMediaNativePhotoTransferReservation? = nil, remoteAttempt: RemoteAttempt? = nil, ticketRequestStarted: Bool? = nil, backendBinding: BackendBinding? = nil, liveRoleReceipt: Data? = nil, completedRoles: [CompletedRole]? = nil) {
+        self.completedRoles = completedRoles
         self.version = version; self.claim = claim; self.receipt = receipt; self.roleMapping = roleMapping
+        self.liveRoleReceipt = liveRoleReceipt
         self.transferReservation = transferReservation; self.remoteAttempt = remoteAttempt
         self.ticketRequestStarted = ticketRequestStarted; self.backendBinding = backendBinding
     }
@@ -199,6 +216,7 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     /// save/readback are separately required before any upload can be constructed.
     func startingPut(_ attempt: RemoteAttempt) throws -> Self {
         _ = try encoded()
+        if let prefix = completedRoles { return try activeRole.startingPut(attempt).appendingPrefix(prefix) }
         guard version == 11, remoteAttempt == nil, attempt.state == .mayHaveIssued,
               !attempt.writeClosed else { throw SharedMediaStorageFailure.closed }
         let after = Self(version: 12, claim: claim, receipt: receipt, roleMapping: roleMapping,
@@ -212,6 +230,7 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     /// request. Existing remote facts or a decoded marker cannot mint permission.
     func startingTicketRequest() throws -> Self {
         _ = try encoded()
+        if let prefix = completedRoles { return try activeRole.startingTicketRequest().appendingPrefix(prefix) }
         guard version == 4 || version == 8 || version == 10, remoteAttempt == nil else { throw SharedMediaStorageFailure.closed }
         let after = Self(version: version == 10 ? 11 : (version == 8 ? 9 : 5), claim: claim, receipt: receipt, roleMapping: roleMapping,
             transferReservation: transferReservation, ticketRequestStarted: true, backendBinding: backendBinding)
@@ -221,6 +240,24 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
 
     func observing(_ status: InitialPhotoUploadStatus) throws -> Self {
         _ = try encoded()
+        if let prefix = completedRoles, let transferReservation {
+            try status.requireMatch(self, objectID: transferReservation.selection.objectID)
+            let next = status.attempt.map {
+                RemoteAttempt(id: $0.id, state: $0.state == .bound ? .bound : .mayHaveIssued,
+                              createdAtMilliseconds: $0.createdAtMilliseconds, capabilityExpiresAtMilliseconds: $0.capabilityExpiresAtMilliseconds,
+                              writeClosed: $0.writeClosed)
+            }
+            if version == 16 {
+                guard next == remoteAttempt else { throw SharedMediaStorageFailure.conflict }
+                return self
+            }
+            return try activeRole.recording(next).appendingPrefix(prefix)
+        }
+        if version == 13 {
+            let original = liveRoleVersion(12, receiptBytes: nil)
+            guard try original.observing(status) == original else { throw SharedMediaStorageFailure.conflict }
+            return self
+        }
         guard (4...5).contains(version) || (8...12).contains(version), let transferReservation else { throw SharedMediaStorageFailure.closed }
         try status.requireMatch(self, objectID: transferReservation.selection.objectID)
         let value = status.attempt.map {
@@ -241,10 +278,123 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
         return after
     }
 
+    private func liveRoleVersion(_ phase: Int, receiptBytes: Data?) -> Self {
+        Self(version: phase, claim: claim, receipt: receipt, roleMapping: roleMapping,
+             transferReservation: transferReservation, remoteAttempt: remoteAttempt,
+             ticketRequestStarted: ticketRequestStarted, backendBinding: backendBinding, liveRoleReceipt: receiptBytes)
+    }
+
+    private var activeRole: Self {
+        Self(version: transferPhase, claim: claim, receipt: receipt, roleMapping: roleMapping,
+             transferReservation: transferReservation, remoteAttempt: remoteAttempt,
+             ticketRequestStarted: ticketRequestStarted, backendBinding: backendBinding, liveRoleReceipt: liveRoleReceipt)
+    }
+
+    private func appendingPrefix(_ prefix: [CompletedRole]) throws -> Self {
+        guard (11...13).contains(version), completedRoles == nil else { throw SharedMediaStorageFailure.closed }
+        return Self(version: version + 3, claim: claim, receipt: receipt, roleMapping: roleMapping,
+                    transferReservation: transferReservation, remoteAttempt: remoteAttempt, ticketRequestStarted: ticketRequestStarted,
+                    backendBinding: backendBinding, liveRoleReceipt: liveRoleReceipt, completedRoles: prefix)
+    }
+
+    private func historicalRole(_ member: CompletedRole) -> Self {
+        Self(version: 13, claim: claim, receipt: receipt, roleMapping: roleMapping,
+             transferReservation: member.transfer, remoteAttempt: member.attempt, ticketRequestStarted: true,
+             backendBinding: backendBinding, liveRoleReceipt: member.liveReceipt)
+    }
+
+    func requireRetiredOriginal(_ original: Self) throws {
+        guard transferPhase == 13, original.transferPhase == 12,
+              completedRoles == original.completedRoles, let remoteAttempt, remoteAttempt.writeClosed else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let closed = try original.activeRole.recording(remoteAttempt)
+        try activeRole.historicalLiveRole().requireOriginal(closed)
+    }
+
+    func sealingCompletedRoster() throws -> Self {
+        guard transferPhase == 13, let transferReservation, let remoteAttempt, let liveRoleReceipt,
+              let mapping = roleMapping else { throw SharedMediaStorageFailure.closed }
+        var all = completedRoles ?? []
+        all.append(.init(transfer: transferReservation, attempt: remoteAttempt, liveReceipt: liveRoleReceipt))
+        guard all.map(\.transfer.selection) == mapping.entries else { throw SharedMediaStorageFailure.conflict }
+        return Self(version: 17, claim: claim, receipt: receipt, roleMapping: mapping,
+                    backendBinding: backendBinding, completedRoles: all)
+    }
+
+    private func finalPredecessor() throws -> Self {
+        guard version == 17, let all = completedRoles, let last = all.last, let mapping = roleMapping,
+              (3...6).contains(all.count), all.count == mapping.entries.count else { throw SharedMediaStorageFailure.conflict }
+        return try historicalRole(last).appendingPrefix(Array(all.dropLast()))
+    }
+
+    /// Value proposal only. Only the receiving owner may persist it, after
+    /// consuming a live local retirement witness for this precise predecessor.
+    func reservingFollowingRole(_ next: SharedMediaNativePhotoTransferReservation) throws -> Self {
+        _ = try encoded()
+        guard transferPhase == 13, let transferReservation, let remoteAttempt, let liveRoleReceipt,
+              let mapping = roleMapping else { throw SharedMediaStorageFailure.closed }
+        var prefix = completedRoles ?? []
+        guard prefix.count + 1 < mapping.entries.count,
+              transferReservation.selection == mapping.entries[prefix.count],
+              next.selection == mapping.entries[prefix.count + 1] else { throw SharedMediaStorageFailure.conflict }
+        prefix.append(.init(transfer: transferReservation, attempt: remoteAttempt, liveReceipt: liveRoleReceipt))
+        let nextActive = Self(version: 11, claim: claim, receipt: receipt, roleMapping: mapping,
+                              transferReservation: next, ticketRequestStarted: true, backendBinding: backendBinding)
+        let after = try nextActive.appendingPrefix(prefix)
+        _ = try after.encoded()
+        return after
+    }
+
+    func retainingLiveRole(_ proof: InitialPhotoRoleProgress) throws -> Self {
+        try proof.requireOriginal(self)
+        if let prefix = completedRoles {
+            if version == 16, liveRoleReceipt == proof.canonicalReceipt { return self }
+            guard version == 15 else { throw SharedMediaStorageFailure.closed }
+            let after = try activeRole.liveRoleVersion(13, receiptBytes: proof.canonicalReceipt).appendingPrefix(prefix)
+            _ = try after.encoded()
+            return after
+        }
+        if version == 13, liveRoleReceipt == proof.canonicalReceipt { return self }
+        guard version == 12 else { throw SharedMediaStorageFailure.closed }
+        let after = liveRoleVersion(13, receiptBytes: proof.canonicalReceipt)
+        _ = try after.encoded()
+        return after
+    }
+
+    /// A saved receipt describes the original attempt only. Fresh next-role
+    /// admission must still check current server eligibility and local storage.
+    func historicalLiveRole() throws -> InitialPhotoRoleProgress {
+        guard version == 13, let bytes = liveRoleReceipt else { throw SharedMediaStorageFailure.closed }
+        let original = liveRoleVersion(12, receiptBytes: nil)
+        let request = try InitialPhotoTransferRequest(allocation: original, action: .roleProgress)
+        let proof = try InitialPhotoRoleProgress(data: bytes, matching: request)
+        guard proof.canonicalReceipt == bytes else { throw SharedMediaStorageFailure.conflict }
+        return proof
+    }
+
     /// Exact permitted one-save transitions. No downgrade, replacement or
     /// enrichment before reservation can enter the sidecar write set.
     func requireSuccessor(_ after: Self) throws {
         _ = try encoded(); _ = try after.encoded()
+        if after.version == 17 {
+            guard try sealingCompletedRoster() == after else { throw SharedMediaStorageFailure.conflict }
+            return
+        }
+        guard version != 17 else { throw SharedMediaStorageFailure.closed }
+        if transferPhase == 13, after.version == 14, let next = after.transferReservation {
+            guard try reservingFollowingRole(next) == after else { throw SharedMediaStorageFailure.conflict }
+            return
+        }
+        if let prefix = completedRoles {
+            guard prefix == after.completedRoles, (14...16).contains(after.version) else { throw SharedMediaStorageFailure.conflict }
+            try activeRole.requireSuccessor(after.activeRole)
+            return
+        }
+        if version == 12, after.version == 13 {
+            try after.historicalLiveRole().requireOriginal(self)
+            return
+        }
         if (version == 2 && after.version == 3) || (version == 6 && after.version == 7), let value = after.transferReservation {
             guard try reservingTransfer(value) == after else { throw SharedMediaStorageFailure.conflict }
             return
@@ -299,7 +449,31 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     }
 
     func encoded() throws -> Data {
-        guard (1...12).contains(version), !claim.candidateCanonical.isEmpty,
+        if version == 17 {
+            let final = try finalPredecessor()
+            _ = try final.encoded()
+            guard try final.sealingCompletedRoster() == self else { throw SharedMediaStorageFailure.conflict }
+            return try SharedMediaAcquisitionEncoding.encode(self, maximum: Self.maximumBytes)
+        }
+        if let prefix = completedRoles {
+            guard (14...16).contains(version), let mapping = roleMapping,
+                  !prefix.isEmpty, prefix.count < mapping.entries.count, mapping.entries.count <= 6,
+                  mapping.entries[prefix.count] == transferReservation?.selection else { throw SharedMediaStorageFailure.conflict }
+            _ = try activeRole.encoded()
+            var attempts = Set<UUID>()
+            for (index, member) in prefix.enumerated() {
+                guard mapping.entries[index] == member.transfer.selection,
+                      attempts.insert(member.attempt.id).inserted else { throw SharedMediaStorageFailure.conflict }
+                _ = try historicalRole(member).historicalLiveRole()
+            }
+            if let remoteAttempt, attempts.contains(remoteAttempt.id) { throw SharedMediaStorageFailure.conflict }
+            return try SharedMediaAcquisitionEncoding.encode(self, maximum: Self.maximumBytes)
+        }
+        if version == 13 {
+            _ = try historicalLiveRole()
+            return try SharedMediaAcquisitionEncoding.encode(self, maximum: Self.maximumBytes)
+        }
+        guard liveRoleReceipt == nil, (1...12).contains(version), !claim.candidateCanonical.isEmpty,
               claim.candidateCanonical.utf8.count <= 1_048_576,
               [claim.preparedSHA256, claim.receivedSHA256, claim.candidateDigest, claim.contentDigest]
                 .allSatisfy(SharedMediaAcquisitionEncoding.isHash) else { throw SharedMediaStorageFailure.conflict }
@@ -336,6 +510,32 @@ struct SharedMediaNativePhotoAllocation: Codable, Equatable, Sendable {
     var storageCharge: Int64 {
         get throws {
             let current = try encoded().count
+            if version == 17 {
+                let prior = try finalPredecessor()
+                let growth = max(0, current - (try prior.encoded().count))
+                return try PhotoPreparationPolicy.add([prior.storageCharge, Int64(growth)])
+            }
+            if let prefix = completedRoles {
+                let active = activeRole
+                let delta = current - (try active.encoded().count)
+                guard delta > 0 else { throw SharedMediaStorageFailure.conflict }
+                // The framing delta includes every materialized historical
+                // field. Keep the unused historical reservation headroom too.
+                var charges = [try active.storageCharge, Int64(delta)]
+                for member in prefix {
+                    let previous = historicalRole(member)
+                    let reserved = try previous.storageCharge - Int64(previous.encoded().count) - 64
+                    guard reserved >= 0 else { throw SharedMediaStorageFailure.conflict }
+                    charges.append(reserved)
+                }
+                return try PhotoPreparationPolicy.add(charges)
+            }
+            if version == 13 {
+                let prior = liveRoleVersion(12, receiptBytes: nil)
+                let delta = current - (try prior.encoded().count)
+                guard delta > 0 else { throw SharedMediaStorageFailure.conflict }
+                return try PhotoPreparationPolicy.add([prior.storageCharge, Int64(delta)])
+            }
             if version >= 6 {
                 // Every bound phase retains V6's full receipt/mapping/tuple charge.
                 // Later reservations add transfer and maximum remote-slot metadata;

@@ -261,8 +261,7 @@ final class SharedMediaInboxOwner {
             try check(account, lease)
             let proof = try await destinationIO.release(intent)
             try check(account, lease)
-            do { try storage.handoffWrite(before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.handoffs.releaseDetached(proof) } }
-            catch { guard try handoffState(request) == nil else { throw error } }
+            do { try storage.handoffWrite(before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.handoffs.releaseDetached(proof) } } catch { guard try handoffState(request) == nil else { throw error } }
             try await destinationIO.prune(storage.inboxRead { try $0.photos.inventory() }); try check(account, lease)
         }
     }
@@ -402,15 +401,13 @@ final class SharedMediaInboxOwner {
         guard !purgeInProgress else { throw SharedMediaStorageFailure.busy }
         purgeInProgress = true; suspended = true
         defer { purgeInProgress = false }
-        do { try storage.beginPurge(id: resetID) }
-        catch { try storage.beginPurge(id: resetID) } // Exact saved intent only.
+        do { try storage.beginPurge(id: resetID) } catch { try storage.beginPurge(id: resetID) } // Exact saved intent only.
         cancel?(); if let active { await active() }
         guard active == nil else { throw SharedMediaStorageFailure.busy }
         try await afterAdmissionClosed()
         let drained = SharedMediaPurgeDrain(coordinatorID: purgeCoordinatorID)
         let access: SharedMediaPurgeAccess
-        do { access = try storage.purgeAccess(id: resetID, drained: drained) }
-        catch { access = try storage.purgeAccess(id: resetID, drained: drained) }
+        do { access = try storage.purgeAccess(id: resetID, drained: drained) } catch { access = try storage.purgeAccess(id: resetID, drained: drained) }
         let task = Task { @MainActor [self] in
             defer { active = nil; cancel = nil }
             let operations = SharedMediaPurgeOperations(storage: storage, sourceIO: io, destinationIO: destinationIO, access: access,
@@ -429,8 +426,7 @@ final class SharedMediaInboxOwner {
     private func finishRetirement(_ handle: SharedMediaInboxHandle) async throws {
         let intent = try storage.inboxRetirement(handle)
         let proof = try await io.release(intent)
-        do { try storage.inboxWrite(before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.release(proof) } }
-        catch {
+        do { try storage.inboxWrite(before: .beforeReleaseSave, after: .afterReleaseSave) { try $0.release(proof) } } catch {
             guard try !storage.inboxSources().contains(where: { $0.handle.id == handle.id }) else { throw error }
         }
     }
@@ -473,7 +469,6 @@ struct SharedMediaInboxWriterClosure: Sendable {
     let epoch: UUID
     fileprivate init(source: SharedMediaInboxSource, epoch: UUID) { self.source = source; self.epoch = epoch }
 }
-
 
 /// Created only after this coordinator has closed admission and awaited its
 /// actual tracked task. It is never serialized or accepted by another lifetime.

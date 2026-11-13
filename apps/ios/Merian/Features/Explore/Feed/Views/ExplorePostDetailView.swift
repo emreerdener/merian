@@ -141,6 +141,8 @@ struct ExplorePostDetailView: View {
                     }
             }
         }
+        .navigationTitle("Observation")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: "\(postId)-\(supabase.currentUser?.id.uuidString ?? "none")-\(viewModel.postReactorsRevision)") {
             await reactorsModel.refresh()
         }

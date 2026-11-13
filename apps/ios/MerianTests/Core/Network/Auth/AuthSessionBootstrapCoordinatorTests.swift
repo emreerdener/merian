@@ -3,6 +3,53 @@ import XCTest
 
 @MainActor
 final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
+    func testDisabledBootstrapDoesNotWaitForDrainOrHideLibraryRecovery() async {
+        let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.isBootstrapEnabled = false
+        harness.loadError = AuthSessionBootstrapCoordinatorTestError.missingSession
+        harness.createError = AuthSessionBootstrapCoordinatorTestError.anonymousCreation
+        let drain = AuthSessionBootstrapCoordinatorTestGate()
+        harness.quiescenceGate = drain
+        let coordinator = AuthSessionBootstrapCoordinator()
+        let returned = expectation(description: "Disabled bootstrap returns without waiting for account work")
+        let attempt = Task { @MainActor in
+            let result = await coordinator.initialize(dependencies: harness.makeDependencies())
+            returned.fulfill()
+            return result
+        }
+        await fulfillment(of: [returned], timeout: 1)
+        XCTAssertNil(harness.activeTransition)
+        XCTAssertEqual(LibraryAccountRecoveryPresentation.resolve(recoveryRequired: true,
+            authSessionGeneration: 1, hasCachedSessionAwaitingRefresh: false,
+            activeTransitionKind: harness.activeTransition?.kind), .recoveryRequired)
+        // Release even on the old failure path so the reproduction cannot hang.
+        await drain.release()
+        let result = await attempt.value
+        XCTAssertNil(result)
+        XCTAssertEqual(harness.transitionBeginCount, 0)
+        XCTAssertEqual(harness.loadCount, 0)
+        XCTAssertEqual(harness.createCount, 0)
+        XCTAssertTrue(harness.events.isEmpty)
+    }
+
+    func testDisabledBootstrapPreservesExistingSessionAndOwnedTransition() async {
+        let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.isBootstrapEnabled = false
+        harness.currentSDKSession = harness.existing
+        harness.currentPublishedSession = harness.existing
+        harness.isAuthenticated = true
+        harness.activeTransition = harness.firstTransition
+        let coordinator = AuthSessionBootstrapCoordinator()
+        let result = await coordinator.initialize(ownedBy: harness.firstTransition,
+            dependencies: harness.makeDependencies())
+        XCTAssertNil(result)
+        XCTAssertEqual(harness.activeTransition, harness.firstTransition)
+        XCTAssertEqual(harness.currentSDKSession, harness.existing)
+        XCTAssertEqual(harness.currentPublishedSession, harness.existing)
+        XCTAssertEqual(harness.transitionFinishCount, 0)
+        XCTAssertTrue(harness.events.isEmpty)
+    }
+
     func testOwnerlessBootstrapOpensRequestsWithoutWaitingForPurchases() async {
         for restoresSession in [false, true] {
             let harness = AuthSessionBootstrapCoordinatorHarness()

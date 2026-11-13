@@ -1,9 +1,10 @@
 import Foundation
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
 /// One local, not-started role. No file, ticket, write-attempt or release authority.
 /// Its fixed copy allowance stays charged until a separately qualified transition
 /// proves it can be retired. Cancellation and account shutdown do not erase it.
-struct SharedMediaNativePhotoTransferReservation: Codable, Equatable, Sendable {
+struct SharedMediaNativePhotoTransferReservation: Codable, Equatable, Sendable { // swiftlint:disable:this type_name
     enum State: String, Codable, Sendable { case reservedNotStarted }
     static let copyAllowance: Int64 = 32 * PhotoPreparationPolicy.mib
     let state: State

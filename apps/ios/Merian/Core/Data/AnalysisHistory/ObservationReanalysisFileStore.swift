@@ -12,8 +12,9 @@ actor ObservationReanalysisFileStore {
         let sha256: String
     }
     private struct CreatedFile { let name: String; let inode: ino_t; let descriptor: Int32 }
-    private let documents: URL
-    private var activeChildren = Set<UUID>()
+    let documents: URL
+    var activeChildren = Set<UUID>()
+    var inputLeases: [UUID: InputLease] = [:]
 
     init(documents: URL) { self.documents = documents }
 
@@ -297,6 +298,7 @@ actor ObservationReanalysisFileStore {
         guard flock(root, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
         defer { flock(root, LOCK_UN) }
         try removeEntry("ReanalysisQueue", inside: root, depth: 0)
+        try removeEntry("ReanalysisInputs", inside: root, depth: 0)
         guard fsync(root) == 0 else { throw Failure.cleanupFailed }
     }
 
@@ -332,14 +334,16 @@ actor ObservationReanalysisFileStore {
               unlinkat(parent, name, AT_REMOVEDIR) == 0 else { throw Failure.cleanupFailed }
     }
 
-    private func sameDirectory(_ descriptor: Int32, named name: String, inside parent: Int32) -> Bool {
+    func sameDirectory(_ descriptor: Int32, named name: String, inside parent: Int32) -> Bool {
         var held = stat(), current = stat()
         return fstat(descriptor, &held) == 0 && fstatat(parent, name, &current, AT_SYMLINK_NOFOLLOW) == 0
             && current.st_mode & S_IFMT == S_IFDIR && current.st_dev == held.st_dev && current.st_ino == held.st_ino
     }
 
-    private func names(in directory: Int32) throws -> [String] {
-        let copy = dup(directory)
+    func names(in directory: Int32) throws -> [String] {
+        // dup shares the directory cursor: a later proof could see only EOF.
+        // Open the held directory itself for an independent cursor, never its path.
+        let copy = openat(directory, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard copy >= 0 else { throw Failure.unavailable }
         guard let stream = fdopendir(copy) else { close(copy); throw Failure.unavailable }
         defer { closedir(stream) }
@@ -384,7 +388,7 @@ actor ObservationReanalysisFileStore {
         return descriptor
     }
 
-    private func existingDirectory(_ name: String, inside parent: Int32) throws -> Int32 {
+    func existingDirectory(_ name: String, inside parent: Int32) throws -> Int32 {
         let descriptor = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
             if errno == ENOENT { throw Failure.incomplete }

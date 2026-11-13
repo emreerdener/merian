@@ -65,8 +65,7 @@ final class SharedMediaNativeAppPairPlanClosure {
         _ = try SharedMediaNativeAcquisitionBudget.evaluatePairClosurePoststate(context: context, inventory: inventory, proof: proof)
         // No suspension between rechecking both held destinations and persistence.
         try witness.verifyAbsent()
-        do { try context.save(); try afterSave() }
-        catch {
+        do { try context.save(); try afterSave() } catch {
             let failure = error; context.rollback()
             do { try beforeReadback(); try acknowledge(proof) } catch { throw failure }
         }
@@ -89,6 +88,8 @@ final class SharedMediaNativeAppPairPlanClosure {
 /// Sole dirty-context entry for exact plan closure: three updates and three
 /// deletions. The unchanged original and receiving liabilities stay auditable.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppPairPlanClosurePoststate {
     var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { witness.preparation.facts.allocationPeers }
     var predecessorRevision: Int64 { witness.preparation.expected.inventory.revision }

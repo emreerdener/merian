@@ -4,6 +4,8 @@ import SwiftData
 /// One audited app operation. Each transaction receives a sealed witness for
 /// exactly one header and request; an uncertain save never renews that witness.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeAppAcquisitionOperations {
     private let container: ModelContainer
     private let authority: SharedMediaNativeAppAcquisitionAuthority
@@ -118,8 +120,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
         let old = expected, before = facts
         let witness = SharedMediaNativeAppAcquisitionWitness(authority: authority, expected: old, facts: before, request: request)
         let mutation: SharedMediaNativeAcquisitionMutation
-        if let proof { mutation = try .complete(container: container, witness: witness, proof: proof) }
-        else {
+        if let proof { mutation = try .complete(container: container, witness: witness, proof: proof) } else {
             guard let reservationEnvelope else { throw SharedMediaStorageFailure.closed }
             mutation = try .reserve(container: container, witness: witness, availableBytes: availableBytes(), envelope: reservationEnvelope)
         }
@@ -132,8 +133,7 @@ final class SharedMediaNativeAppAcquisitionOperations {
         let next = try SharedMediaNativeAppMetadataFacts.successor(old)
         guard try authority.header(container) == next else { throw SharedMediaStorageFailure.stale }
         let saved = try receipt(request)
-        if proof == nil { guard case .reserved = saved else { throw SharedMediaStorageFailure.conflict } }
-        else { guard case .completed = saved else { throw SharedMediaStorageFailure.conflict } }
+        if proof == nil { guard case .reserved = saved else { throw SharedMediaStorageFailure.conflict } } else { guard case .completed = saved else { throw SharedMediaStorageFailure.conflict } }
         let after = try mutation.acknowledgeApp()
         if let proof {
             guard case .completed(_, let result) = saved, result.descriptor == proof.identity,
@@ -221,9 +221,10 @@ struct SharedMediaNativeAppAcquisitionWitness {
     }
 }
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
 /// Value-only recovery anchor minted before the first save attempt. It cannot
 /// grant work; the registered owner separately proves actual writer termination.
-struct SharedMediaNativeAppAcquisitionSettlement {
+struct SharedMediaNativeAppAcquisitionSettlement { // swiftlint:disable:this type_name
     let profile: SharedMediaNativeAppProfile
     let request: SharedMediaAcquisitionIntent
     let entry: SharedMediaNativeAppEligibility.Header

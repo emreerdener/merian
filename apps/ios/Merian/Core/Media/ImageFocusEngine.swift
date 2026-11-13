@@ -122,8 +122,7 @@ final class ImageFocusWorkerState: @unchecked Sendable {
     func outcome() async -> ImageFocusVisionWorkerResult {
         await withCheckedContinuation { continuation in
             lock.lock()
-            if let result { lock.unlock(); continuation.resume(returning: result) }
-            else { outcomeWaiters.append(continuation); lock.unlock() }
+            if let result { lock.unlock(); continuation.resume(returning: result) } else { outcomeWaiters.append(continuation); lock.unlock() }
         }
     }
 
@@ -131,8 +130,7 @@ final class ImageFocusWorkerState: @unchecked Sendable {
     func drain() async {
         await withCheckedContinuation { continuation in
             lock.lock()
-            if finished { lock.unlock(); continuation.resume() }
-            else {
+            if finished { lock.unlock(); continuation.resume() } else {
                 drainWaiters.append(continuation)
                 lock.unlock()
                 #if DEBUG

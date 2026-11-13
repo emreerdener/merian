@@ -41,7 +41,7 @@ struct SharedMediaPendingGraphTests {
         let h = try Harness()
         var owner: SharedMediaInboxOwner? = try h.owner()
         var bytes = PhotoPreparationTestHarness.image(); bytes.append(Data(count: 131_072 - bytes.count))
-        let source = try await owner!.stage { bytes }
+        let source = try await owner!.stage { [bytes] in bytes }
         let request = try owner!.prepareHandoff(source, account: h.account, packageID: UUID(), draftGeneration: UUID())
         await owner!.setHandoffFileFault { if $0 == .duringWrite { throw Fault.injected } }
         await #expect(throws: (any Error).self) { _ = try await owner!.handoff(request, account: h.account) }

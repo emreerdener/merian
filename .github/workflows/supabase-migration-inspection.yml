@@ -1,0 +1,73 @@
+name: Supabase Migration Inspection (Read Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-migration-inspection
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: Production
+    env:
+      PROJECT_ID: qlarqavoqhkuwzmevrmf
+    steps:
+      - name: Checkout the dispatched main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Read migration versions
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
+          SUPABASE_DB_POOLER_PORT: ${{ vars.SUPABASE_DB_POOLER_PORT }}
+          SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+          COMPARISON_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset SUPABASE_DB_PUSH_URL
+          database_url="$(bash scripts/supabase-db-url.sh --require)"
+          trap 'unset database_url database_network_scope' EXIT
+          # Reject a wrong target/options before DNS or any database connection.
+          MERIAN_DATABASE_URL="$database_url" MERIAN_DATABASE_PASSWORD="$SUPABASE_DB_PASSWORD" deno run --frozen --no-prompt \
+            --config services/supabase/functions/deno.json \
+            --deny-net --allow-env=MERIAN_DATABASE_URL,MERIAN_DATABASE_PASSWORD \
+            services/supabase/scripts/inspect_migration_versions.ts --validate-target
+          database_network_scope="$(
+            MERIAN_DATABASE_URL="$database_url" \
+              bash services/supabase/scripts/deno_postgres_net_scope.sh
+          )"
+          report_directory="${RUNNER_TEMP}/migration-inspection"
+          MERIAN_DATABASE_URL="$database_url" MERIAN_DATABASE_PASSWORD="$SUPABASE_DB_PASSWORD" deno run --frozen --no-prompt \
+            --config services/supabase/functions/deno.json \
+            --allow-net="$database_network_scope" \
+            --allow-env="MERIAN_DATABASE_URL,MERIAN_DATABASE_PASSWORD,PG*" \
+            --allow-read=services/supabase/migrations,services/supabase/scripts/certificates \
+            --allow-write="$report_directory" \
+            services/supabase/scripts/inspect_migration_versions.ts \
+            "$COMPARISON_SHA" "$report_directory"
+          cat "$report_directory/migration-versions.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain sanitized version report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: supabase-migration-versions-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/migration-inspection/migration-versions.*
+          if-no-files-found: error
+          retention-days: 14

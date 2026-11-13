@@ -1,0 +1,345 @@
+{
+  "receipt": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "owner_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "operation_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "route": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "identify",
+          "identify-describe",
+          "identify-multimodal"
+        ]
+      },
+      "submission_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "input_schema_version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2
+      },
+      "config_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "funding_binding_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "funding_binding_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "funding_binding_version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "result_evidence_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "result_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "result_schema_version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "ordered_description_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "ordered_description_count": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 64
+      },
+      "finalized_media_binding_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "completion_projection_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  },
+  "projection": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1
+      },
+      "completed_at": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?\\+00:00$"
+      },
+      "scan_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "owner_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "result_evidence_id": {
+        "type": "string",
+        "max_bytes": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      },
+      "result_digest": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "plan_used": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "free",
+          "pro_trial",
+          "pro_paid",
+          "pro_complimentary"
+        ]
+      },
+      "settlement": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "max_bytes": 128,
+            "enum": [
+              "none",
+              "consumed_durable_result",
+              "released_paid_before_completion"
+            ]
+          },
+          "settled_at": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?\\+00:00$",
+            "nullable": true
+          }
+        }
+      },
+      "credit_consumed": {
+        "type": "boolean"
+      },
+      "entitlement_after": {
+        "type": "object",
+        "properties": {
+          "current_plan": {
+            "type": "string",
+            "max_bytes": 128,
+            "enum": [
+              "free",
+              "pro_trial",
+              "pro_paid",
+              "pro_complimentary"
+            ]
+          },
+          "current_tier": {
+            "type": "string",
+            "max_bytes": 128,
+            "enum": [
+              "free",
+              "pro"
+            ]
+          },
+          "is_paid": {
+            "type": "boolean"
+          },
+          "entitlement_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "in_flight_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "scans_available_to_start": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "scans_remaining": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        }
+      },
+      "species_association": {
+        "type": "object",
+        "properties": {
+          "species_id": {
+            "type": "string",
+            "max_bytes": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "scientific_name": {
+            "type": "string",
+            "max_bytes": 65536
+          }
+        },
+        "nullable": true
+      },
+      "scan_timestamp": {
+        "type": "string",
+        "max_bytes": 64,
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?\\+00:00$"
+      },
+      "timestamp_basis": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "capture",
+          "completion"
+        ]
+      },
+      "geoprivacy": {
+        "type": "string",
+        "max_bytes": 128,
+        "enum": [
+          "open",
+          "obscured",
+          "private"
+        ]
+      },
+      "capture_context": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "max_bytes": 128,
+            "enum": [
+              "legacy_input_v1",
+              "cpm_absent_v1"
+            ]
+          },
+          "submission_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "media": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "max_bytes": 128,
+            "enum": [
+              "legacy_transfer_v1",
+              "cpm_adoption_v1"
+            ]
+          },
+          "receipt_digest": {
+            "type": "string",
+            "max_bytes": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "items": {
+            "type": "array",
+            "max_items": 64,
+            "items": {
+              "type": "object",
+              "properties": {
+                "ordinal": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 63
+                },
+                "kind": {
+                  "type": "string",
+                  "max_bytes": 128,
+                  "enum": [
+                    "image",
+                    "audio",
+                    "video"
+                  ]
+                },
+                "media_id": {
+                  "type": "string",
+                  "max_bytes": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "content_type": {
+                  "type": "string",
+                  "max_bytes": 128,
+                  "enum": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp",
+                    "image/heic",
+                    "image/heif",
+                    "audio/wav",
+                    "video/mp4"
+                  ]
+                },
+                "byte_count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12582912
+                },
+                "sha256": {
+                  "type": "string",
+                  "max_bytes": 64,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "poster_media_id": {
+                  "type": "string",
+                  "max_bytes": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

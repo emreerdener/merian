@@ -99,8 +99,7 @@ final class SharedMediaStoreReadFence {
                 guard next >= 0 else { throw SharedMediaStorageFailure.unavailable }
                 // An existing child may survive an earlier interrupted setup.
                 // Re-establish each parent entry's durability before admission.
-                do { try synchronization.synchronizeParent(fd) }
-                catch { Darwin.close(next); throw error }
+                do { try synchronization.synchronizeParent(fd) } catch { Darwin.close(next); throw error }
                 Darwin.close(fd)
                 fd = next
             }

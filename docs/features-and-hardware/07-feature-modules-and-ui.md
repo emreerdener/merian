@@ -108,7 +108,14 @@ controls in the
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`, `ScansLibrarySearchCoordinator`)
 
-The Scans tab is the user's primary offline biological journal.
+The Book action in the main navigation opens the user's primary offline
+biological journal. Its internal Scans and Collections tabs retain their names.
+
+The proposed Library/Journal bottom toolbar and Journal Pages/Pins scaffold are
+paused as of October 27, 2026 and removed from the active app shell. Existing
+Scans/Collections navigation and native search remain in place. The
+[Journal planning record](../product/journal/README.md) retains the product
+decisions and prototype plan for a future user-requested resumption.
 
 `Scans/Shell` is split by responsibility: Models own typed navigation and
 UI-only incident presentation; Services own SwiftData projection, preferences,
@@ -383,22 +390,26 @@ production Shell and Library file remains below the 600-line review guard.
   `VStack(spacing: 16)` to maintain consistent proportions.
 - **Smart Default Collections**: `CollectionsViewModel` passes the Shell-owned
   record set and an injected Explore-share lookup to `SmartCollectionSuggester`,
-  which derives up to six auto-managed collections without changing SwiftData
-  schema or cloud payloads. Suggestions can include "Needs review", "Recent
-  finds", "Explore posts" for scans shared publicly to Explore, top normalized
-  locations, top taxonomy buckets, invasive finds, and potential hazards. "Needs
-  review" shares the candidate review thresholds: unreviewed biological scans
-  qualify when the primary match is below the tier's Strong threshold, or when a
-  Strong match has a competitive stored alternative, not merely because
-  candidate alternatives exist. Each suggestion is threshold-gated to avoid
-  empty/noisy rows, ranked by usefulness, filtered by locally hidden smart
-  collection ids in `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed
-  when the user already has an active collection with the same normalized name.
-  Card-style smart collections render as image-backed `SmartCollectionCard`
-  tiles before user-created collection cards, while row-style defaults
-  (Favorites, Non-biological, and "Needs review") sit underneath the card grid.
-  Historical scan sync also projects the authenticated owner's active Explore
-  post relationship and reconciles the per-scan share lookup behind request and
+  which derives eligible auto-managed collections without an overall count cap
+  or changes to SwiftData schema or cloud payloads. Suggestions can include
+  "Needs review", "Recent finds", "Explore posts" for scans shared publicly to
+  Explore, normalized locations with at least three biological scans, invasive
+  finds, and potential hazards. Smart cards show Recent finds, Explore posts,
+  Invasive finds, and Potential hazards before all location cards. Locations are
+  ordered by scan count, then newest scan. Taxonomy categories remain available
+  through Scans filters rather than duplicate smart collections. "Needs review"
+  shares the candidate review thresholds: unreviewed biological scans qualify
+  when the primary match is below the tier's Strong threshold, or when a Strong
+  match has a competitive stored alternative, not merely because candidate
+  alternatives exist. Each suggestion is threshold-gated to avoid empty/noisy
+  rows, ranked by usefulness, filtered by locally hidden smart collection ids in
+  `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed when the user
+  already has an active collection with the same normalized name. Card-style
+  smart collections render as image-backed `SmartCollectionCard` tiles before
+  user-created collection cards, while row-style defaults (Favorites,
+  Non-biological, and "Needs review") sit underneath the card grid. Historical
+  scan sync also projects the authenticated owner's active Explore post
+  relationship and reconciles the per-scan share lookup behind request and
   local-mutation revision fences. When the cache changes, it publishes one typed
   batch invalidation as soon as scan-page reconciliation finishes, including
   after a partial sync, so the filter index and mounted smart-collection
@@ -553,7 +564,7 @@ production Shell and Library file remains below the 600-line review guard.
 
 ### Main Tab Bar
 
-- **Bottom Position Alignment**: The `Explore`, `Scans`, and `Profile` actions
+- **Bottom Position Alignment**: The `Explore`, `Book`, and `Profile` actions
   are hosted in a custom floating liquid glass capsule component (`MainTabBar`)
   overlaid at the bottom of the camera feed. `Explore` now opens a real
   sheet-backed feature rather than a placeholder tooltip.
@@ -564,9 +575,12 @@ production Shell and Library file remains below the 600-line review guard.
   structures (`SettingsView`, `ProfileView`, etc.) that slide over the camera
   interface without re-routing the global hierarchy or interrupting the
   `.isCapturing` hardware state.
+- **Book Navigation**: Book uses the filled open-book symbol `book.fill` and the
+  accessibility label “Book”. It retains the existing Scans destination and
+  stable `MainTabBar_Scans` accessibility identifier.
 - **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and
-  passes it to the Scans `FloatingNavigationMenuButton`. When `true`, a red 8pt
-  `Circle` is overlaid on the top-right of the stack icon. Explore combines the
+  passes it to the Book `FloatingNavigationMenuButton`. When `true`, a red 8pt
+  `Circle` is overlaid on the top-right of the book icon. Explore combines the
   external-post setting with unread-notification state loaded through the
   generation-fenced `CaptureNavigationViewModel`; the corresponding Shell
   service owns its network, app-badge, settings, and haptic effects. The Scan
@@ -1432,6 +1446,13 @@ dependency composition.
   replaced the legacy `List` UIKit wrappers (which broke Apple's iOS 17
   horizontal `.paging` layout with double top-safe-area padding) with a pure
   `.grouped` background `ScrollView`.
+- **Qualifying scan cards**: Achievement detail shares Core UI's
+  `ScanPreviewCard` layout with the large Explore discovery cards: a 4:3 image,
+  species names, location and abbreviated date on the same metadata line, the
+  qualifying reason, and **View discovery**. Comments, likes, and emoji
+  reactions are absent. The existing profile geoprivacy policy still controls
+  the location label; private or missing locations leave only the date. Both the
+  image and discovery button open the existing local Insight sheet.
 - **Achievement detail presentation ownership**: Insight and Field-trip author
   destinations share one `AchievementDetailPresentation` sheet host.
   `AchievementDetailViewModel` owns contribution loading and telemetry; Insight

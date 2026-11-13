@@ -9,6 +9,8 @@ enum SharedMediaNativeTerminalScan {
     struct Summary: Equatable {
         var bytes: Int64 = 0
         var consumptionAdvances: Int64 = 0
+        var appliedHandoffAdvances: Int64 = 0
+        var remainingAdvances: Int64 { get throws { try PhotoPreparationPolicy.add([consumptionAdvances, appliedHandoffAdvances]) } }
         mutating func include(_ bytes: Int64) throws {
             guard bytes > 0, bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }
             self.bytes = try PhotoPreparationPolicy.add([self.bytes, bytes])
@@ -22,6 +24,7 @@ enum SharedMediaNativeTerminalScan {
     static func read(container: ModelContainer, inventoryID: UUID,
                      expectedHeader: SharedMediaNativeAppEligibility.Header? = nil,
                      checkpoint: () throws -> Void = {},
+                     visitApplied: (SharedMediaNativePhotoAllocationSnapshot.Applied) throws -> Void = { _ in },
                      visit: (Terminal.Snapshot) throws -> Void = { _ in }) throws -> Summary {
         let (scope, expected) = try fence(container, inventoryID: inventoryID)
         if let expectedHeader {
@@ -44,6 +47,15 @@ enum SharedMediaNativeTerminalScan {
                     if row.phaseRaw == "released" {
                         let terminal = try Terminal.read(row, context: c, inventory: inventory, checkpoint: checkpoint)
                         try result.include(terminal.bytes); try visit(terminal)
+                    } else if let consumer = try SharedMediaConsumerLookup.one(c, packageID: row.id),
+                              SharedMediaNativeConsumerCohort.AppliedInitialFormat(rawValue: consumer.contractVersion) != nil {
+                        // Retained occupancy is not a terminal byte charge or a
+                        // terminal-consumption advance. Do not recurse into roots.
+                        let applied = try SharedMediaNativePhotoAllocationSnapshot.Applied.read(row,
+                            inventory: inventory, context: c, checkpoint: checkpoint)
+                        result.appliedHandoffAdvances = try SharedMediaStoragePolicy.add(result.appliedHandoffAdvances,
+                            applied.cohort.historyHandoffRemainingAdvances)
+                        try visitApplied(applied)
                     } else {
                         // Live roots are classified by CleanGraph. This scan must
                         // not recurse into that graph or filter away raw orphans.
@@ -69,7 +81,13 @@ enum SharedMediaNativeTerminalScan {
     static func requireAbsent(_ ids: [UUID], container: ModelContainer, inventoryID: UUID,
                               checkpoint: () throws -> Void = {}) throws {
         let selected = Set(ids)
-        _ = try read(container: container, inventoryID: inventoryID, checkpoint: checkpoint) { terminal in
+        _ = try read(container: container, inventoryID: inventoryID, checkpoint: checkpoint, visitApplied: { applied in
+            let context = fresh(container)
+            try applied.requireCurrent(context: context)
+            guard try selected.isDisjoint(with: SharedMediaNativeTerminalIdentity.namespace(applied.prepared, context: context).all) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }) { terminal in
             guard selected.isDisjoint(with: SharedMediaNativeTerminalIdentity.all(terminal.value)) else { throw SharedMediaStorageFailure.conflict }
         }
     }

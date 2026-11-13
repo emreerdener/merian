@@ -1,5 +1,9 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
+  HISTORY_RECOVERY_MIGRATIONS,
+  HISTORY_RECOVERY_REMOTE_TIP,
+  MigrationHistoryError,
+  migrationPreflightFailure,
   planMigrationPush,
   readLocalMigrations,
   RECOVERY_MIGRATION,
@@ -125,5 +129,84 @@ Deno.test("deployment retains closed-mode selection and a dry-run before applyin
   assertStringIncludes(
     candidate,
     "bash supabase/scripts/test_migration_recovery_replay.sh",
+  );
+});
+
+Deno.test("Gemini deployment followed by the eight history migrations permits only pinned gaps", async () => {
+  const local = await readLocalMigrations();
+  const tip = version(HISTORY_RECOVERY_REMOTE_TIP);
+  const missing = HISTORY_RECOVERY_MIGRATIONS.map(version);
+  // Reconstruct the successfully deployed #1860 source history, without any
+  // production connection, and exercise every interrupted recovery prefix.
+  const applied = local.map(version).filter((v) =>
+    v <= tip && !missing.includes(v)
+  );
+  assertEquals(missing.length, 8);
+  for (let recovered = 0; recovered <= missing.length; recovered++) {
+    assertEquals(
+      planMigrationPush(local, [...applied, ...missing.slice(0, recovered)]),
+      recovered === missing.length ? "normal" : "reviewed-backfill",
+    );
+  }
+  // Exhaust every subset, rejecting states that an ordered interrupted push
+  // cannot produce (for example the second migration applied before the first).
+  for (let mask = 0; mask < 2 ** missing.length; mask++) {
+    const recovered = missing.filter((_, index) => (mask & (1 << index)) !== 0);
+    if (recovered.every((value, index) => value === missing[index])) continue;
+    assertThrows(
+      () => planMigrationPush(local, [...applied, ...recovered]),
+      MigrationHistoryError,
+      "Unreviewed out-of-order migration history",
+    );
+  }
+  const later = local.map(version).filter((v) => v > tip).sort()[0];
+  assertThrows(() => planMigrationPush(local, [...applied, later]));
+  assertThrows(() =>
+    planMigrationPush(local, applied.filter((v) => v !== "00001"))
+  );
+  assertThrows(() => planMigrationPush(local, [...applied, "99999999999999"]));
+  for (
+    const pinned of [
+      ...HISTORY_RECOVERY_MIGRATIONS,
+      HISTORY_RECOVERY_REMOTE_TIP,
+    ]
+  ) {
+    for (
+      const replacement of [
+        { ...pinned, sha256: "changed" },
+        { ...pinned, name: version(pinned) + "_renamed.sql" },
+      ]
+    ) {
+      assertThrows(() =>
+        planMigrationPush(
+          local.map((file) => file.name === pinned.name ? replacement : file),
+          applied,
+        )
+      );
+      assertThrows(() =>
+        planMigrationPush(
+          local.map((file) => file.name === pinned.name ? replacement : file),
+          [...applied, missing[0]],
+        )
+      );
+    }
+  }
+});
+
+Deno.test("preflight reports closed reason codes without serializing unexpected errors", () => {
+  assertStringIncludes(
+    migrationPreflightFailure(
+      new MigrationHistoryError("unreviewed_history_gap"),
+    ),
+    "[unreviewed_history_gap]",
+  );
+  const safe = migrationPreflightFailure(
+    new Error("synthetic-sensitive-driver-detail"),
+  );
+  assertStringIncludes(safe, "[database_or_runtime_failure]");
+  assertEquals(safe.includes("synthetic-sensitive-driver-detail"), false);
+  assertEquals(
+    migrationPreflightFailure({ message: "synthetic-sensitive-driver-detail" }),
+    safe,
   );
 });

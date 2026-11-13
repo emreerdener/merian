@@ -270,7 +270,7 @@ struct ImageCropProcessor {
     /// Convert immutable normalized shutter framing to the crop editor's current
     /// point geometry. Opening/cancelling the editor does not change that recipe.
     nonisolated static func initialSquareCropOffset(imageSize: CGSize, displaySize: CGFloat,
-                                                   verticalCenterFraction: CGFloat) -> CGSize? {
+                                                    verticalCenterFraction: CGFloat) -> CGSize? {
         let width = imageSize.width, height = imageSize.height
         guard width.isFinite, height.isFinite, width > 0, height > 0,
               displaySize.isFinite, displaySize > 0, verticalCenterFraction.isFinite,

@@ -7,6 +7,26 @@ union; all other IC-1 requirements remain in force. It defines the first
 prepared cancellation response, version 1, before any installed consumer or
 activation. Implementation and executable acceptance remain separate.
 
+## November 3 implementation checkpoint
+
+The uncommitted S0 integration now implements the accounted-invocation branch
+through the existing public C1 composer, exact original invocation retirement,
+media/private erasure, matching receipt and terminal proof cleanup. It preserves
+funding and usage accounting. Selected guarded photo fixtures pass171 assertions
+and both accounting/public-C1 orders, including a local commit and independent
+observer transaction. Initial provider dispatch is still injected in fixtures
+and initial invocation creation remains denied. Subsequent focused SQL checks
+cover selected frozen-result erasure, all six existing media vectors and both
+CPM funding modes; the maintained README describes their separate scopes.
+Complete producer-derived, race/resource and installed qualification remain
+open. Nothing is deployed or activated by this checkpoint.
+
+See the
+[current implementation and executable commands](../../services/supabase/functions/_shared/initialAnalysis/README.md#s0-original-invocation-classification-draft)
+and
+[integrated candidate evidence scope](initial-dispatch-fence-interface-2026-10-13.md#november-3--integrated-accounted-c1-candidate).
+The original contract and historical design status below remain preserved.
+
 ## Coordinated v2 follow-up
 
 The
@@ -201,3 +221,20 @@ original dispatch/result/completion, route/worker cutover, installed and hosted
 qualification remain separate rows. Activation stays false and ordinary access
 nil. This addendum authorizes no push, merge, deployment, scheduling,
 installation, activation or distribution.
+
+## November 3 — deferred service-role validator correction
+
+Local resource observation exposed `42501` when accounted cancellation's
+deferred invocation-retirement validator ran under the actual service role.
+Earlier fixtures reset to the privileged test role before forcing constraints;
+their passing results did not qualify service-role transaction completion. The
+failed resource03 receipt remains in the findings register as HQ-099.
+
+The draft corrects only the private deferred validator to trusted-owner
+`SECURITY DEFINER`, retaining its empty search path, exact predicates and
+revoked direct API execution. It grants no broader helper/table access. Catalog
+and regression checks cover service-role immediate validation and a separate
+commit with constraints still deferred for C1, classified tombstone erasure and
+account erasure. Source correction, runtime verification and production
+acceptance remain distinct; initial creation and external activation remain
+denied.

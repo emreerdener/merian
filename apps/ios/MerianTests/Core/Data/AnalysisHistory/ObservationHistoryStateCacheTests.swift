@@ -111,7 +111,7 @@ struct ObservationHistoryStateCacheTests {
             result["pet_identification"] = ["species_group": "dog", "label": "Synthetic breed", "label_type": "breed",
                 "confidence_score": 0.5, "evidence": ["Synthetic trait"]]
             envelope["result"] = result
-            items[index]["snapshot"] = try #require(String(bytes: photos.support.bytes(envelope), encoding: .utf8))
+            items[index]["snapshot"] = (try #require(String(bytes: photos.support.bytes(envelope), encoding: .utf8))) as String
         }
         fixture["items"] = items
         let page = try ObservationHistoryPage.decode(photos.support.bytes(fixture),

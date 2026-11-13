@@ -7,147 +7,147 @@ import {
   AppShellHeader,
   AppShellMain,
   Box,
-  Burger,
   Button,
   Container,
-  Drawer,
   Group,
   Modal,
   Stack,
   Text,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconArrowUpRight } from "@tabler/icons-react";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/lib/site";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { Footer } from "@/components/Footer";
+import { ButterflyMark } from "@/components/ButterflyMark";
 
 const navigation = [
-  { label: "Discover", href: "/#explore" },
-  { label: "About Naturebook", href: "/#about" },
+  { label: "Explore", href: "/" },
+  { label: "About", href: "/about" },
   { label: "Support", href: "/support" },
 ];
 
 export function MerianAppShell({ children }: { children: ReactNode }) {
-  const isHomePage = usePathname() === "/";
-  const [opened, { toggle, close }] = useDisclosure();
+  const pathname = usePathname();
+  const isExplorePage = pathname === "/";
+  const isAboutPage = pathname === "/about";
+  const isHomePage = isExplorePage || isAboutPage;
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(
     false,
   );
 
   return (
     <>
-      <a href="#main-content" className="skip-link">Skip to content</a>
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
       <AppShell
         header={{ height: 76 }}
         padding={0}
         className="merian-app-shell"
       >
         <AppShellHeader
-          className="merian-app-shell__header"
-          data-home={isHomePage || undefined}
+          className={`merian-app-shell__header${
+            isExplorePage
+              ? " home-header explore-header"
+              : isAboutPage
+              ? " home-header"
+              : ""
+          }`}
         >
-          <Container size="xl" h="100%">
-            <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
+          <Container
+            size="xl"
+            h="100%"
+            className={isHomePage ? "home-header-container" : undefined}
+          >
+            <Group
+              h="100%"
+              justify="space-between"
+              wrap="nowrap"
+              gap="md"
+              className={`site-header-layout${
+                isHomePage ? " home-header-layout" : ""
+              }`}
+            >
               <Anchor
                 href="/"
                 underline="never"
                 className="header-logo-container"
                 aria-label="Naturebook home"
               >
-                <Image
-                  src="/assets/logo.png"
-                  alt=""
-                  width={36}
-                  height={36}
-                  unoptimized
-                />
-                <span>Naturebook</span>
+                <Group wrap="nowrap" gap={8} align="center">
+                  <span className="header-wordmark-butterfly">
+                    <ButterflyMark size={40} />
+                  </span>
+                  <Text fz={36} fw={600}>
+                    naturebook
+                  </Text>
+                </Group>
               </Anchor>
-              <Group
-                component="nav"
-                aria-label="Main navigation"
-                gap="xl"
-                visibleFrom="md"
-                className="header-nav"
-              >
-                {navigation.map((link) => (
-                  <Anchor key={link.href} href={link.href} underline="never">
-                    {link.label}
-                  </Anchor>
-                ))}
-              </Group>
-              <Group gap="sm" wrap="nowrap">
-                {siteConfig.appStoreUrl
-                  ? (
-                    <Button
-                      component="a"
-                      href={siteConfig.appStoreUrl}
-                      size="sm"
-                      radius="xl"
-                      className="header-cta-button"
-                    >
-                      Get the app
-                    </Button>
-                  )
-                  : isHomePage
-                  ? (
-                    <Button
-                      component="a"
-                      href="/#waitlist"
-                      size="sm"
-                      radius="xl"
-                      className="header-cta-button"
-                    >
-                      Join beta
-                    </Button>
-                  )
-                  : (
-                    <Button
-                      onClick={openModal}
-                      size="sm"
-                      radius="xl"
-                      className="header-cta-button"
-                    >
-                      Join beta
-                    </Button>
-                  )}
-                <Burger
-                  opened={opened}
-                  onClick={toggle}
-                  hiddenFrom="md"
-                  size="sm"
-                  aria-label={opened ? "Close navigation" : "Open navigation"}
-                  color={isHomePage ? "#f5fff2" : undefined}
-                />
-              </Group>
             </Group>
           </Container>
         </AppShellHeader>
-        <AppShellMain id="main-content" tabIndex={-1}>
+        <AppShellMain
+          id="main-content"
+          tabIndex={-1}
+          pb={isExplorePage ? 0 : 100}
+          className={isExplorePage
+            ? "home-main explore-main"
+            : isAboutPage
+            ? "home-main"
+            : undefined}
+        >
           <Stack gap={0} style={{ minHeight: "calc(100svh - 76px)" }}>
-            <Box p={isHomePage ? 0 : "md"} style={{ flex: 1 }}>{children}</Box>
-            <Footer />
+            <Box p={isHomePage ? 0 : "md"} style={{ flex: 1 }}>
+              {children}
+            </Box>
+            {!isExplorePage && <Footer />}
           </Stack>
         </AppShellMain>
       </AppShell>
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Explore Naturebook"
-        position="right"
-      >
-        <Stack component="nav" aria-label="Mobile navigation" gap="lg">
-          {navigation.map((link) => (
-            <Anchor key={link.href} href={link.href} onClick={close}>
-              {link.label} <IconArrowUpRight size={16} />
-            </Anchor>
-          ))}
-          <Anchor href="/privacy" onClick={close}>Privacy</Anchor>
-        </Stack>
-      </Drawer>
+      <nav className="site-bottom-nav" aria-label="Main navigation">
+        {navigation.map((link) => (
+          <Anchor
+            key={link.href}
+            href={link.href}
+            underline="never"
+            aria-current={pathname === link.href ? "page" : undefined}
+          >
+            {link.label}
+          </Anchor>
+        ))}
+        {siteConfig.appStoreUrl
+          ? (
+            <Button
+              component="a"
+              href={siteConfig.appStoreUrl}
+              size="sm"
+              className="header-cta-button"
+            >
+              Get the app
+            </Button>
+          )
+          : isAboutPage
+          ? (
+            <Button
+              component="a"
+              href="/about#waitlist"
+              size="sm"
+              className="header-cta-button"
+            >
+              Join beta
+            </Button>
+          )
+          : (
+            <Button
+              onClick={openModal}
+              size="sm"
+              className="header-cta-button"
+            >
+              Join beta
+            </Button>
+          )}
+      </nav>
       <Modal
         opened={modalOpened}
         onClose={closeModal}

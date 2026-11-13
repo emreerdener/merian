@@ -143,7 +143,7 @@ struct ObservationReanalysisPreflightTests {
         fixture.client.overridingInferenceConsentCheck = {
             if reason == "consent" { throw MerianError.aiConsentRequired }
             state.withLock { $0 = true }
-            if reason == "owner-after" { fixture.client.overridingAuthUserID = UUID() }
+            if reason == "owner-after" { await MainActor.run { fixture.client.overridingAuthUserID = UUID() } }
         }
         await #expect(throws: (any Error).self) {
             try await fixture.client.prepareBoundObservationReanalysisAuthorization(

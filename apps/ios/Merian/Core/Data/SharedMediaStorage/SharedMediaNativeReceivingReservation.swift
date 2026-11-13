@@ -64,8 +64,8 @@ enum SharedMediaNativeReceivingReservation {
     }
 
     static func materializedAbandoned(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
-                                     header: SharedMediaNativeAppEligibility.Header, currentMetadata: Int64,
-                                     pairStates: [SharedMediaNativePairFileState], reservation: Projection) throws -> Int64 {
+                                      header: SharedMediaNativeAppEligibility.Header, currentMetadata: Int64,
+                                      pairStates: [SharedMediaNativePairFileState], reservation: Projection) throws -> Int64 {
         guard try maximum(prepared, currentMetadata: currentMetadata, pairStates: pairStates) == reservation else {
             throw SharedMediaStorageFailure.stale
         }
@@ -116,8 +116,8 @@ enum SharedMediaNativeReceivingReservation {
         return total
     }
     private static func successorPairBytes(_ states: [SharedMediaNativePairFileState],
-                                          package: SharedMediaNativeAppMetadataFacts.Package,
-                                          inventoryRevision: Int64) throws -> Int64 {
+                                           package: SharedMediaNativeAppMetadataFacts.Package,
+                                           inventoryRevision: Int64) throws -> Int64 {
         var total: Int64 = 0
         for state in states {
             let p = state.plan

@@ -25,7 +25,6 @@ struct PhotoPreparationDirectoryInspection: Sendable {
     }
 }
 
-
 extension PhotoPreparationDirectoryInspection {
     /// Called only while the file owner holds the namespace and exclusive root lock.
     /// Removes empty UUID descendants; the owner alone removes the namespace.
@@ -48,8 +47,7 @@ extension PhotoPreparationDirectoryInspection {
                 guard depth < 2, count <= 128, UUID(uuidString: name) != nil else { throw PhotoPreparationFailure.cleanupPending }
                 let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
                 guard child >= 0 else { throw PhotoPreparationFailure.cleanupPending }
-                do { try removeChildren(child, depth: depth + 1) }
-                catch { Darwin.close(child); throw error }
+                do { try removeChildren(child, depth: depth + 1) } catch { Darwin.close(child); throw error }
                 Darwin.close(child)
                 guard unlinkat(fd, name, AT_REMOVEDIR) == 0 else { throw PhotoPreparationFailure.cleanupPending }
             }
@@ -153,8 +151,7 @@ extension PhotoPreparationDirectoryInspection {
                           info.st_mode & S_IFMT == S_IFDIR else { throw PhotoPreparationFailure.inconsistentOwnership }
                     let child = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
                     guard child >= 0 else { throw PhotoPreparationFailure.inconsistentOwnership }
-                    do { try walk(child, prefix: token + "/", depth: depth + 1) }
-                    catch { Darwin.close(child); throw error }
+                    do { try walk(child, prefix: token + "/", depth: depth + 1) } catch { Darwin.close(child); throw error }
                     Darwin.close(child)
                 } else {
                     guard info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
@@ -279,7 +276,7 @@ extension PhotoPreparationDirectoryInspection {
             let base = name.hasSuffix(".partial") ? String(name.dropLast(8)) : name
             guard let id = UUID(uuidString: base), id.uuidString.lowercased() == base,
                   named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
-                  named.st_size >= 0, (named.st_size > 0 || name.hasSuffix(".partial")),
+                  named.st_size >= 0, named.st_size > 0 || name.hasSuffix(".partial"),
                   named.st_size <= PhotoPreparationPolicy.original else {
                 throw PhotoPreparationFailure.inconsistentOwnership
             }

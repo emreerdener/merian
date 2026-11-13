@@ -29,7 +29,7 @@ enum SharedMediaNativeBootstrapBoundary: String, CaseIterable, Sendable {
 
 enum SharedMediaNativeParentCreationBoundary: CaseIterable { case afterDirectory, afterBackupExclusion, afterReceipt, beforeHandoff }
 
-fileprivate struct SharedMediaNativeParentCreationHooks {
+private struct SharedMediaNativeParentCreationHooks {
     #if DEBUG
     var fault: ((SharedMediaNativeParentCreationBoundary) throws -> Void)?
     #endif
@@ -40,7 +40,7 @@ fileprivate struct SharedMediaNativeParentCreationHooks {
     }
 }
 
-fileprivate final class SharedMediaNativeBootstrapDescriptor {
+private final class SharedMediaNativeBootstrapDescriptor {
     let fd: Int32
     init(_ fd: Int32) { self.fd = fd }
     deinit { Darwin.close(fd) }
@@ -253,8 +253,12 @@ final class SharedMediaNativeBootstrapFiles {
         return "\(value.st_dev):\(value.st_ino)"
     }
     private static func marker(_ name: String) -> String? {
-        switch name { case "authority": "com.merian.shared-media-store-v1"
-        case "photo": "com.merian.p1-shared-v1"; case "inbox": SharedMediaInboxFiles.marker; default: nil }
+        switch name {
+        case "authority": "com.merian.shared-media-store-v1"
+        case "photo": "com.merian.p1-shared-v1"
+        case "inbox": SharedMediaInboxFiles.marker
+        default: nil
+        }
     }
     private static func directory(_ parent: Int32, _ name: String, create: Bool) throws -> Int32 {
         // No receipt means no authority to adopt an existing path, even empty.
@@ -358,22 +362,23 @@ final class SharedMediaNativeBootstrapDiscovery {
     /// Source integration only: no App/Auth/Capture caller is installed.
     /// The namespace is fixed, app/store scoped, and never selected by Capture.
     static func startup(container: ModelContainer, admission: NativeReleaseStartupAdmission,
-                        ownerID: UUID) throws -> SharedMediaNativeBootstrapDiscovery {
+                        ownerID: UUID, borrowing: SharedMediaStoreReadFence? = nil) throws -> SharedMediaNativeBootstrapDiscovery {
         guard !TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
         let support = URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL
         return try .init(container: container, startup: admission,
-            parent: support.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName), ownerID: ownerID, creationAnchor: support)
+            parent: support.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName), ownerID: ownerID, creationAnchor: support, borrowing: borrowing)
     }
 
     #if DEBUG
     static func qualificationStartup(container: ModelContainer, admission: NativeReleaseStartupAdmission,
                                      support: URL, ownerID: UUID,
-                                     fault: ((SharedMediaNativeParentCreationBoundary) throws -> Void)? = nil) throws -> SharedMediaNativeBootstrapDiscovery {
+                                     fault: ((SharedMediaNativeParentCreationBoundary) throws -> Void)? = nil,
+                                     borrowing: SharedMediaStoreReadFence? = nil) throws -> SharedMediaNativeBootstrapDiscovery {
         let live = URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL
         guard TestExecutionCoordinator.isRunningTests, support != live,
               support.pathComponents.starts(with: live.pathComponents) else { throw SharedMediaStorageFailure.invalid }
         return try .init(container: container, startup: admission,
-            parent: support.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName), ownerID: ownerID, creationAnchor: support, parentHooks: .init(fault: fault))
+            parent: support.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName), ownerID: ownerID, creationAnchor: support, parentHooks: .init(fault: fault), borrowing: borrowing)
     }
     /// Inactive integration qualification. App must supply its trusted parent;
     /// no directory is created, adopted, or selected by Capture here.
@@ -385,8 +390,9 @@ final class SharedMediaNativeBootstrapDiscovery {
     #endif
 
     private init(container: ModelContainer, startup: NativeReleaseStartupAdmission, parent: URL, ownerID: UUID, creationAnchor: URL? = nil,
-                 parentHooks: SharedMediaNativeParentCreationHooks = .init()) throws {
-        let fence = try startup.acquireFence(container: container)
+                 parentHooks: SharedMediaNativeParentCreationHooks = .init(), borrowing: SharedMediaStoreReadFence? = nil) throws {
+        let fence = try borrowing ?? startup.acquireFence(container: container)
+        try startup.require(container: container, fence: fence)
         guard !container.mainContext.hasChanges, let configuration = container.configurations.first,
               parent != configuration.url.deletingLastPathComponent() else { throw SharedMediaStorageFailure.conflict }
         let storeFD = open(configuration.url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)

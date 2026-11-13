@@ -52,6 +52,8 @@ final class SharedMediaNativeOriginalUnlinkPermit: Sendable {
 /// Only the complete saved selected-original retirement can mint this held-only
 /// capability. Ordinary original lifecycle guards remain unchanged.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeOriginalRemovalCapability {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot

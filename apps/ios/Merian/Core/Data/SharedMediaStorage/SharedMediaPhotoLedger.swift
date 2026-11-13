@@ -81,9 +81,9 @@ final class SharedMediaPhotoLedger {
             guard !refs.isEmpty || !work.isEmpty, work.filter({ $0.purposeRaw == "acquire" && $0.writerStateRaw != "closedSourceRetained" }).count + refs.filter({ $0.roleRaw == "original" }).count <= 2,
                   p.contractVersion == PhotoPreparationPolicy.contract, p.draftID == p.id, p.accountingTierRaw == "pending",
                   p.retirementRequested == retiring, p.revision >= 0,
-                  (retiring ? p.phaseRaw == "retiring" : (includesInbox ? (["acquiring", "draftOwned", "needsAttention", "preparedHeld"] + (purging ? ["purging"] : [])) : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw)),
-                  (includesInbox || (envelope.contexts.isEmpty && envelope.presentation.isEmpty)),
-                  (purging || envelope.presentation.allSatisfy({ photo in refs.contains { $0.id == photo.referenceID && $0.isLive && $0.roleRaw == "original" } })),
+                  retiring ? p.phaseRaw == "retiring" : (includesInbox ? (["acquiring", "draftOwned", "needsAttention", "preparedHeld"] + (purging ? ["purging"] : [])) : ["acquiring", "draftOwned", "needsAttention"]).contains(p.phaseRaw),
+                  includesInbox || (envelope.contexts.isEmpty && envelope.presentation.isEmpty),
+                  purging || envelope.presentation.allSatisfy({ photo in refs.contains { $0.id == photo.referenceID && $0.isLive && $0.roleRaw == "original" } }),
                   p.supportingContextData.count <= PhotoPreparationPolicy.metadata,
                   p.allocatedByteCount == bytes,
                   Set(refs.filter(\.isLive).map { $0.roleRaw + ":" + String($0.ordinal) }).count == refs.filter(\.isLive).count else {
@@ -115,7 +115,7 @@ final class SharedMediaPhotoLedger {
                   a.fileToken == owner.uuidString.lowercased() + "/" + origin.uuidString.lowercased() + "/" + a.id.uuidString.lowercased(),
                   r.leases.filter({ $0.allocationID == a.id }).count == 1,
                   let lease = r.leases.first(where: { $0.allocationID == a.id }),
-                  (lease.purposeRaw == "p1AcquireV1" || (includesInbox && lease.purposeRaw == "p1DerivativeV1")) else { throw SharedMediaStorageFailure.conflict }
+                  lease.purposeRaw == "p1AcquireV1" || (includesInbox && lease.purposeRaw == "p1DerivativeV1") else { throw SharedMediaStorageFailure.conflict }
             if includesInbox && a.stateRaw.hasPrefix("p1Derivative") {
                 // The derivative ledger proves every role/pair/file/lease join.
                 guard lease.purposeRaw == "p1DerivativeV1", a.materializedBytes >= 0, a.reservedBytes >= 0 else { throw SharedMediaStorageFailure.conflict }
@@ -167,7 +167,7 @@ final class SharedMediaPhotoLedger {
         for edge in r.references {
             guard let asset = r.assets.first(where: { $0.id == edge.assetID }), asset.ownerID == edge.ownerID,
                   r.packages.contains(where: { $0.id == edge.packageID && $0.ownerID == edge.ownerID }),
-                  (edge.roleRaw == "original" || (includesInbox && ["aiInput", "display"].contains(edge.roleRaw))), (0..<2).contains(edge.ordinal), edge.revision == (edge.isLive ? 0 : 1),
+                  edge.roleRaw == "original" || (includesInbox && ["aiInput", "display"].contains(edge.roleRaw)), (0..<2).contains(edge.ordinal), edge.revision == (edge.isLive ? 0 : 1),
                   let shared = r.edges.first(where: { $0.id == edge.id }),
                   shared.allocationID == edge.assetID, shared.accountID == edge.ownerID,
                   shared.ownerID == edge.id.uuidString.lowercased(), shared.roleRaw == Self.namespace,
@@ -298,8 +298,9 @@ final class SharedMediaPhotoLedger {
             accountID: destination.ownerID, ownerID: destination.referenceID.uuidString.lowercased(), roleRaw: Self.namespace, stateRaw: "live", revision: 0))
     }
 
+    // The optional result returns the file, binding and ownership flag from one ledger read.
     /// Missing IDs convey no file authority and never recreate a row.
-    func reference(_ handle: PhotoOriginalReference) throws -> (PhotoPreparationFile, String, Bool)? {
+    func reference(_ handle: PhotoOriginalReference) throws -> (PhotoPreparationFile, String, Bool)? { // swiftlint:disable:this large_tuple
         try handle.validate()
         _ = try validate()
         let r = try rows()
@@ -398,8 +399,7 @@ final class SharedMediaPhotoLedger {
             let assetIDs = Set(refs.map(\.assetID))
             package.allocatedByteCount = try PhotoPreparationPolicy.add(r.assets.filter { assetIDs.contains($0.id) }.map(\.byteCount))
             package.retirementRequested = !refs.isEmpty && refs.allSatisfy { !$0.isLive }
-            if package.retirementRequested { package.phaseRaw = "retiring" }
-            else if purging { package.phaseRaw = "purging" }
+            if package.retirementRequested { package.phaseRaw = "retiring" } else if purging { package.phaseRaw = "purging" }
             package.revision = try SharedMediaStoragePolicy.add(package.revision, 1)
         }
     }

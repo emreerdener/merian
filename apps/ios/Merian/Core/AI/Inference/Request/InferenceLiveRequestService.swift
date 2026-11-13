@@ -16,6 +16,7 @@ struct InferenceLiveRequestService {
         let uploadStagedVideoFiles:
             @MainActor (_ videoFilePaths: [String], _ scanId: String) async throws
                 -> [String]
+        var beginCompletionAccountWork: @MainActor (UUID) throws -> InferenceCompletionAccountScope? = { _ in nil }
         let identify:
             @MainActor (_ request: ProviderRequest,
                         _ onRequestBodySent: (@Sendable () -> Void)?) async throws
@@ -42,6 +43,7 @@ struct InferenceLiveRequestService {
         var comparisonCapture: IdentificationComparisonCapture?
         var validateAttempt: (@MainActor @Sendable () throws -> Void)?
         var onProviderDispatchReady: (@MainActor @Sendable () -> Void)?
+        var onAuthenticatedRequestReady: (@MainActor @Sendable (UUID) throws -> Void)?
     }
 
     struct VisualRequest: Sendable {
@@ -71,6 +73,7 @@ struct InferenceLiveRequestService {
         let observationContextsJSON: [String]
         let receivedAt: CFAbsoluteTime
         var comparisonCapture: IdentificationComparisonCapture?
+        var completionAccount: InferenceCompletionAccountScope?
     }
 
     private let dependencies: Dependencies
@@ -92,6 +95,7 @@ struct InferenceLiveRequestService {
                     scanId: scanId
                 )
             },
+            beginCompletionAccountWork: { try InferenceCompletionAccountScope.begin(ownerID: $0) },
             identify: { request, onRequestBodySent in
                 try await MerianNetworkClient.shared.identifyMultiModal(
                     r2ObjectKeys: request.r2ObjectKeys,
@@ -114,7 +118,8 @@ struct InferenceLiveRequestService {
                     measurementValidator: request.measurementValidator,
                     comparisonCapture: request.comparisonCapture,
                     validateAttempt: request.validateAttempt,
-                    onProviderDispatchReady: request.onProviderDispatchReady
+                    onProviderDispatchReady: request.onProviderDispatchReady,
+                    onAuthenticatedRequestReady: request.onAuthenticatedRequestReady
                 )
             }
         )
@@ -169,6 +174,9 @@ struct InferenceLiveRequestService {
             try validateAttempt()
         }
 
+        var completionAccount: InferenceCompletionAccountScope?
+        var transfersAccountWork = false
+        defer { if !transfersAccountWork { completionAccount?.finish() } }
         let resultData = try await dependencies.identify(
             ProviderRequest(
                 // Inline images have no staged source object. A destination
@@ -191,7 +199,11 @@ struct InferenceLiveRequestService {
                     request.durableQueueOwnsRecovery,
                 isProFunded: request.isProFunded,
                 validateAttempt: validateAttempt,
-                onProviderDispatchReady: onProviderDispatchReady
+                onProviderDispatchReady: onProviderDispatchReady,
+                onAuthenticatedRequestReady: { owner in
+                    guard completionAccount == nil else { throw MerianError.invalidResponse }
+                    completionAccount = try dependencies.beginCompletionAccountWork(owner)
+                }
             ),
             onRequestBodySent
         )
@@ -201,10 +213,13 @@ struct InferenceLiveRequestService {
         MerianLog.general.debug(
             "Gemini inference completed in \(String(format: "%.3f", receivedAt - inferenceStartedAt), privacy: .public)s."
         )
+        try completionAccount?.validate()
+        transfersAccountWork = true
         return Response(
             resultData: resultData,
             observationContextsJSON: observationContextsJSON,
-            receivedAt: receivedAt
+            receivedAt: receivedAt,
+            completionAccount: completionAccount
         )
     }
 
@@ -219,6 +234,9 @@ struct InferenceLiveRequestService {
             from: request.submissionProjection.observationContexts
         )
         try validateAttempt()
+        var completionAccount: InferenceCompletionAccountScope?
+        var transfersAccountWork = false
+        defer { if !transfersAccountWork { completionAccount?.finish() } }
         let resultData = try await dependencies.identify(
             ProviderRequest(
                 r2ObjectKeys: [],
@@ -240,16 +258,23 @@ struct InferenceLiveRequestService {
                 isProFunded: request.isProFunded,
                 measurementValidator: validateAttempt,
                 comparisonCapture: comparisonCapture,
-                validateAttempt: validateAttempt
+                validateAttempt: validateAttempt,
+                onAuthenticatedRequestReady: { owner in
+                    guard completionAccount == nil else { throw MerianError.invalidResponse }
+                    completionAccount = try dependencies.beginCompletionAccountWork(owner)
+                }
             ),
             nil
         )
         try validateAttempt()
+        try completionAccount?.validate()
+        transfersAccountWork = true
         return Response(
             resultData: resultData,
             observationContextsJSON: observationContextsJSON,
             receivedAt: CFAbsoluteTimeGetCurrent(),
-            comparisonCapture: comparisonCapture
+            comparisonCapture: comparisonCapture,
+            completionAccount: completionAccount
         )
     }
 

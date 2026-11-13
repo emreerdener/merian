@@ -55,7 +55,10 @@ struct ObservationVideoReservationService {
             try settlement()
             _ = try Store.settle(claim, settlement: answer, proof: proof, container: container,
                 isCurrent: scope.maySettleKnownReceipt, save: settlementSave)
-            switch answer { case .reply: return .observed; case .conflict: return .held }
+            switch answer {
+            case .reply: return .observed
+            case .conflict: return .held
+            }
         } catch { return .unavailable }
     }
 }

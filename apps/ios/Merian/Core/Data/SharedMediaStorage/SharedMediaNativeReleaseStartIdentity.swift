@@ -55,7 +55,12 @@ enum SharedMediaNativeReleaseStartIdentity {
             try SharedMediaNativeReleaseStageIdentity.requireAbsent(id, witnesses: other)
         }
         for witness in other { try sharedRoles(plan, other: witness, context: context) }
-        _ = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: plan.profile.inventoryID) {
+        _ = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: plan.profile.inventoryID,
+            visitApplied: { applied in
+                try SharedMediaNativeTerminalIdentity.requireCompatible(
+                    SharedMediaNativeTerminalIdentity.namespace(plan),
+                    SharedMediaNativeTerminalIdentity.namespace(applied.prepared, context: context))
+            }) {
             try SharedMediaNativeTerminalIdentity.requireCompatible($0.value, plan: plan)
         }
         try SharedMediaNativeReleaseStartDirectIdentity.check(snapshot, context: context)
@@ -73,7 +78,7 @@ enum SharedMediaNativeReleaseStartIdentity {
         let shared = physical(plan)
         guard shared.isDisjoint(with: other.identities) else { throw SharedMediaStorageFailure.conflict }
         switch other {
-        case .allocating(let value): try sharedPrepared(plan, prepared: value.prepared, context: context)
+        case .allocating(let value), .initial(let value): try sharedPrepared(plan, prepared: value.prepared, context: context)
         case .generic(let witness):
             switch witness.slot {
             case .prepared(let p), .received(let p, _, _):

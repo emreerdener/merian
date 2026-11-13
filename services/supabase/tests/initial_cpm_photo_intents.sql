@@ -400,7 +400,7 @@ SELECT extensions.is((SELECT state FROM internal.initial_cpm_photo_capacity_rese
  'admitted','admission retains original physical byte liability');
 -- END CPM COMMITTED ADMISSION FIXTURE
 SELECT extensions.throws_ok($$SELECT public.cancel_initial_analysis('00000000-0000-4000-8000-00000000f001','00000000-0000-4000-8000-00000000f101')$$,
- '55000','initial_analysis_admission_incomplete','same-transaction cancellation cannot bypass admission seal');
+ '55000','initial_analysis_cancellation_incomplete','cancellation capture rejects the same-transaction admission seal');
 ROLLBACK TO cpm_positive_admission;
 SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging)
  AND NOT EXISTS(SELECT 1 FROM internal.ai_quota_reservations)

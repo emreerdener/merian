@@ -290,7 +290,11 @@ struct SharedMediaPurgeTests {
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: database.appendingPathComponent("ledger.store"), cloudKitDatabase: .none)])
         }
         func owner() throws -> SharedMediaInboxOwner { try .init(container: container, authorityRoot: authority, inboxRoot: inbox, photoRoot: photo, inventoryID: inventory) }
-        func cleanup() { try? FileManager.default.removeItem(at: authority.deletingLastPathComponent()) }
+        func cleanup() {
+            for root in [authority, inbox, photo] { try? FileManager.default.removeItem(at: root) }
+            // Core Data may retain SQLite/WAL handles beyond container release.
+            // Preserve this unique database root through test-process exit.
+        }
         func resume(_ id: UUID) throws -> SharedMediaInboxOwner {
             try .resumePurge(id: id, container: container, authorityRoot: authority, inboxRoot: inbox, photoRoot: photo, inventoryID: inventory)
         }

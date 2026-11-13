@@ -1,3 +1,42 @@
+## November 9 — explicit observation-only status protocol
+
+The source candidate adds an authenticated `observe-v1` branch to
+`check-scan-status`. It uses `X-Merian-Initial-Recovery: observe-v1` and a
+closed body containing only `initial_recovery`, with version1, phase`observe`
+and nested `original.owner_id`/`original.scan_id`. The owner must match
+authenticated Auth; the nested scan is a canonical UUID. Legacy
+top-level`scan_id`,`scans` and `recovery_scan` are rejected. Their absence also
+makes legacy handlers that predate reserved-marker guards fail required-field
+validation before repair. Unknown/mismatched phases never fall through to the
+legacy route.
+
+The branch performs only two owner-scoped SELECTs: scan row ID and ingestion-job
+status. `row_exists` is literal row presence and may include a retained or
+tombstoned row. The reads are separate snapshots, not completion or execution
+proof. The closed response echoes version/phase/owner/scan and includes
+`row_exists`, nullable`job_status` and`original_result: "unavailable"`. Neither
+row presence nor a`complete` job grants original-result import, History
+selection, retry, replacement, funding settlement or provider dispatch. Missing,
+failed, unknown or refused observations keep the exact request held.
+
+Actual request bytes are capped at1024 and response bytes at4096. The branch's
+five-second budget begins after shared authentication and includes body
+collection and reads; it is not an end-to-end authenticated-handler latency
+claim. Caller cancellation discards late reads and prevents a subsequent query.
+Responses are no-store and failures reveal only a fixed unavailable code. The
+shared wire fixture is
+`services/supabase/functions/check-scan-status/fixtures/observation-v1.json`.
+
+This is source preparation, not deployed or installed qualification. The
+isolated backend candidate passed 4,384 Edge tests (1,164 steps), zero failures
+or skips, against an owned 515-migration replay; all 125 deployable entrypoints
+typechecked, and whole-tree lint/format checks passed. The initial run against
+an older local fallback catalog failed and remains retained. Those are the
+observation checkpoint's results. The later local original-recovery integration
+and native status are described below; none is deployed. Existing legacy routes
+are unchanged. Observation itself does not waive S0, create a result sidecar,
+backfill legacy proof or provide original-completion authority.
+
 # check-scan-status
 
 Confirms whether an authenticated user's scan row exists in `public.scans`. iOS
@@ -232,3 +271,56 @@ deno test --config services/supabase/functions/deno.json \
 The joined queue, persistence, Field Chat, Explore, rollout, and security
 contract is in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+## Original recovery route (local candidate)
+
+The serving handler reserves `X-Merian-Initial-Recovery` before ordinary legacy
+parsing or repair. `observe-v1` remains observation-only; `admission-v1` and
+`completion-v1` compose the existing `initialRecovery.ts` owner and the two
+service-only original readers. Unknown phases and headerless reserved bodies
+refuse. Native recovery requests contain only nested original facts, so older
+handlers also fail their required legacy `scan_id` check before repair.
+
+Authentication supplies the owner. Closed fields and original immutable
+candidate/admission validation precede one fixed read. The admission reply is
+only the validated canonical acknowledgement, never the private assignment.
+Completion returns original canonical evidence or explicit pending, without
+reconstructing a result from mutable scan fields. There is no admission,
+execution, funding, settlement, repair or retry path.
+
+Declared and actual request bytes, strict UTF-8, phase equality and response
+bounds are enforced. The five-second recovery-owner budget begins after shared
+authentication and includes body collection, validation and the RPC read. It
+bounds caller waiting; database statement/lock cancellation and full ingress
+latency are not established by this deadline. Success and refusal use no-store.
+
+Focused tests include real caller-deadline expiry and discarded late RPC
+replies. The joined SQL-response bridge passed 341 checks and native wire tests
+passed four methods/17 cases. Full Edge passed 4,390 tests/1,170 steps. The
+integrated native checkout subsequently qualified synthetic wire through durable
+pin/apply/enrollment and the dedicated held audio/video UI process-relaunch
+check (native28402 and28504, independently reviewed). These do not qualify the
+literal SQL-to-native join, live Auth, media playback or complete recovery. The
+route and its service wrappers are local and undeployed. Full S0 admission,
+media/execution/settlement and old-writer quiescence prerequisites still apply;
+legacy absence never authorizes fresh work. See the
+[canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md).
+
+The local disposable CPM request-journey probe uses this same HTTP owner with
+the closed nested recovery envelope and `completion-v1` header. It retains the
+literal response bytes for digest/length checks and requires `200` with
+`no-store`. The corrected caller passed the owned two-photo SQL journey (114
+recorded checks and 12 fixture assertions), including unchanged pending replies
+before completion and the original found result afterward. This is local
+synthetic-provider qualification; it does not establish live Auth, native
+integration or deployment.
+
+The later opt-in native bridge qualifies the literal join: native-created
+candidate and actual prepared role bytes pass through the disposable lifecycle,
+then the public allocation/admission/pending/found bodies reach strict native
+transport and durable pin/apply/new-container/enrollment-helper/replay. One
+executed native case, 116 SQL checks and 12 fixture assertions passed
+independent verification. Candidate and all four wire digests match. SQL states
+are captured before native replay; this is not concurrent live status, real
+Auth/enrollment, upload/R2, process death or deployment. See the
+[runtime methodology](../../../../docs/development-guides/18-ios-runtime-quality-and-benchmarking.md).

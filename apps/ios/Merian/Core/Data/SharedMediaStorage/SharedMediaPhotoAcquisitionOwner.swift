@@ -131,8 +131,7 @@ final class SharedMediaPhotoAcquisitionOwner {
             guard !inventory.hasPending, inventory.retiringIDs.isEmpty else { throw PhotoPreparationFailure.cleanupPending }
             try await io.validate(inventory)
             try check(lease)
-            do { try storage.sharePhoto(request) }
-            catch {
+            do { try storage.sharePhoto(request) } catch {
                 guard let saved = try storage.sharedPhoto(request) else { throw error }
                 try check(lease); return saved
             }
@@ -155,8 +154,7 @@ final class SharedMediaPhotoAcquisitionOwner {
                 try await io.validate(inventory)
                 let inspection = try await io.inspectRetirement(file)
                 try check(lease)
-                do { try storage.retirePhoto(handle, inspection: inspection) }
-                catch {
+                do { try storage.retirePhoto(handle, inspection: inspection) } catch {
                     // Only exact fresh readback can resolve ambiguous save.
                     if case .live = try storage.photoReferenceState(handle) { throw error }
                 }
@@ -191,8 +189,7 @@ final class SharedMediaPhotoAcquisitionOwner {
               !(try storage.photoInventory().hasPending) else { throw SharedMediaStorageFailure.conflict }
         let proof = try await io.release(intent)
         try check(lease)
-        do { try storage.releasePhoto(proof) }
-        catch {
+        do { try storage.releasePhoto(proof) } catch {
             guard case .absent = try storage.photoReferenceState(intent.handle) else { throw error }
         }
         guard case .absent = try storage.photoReferenceState(intent.handle) else { throw SharedMediaStorageFailure.conflict }

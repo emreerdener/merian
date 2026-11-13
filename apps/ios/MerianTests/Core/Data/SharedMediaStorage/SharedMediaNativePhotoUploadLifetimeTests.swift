@@ -102,7 +102,45 @@ struct NativePhotoUploadLifetimeTests {
         let closedRow = try row(store)
         try cold.setMetadataFault { if $0 == .beforeSave { Issue.record("Closed status replay saved") } }
         #expect(try await cold.recoverAppPhotoTransferStatus(prepared, send: transportFixture.transport.performTransfer) == closed)
+        let progressBody = try InitialPhotoTransferRequest(allocation: closed, action: .roleProgress).body
+        let transfer = try #require(closed.transferReservation), backend = try #require(closed.backendBinding)
+        let stamp = Date().formatted(.iso8601).replacingOccurrences(of: "Z", with: ".000000Z")
+        let progressBytes = try fixture.bytes(["version": 2, "authority": "none", "outcome": "live_role_observed",
+            "owner_id": closed.claim.profile.ownerID.uuidString.lowercased(), "scan_id": closed.claim.observationID.uuidString.lowercased(),
+            "assignment_digest": try #require(closed.receipt).assignmentDigest, "object_id": transfer.selection.objectID.uuidString.lowercased(),
+            "attempt_id": attempt.id.uuidString.lowercased(), "role": role.rawValue, "byte_count": transfer.byteCount,
+            "content_type": try transfer.declaredContentType(claim: closed.claim), "sha256": transfer.sha256,
+            "backend_generation": backend.generation.uuidString.lowercased(), "backend_configuration_digest": backend.configurationDigest,
+            "policy_digest": String(repeating: "e", count: 64), "observed_at": stamp])
+        transportFixture.mock.register(path: "/initial-photo-transfer") { request in
+            #expect(MockURLProtocol.bodyData(for: request) == progressBody)
+            return (HTTPURLResponse(url: request.url!, statusCode: status == 201 ? 200 : 409, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, status == 201 ? progressBytes : Data())
+        }
+        if status == 201 {
+            let proof = try await cold.readAppPhotoRoleProgress(prepared, send: transportFixture.transport.performTransfer)
+            try proof.requireOriginal(closed)
+            #expect(proof.attemptID == attempt.id && proof.selection == transfer.selection)
+        } else {
+            await #expect(throws: (any Error).self) {
+                _ = try await cold.readAppPhotoRoleProgress(prepared, send: transportFixture.transport.performTransfer)
+            }
+        }
         #expect(try row(store) == closedRow)
+        try cold.setMetadataFault(nil)
+        if status == 201 {
+            // A lost save reply can recover only the exact sealed successor.
+            try cold.setMetadataFault { if $0 == .afterSave { throw SharedMediaStorageFailure.unavailable } }
+            let retainedRole = try await cold.retainAppPhotoRoleProgress(prepared, send: transportFixture.transport.performTransfer)
+            #expect(retainedRole.version == 13 && retainedRole.transferReservation == closed.transferReservation)
+            #expect(try retainedRole.historicalLiveRole().attemptID == attempt.id)
+            #expect(try retainedRole.storageCharge > closedCharge)
+            let sealedRow = try row(store)
+            try cold.setMetadataFault { if $0 == .beforeSave { Issue.record("Role receipt replay attempted a save") } }
+            #expect(try await cold.retainAppPhotoRoleProgress(prepared, send: transportFixture.transport.performTransfer) == retainedRole)
+            #expect(try row(store) == sealedRow)
+        }
+        #expect(puts.withLock { $0 } == 1)
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 

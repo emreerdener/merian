@@ -28,18 +28,20 @@ actor CaptureScanTemporaryFileLease {
     func discard() throws {
         guard state == .owned || state == .cleanupPending else { return }
         state = .cleanupPending
-        do { try FileManager.default.removeItem(at: fileURL) }
-        catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { }
+        do { try FileManager.default.removeItem(at: fileURL) } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { }
         state = .discarded
     }
 
     func discardReportingFailure() {
-        do { try discard() }
-        catch { MerianLog.hardware.error("Temporary capture artifact cleanup failed: \(error, privacy: .private)") }
+        do { try discard() } catch { MerianLog.hardware.error("Temporary capture artifact cleanup failed: \(error, privacy: .private)") }
     }
 
     deinit {
-        guard state == .owned || state == .cleanupPending else { return }
-        try? FileManager.default.removeItem(at: fileURL)
+        switch state {
+        case .owned, .cleanupPending:
+            try? FileManager.default.removeItem(at: fileURL)
+        case .accepted, .discarded:
+            break
+        }
     }
 }

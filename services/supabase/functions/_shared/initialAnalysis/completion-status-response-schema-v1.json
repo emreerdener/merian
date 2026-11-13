@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "found"
+      ],
+      "max_bytes": 7
+    },
+    "admission_canonical": {
+      "type": "string",
+      "max_bytes": 4096
+    },
+    "reference_canonical": {
+      "type": "string",
+      "max_bytes": 4096,
+      "nullable": true
+    },
+    "original_provenance_canonical": {
+      "type": "string",
+      "max_bytes": 65536,
+      "nullable": true
+    },
+    "receipt_canonical": {
+      "type": "string",
+      "max_bytes": 16384,
+      "nullable": true
+    },
+    "projection_canonical": {
+      "type": "string",
+      "max_bytes": 65536,
+      "nullable": true
+    },
+    "result_canonical": {
+      "type": "string",
+      "max_bytes": 1048576,
+      "nullable": true
+    },
+    "result_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "nullable": true
+    },
+    "provenance_digest": {
+      "type": "string",
+      "max_bytes": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "nullable": true
+    }
+  }
+}

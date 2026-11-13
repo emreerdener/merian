@@ -529,21 +529,32 @@ live under `skills/` and their repository discovery links live only under
 
 The project skills are:
 
-| Skill                               | Responsibility                                                                                                         |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `$merian-ios`                       | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, architecture hygiene, and runtime-quality evidence   |
-| `$merian-swiftdata-migrations`      | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                                 |
-| `$merian-supabase`                  | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                         |
-| `$merian-api-contracts`             | Deno, generated Swift, and web payload coordination through generate → review diff → validate                          |
-| `$merian-web-admin`                 | Public web/internal admin trust boundaries and package-local verification                                              |
-| `$merian-identification-evaluation` | Identification research, task benchmark qualification, model assignment evidence, data lineage and evaluator selection |
-| `$merian-docs-sync`                 | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation        |
-| `$merian-feature-delivery`          | Observable journeys, integration checkpoints, applicable evidence, blockers and outcome-based forecasts                |
-| `$merian-incident-response`         | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure              |
-| `$merian-release`                   | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                              |
+| Skill                               | Responsibility                                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `$merian-ios`                       | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, architecture hygiene, and runtime-quality evidence     |
+| `$merian-swiftdata-migrations`      | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                                   |
+| `$merian-supabase`                  | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                           |
+| `$merian-api-contracts`             | Deno, generated Swift, and web payload coordination through generate → review diff → validate                            |
+| `$merian-web-admin`                 | Public web/internal admin trust boundaries and package-local verification                                                |
+| `$merian-identification-evaluation` | Identification research, task benchmark qualification, model assignment evidence, data lineage and evaluator selection   |
+| `$merian-docs-sync`                 | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation          |
+| `$merian-feature-delivery`          | Observable journeys, integration checkpoints, applicable evidence, blockers and outcome-based forecasts                  |
+| `$merian-notion`                    | Verified Naturebook workspace routing, approved requirements, authorized project records, and the human skills directory |
+| `$merian-incident-response`         | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure                |
+| `$merian-release`                   | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                                |
 
 `$merian-release` cannot be invoked implicitly. Implementation, preparation,
 candidate validation, or green CI never authorizes a deployment or publication.
+The [Notion workflow](../../skills/merian-notion/SKILL.md) links the Naturebook
+knowledge base to repository work. Read its workspace reference before Notion
+writes; identically named personal-workspace migration copies are not current
+destinations. Consult approved intent during substantial planning, keep source
+and release evidence distinct, and propose documentation changes when warranted.
+There is no automatic Notion synchronization after every code change. The
+[skills directory](https://app.notion.com/p/40abf299f78081b0b3caff9b72e124da) is
+a human-readable index; canonical engineering procedures remain under `skills/`
+and generic plugin skills are not copied into the repository.
+
 Legacy files under `.agents/workflows/` and `apps/ios/.agents/workflows/` are
 compatibility pointers only; the skills own the procedures.
 

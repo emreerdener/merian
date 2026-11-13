@@ -203,7 +203,7 @@ struct SharedMediaNativeReceivingCleanGraphTests {
             inventoryID: inventoryID, context: c)
         let projection = try SharedMediaNativeReleaseSurvivorProjection.maximum(release)
         let current = try release.packagePayloadBytes + release.originReceiptBytes
-        let future = try projection.charges.map { try $0.packageBytes + $0.originReceiptBytes }
+        let future = projection.charges.map { $0.packageBytes + $0.originReceiptBytes }
         let maximum = max(current, future.max() ?? 0)
         let outstanding = try maximum - current + identity.reservedBytes
         try budget.totals.checkAvailable(SharedMediaStoragePolicy.reserve + outstanding)
@@ -293,7 +293,7 @@ extension SharedMediaNativeReceivingCleanGraphTests {
             for id in [h.packageID, secondID] {
                 let row = try #require(try SharedMediaNativeReceivingPhaseGraph.row(id, in: fresh))
                 let witness = try Graph.validate(.init(row), context: fresh, inventory: current)
-                try Graph.requireAggregateRunway(inventoryRevision: current.revision, witnesses: [witness])
+                try Graph.requireAggregateRunway(inventoryRevision: current.revision, witnesses: [witness], historical: .init())
             }
             #expect(throws: (any Error).self) { _ = try roots(h) }
             await #expect(throws: (any Error).self) { try await audit(h) }

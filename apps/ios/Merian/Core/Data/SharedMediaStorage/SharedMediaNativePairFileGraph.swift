@@ -8,6 +8,19 @@ enum SharedMediaNativePairFileGraph {
     static func state(context: ModelContext, inventory: SharedMediaInventoryRecord,
                       package: PhotoPreparationRecord, member: SharedMediaPendingMembershipRecord, pairID: UUID? = nil) throws -> SharedMediaNativePairFileState {
         let plan = try SharedMediaNativePairPlanGraph.state(context: context, inventory: inventory, package: package, member: member, pairID: pairID)
+        return try state(plan: plan, package: package, context: context)
+    }
+
+    static func retainedState(_ applied: SharedMediaNativePhotoAllocationSnapshot.Applied, pairID: UUID,
+                              context: ModelContext, inventory: SharedMediaInventoryRecord,
+                              package: PhotoPreparationRecord) throws -> SharedMediaNativePairFileState {
+        let plan = try SharedMediaNativePairPlanGraph.retainedState(applied, pairID: pairID,
+            context: context, inventory: inventory, package: package)
+        return try state(plan: plan, package: package, context: context)
+    }
+
+    private static func state(plan: SharedMediaNativePairPlan, package: PhotoPreparationRecord,
+                              context: ModelContext) throws -> SharedMediaNativePairFileState {
         let intent = try SharedMediaNativeDerivativeIntent.decode(plan.intent.bytes), selectedID = intent.pairID
         let pair = try one(context, FetchDescriptor<SharedMediaDerivativePairRecord>(predicate: #Predicate { $0.id == selectedID }))
         let values = try [intent.ai.id, intent.display.id].map { id in

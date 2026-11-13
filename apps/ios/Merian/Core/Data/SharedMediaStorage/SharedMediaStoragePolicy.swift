@@ -104,6 +104,18 @@ enum SharedMediaStoragePolicy {
             }
         }
 
+        /// Additional metadata on an already charged photo package. Preserve its
+        /// full logical references/reservations, every peer and the physical pool.
+        func requirePhotoMetadataGrowth(packageID: UUID, bytes: Int64, availableBytes: Int64) throws {
+            guard let old = packages[packageID],
+                  try SharedMediaStoragePolicy.add(old, bytes) <= PhotoPreparationPolicy.package else {
+                throw SharedMediaStorageFailure.capacity
+            }
+            var projected = self
+            try projected.includePhotoPhysical(materialized: 0, reserved: bytes)
+            try projected.checkAvailable(availableBytes)
+        }
+
         func checkAvailable(_ available: Int64, additionalReservation: Int64 = 0) throws {
             guard available >= 0, available >= (try SharedMediaStoragePolicy.add(SharedMediaStoragePolicy.add(outstanding, SharedMediaStoragePolicy.reserve), additionalReservation)) else {
                 throw SharedMediaStorageFailure.capacity

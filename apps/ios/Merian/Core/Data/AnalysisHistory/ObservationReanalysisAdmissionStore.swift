@@ -35,6 +35,11 @@ enum ObservationReanalysisAdmissionStore {
         }
     }
 
+    /// Read-only consumers already holding the persistence transaction reuse the exact wrapper and pristine-pair fence.
+    static func snapshot(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws -> Snapshot {
+        try pair(identity, context: context).snapshot
+    }
+
     static func candidates(ownerID: UUID, canPreflight: Bool, now: Date, container: ModelContainer,
                            isCurrent: () -> Bool) throws -> [Candidate] {
         try snapshots(ownerID: ownerID, container: container, isCurrent: isCurrent).compactMap { saved -> Candidate? in

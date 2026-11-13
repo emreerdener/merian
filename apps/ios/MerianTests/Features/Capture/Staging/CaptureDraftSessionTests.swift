@@ -155,7 +155,8 @@ struct CaptureDraftSessionTests {
         vm.updateDescriptionDraft(ObservationContext(freeText: "Existing context"))
         vm.isReviewActive = true
         vm.synchronizeSharedDescription()
-        vm.audioDraftOperation = try #require(vm.beginDraftOperation())
+        let operation = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = operation
         vm.reconcileEndedAudioOperation(isRecording: false, hasPendingReview: true, hasSubmittedAudio: false)
         #expect(vm.draftSession.hasUnresolvedWork)
         vm.reconcileEndedAudioOperation(isRecording: false, hasPendingReview: false, hasSubmittedAudio: false)

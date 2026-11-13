@@ -70,7 +70,7 @@ final class IdentificationHistorySession {
     private let publication: IdentificationHistoryPublicationAccess.Configuration?
 
     init(observation: String, container: ModelContainer,
-         cloud: ObservationHistoryCloudClient = .live,
+         cloud: ObservationHistoryCloudClient? = nil,
          photos: ObservationHistoryPhotoLoader? = nil,
          reviewWake: (() -> Void)? = nil, reviewGeneration: @escaping () -> UInt64 = { 0 },
          publication: IdentificationHistoryPublicationAccess.Configuration? = nil,
@@ -85,6 +85,7 @@ final class IdentificationHistorySession {
                  && manager.client.auth.currentSession?.user.id == session.userID
                  && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
          }) throws {
+        let cloud = cloud ?? .live
         self.observation = observation; self.container = container
         self.confirmationUndo = confirmationUndo
         self.rejectionUndo = rejectionUndo
@@ -129,9 +130,13 @@ final class IdentificationHistorySession {
         }, preview: { [self] analysis in
             try check()
             var cached = false
-            do { _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: analysis, container: container) }
-            catch ObservationHistoryError.unavailable { cached = true }
-            catch is URLError { cached = true }
+            do {
+                _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: analysis, container: container)
+            } catch ObservationHistoryError.unavailable {
+                cached = true
+            } catch is URLError {
+                cached = true
+            }
             try check()
             let entry = try listing.cached(observationID: observation, analysisID: analysis, container: container)
             let context = try listing.context(observationID: observation, container: container)

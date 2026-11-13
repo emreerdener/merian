@@ -48,7 +48,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
                 } else if errno != ENOENT { throw PhotoPreparationFailure.inconsistentOwnership }
             }
             try checkSharedBinding(initializing: sharedBinding?.initializing == true)
-            if (sharedBinding == nil || sharedBinding?.initializing == true),
+            if sharedBinding == nil || sharedBinding?.initializing == true,
                mkdirat(rootFD, "PhotoPreparation", 0o700) != 0 && errno != EEXIST {
                 throw PhotoPreparationFailure.unavailable
             }
@@ -213,7 +213,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     /// The callback cannot escape. Its descriptors name only this retained
     /// destination under this already locked namespace; no second lock owner.
     func withInboxDestination<T>(_ handoff: SharedMediaInboxHandoff, create: Bool,
-                                _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
+                                 _ body: (SharedMediaInboxDestinationFiles) throws -> T) throws -> T {
         guard let sharedBinding else { throw PhotoPreparationFailure.unsupportedComposition }
         try handoff.request.validate()
         return try withSharedDestination(handoff.request.intent(epoch: handoff.writerEpoch).fileToken, create: create) { access in
@@ -244,18 +244,15 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     private func withSharedDestination<T>(_ token: String, create: Bool,
                                           _ body: (SharedMediaInboxDestinationAccess) throws -> T) throws -> T {
         let fd: Int32, name: String
-        do { (fd, name) = try directory(token, create: create) }
-        catch PhotoPreparationFailure.missingMedia {
+        do { (fd, name) = try directory(token, create: create) } catch PhotoPreparationFailure.missingMedia {
             guard !create else { throw SharedMediaStorageFailure.conflict }
             fd = -1; name = String(token.split(separator: "/").last ?? "")
         }
         defer { if fd >= 0 { Darwin.close(fd) } }
         let access = SharedMediaInboxDestinationAccess(parent: fd, namespace: namespaceFD, name: name, check: {
-            if fd >= 0 { try self.checkDirectoryIdentity(fd, token: token) }
-            else {
+            if fd >= 0 { try self.checkDirectoryIdentity(fd, token: token) } else {
                 try self.checkIdentity()
-                do { let (found, _) = try self.directory(token, create: false); Darwin.close(found) }
-                catch PhotoPreparationFailure.missingMedia { return }
+                do { let (found, _) = try self.directory(token, create: false); Darwin.close(found) } catch PhotoPreparationFailure.missingMedia { return }
                 throw SharedMediaStorageFailure.conflict
             }
         })
@@ -419,7 +416,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
         return .init(state: state, binding: binding.bytes, epoch: binding.epoch, present: present)
     }
     func currentHeldOriginalInspection(_ proof: SharedMediaNativeHeldOriginalInspection,
-                                      binding: SharedMediaNativeBinding) throws -> SharedMediaNativeHeldOriginalInspection {
+                                       binding: SharedMediaNativeBinding) throws -> SharedMediaNativeHeldOriginalInspection {
         guard proof.binding == binding.bytes, proof.epoch == binding.epoch else { throw PhotoPreparationFailure.inconsistentOwnership }
         // Return every exact observation so the held permit can retain absence
         // before rejecting a presence transition. No absence is hidden by Void.
@@ -505,8 +502,7 @@ final class PhotoPreparationLockedFiles: @unchecked Sendable {
     /// Used only after a durable retirement decision under this same lock.
     func unlink(_ token: String) throws {
         let pair: (Int32, String)
-        do { pair = try directory(token, create: false) }
-        catch PhotoPreparationFailure.missingMedia { return }
+        do { pair = try directory(token, create: false) } catch PhotoPreparationFailure.missingMedia { return }
         let (fd, name) = pair
         defer { Darwin.close(fd) }
         try checkDirectoryIdentity(fd, token: token)

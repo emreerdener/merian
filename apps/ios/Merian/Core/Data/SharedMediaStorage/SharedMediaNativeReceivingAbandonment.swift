@@ -4,6 +4,8 @@ import Foundation
 /// owner must still prove result-set absence and seal its exact write set.
 extension SharedMediaNativeReceivingIntent {
     struct Abandoned: Codable, Equatable, Sendable {
+        // Keep this closed state vocabulary scoped to its owning serialized value.
+        // swiftlint:disable:next nesting
         enum Format: String, Codable, Sendable {
             case v1 = "nativeReceivingAbandonedV1"
             case v2 = "nativeReceivingAbandonedV2"

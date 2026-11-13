@@ -50,7 +50,7 @@ struct ObservationReanalysisProducer {
                 case let .original(reference):
                     bytes = try await loadOriginal(source, reference, container); original = reference
                     try validate()
-                case let .added(data), let .edited(_, data): bytes = data; original = nil
+                case let .added(data), let .edited(_, data), let .retained(_, data, _): bytes = data; original = nil
                 }
                 let prepared = try await DetachedWork.value(category: .inferenceRequestPreparation) {
                     try ObservationReanalysisPhotoPreparation.prepare(bytes: bytes, mediaID: mediaID, original: original)
@@ -68,7 +68,7 @@ struct ObservationReanalysisProducer {
         }
         try validate()
         if let prepared = try ObservationReanalysisPersistence.beginPreparation(proof, container: container,
-            isCurrent: { account.isCurrent(lease) && isCurrent() }) {
+            isCurrent: { account.isCurrent(lease) && isCurrent() }, retainedInputs: plan.retainedOrigins) {
             return prepared
         }
         let validatePending: @MainActor @Sendable (Bool) throws -> Void = { makeReady in

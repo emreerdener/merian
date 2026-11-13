@@ -6,6 +6,28 @@ import SwiftData
 /// These lookups alone grant no admission, file access or cleanup authority.
 @MainActor
 enum SharedMediaConsumerLookup {
+    /// Called synchronously on the supplied context's owning executor. Even an
+    /// incomplete shared row holds legacy cleanup; absence grants no deletion.
+    nonisolated static func hasScanOwner(_ scanID: String, in context: ModelContext) throws -> Bool {
+        let aliases = [scanID, scanID.lowercased(), scanID.uppercased()]
+        var query = FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
+            aliases.contains($0.consumerID) || aliases.contains($0.observationID) || aliases.contains($0.originQueueID)
+        })
+        query.fetchLimit = 1; query.includePendingChanges = true
+        return try !context.fetch(query).isEmpty
+    }
+
+    /// The destructive caller supplies a fresh context inside its transaction.
+    static func legacyScanForRemoval(_ scanID: String, in context: ModelContext) throws -> LocalScanRecord? {
+        var query = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanID })
+        query.fetchLimit = 2
+        let rows = try context.fetch(query)
+        guard rows.count == 1, let row = rows.first,
+              SharedMediaConsumerAuthority.permitsLegacyScanRemoval(raw: row.mediaAuthorityRaw, consumerID: row.sharedMediaConsumerID),
+              try !hasScanOwner(scanID, in: context) else { return nil }
+        return row
+    }
+
     static func one(_ context: ModelContext, id: UUID) throws -> SharedMediaConsumerRecord? {
         var query = FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate { $0.id == id })
         query.fetchLimit = 2; query.includePendingChanges = true

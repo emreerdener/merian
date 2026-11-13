@@ -16,6 +16,8 @@ final class SharedMediaNativePhotoUpload: Sendable {
     private let signedExpiry: Int64?
     private let validate: (@MainActor @Sendable () throws -> Void)?
 
+    var hasFinishedOwnedTask: Bool { signedExpiry != nil && task.hasPurgedMeasuredTransfer }
+
     private init(allocation: SharedMediaNativePhotoAllocation, request: URLRequest,
                  timeout: TimeInterval, task: PinnedPhotoUploadTask, signedExpiry: Int64? = nil,
                  validate: (@MainActor @Sendable () throws -> Void)? = nil) {
@@ -28,20 +30,23 @@ final class SharedMediaNativePhotoUpload: Sendable {
     func consume(file: URL) async throws -> Int {
         let response: HTTPURLResponse
         try await validate?()
-        do { response = try await task.response(for: request, fromFile: file, timeout: timeout, expiresAtMilliseconds: signedExpiry) } catch {
+        do { response = try await task.response(for: request, fromFile: file, timeout: timeout, expiresAtMilliseconds: signedExpiry, validateStart: validate) } catch {
             await task.waitForLocalTermination()
             throw error
         }
         await task.waitForLocalTermination()
+        try task.requireOwnedSessionEndIfPresent()
         try Task.checkCancellation()
         return response.statusCode
     }
 
     @MainActor static func authorized(_ authority: SharedMediaNativePhotoPutAuthorization,
-                                      task: PinnedPhotoUploadTask, nowMilliseconds: Int64) throws -> Self {
+                                      task: PinnedPhotoUploadTask, nowMilliseconds: Int64,
+                                      validateCaller: @escaping @MainActor @Sendable () throws -> Void = {}) throws -> Self {
+        try validateCaller()
         let (request, expiry) = try authority.request(nowMilliseconds: nowMilliseconds)
         return Self(allocation: authority.allocation, request: request, timeout: 300, task: task,
-            signedExpiry: expiry, validate: { try authority.validateConsumed() })
+            signedExpiry: expiry, validate: { try authority.validateConsumed(); try validateCaller() })
     }
 
     #if DEBUG

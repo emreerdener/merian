@@ -1,3 +1,8 @@
+import {
+  type CohortAdmissionRuntime,
+  parseCohortVerification,
+  verifyCohort,
+} from "./verifyCohort.ts";
 /** Dormant authenticated facade. No entrypoint, signer profile or activation. */
 import { jsonResponse, publicErrorResponse } from "../_shared/http.ts";
 import { historyUUID } from "../_shared/analysisHistory/contract.ts";
@@ -37,6 +42,11 @@ import {
   mediaUUID,
 } from "../_shared/initialAnalysis/mediaBinding.ts";
 
+import {
+  readLiveRoleProgress,
+  type RoleProgressBridge,
+} from "./roleProgress.ts";
+
 export interface TransferDependencies {
   recover(
     owner: string,
@@ -44,6 +54,8 @@ export interface TransferDependencies {
     signal: AbortSignal,
   ): Promise<unknown>;
   bridge: CpmPhotoIssuanceBridge & CpmPhotoStatusBridge;
+  progress?: RoleProgressBridge;
+  admission?: CohortAdmissionRuntime;
   catalog: TransferPolicyCatalog;
 }
 
@@ -164,9 +176,11 @@ export async function initialPhotoTransfer(
   owner: string,
   dependencies: () => TransferDependencies,
 ): Promise<Response> {
-  let request: TransferRequest;
+  let request: TransferRequest | ReturnType<typeof parseCohortVerification>;
   try {
-    request = parseTransferRequest(body);
+    request = (body as { action?: unknown } | null)?.action === "verify_cohort"
+      ? parseCohortVerification(body)
+      : parseTransferRequest(body);
   } catch {
     return publicErrorResponse(
       req,
@@ -177,24 +191,45 @@ export async function initialPhotoTransfer(
     );
   }
   try {
-    const identity = statusIdentity(historyUUID(owner), request);
+    const authenticatedOwner = historyUUID(owner);
     const deps = dependencies();
-    const result = await initialDeadline(req.signal, 25_000, async (signal) => {
-      // Historical status never loads a signing profile or falls through to issue.
-      if (request.action === "status") {
-        const observed = await initialAbortable(
-          signal,
-          () => deps.bridge.readStatus(identity, null, signal),
-        );
-        return decodeCpmPhotoWriteStatus(observed, identity);
-      }
-      return await issue(request, identity.owner, deps, signal);
-    });
+    const result = await initialDeadline(
+      req.signal,
+      request.action === "verify_cohort" ? 35_000 : 25_000,
+      async (signal) => {
+        if (request.action === "verify_cohort") {
+          return await verifyCohort(request, authenticatedOwner, deps, signal);
+        }
+        const identity = statusIdentity(authenticatedOwner, request);
+        // Historical status never loads a signing profile or falls through to issue.
+        if (request.action === "status") {
+          const observed = await initialAbortable(
+            signal,
+            () => deps.bridge.readStatus(identity, null, signal),
+          );
+          return decodeCpmPhotoWriteStatus(observed, identity);
+        }
+        if (request.action === "role_progress") {
+          if (!deps.progress || !request.attempt) {
+            throw initialMediaUnavailable();
+          }
+          return await readLiveRoleProgress(
+            deps.progress,
+            identity,
+            request.attempt,
+            signal,
+          );
+        }
+        return await issue(request, identity.owner, deps, signal);
+      },
+    );
     checkInitialDeadline(req.signal);
     if (
       new TextEncoder().encode(JSON.stringify(result)).length >
         TRANSFER_REPLY_LIMIT
-    ) throw initialMediaUnavailable();
+    ) {
+      throw initialMediaUnavailable();
+    }
     return jsonResponse(result, 200, { "Cache-Control": "private, no-store" });
   } catch {
     // Capability/SQL/provider data must never enter diagnostics or public errors.

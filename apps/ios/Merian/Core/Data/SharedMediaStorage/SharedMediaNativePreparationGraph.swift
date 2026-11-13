@@ -47,8 +47,7 @@ enum SharedMediaNativePreparationGraph {
         }
         // One attempt across the inventory, not merely one per package.
         let preparing: Int
-        if let scopedInventory { preparing = try pendingRows(context, inventory: scopedInventory).filter { $0.phaseRaw == "preparing" }.count }
-        else { preparing = try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) }
+        if let scopedInventory { preparing = try pendingRows(context, inventory: scopedInventory).filter { $0.phaseRaw == "preparing" }.count } else { preparing = try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.phaseRaw == "preparing" })) }
         guard preparing == 1 else {
             throw SharedMediaStorageFailure.conflict
         }

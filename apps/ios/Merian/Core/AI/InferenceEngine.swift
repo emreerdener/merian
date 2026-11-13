@@ -580,8 +580,8 @@ import SwiftData
     /// Replacing that slot fences stale state and effects immediately; a
     /// synchronous decoder already in progress can finish before it observes
     /// cancellation.
-    func load(from record: LocalScanRecord) {
-        historicalLoadCoordinator.load(from: record)
+    func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil) {
+        historicalLoadCoordinator.load(from: record, retainedDisplayMedia: retainedDisplayMedia)
     }
 
     func handleApplicationActiveStateChange(isActive: Bool) {

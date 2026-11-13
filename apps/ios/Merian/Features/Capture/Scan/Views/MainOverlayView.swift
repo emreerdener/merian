@@ -4,6 +4,10 @@ import SwiftUI
 struct MainOverlayView: View {
     @Environment(\.captureChromeLayout) private var chromeLayout
     // MARK: - Dependencies
+    var isCameraVisible: Bool = false
+    var hasEmptyDraft: Bool = true
+    var isCapturing: Bool = false
+    var claimIntroduction: @MainActor () -> Bool = { false }
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
     var isVideoRecording: Bool = false
@@ -22,6 +26,10 @@ struct MainOverlayView: View {
             // MARK: - Dynamic Intelligence
             if showsViewfinderHints {
                 ViewfinderHints(
+                    isCameraVisible: isCameraVisible,
+                    hasEmptyDraft: hasEmptyDraft,
+                    isCapturing: isCapturing,
+                    claimIntroduction: claimIntroduction,
                     isRefining: isRefining,
                     isVideoRecording: isVideoRecording,
                     videoRecordingProgress: videoRecordingProgress

@@ -12,7 +12,8 @@ struct AuthenticationCallbackCoordinator {
     }
 
     func handle() async {
-        guard !dependencies.transition.hasPendingPurchaseIdentityHandoff(),
+        guard !MerianEnvironment.isHistoryQualificationBuild,
+              !dependencies.transition.hasPendingPurchaseIdentityHandoff(),
               let transition = dependencies.transition.begin() else {
             dependencies.diagnostics.report(.transitionRejected, nil)
             return
@@ -113,24 +114,20 @@ struct AuthenticationCallbackCoordinator {
         guard dependencies.transition.owns(transition) else { return }
         let resolvedSession = dependencies.session.current()
             ?? installedSession
-        let activeSession: AuthenticationCallbackSession?
+        let permitsPublication: Bool
         switch disposition {
-        case .installed, .failed:
-            activeSession =
-                !dependencies.transition.isSignOutInProgress()
-                && resolvedSession?.isExpired == false
-                ? resolvedSession
-                : nil
-        case .cancelled:
-            activeSession =
-                !dependencies.transition.isSignOutInProgress()
-                && resolvedSession?.isExpired == false
-                && resolvedSession?.identity == sourceSession
-                ? resolvedSession
-                : nil
+        case .installed:
+            permitsPublication = resolvedSession.map {
+                AuthTransitionPolicy.acceptsAuthenticationCallbackTarget(
+                    sourceSession: sourceSession, targetSession: $0.identity
+                )
+            } == true
+        case .failed, .cancelled:
+            permitsPublication = resolvedSession?.identity == sourceSession
         }
 
-        if let activeSession {
+        if let activeSession = resolvedSession, permitsPublication,
+           !dependencies.transition.isSignOutInProgress(), !activeSession.isExpired {
             activeSession.publish()
         } else {
             dependencies.session.clearPublishedSession()

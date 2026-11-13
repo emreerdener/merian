@@ -3,10 +3,67 @@ import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   capturedVideoCount,
   cleanMediaUrls,
+  hasInitialRecoveryRequest,
   hasRequiredVideoMedia,
   normalizeRequiredVideoCount,
 } from "./status.ts";
 import { fetchComplimentaryScanStates } from "./db.ts";
+
+Deno.test("reserved initial recovery cannot fall through to legacy single or bulk repair", async () => {
+  for (
+    const body of [
+      { scan_id: "saved", initial_recovery: null },
+      { scan_id: "saved", initial_recovery: "unknown", recovery_scan: {} },
+      {
+        scans: [{
+          scan_id: "saved",
+          initial_recovery: { phase: "completion" },
+        }],
+      },
+      { scans: [], initial_recovery: { phase: "admission" } },
+    ]
+  ) assertEquals(hasInitialRecoveryRequest(body), true);
+  for (
+    const body of [{ scan_id: "legacy", recovery_scan: {} }, {
+      scans: [{ scan_id: "legacy" }],
+    }, { scans: [null] }]
+  ) {
+    assertEquals(hasInitialRecoveryRequest(body), false);
+  }
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  const handler = source.slice(source.indexOf("Deno.serve"));
+  assertStringIncludes(
+    handler,
+    'if (req.headers.has("x-merian-initial-recovery"))',
+  );
+  assertEquals(
+    handler.indexOf('if (req.headers.has("x-merian-initial-recovery"))') <
+      handler.indexOf("await parseJsonBody(req"),
+    true,
+  );
+  assertEquals(source.includes('from "./initialRecovery.ts"'), true);
+  assertStringIncludes(
+    handler,
+    "return await readInitialRecoveryHttp(req, user.id,",
+  );
+  assertEquals(
+    handler.indexOf("return await readInitialRecoveryHttp(req, user.id,") <
+      handler.indexOf("await parseJsonBody(req"),
+    true,
+  );
+  assertStringIncludes(handler, "if (hasInitialRecoveryRequest(body))");
+  assertEquals(
+    handler.indexOf("if (hasInitialRecoveryRequest(body))") <
+      handler.indexOf("if (Array.isArray(body.scans))"),
+    true,
+  );
+  assertStringIncludes(
+    handler,
+    'jsonResponse({ error: "initial_recovery_unavailable" }, 503)',
+  );
+});
 
 function compact(source: string): string {
   return source.replaceAll(/--.*$/gm, "").replaceAll(/\s+/g, " ").trim();

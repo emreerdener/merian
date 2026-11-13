@@ -157,5 +157,215 @@ class QualificationRunnerTests(unittest.TestCase):
             child.assert_not_called()
 
 
+class FailedDisposalTests(unittest.TestCase):
+    def fixture(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def owned():
+            with tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                with patch.object(runner, 'STATE', root / 'state.json'), \
+                        patch.object(runner, 'temporary_root', return_value=root):
+                    work = root / 'merian-handoff-runtime-abcdefgh'
+                    (work / 'supabase/migrations').mkdir(parents=True)
+                    config = work / 'supabase/config.toml'
+                    config.write_text('fixture')
+                    name = sorted((runner.ROOT / 'services/supabase/migrations').glob('*.sql'))[0].name
+                    migration = work / 'supabase/migrations' / name
+                    migration.write_text('SELECT 1;')
+                    record = dict(state='ready', suite='io_readers', project=work.name,
+                                  container='supabase_db_' + work.name, workdir=str(work),
+                                  docker_host='unix:///tmp/docker.sock', runner_sources=runner.source_manifest(),
+                                  migration_hashes={name: runner.digest(migration)},
+                                  temporary_config_sha256=runner.digest(config))
+                    original = root / 'original'
+                    original.mkdir()
+                    runner.save(runner.STATE, record)
+                    runner.save(original / 'replay.json', record)
+                    runner.save(original / 'failure.json', dict(passed=False, phase='ready', suite='io_readers',
+                                original_ownership_retained=True, migration_hashes=record['migration_hashes'],
+                                runner_sources=record['runner_sources']))
+                    observed = dict(activation_enabled=False, invocations=0, private_receipts=1,
+                                    preparation_intents=1, copy_progress=1, cancellation_staging=0, admission_staging=0,
+                                    handoff_staging=0, other_client_sessions=0)
+                    proof = dict(version=1, qualificationPassed=False, failure_directory=str(original),
+                                 identity={k: record[k] for k in ('suite', 'project', 'container', 'workdir', 'docker_host')},
+                                 original_state_sha256=runner.digest(runner.STATE),
+                                 failure_sha256=runner.digest(original / 'failure.json'),
+                                 replay_sha256=runner.digest(original / 'replay.json'), observed=observed.copy())
+                    proof_path = root / 'reconciliation.json'
+                    runner.save(proof_path, proof)
+                    yield SimpleNamespace(root=root, work=work, original=original, proof=proof,
+                                          proof_path=proof_path, observed=observed, output=root / 'disposition',
+                                          original_bytes={p.name: p.read_bytes() for p in original.iterdir()})
+        return owned()
+
+    def invoke(self, fixture):
+        runner.dispose_reconciled_failure(fixture.proof_path, fixture.output, 'unix:///tmp/docker.sock', {})
+
+    def test_failed_disposal_preserves_failure_and_is_never_a_pass(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                patch.object(runner.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as stop, \
+                patch.object(runner, 'run', return_value=''):
+            self.invoke(f)
+            stop.assert_called_once()
+            self.assertFalse(runner.STATE.exists())
+            self.assertFalse(f.work.exists())
+            self.assertFalse((f.output / 'result.json').exists())
+            result = json.loads((f.output / 'failed-disposition.json').read_text())
+            self.assertFalse(result['qualificationPassed'])
+            self.assertEqual(result['state'], 'disposed')
+            self.assertEqual(result['observedResiduals']['private_receipts'], 1)
+            self.assertTrue(result['containerAbsent'])
+            self.assertTrue(result['temporaryWorkdirRemoved'])
+            self.assertEqual({p.name: p.read_bytes() for p in f.original.iterdir()}, f.original_bytes)
+
+    def test_missing_wrong_changed_or_live_evidence_cannot_stop(self):
+        for case in ('missing', 'identity', 'failure_hash', 'replay_hash', 'state_hash',
+                     'counts', 'active', 'invocation', 'session', 'staging', 'admission_stage', 'project_bytes', 'output_inside'):
+            with self.subTest(case=case), self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                    patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                    patch.object(runner.subprocess, 'run') as stop:
+                original_state = runner.STATE.read_bytes()
+                if case == 'missing':
+                    (f.original / 'failure.json').unlink()
+                elif case == 'identity':
+                    f.proof['identity']['project'] = 'merian-handoff-runtime-wrong000'
+                elif case.endswith('_hash'):
+                    key = {'failure_hash': 'failure_sha256', 'replay_hash': 'replay_sha256',
+                           'state_hash': 'original_state_sha256'}[case]
+                    f.proof[key] = '0' * 64
+                elif case == 'counts':
+                    f.proof['observed']['private_receipts'] = 2
+                elif case == 'project_bytes':
+                    (f.work / 'supabase/config.toml').write_text('changed')
+                elif case == 'output_inside':
+                    f.output = f.work / 'evidence'
+                else:
+                    key = {'active': 'activation_enabled', 'invocation': 'invocations',
+                           'session': 'other_client_sessions', 'staging': 'handoff_staging',
+                           'admission_stage': 'admission_staging'}[case]
+                    f.proof['observed'][key] = True if case == 'active' else 1
+                runner.save(f.proof_path, f.proof)
+                with self.assertRaises((runner.Stopped, FileNotFoundError)):
+                    self.invoke(f)
+                stop.assert_not_called()
+                self.assertEqual(runner.STATE.read_bytes(), original_state)
+                self.assertTrue(f.work.exists())
+
+    def test_live_state_changes_after_reconciliation_cannot_stop(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps({**f.observed, 'other_client_sessions': 1})), \
+                patch.object(runner.subprocess, 'run') as stop, self.assertRaises(runner.Stopped):
+            self.invoke(f)
+        stop.assert_not_called()
+
+    def test_interruption_retains_owner_and_failed_disposition(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                patch.object(runner.subprocess, 'run', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.invoke(f)
+            self.assertEqual(json.loads(runner.STATE.read_text())['state'], 'disposing')
+            self.assertFalse(json.loads((f.output / 'failed-disposition.json').read_text())['qualificationPassed'])
+            self.assertTrue(f.work.exists())
+            self.assertEqual({p.name: p.read_bytes() for p in f.original.iterdir()}, f.original_bytes)
+
+    def test_competing_process_denied_before_reading_proof_and_lock_is_reusable(self):
+        child = """import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import run_initial_media_handoff_qualification as r
+r.STATE = Path(sys.argv[2])
+try:
+ r.dispose_reconciled_failure(Path(sys.argv[2] + '.missing'), Path(sys.argv[2] + '.output'), 'unix:///tmp/docker.sock', {})
+except r.Stopped as error:
+ print(str(error))
+ sys.exit(0 if str(error) == sys.argv[3] else 1)
+raise SystemExit(2)
+"""
+        with self.fixture():
+            path = runner.STATE.with_suffix('.recovery.lock')
+            with runner.failed_disposal_lock():
+                identity = path.stat().st_ino
+                result = runner.subprocess.run([runner.sys.executable, '-c', child, str(runner.SCRIPTS),
+                                                str(runner.STATE), 'recovery_busy'], capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), 'recovery_busy')
+            result = runner.subprocess.run([runner.sys.executable, '-c', child, str(runner.SCRIPTS),
+                                            str(runner.STATE), 'reconciliation_file_invalid'], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.stat().st_ino, identity)
+
+    def test_process_death_releases_lock_without_replacing_inode(self):
+        child = """import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import run_initial_media_handoff_qualification as r
+r.STATE = Path(sys.argv[2])
+with r.failed_disposal_lock():
+ print('locked', flush=True)
+ sys.stdin.readline()
+"""
+        with self.fixture():
+            process = runner.subprocess.Popen([runner.sys.executable, '-c', child, str(runner.SCRIPTS), str(runner.STATE)],
+                                              stdin=runner.subprocess.PIPE, stdout=runner.subprocess.PIPE, text=True)
+            try:
+                import select
+                ready, _, _ = select.select([process.stdout], [], [], 10)
+                self.assertTrue(ready)
+                self.assertEqual(process.stdout.readline().strip(), 'locked')
+                identity = runner.STATE.with_suffix('.recovery.lock').stat().st_ino
+                with self.assertRaisesRegex(runner.Stopped, 'recovery_busy'), runner.failed_disposal_lock():
+                    self.fail('competing owner admitted')
+                process.terminate()
+                process.wait(timeout=10)
+                with runner.failed_disposal_lock():
+                    self.assertEqual(runner.STATE.with_suffix('.recovery.lock').stat().st_ino, identity)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
+                process.stdin.close()
+                process.stdout.close()
+
+    def test_interrupted_disposal_cannot_repeat_stop_after_lock_release(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                patch.object(runner.subprocess, 'run', side_effect=KeyboardInterrupt) as stop:
+            with self.assertRaises(KeyboardInterrupt):
+                self.invoke(f)
+            with self.assertRaisesRegex(runner.Stopped, 'failed_disposal_owner_not_ready'):
+                self.invoke(f)
+            self.assertEqual(stop.call_count, 1)
+            self.assertEqual(json.loads(runner.STATE.read_text())['state'], 'disposing')
+
+    def test_post_stop_failure_keeps_owner_without_retry_or_path_removal(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                patch.object(runner.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as stop, \
+                patch.object(runner, 'run', side_effect=runner.Stopped('failed_disposal_container_list_failed')):
+            with self.assertRaises(runner.Stopped):
+                self.invoke(f)
+            stop.assert_called_once()
+            self.assertEqual(json.loads(runner.STATE.read_text())['state'], 'stopped')
+            self.assertEqual(json.loads(runner.STATE.read_text())['stop_exit'], 0)
+            self.assertTrue(f.work.exists())
+            self.assertFalse((f.output / 'result.json').exists())
+
+    def test_failed_stop_retains_owner_and_original_evidence(self):
+        with self.fixture() as f, patch.object(runner, 'inspect_owned'), \
+                patch.object(runner, 'sql', return_value=json.dumps(f.observed)), \
+                patch.object(runner.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
+                patch.object(runner, 'run') as after:
+            with self.assertRaises(runner.Stopped):
+                self.invoke(f)
+            after.assert_not_called()
+            self.assertEqual(json.loads(runner.STATE.read_text())['state'], 'disposal_failed')
+            self.assertTrue(f.work.exists())
+            self.assertEqual({p.name: p.read_bytes() for p in f.original.iterdir()}, f.original_bytes)
+
 if __name__ == '__main__':
     unittest.main()

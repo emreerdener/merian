@@ -11,7 +11,11 @@ struct SharedMediaAcquisitionIntent: Codable, Equatable, Sendable {
         case absent
         case revision(Int64)
 
+        // Keep the persisted coding vocabulary local to its encoded value.
+        // swiftlint:disable:next nesting
         private enum CodingKeys: String, CodingKey { case kind, revision }
+        // Keep the persisted coding vocabulary local to its encoded value.
+        // swiftlint:disable:next nesting
         private enum Kind: String, Codable { case absent, revision }
 
         init(from decoder: Decoder) throws {

@@ -1,3 +1,74 @@
+## November 12 — beta activation observed
+
+The34 current-scope History switches are enabled on deployedc435; the
+actual-byte private cleanup check passed. The updated1.1.0 simulator preserves
+existing data and reaches the composer with normal OAuth. One user submission is
+durable; AI completion/second-version and cumulative acceptance remain
+unverified. Automatic prompts stay paused. See the
+[current activation and build record](../development-guides/24-identification-history-device-review.md#november-12--beta-history-activation-and-simulator-recovery).
+Historical checkpoints below retain their original scope and limitations.
+
+> November10 current coordination: the
+> [finite consolidation checkpoint](identification-history-alpha-readiness-2026-10-11.md#november-10--finite-consolidation-release-and-explicit-pause)
+> owns the remaining primary1.1.0 enabled all-media/History/recovery release
+> requirements, owners and exit evidence. Automatic prompts are explicitly
+> paused; manual local validation may continue when requested. Unsigned inactive
+> phone preparation and legacy analysis do not qualify the enabled journey.
+> Existing cumulative acceptance and operation/target authorization controls
+> remain; deletion/export/redesign stay later.
+
+> November 9 completion279/280 checkpoint: Native original-photo preview passed
+> 46 methods/109 cases, zero failures/skips, with independent verification. The
+> isolated observation-only backend `ee7ebf8b` passed 4,384 Edge tests and all
+> 125 entrypoint checks. It remains unpublished and undeployed. Native
+> observation integration is applied but not runtime-qualified; exact initial
+> result recovery (HQ-287), broader RUX/resources and cumulative acceptance
+> remain open. Phone installation stays deferred at the user's request. See the
+> [current end-to-end contract](../development-guides/25-scan-to-history.md#november-9--explicit-observation-only-recovery-status).
+
+> November 9 current qualification checkpoint: The user selected the primary
+> beta app identity and existing Google registration. The revised unsigned
+> 1.0.3/build 275 qualification build passed; preservation guards and focused
+> native/tooling checks passed with independent fix verification. It has not
+> been installed or opened the user's store. All 22 local private-handoff suites
+> now pass, with 1,043 recorded checks plus separate bridge/coordinator
+> subtests; all-media resource receipts and source/disposal evidence were
+> independently verified. Corrected backend candidate `5dd70023` was published
+> under explicit approval; its one
+> [validation-only CI run513](https://github.com/emreerdener/merian/actions/runs/42566671974)
+> failed the photo/audio transfer resource deadline (HQ-281), after all earlier
+> gates and 17 handoff suites passed; four later suites did not run. Original
+> evidence is retained. The reviewed pure-validation correction `23ef723` passed
+> all 22 local suites again and passed
+> [CI514](https://github.com/emreerdener/merian/actions/runs/42585351088) under
+> bounded overnight validation authority. Engine independently verified all 22
+> CI handoff suites and closed HQ-281 for this exact backend local/CI scope. The
+> original failure remains retained; cumulative native/backend evidence
+> reconciliation is next. See the
+> [current integration boundary](../development-guides/25-scan-to-history.md#current-integration-boundary)
+> and
+> [primary-app device contract](../development-guides/24-identification-history-device-review.md#november-8-cst--primary-app-qualification-revision).
+> Cumulative whole-candidate, hosted, signed install-over/preservation and final
+> user acceptance remain open. This is not the final manual-testing pause.
+
+> November 4 photo History update: Local qualification now covers importing the
+> original V3 result, preserving a later selection, acknowledging the native
+> handoff and preparing a photo child from retained AI inputs. The first
+> integrated lost-reply test recovered the child but selection from the
+> untouched original was refused (HQ206). See the
+> [scan-to-History guide](../development-guides/25-scan-to-history.md#retained-initial-photo-display-candidate).
+> Installed and all-media journeys remain open; the release holds are unchanged.
+
+> November 4 completion integration update: The
+> [scan-to-History guide](../development-guides/25-scan-to-history.md) and
+> [private completion contract](../backend-and-data/05-api-contracts.md#prepared-original-completion-document-decoder-inactive)
+> record selected native canonical decoding, shared SQL parity, private
+> all-media completion reads and saved-request transport binding. These are
+> inactive local components; protected native delivery, durable History import
+> and the full initial/reanalysis/RUX journeys remain open. Cumulative
+> acceptance, milestone order, PR116 freeze and release/activation holds are
+> unchanged.
+
 > November 2 integration update:
 > [current native recovery contract](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-2--recovery-presentation-account-drain-integration-candidate)
 > records finite visible checking, exact candidate availability and joined
@@ -2116,6 +2187,21 @@ and RUX-1–RUX-6 remain required before integrated acceptance. Replacement
 remains a separate gated follow-up after deletion/export and redesign.
 Activation remains disabled, PR116 frozen, deployment hold active, AWS
 unapproved and limits unchanged.
+
+## Recovery/replacement planning addendum — October 18, 2026 (Chicago)
+
+The approved
+[unresolved-analysis plan](unresolved-analysis-recovery-and-replacement-2026-10-18.md)
+is the canonical planning owner. Integrate RUX-1–RUX-6 at the relevant native
+checkpoint before complete-flow acceptance. Presentation timeouts and Check
+status never authorize another AI execution or release funding. REP-1–REP-8 are
+a separately gated follow-up, defaulting after the approved deletion/export and
+redesign milestones. They require coordinated
+lifecycle/accounting/retention/API/native amendments before implementation
+enablement; this addendum does not modify current IC-1 wire or settlement
+semantics. Continue current work without interruption. History owns
+implementation; Engine reviews shared invariants. Existing evidence below and
+release controls remain unchanged.
 
 ## October 19 — native owner capabilities locally verified
 
@@ -4366,3 +4452,145 @@ Any baseline, frozen-input/receipt shape, ownership, lock order or supported
 route change reopens this agreement for review. Agreement closes roadmap A1's
 design prerequisite only. A2–A6 and A15 remain implementation/qualification
 work; final candidate CI and all external/device controls remain open.
+
+### November 3 — byte-preserving completion description handoff
+
+The completed pre-guard design review supersedes the earlier proposed inline
+`items:[{kind:"description",text:...}]` representation for newly
+completion-backed available V3 evidence. Accepted CPM content can contain NUL,
+which PostgreSQL JSONB text cannot retain; base64-encoding every legacy item can
+exceed the existing1MiB History result limit. Existing unavailable V3 records
+remain exact.
+
+The planned available manifest retains `schema_version:3`,
+`origin:"saved_identification"`, `imported_at_ms` and
+`availability:"available"`, and adds only `description_evidence` with
+`version:1`, original `input_schema_version` (1 legacy,2 CPM),
+`ordered_description_digest` and `ordered_description_count` (0..64). A proven
+empty set is available with count0. Old readers must reject the unsupported
+available variant rather than fabricate unavailable evidence. The completion
+receipt binds the same original description representation and digest.
+
+The existing History read owner will provide bounded byte pages under the
+original observation/analysis identity, digest and account/deletion fences. Each
+page has version1, original digest, item index, total byte count, byte offset,
+canonical `bytes_utf8_base64`, and `next_byte_offset`. Pages are at most 24,576
+decoded bytes and65,536 wire bytes. Nonterminal offsets advance exactly by
+decoded length; terminal offset is null. A zero-byte CPM item has exactly one
+empty terminal page. Full item limits remain65,530 legacy UTF-8 bytes or 32,768
+CPM UTF-8 bytes with the original CPM scalar/UTF-16 aggregate limits. The
+consumer reconstructs and verifies the entire original ordered canonical
+representation/digest before treating descriptions as reusable evidence. It must
+preserve BOM, NUL and normalization; individual pages are not proof or execution
+authority.
+
+The private pure codec in
+`services/supabase/functions/_shared/initialAnalysis/completionDescriptions.ts`
+is implemented with focused byte/boundary tests. SQL page authority, available
+History readers, native decoding/presentation and end-to-end delivery are still
+unimplemented; no installed payload or grant changes. This is part of the atomic
+completion integration, not an accepted functional journey. Later
+review/selection and cancellation/deletion fences retain their existing owners.
+
+### November 3 — original completion preparation implementation
+
+The private consuming migration now derives the initial scan image from the
+original retained result and submitted context under the existing owner, scan,
+funding and media locks. CPM preparation revalidates admitted capacity and the
+complete original positive-closure cohort. It preserves absent CPM telemetry,
+uses an explicit completion-time basis where capture time is absent, and leaves
+missing/null life-stage and reproductive-condition values null. The earlier
+field proposal cannot reconstruct the discarded audio-subject classification;
+any normalized defaults must already be in the immutable result.
+
+Read-only preparation now feeds a private original-bound transaction stage.
+Stage mutation and unfinished commit remain denied; this adds no API grant or
+completion business-write authority. The
+[local owner guide](../../services/supabase/functions/_shared/initialAnalysis/README.md#original-completion-preparation-private-inactive)
+identifies its focused runner and remaining integration. Production trigger
+execution, atomic funding/media completion and native History availability are
+still unqualified. Existing accepted completion event and retention contracts
+remain mandatory; no missing adoption policy or build evidence may be invented
+from a digest or inferred from the verifier's build identity.
+
+### November 3 — original settlement prefix, still uncommittable alone
+
+The existing settlement owner now attaches its once-sampled original hold and
+owner images to the private completion stage, with exact before/after event
+observation. The prefix is immutable after attachment. Successful prefix checks
+do not authorize a completed scan: the stage cannot yet be sealed or removed,
+and a partial settlement transaction fails its deferred commit check.
+
+Finalized media must precede settlement. Legacy uses the existing terminal
+transfer assertion and original root binding. CPM is explicitly held until its
+prepared adoption proof can be attached before the first funding write. The
+initial local prefix implementation omitted this prerequisite; that failure and
+its correction remain in HQ120. Earlier passing prefix mechanics do not qualify
+the omitted media condition. A subsequent direct-attachment regression showed
+that checking only the settlement caller was insufficient. The prefix
+constructor now enforces the prerequisite during independent stage-guard
+recomputation; the failed regression remains in the findings record. The
+complete suffix, terminal/deferred comparisons, adoption and later
+review/deletion classification still require integration and independent review.
+
+### November 3 — read-only legacy terminal-media projection
+
+The private legacy media preparer now derives the proposed media shape from the
+original transferred mapping under existing completion-preparation locks. It
+preserves owner timeline order, raw video ownership and first-frame poster
+identity; frames and companion audio remain in the full transfer proof without
+becoming separate History media owners. Prepared photo/audio metadata and exact
+receipt identity are retained within the existing64KiB projection bound. This
+adds no business-write, ticket or API authority and does not complete the
+completion suffix or native delivery. CPM adoption remains separately held. The
+[owner guide](../../services/supabase/functions/_shared/initialAnalysis/README.md#original-completion-preparation-private-inactive)
+describes the implementation and focused validation boundary.
+
+### November 3 — guard-owned completion suffix preparation
+
+The private stage now constructs the immutable post-settlement suffix on a
+one-way preparation request. The caller supplies no projection or entitlement:
+the stage guard checks original credit completion and retained identities, then
+copies one existing entitlement resolver result. Original media, descriptions,
+plan, timestamps and species association feed the prospective receipt and exact
+tail images. Attempted species INSERT and actual conflict winner are distinct.
+The receipt's funding version identifies the retained funding codec, currently1;
+it does not identify admission binding3/4. The projection digest domain and
+bounds are specified in the
+[owner guide](../../services/supabase/functions/_shared/initialAnalysis/README.md#original-completion-preparation-private-inactive).
+
+This is preparation, not atomic completion. Scan/completion business writes,
+conflict-winner observation, immediate/deferred terminal checks and stage
+sealing/removal remain closed. CPM adoption and native delivery remain pending;
+full schema/digest vectors and integrated independent review are still required.
+
+## November 3 — private legacy completion integration
+
+The unapplied consuming migration now composes the fixed original funding,
+scan/species/media-refresh and completion events, stores the immutable
+projection, and checks immediate/deferred terminal images. Replay returns the
+original receipt/projection under account/deletion locks without another charge
+or overwrite of later choices. Existing review owners classify completed scans
+through retained result/completion evidence and avoid a second ingestion job.
+API grants and activation remain closed.
+
+Local completion88 passed57 SQL checks for funded photo, actual
+null/new/existing species paths, suppressed/rewritten scan and species faults,
+paid transition, post-removal deferred mutation denial, committed completion and
+exact replay preserving a later note. Its subsequent legacy review diagnostic
+exposed an obsolete job-seeding attempt (HQ-125); the correction and real
+reject/Undo regression passed in91:69 checks, including funded audio, explicit
+paid-transition outcome, rejection/Undo and replay preserving each later review.
+Engine independently accepted source57331c6f for that integration, without
+claiming runtime qualification. A subsequent completed-scan deletion diagnostic
+found that the request owner entered legacy failure settlement (HQ-127). The
+first correction then exposed a pending-request retry gap in independent
+review.95 passed39 checks for committed request, same-owner pending replay,
+wrong-owner refusal, original funding/accounting preservation and final SQL
+erasure. Engine independently closed HQ-127 at source8aa5967b. Physical cleanup
+and account erasure remain separate. Failures85–90 remain in HQ-122–HQ-126.
+These are synthetic byte/result fixtures, not physical-media or native journeys.
+The
+[current owner guide](../../services/supabase/functions/_shared/initialAnalysis/README.md)
+distinguishes implemented mechanics from remaining integration review, CPM,
+erasure, schema/digest vectors, delivery and cumulative acceptance.

@@ -3,6 +3,8 @@ import SwiftData
 
 /// The selected saved originalRetiring target only, behind existing owner locks.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppOriginalRemovalOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Rows = SharedMediaNativeAppOriginalRows
@@ -63,8 +65,7 @@ struct SharedMediaNativeAppOriginalRemovalOperations {
             try a.seal.validate(c); try boundary(.beforeSave); try validate(); try predecessor(a)
             try a.seal.validate(c); try requireAbsence(a.state); try validate()
             // No await between fresh complete graph/absence/raw checks and save.
-            do { try c.save(); try boundary(.afterSave) }
-            catch { c.rollback(); return try recover(a) }
+            do { try c.save(); try boundary(.afterSave) } catch { c.rollback(); return try recover(a) }
             return try recover(a)
         } catch { c.rollback(); throw error }
     }

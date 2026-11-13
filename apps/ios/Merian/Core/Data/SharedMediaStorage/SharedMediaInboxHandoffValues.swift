@@ -73,6 +73,8 @@ enum SharedMediaInboxHandoffBoundary: Sendable, Equatable {
     case beforeRetirementSave, afterRetirementSave, afterUnlink, beforeReleaseSave, afterReleaseSave
 }
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaInboxDestinationRetirementIdentity: Codable, Equatable, Sendable {
     let partial: String
     let final: String

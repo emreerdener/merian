@@ -9,6 +9,7 @@ enum CaptureReanalysisPreparation {
             case let .image(_, image):
                 switch image.reanalysisProvenance {
                 case .added: return .photo(.added(image.compressedData))
+                case let .retained(photo, edited): return .photo(.retained(photo, image.compressedData, edited: edited))
                 case let .original(analysisID, photo):
                     guard analysisID == source.analysisID else { throw MerianError.invalidResponse }
                     return .photo(.original(photo))

@@ -23,8 +23,10 @@ final class AuthSessionLifecycleCoordinatorHarness {
     var analyticsSuppressionValues: [Bool] = []
     var purchaseHandoffFenceValues: [Bool] = []
     var telemetryResults: [Bool] = [false]
+    var suspendSignOut: (@MainActor () async -> Void)?
     var suspendTelemetry: (@MainActor () async -> Void)?
     var resumeCloudDeletions: (@MainActor () async -> Void)?
+    var renewMediaLifetime: (@MainActor () async -> Bool)?
     var clearHandoffOnCompletion = false
     var clearHandoffOnAbandonment = false
     var advanceGenerationAfterTelemetry = false
@@ -185,6 +187,7 @@ final class AuthSessionLifecycleCoordinatorHarness {
                 },
                 handleSupabaseSignOut: {
                     self.events.append("purchase-sign-out")
+                    await self.suspendSignOut?()
                     if self.advanceGenerationAfterSignOut {
                         self.currentAuthGeneration &+= 1
                     }
@@ -200,6 +203,7 @@ final class AuthSessionLifecycleCoordinatorHarness {
                     self.events.append("schedule-historical-sync")
                 }
             ),
+            renewMediaLifetime: { _, _ in await self.renewMediaLifetime?() ?? true },
             diagnose: { diagnostic, _ in
                 self.diagnostics.append(diagnostic)
             }

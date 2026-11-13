@@ -3,6 +3,33 @@ import XCTest
 
 @MainActor
 final class AccountDeletionCleanupWorkflowTests: XCTestCase {
+    func testLostContextBeforeCleanupNeverStartsSignOut() async {
+        var events: [String] = []
+        let signOut: @MainActor () async -> Bool = { events.append("sign-out"); return true }
+        let purge: @MainActor () async -> Bool = { events.append("purge"); return true }
+        let retire: @MainActor () -> Bool = { events.append("retire"); return true }
+        let resolve: @MainActor () -> Bool = { events.append("resolve"); return true }
+        let accepted = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { false },
+            receipt: AccountDeletionReceipt(success: true, status: .pending, manualProviderRevocationRequired: false),
+            recordCleanupPending: { events.append("record"); return true },
+            recordManualProviderRevocation: {}, performLocalSignOut: signOut, purgeLocalData: purge,
+            acknowledgeRecovery: { events.append("acknowledge"); return true },
+            recordRecoveryRetirementPending: retire, retireRecoveryCapability: retire, resolveCleanup: resolve
+        )
+        let retirement = await AccountDeletionWorkflow.performRecoveryRetirement(
+            validateContext: { false }, performLocalSignOut: signOut, purgeLocalData: purge,
+            retireRecoveryCapability: retire, resolveCleanup: resolve
+        )
+        let legacy = await AccountDeletionWorkflow.performPendingLocalCleanup(
+            validateContext: { false }, performLocalSignOut: signOut, purgeLocalData: purge, resolveCleanup: resolve
+        )
+        XCTAssertFalse(accepted)
+        XCTAssertFalse(retirement)
+        XCTAssertFalse(legacy)
+        XCTAssertEqual(events, ["record"])
+    }
+
     func testCleanupRejectsReceiptsThatDoNotProveAcceptedDeletion() async {
         let invalidReceipts = [
             AccountDeletionReceipt(
@@ -26,6 +53,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         for receipt in invalidReceipts {
             var events: [String] = []
             let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+                validateContext: { true },
                 receipt: receipt,
                 recordCleanupPending: {
                     events.append("record")
@@ -74,6 +102,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         )
 
         let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { true },
             receipt: receipt,
             recordCleanupPending: {
                 events.append("record")
@@ -131,6 +160,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         )
 
         let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { true },
             receipt: receipt,
             recordCleanupPending: {
                 events.append("record")
@@ -174,6 +204,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         var events: [String] = []
         let completedRetirement = await AccountDeletionWorkflow
             .performRecoveryRetirement(
+                validateContext: { true },
                 performLocalSignOut: {
                     events.append("signout")
                     return true
@@ -200,6 +231,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         events.removeAll()
         let incompleteRetirement = await AccountDeletionWorkflow
             .performRecoveryRetirement(
+                validateContext: { true },
                 performLocalSignOut: { true },
                 purgeLocalData: { true },
                 retireRecoveryCapability: {
@@ -318,6 +350,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         )
 
         let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { true },
             receipt: receipt,
             recordCleanupPending: { true },
             recordManualProviderRevocation: {},
@@ -348,6 +381,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         )
 
         let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { true },
             receipt: receipt,
             recordCleanupPending: {
                 events.append("record")
@@ -393,6 +427,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         )
 
         let result = await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { true },
             receipt: receipt,
             recordCleanupPending: {
                 events.append("record")
@@ -517,6 +552,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         var events: [String] = []
 
         let result = await AccountDeletionWorkflow.performPendingLocalCleanup(
+            validateContext: { true },
             performLocalSignOut: {
                 events.append("signout")
                 return true
@@ -536,6 +572,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
 
         events.removeAll()
         let failed = await AccountDeletionWorkflow.performPendingLocalCleanup(
+            validateContext: { true },
             performLocalSignOut: {
                 events.append("signout")
                 return true
@@ -555,6 +592,7 @@ final class AccountDeletionCleanupWorkflowTests: XCTestCase {
         events.removeAll()
         let signOutFailed = await AccountDeletionWorkflow
             .performPendingLocalCleanup(
+                validateContext: { true },
                 performLocalSignOut: {
                     events.append("signout")
                     return false

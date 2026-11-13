@@ -1,3 +1,5 @@
+import { initialPhotoTransfer } from "../../initial-photo-transfer/handler.ts";
+import { fixture as transferFixture } from "../../initial-photo-transfer/fixtures.ts";
 import { assertEquals } from "@std/assert";
 import { safeJpeg } from "../analysisHistory/testing/publicPhotoFixtures.ts";
 import { fixture, hash } from "./cpmPhotoAdmissionTestFixtures.ts";
@@ -204,7 +206,7 @@ async function exercise(mode: string) {
       );
       admits++;
       committed = true;
-      if (mode === "lost_ack") {
+      if (mode === "lost_ack" || mode === "facade_lost_ack") {
         return Promise.reject(
           new Error("synthetic lost acknowledgement"),
         );
@@ -212,6 +214,88 @@ async function exercise(mode: string) {
       return reply(receipt());
     },
   );
+  if (mode === "facade_lost_ack") {
+    const transfer = await transferFixture();
+    const assignment = JSON.parse(f.identity.assignment_canonical);
+    const request = {
+      version: 3,
+      action: "verify_cohort",
+      scan_id: f.identity.scan_id,
+      candidate_canonical: f.identity.candidate_canonical,
+      assignment_digest: f.identity.assignment_digest,
+      backend_generation: backend.generation,
+      backend_configuration_digest: backend.configuration_digest,
+      allocation_created_at_ms: assignment.created_at_ms,
+      allocation_expires_at_ms: assignment.expires_at_ms,
+    };
+    const bound = {
+      ...transfer.deps,
+      admission: runtime,
+      recover(
+        owner: string,
+        candidate: {
+          action: string;
+          candidateCanonical: string;
+          savedAssignmentDigest: string | null;
+        },
+      ) {
+        assertEquals(owner, f.identity.owner_id);
+        assertEquals(candidate.action, "status");
+        assertEquals(
+          candidate.candidateCanonical,
+          f.identity.candidate_canonical,
+        );
+        assertEquals(
+          candidate.savedAssignmentDigest,
+          f.identity.assignment_digest,
+        );
+        return Promise.resolve({
+          version: 3,
+          variant: "client_prepared_photo",
+          authority: "none",
+          outcome: "allocated",
+          assignment_canonical: f.identity.assignment_canonical,
+          assignment_digest: f.identity.assignment_digest,
+          backend_generation: backend.generation,
+          backend_configuration_digest: backend.configuration_digest,
+        });
+      },
+    };
+    const send = (body: unknown) =>
+      initialPhotoTransfer(
+        new Request("https://synthetic.invalid/initial-photo-transfer"),
+        body,
+        f.identity.owner_id,
+        () => bound,
+      );
+    assertEquals(
+      (await send({ ...request, backend_configuration_digest: "a".repeat(64) }))
+        .status,
+      503,
+    );
+    assertEquals(
+      (await send({ ...request, owner_id: f.identity.owner_id })).status,
+      400,
+    );
+    assertEquals([signed, fetched, admits], [0, 0, 0]);
+    for (let index = 0; index < 2; index++) {
+      const reply = await send(request);
+      assertEquals(reply.status, 200);
+      assertEquals(await reply.json(), {
+        version: 3,
+        outcome: "admitted",
+        authority: "none",
+        scan_id: f.identity.scan_id,
+        candidate_digest: f.snapshot.candidate_digest,
+        assignment_digest: f.identity.assignment_digest,
+        backend_generation: backend.generation,
+        backend_configuration_digest: backend.configuration_digest,
+      });
+      assertEquals([fetched, admits], [3, 1]);
+    }
+    assertEquals(transfer.calls, []);
+    return;
+  }
   const result = await runtime.admit(f.identity, controller.signal);
   if (["success", "lost_ack", "recovered"].includes(mode)) {
     assertEquals(result, {
@@ -253,6 +337,7 @@ Deno.test("CPM runtime joins actual JPEG verification and both database adapters
     Deno.env.set(names[1], "sb_secret_" + "x".repeat(40));
     for (
       const mode of [
+        "facade_lost_ack",
         "success",
         "lost_ack",
         "recovered",

@@ -9,13 +9,14 @@ enum SharedMediaNativeReceivingCleanGraph {
     typealias Row = SharedMediaNativeReceivingIntentGraph.Row
     enum Witness {
         case allocating(SharedMediaNativePhotoAllocationSnapshot)
+        case initial(SharedMediaNativePhotoAllocationSnapshot)
         case generic(SharedMediaNativeReceivingPhaseGraph.Witness)
         case releasing(SharedMediaNativeReleaseMetadataSnapshot.Snapshot)
         case staged(SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot)
 
         var identities: [UUID] {
             switch self {
-            case .allocating(let snapshot):
+            case .allocating(let snapshot), .initial(let snapshot):
                 let p = snapshot.prepared
                 return [p.operationID, p.queueID, p.observationID, p.bindingID, p.generation, p.eventID]
             case .generic(let witness):
@@ -36,7 +37,7 @@ enum SharedMediaNativeReceivingCleanGraph {
 
         var packageID: UUID {
             switch self {
-            case .allocating(let snapshot): return snapshot.row.id
+            case .allocating(let snapshot), .initial(let snapshot): return snapshot.row.id
             case .generic(let witness): return witness.row.id
             case .releasing(let snapshot): return snapshot.release.slot.id
             case .staged(let snapshot): return snapshot.origin.row.id
@@ -47,7 +48,7 @@ enum SharedMediaNativeReceivingCleanGraph {
         var presentationAdvances: Int64 {
             get throws {
                 switch self {
-                case .allocating(let snapshot):
+                case .allocating(let snapshot), .initial(let snapshot):
                     return try SharedMediaNativeReceivingRows.recoveryPresentation(snapshot.recoveryPresentationData,
                         prepared: snapshot.prepared).remainingTransitions
                 case .generic(let witness): return try witness.recoveryPresentation?.remainingTransitions ?? 0
@@ -62,7 +63,7 @@ enum SharedMediaNativeReceivingCleanGraph {
         var executionAdvances: Int64 {
             get throws {
                 switch self {
-                case .allocating(let snapshot): return snapshot.allocation.remainingAdvances
+                case .allocating(let snapshot), .initial(let snapshot): return try PhotoPreparationPolicy.add([snapshot.allocation.remainingAdvances, snapshot.initialPin?.remainingAdvances ?? 0])
                 case .generic: return 0
                 case .releasing(let snapshot): return try snapshot.release.progress.remainingAdvances
                 case .staged(let snapshot): return try PhotoPreparationPolicy.add([1, snapshot.components.progress.remainingAdvances])
@@ -84,7 +85,10 @@ enum SharedMediaNativeReceivingCleanGraph {
               Row(saved) == row else { throw SharedMediaStorageFailure.stale }
         let revision = inventory.revision
         let result: Witness
-        if row.allocationData != nil || row.allocationSHA256 != nil {
+        if row.initialAdmissionData != nil || row.initialAdmissionSHA256 != nil || row.initialCompletionData != nil || row.initialCompletionSHA256 != nil {
+            result = .initial(try SharedMediaNativePhotoAllocationSnapshot.readInitial(row,
+                inventory: inventory, context: context, checkpoint: checkpoint))
+        } else if row.allocationData != nil || row.allocationSHA256 != nil {
             result = .allocating(try SharedMediaNativePhotoAllocationSnapshot.read(row,
                 inventory: inventory, context: context, checkpoint: checkpoint))
         } else if row.releaseStartData != nil || row.releaseStartSHA256 != nil {
@@ -142,43 +146,43 @@ enum SharedMediaNativeReceivingCleanGraph {
         try Task.checkCancellation(); try checkpoint()
         guard !context.hasChanges, inventory.revision == revision else { throw SharedMediaStorageFailure.stale }
         try requireAggregateRunway(inventoryRevision: revision, witnesses: Array(result.values),
-            terminalConsumptionAdvances: SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id, checkpoint: checkpoint).consumptionAdvances)
+            historical: SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id, checkpoint: checkpoint))
         return result
     }
 
     /// Substitute only the own execution budget; preserve its presentation,
-    /// every peer and terminal consumption exactly once. Callers retain their
+    /// every peer, applied handoff and terminal consumption exactly once. Callers retain their
     /// full-prestate audit and repeat this check immediately before saving.
     static func requireReplacementRunway(inventoryRevision: Int64, packageID: UUID,
                                          executionAdvances: Int64, saveAdvances: Int64,
-                                         witnesses: [UUID: Witness], terminalConsumptionAdvances: Int64) throws {
+                                         witnesses: [UUID: Witness], historical: SharedMediaNativeTerminalScan.Summary) throws {
         guard let own = witnesses[packageID], own.packageID == packageID else { throw SharedMediaStorageFailure.stale }
         let peers = witnesses.filter { $0.key != packageID }.values
         let remaining = try PhotoPreparationPolicy.add([saveAdvances, executionAdvances, own.presentationAdvances,
-            terminalConsumptionAdvances] + peers.map { try $0.remainingAdvances })
+            historical.remainingAdvances] + peers.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 
     /// Presentation CAS replaces only the own presentation obligation. Its save
     /// and successor transitions must fit alongside unchanged execution, peers
-    /// and terminal consumption. This arithmetic grants no phase/write authority.
+    /// applied handoffs and terminal consumption. This grants no phase/write authority.
     static func requirePresentationReplacementRunway(inventoryRevision: Int64, packageID: UUID,
                                                      presentationAdvances: Int64, saveAdvances: Int64,
-                                                     witnesses: [UUID: Witness], terminalConsumptionAdvances: Int64) throws {
+                                                     witnesses: [UUID: Witness], historical: SharedMediaNativeTerminalScan.Summary) throws {
         guard let own = witnesses[packageID], own.packageID == packageID else { throw SharedMediaStorageFailure.stale }
         // Validate the predecessor even though its obligation is being replaced.
         _ = try own.presentationAdvances
         guard presentationAdvances <= AnalysisRecoveryPresentation.maximumTransitions else { throw SharedMediaStorageFailure.invalid }
         let peers = witnesses.filter { $0.key != packageID }.values
         let remaining = try PhotoPreparationPolicy.add([saveAdvances, own.executionAdvances, presentationAdvances,
-            terminalConsumptionAdvances] + peers.map { try $0.remainingAdvances })
+            historical.remainingAdvances] + peers.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 
-    /// Complete pending-root arithmetic only; raw orphan/terminal enumeration
-    /// remains the scoped audit's obligation. This grants no write permission.
-    static func requireAggregateRunway(inventoryRevision: Int64, witnesses: [Witness], terminalConsumptionAdvances: Int64 = 0) throws {
-        let remaining = try PhotoPreparationPolicy.add([terminalConsumptionAdvances] + witnesses.map { try $0.remainingAdvances })
+    /// Complete pending plus historical arithmetic. Raw orphan and retained
+    /// enumeration remains the scoped audit's obligation; no write permission.
+    static func requireAggregateRunway(inventoryRevision: Int64, witnesses: [Witness], historical: SharedMediaNativeTerminalScan.Summary) throws {
+        let remaining = try PhotoPreparationPolicy.add([historical.remainingAdvances] + witnesses.map { try $0.remainingAdvances })
         _ = try SharedMediaStoragePolicy.add(inventoryRevision, remaining)
     }
 }

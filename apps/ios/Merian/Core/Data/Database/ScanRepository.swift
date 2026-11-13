@@ -502,9 +502,12 @@ final class ScanRepository {
     func eradicateScan(record: LocalScanRecord, modelContext: ModelContext,
                        origin: CloudDeletionIntent.Origin = .explicitUserDeletion,
                        allowsMutation: @MainActor () -> Bool = HistoricalSyncCloudClient.allowsLocalMutation) -> Task<Void, Never>? {
-        guard allowsMutation() else { return nil }
+        guard allowsMutation(), SharedMediaConsumerAuthority.permitsLegacyScanRemoval(raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID),
+              (try? SharedMediaConsumerLookup.hasScanOwner(record.id, in: modelContext)) == false else { return nil }
         let scanID = record.id
         return ConfirmedSpeciesReviewPersistence.transaction {
+            let modelContext = ModelContext(modelContext.container)
+            guard let record = try? SharedMediaConsumerLookup.legacyScanForRemoval(scanID, in: modelContext) else { return nil }
             do {
                 if origin != .explicitUserDeletion,
                    try ObservationHistoryEnrollmentIntent.protects(scanID, context: ModelContext(modelContext.container)) { return nil }
@@ -583,15 +586,15 @@ final class ScanRepository {
         resetDerivedState: @MainActor () -> Void,
         erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
         sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
-        resetRuntimeState: @MainActor () -> Void = {
-            AccountScopedRuntimeState.reset()
-        }
+        resetRuntimeState: @MainActor () -> Void = { AccountScopedRuntimeState.reset() },
+        validateAuthorization: @MainActor () -> Bool = { true }
     ) async -> Bool {
         let succeeded = await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
-            resetRuntimeState: resetRuntimeState, sharedMedia: sharedMedia, erasePhotoPreparation: erasePhotoPreparation
+            resetRuntimeState: resetRuntimeState, sharedMedia: sharedMedia, erasePhotoPreparation: erasePhotoPreparation,
+            validateAuthorization: validateAuthorization
         )
-        if succeeded { resetDerivedState(); libraryRestoration.reset() }
-        return succeeded
+        if succeeded && validateAuthorization() { resetDerivedState(); libraryRestoration.reset(); return true }
+        return false
     }
 }

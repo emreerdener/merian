@@ -5,7 +5,7 @@ struct CaptureReanalysisSheet: View {
     @Bindable var editor: CaptureReanalysisEditor
     let close: () -> Void
     @State private var selectedImport: PhotosPickerItem?
-    @State private var preview: ObservationHistoryPhotoReference?
+    @State private var preview: UUID?
     @State private var confirmsDiscard = false
 
     var body: some View {
@@ -53,6 +53,7 @@ struct CaptureReanalysisSheet: View {
                 await editor.importPhoto(item)
                 selectedImport = nil
             }
+            .task { await editor.loadRetainedOptions() }
         }
         .interactiveDismissDisabled()
     }
@@ -60,10 +61,10 @@ struct CaptureReanalysisSheet: View {
     private var originalPhotos: some View {
         Section {
             Text("Choose the original photos to include. You can review them and add new photos next.")
-            ForEach(Array(editor.photos.enumerated()), id: \.element.mediaID) { index, photo in
+            ForEach(Array((editor.photos.map(\.mediaID) + editor.retainedPhotoIDs).enumerated()), id: \.element) { index, photo in
                 HStack {
-                    Button { editor.toggle(photo.mediaID) } label: {
-                        Label("Photo \(index + 1)", systemImage: editor.selectedPhotoIDs.contains(photo.mediaID) ? "checkmark.circle.fill" : "circle")
+                    Button { editor.toggle(photo) } label: {
+                        Label("Photo \(index + 1)", systemImage: editor.selectedPhotoIDs.contains(photo) ? "checkmark.circle.fill" : "circle")
                     }
                     .buttonStyle(.borderless)
                     Spacer()
@@ -71,8 +72,13 @@ struct CaptureReanalysisSheet: View {
                 }
                 .disabled(editor.isBusy)
             }
-            if editor.photos.isEmpty { Text("Add new photos on the next screen.").foregroundStyle(.secondary) }
-            Button("Continue") { Task { await editor.loadSelection() } }.disabled(editor.isBusy)
+            if editor.photos.isEmpty && editor.retainedPhotoIDs.isEmpty {
+                Text("Add new photos on the next screen.").foregroundStyle(.secondary)
+                if editor.canReloadOriginals {
+                    Button("Reload original photos") { Task { await editor.loadRetainedOptions() } }
+                }
+            }
+            Button("Continue") { Task { await editor.loadSelection() } }.disabled(!editor.canContinue)
         } footer: { Text("Up to five photos. The identification you opened will remain the source even if your library selection changes.") }
     }
 
@@ -109,7 +115,7 @@ struct CaptureReanalysisSheet: View {
 
 private struct CaptureReanalysisPhotoPreview: View {
     let editor: CaptureReanalysisEditor
-    let photo: ObservationHistoryPhotoReference
+    let photo: UUID
     @State private var image: UIImage?
     @State private var failed = false
 

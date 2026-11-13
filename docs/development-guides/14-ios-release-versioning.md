@@ -41,6 +41,19 @@ The global ATS exception is also removed. Source and signed archives must retain
 ATS defaults and credential-free HTTPS origins under the
 [iOS App Transport Security Contract](./17-ios-transport-security.md).
 
+## History-enabled 1.1.0 candidate
+
+Main-app Release now opts into the primary normal-OAuth History composition. The
+shared `validate-ios-history-release.py` check is called by archive and IPA
+validation and the unsigned CI archive gate: enabled marker, qualification off,
+blank alternate Auth namespace and primary bundle/group/Keychain identities are
+required. This metadata check does not replace compiler/source provenance,
+signing or functional acceptance. CI additionally rejects the local History
+diagnostic category from the Release binary. HistoryTesting and
+HistoryQualification still refuse archive/distribution. Follow the
+[current candidate checklist](../../.artifacts/identification-history-release-checklist.md)
+for remaining exact-source, device and distribution gates.
+
 ## Policy
 
 Xcode Organizer is the sole distribution authority for Naturebook iOS builds. It

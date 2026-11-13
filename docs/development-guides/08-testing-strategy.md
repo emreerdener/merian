@@ -1,3 +1,60 @@
+### Local History diagnostic preflight coverage
+
+The History review model, selected-result review access, host and view bridge
+have exact fast-preflight coverage matching the existing Insights 600-segment
+ceiling. This adds coverage, not a limit exception. The local-only
+HistoryTesting diagnostic candidate records operation stages and closed error
+categories; it does not qualify or fix the retained Undo freeze.
+
+### Inactive initial status-to-History checkpoint
+
+The204 settled-presentation join passed three methods/four cases in
+`SharedMediaNativeInitialBindingFoundationTests`, covering both pin orders,
+exhausted settled time, exact application writes and V1/V2 receipt
+compatibility. The subsequent205 status adapter passed nine methods/sixteen
+expanded cases in that suite, `SharedMediaNativeRecoveryPresentationOwnerTests`,
+`SharedMediaNativeReceivedStatusTests` and `CaptureNativeRecoveryClockTests`.
+The XCResult reconciles zero failures/skips and no structured runtime warnings.
+Missing successor injection at readback is synthetic uncertainty coverage, not
+actual SQLite failure or process-crash qualification. The206 attempt bound
+passed two methods/three cases: four lost application replies, fifth clock hold
+with status still available, exact replay cleanup and both settled pin orders.
+The 2857.708s result span is evidence, not performance acceptance. The207
+private lock repair passed seven methods/nine cases, including the preserved
+private boundary assertion and injected lost-return application replay, with
+independent scoped verification. Its first command failed shell parsing before
+build launch; that non-run remains recorded separately from the passing
+corrected invocation.
+
+The208 retained-display join passed79selected methods across its original run
+and focused hydration rerun, with independent evidence verification. Native01
+had78passes and one overconstrained assertion: retained items/text/focus were
+unchanged while reference hydration legitimately loaded an image. The corrected
+assertion passed all5historical-load methods in native02; retain the original
+failure. Both3098-input manifests match, isolated caches were removed, and final
+applicable results have no failures/skips/structured warnings. The
+final-publication deletion fixture targets a queued intent that preserves
+binding; it does not claim an actual SQLite failure or process crash. Preserve
+remaining all-media, device and cumulative functional acceptance in the
+continuation record. The
+[end-to-end guide](25-scan-to-history.md#retained-initial-photo-display-candidate)
+links current ownership and limitations.
+
+The retained-photo regression in
+`SharedMediaNativeInitialBindingFoundationTests` starts at a saved allocation
+and uses a lost synthetic execution reply. Run
+`retainedPhotoChildRecoversOnceAndHistorySelectionUndoPreservesBothVersions` for
+recovery, selection, Undo and reopening the original media; pair it with
+`advancedEnrollmentAcknowledgementPreservesOriginalAndLaterSelection` when
+changing the receiving job checks. These checks do not exercise a fresh Capture
+upload, provider execution or installed operation.
+
+The paired enrollment import also uses the exact
+`ObservationHistoryStateSyncService.swift` owner in `globalOnlyFiles`, retaining
+the existing 600 physical-line ceiling. This adds no sibling coverage or relaxed
+limit. Swift/Python policy parity and the native hygiene architecture suite
+remain required when changing this coverage.
+
 ### V67 receiving allocation checkpoint coverage
 
 The fast preflight also covers the exact active receiving record, aliases, V67
@@ -30,6 +87,39 @@ guard or external authorization; build/target/account/data containment must be
 implemented and reviewed before use. Component or fixture success does not close
 populated-store, device, hosted, resource or real-wiring acceptance.
 
+## Native pending original-photo preview checks
+
+`SharedMediaNativeReceivedPhotoReadbackTests` covers bounded indexed original
+preview, cold reopening, held-work nonmutation, whole-cohort file replacement
+and account/cancellation fences. `CaptureNativeRecoveryModelTests` covers late
+preview publication and joining scope checks on closure. Run these with the
+existing native receiving and Capture architecture checks for completion279;
+native02 passed 46 methods/109 cases with zero failures/skips and 4,183
+unchanged inputs, independently verified. The first lint failure remains
+retained. The preview uses one 2048-pixel raster and existing native original
+limits; decoder peak memory and physical-device/accessibility qualification
+remain separate open acceptance.
+
+## Normal OAuth History configuration verification
+
+`HistoryTesting` and main-app `Release` enable the prepared History composition
+using the unchanged primary OAuth session. Release excludes the local diagnostic
+compile condition. Generated-setting tests distinguish main-app Release from
+Debug/companions; archive/IPA metadata guards reject disabled History,
+qualification mode and alternate namespaces.
+`scripts/test-ios-device-review-schemes.py
+--swift-qualification` compiles
+ordinary, scoped-Auth and normal-OAuth modes, rejects mixed/Debug markers and
+malformed identities/targets, and executes the production composition
+admission/factory prefix against a real synthetic bundle. These are host-Swift
+boundary tests, not an iOS provider or backend journey. The managed
+`HistoryTesting` simulator build verifies the complete app and companions. Its
+archive/distribution guard stays closed. See the
+[device-review contract](24-identification-history-device-review.md#november-12--history-with-normal-oauth).
+The new configuration owner has the same 600-physical-line preflight ceiling as
+`MerianEnvironment`; no source or storage limit is raised. Store-preservation
+failures now use the mode-neutral `existing_store_preserved` telemetry reason.
+
 ## Local coding checkpoints and validation milestones
 
 A small internal commit is a coding checkpoint, not an automatic request for
@@ -42,6 +132,62 @@ candidate. Explicitly required intermediate gates still apply. Reuse evidence
 only while its source inputs, dependencies and environment remain applicable;
 record its exact scope and never count an unrun check as passed.
 
+For Swift Testing method filters, use the exact test identifier including `()`
+(for example, `-only-testing:merianTests/SuiteName/methodName()`). Reconcile the
+executed method names and counts in the XCResult; a successful command can leave
+a suite empty when a filter matches no method. Record such methods as unrun,
+then execute only the missing checks while retaining applicable passing
+evidence.
+
+For the initial photo transfer, select
+`merianTests/PinnedPhotoUploadTaskTests/maximumOriginalStreamResources(cancelHalfway:)`
+with the managed simulator runner. The two cases drive the foreground upload
+task with a 32 MiB synthetic original. The intercepted receiver reads the task's
+body stream to completion or cancels halfway. The log records bytes read and a
+four-value sample for each phase: additional allocated bytes represented by
+other open regular files in the test process, current app memory footprint,
+lifetime peak footprint, and whether the original inode is open (1 or 0). The
+baseline follows fixture creation, and the final sample follows the owned
+ephemeral session's invalidation callback. These measurements cover the sampled
+file descriptors and process. System-wide storage and restart qualification
+follow the
+[native transfer contract](../rfcs/client-prepared-photo-content-contract-2026-10-27.md#native-transfer-lifetime-and-accounting).
+
+The stable-auth renewal candidate adds exact fast-preflight coverage for
+`OfflineQueueManager.swift`, `AuthSessionLifecycleCoordinator.swift` and
+`AuthSessionLifecycleCoordinationDependencies.swift`, matching their existing
+600 physical-line global/Core Network ceilings. Qualification preparation adds
+that same existing 600-line coverage for `MerianEnvironment`,
+`HistoryQualificationIdentityEvidence`, the SDK client factory,
+provider/callback coordinators, `OAuthSignInWorkflow`, the exact-subject
+`OAuthIdentityTokenPolicy`, both live Auth service adapters and
+`ExploreWidgetCache`. The reviewed ancillary-service fix adds the same coverage
+for `PostHogManager`, and preserves the stricter existing 600 newline-segment
+limit for `RevenueCatManager`; no size limit is raised.
+
+Primary-app qualification adds exact fast-preflight coverage for
+`ModelContainerBootstrapper.swift`, preserving its existing 600 newline-segment
+Store Recovery architecture ceiling, and covers
+`AuthSessionRecoveryCoordinator.swift` at its existing 600 physical-line
+ceiling. Sign-out, Auth-failure cleanup and store-failure preservation checks
+accompany the identity change; no size or storage limit is raised.
+
+The saved-reanalysis recovery sidecar store has an exact 600-physical-line
+preflight rule matching the global production ceiling. Its focused persistence
+suite covers sidecar CAS, save ambiguity, restart, accounting and removal; it
+does not qualify the later screen/retained-operation integration.
+
+The existing `UITestSeedCoordinator+AudioReanalysisSheet.swift` Debug fixture
+also has exact preflight coverage at 600 physical lines. Its consumed-recovery
+UI test counts exact outcome checks separately from execution and consent; the
+Models integration architecture guard continues to enforce its Debug-only,
+explicit-launch boundary.
+
+The V5 action candidate adds exact preflight coverage for
+`ObservationAnalysisReviewTicket.swift` and
+`ObservationHistoryMutationTransport.swift`, retaining their existing
+600-physical-line ceilings. No architecture limit is raised.
+
 Use the bounded fast preflight after editing batches and before expensive
 validation, with explicit candidate paths so unrelated work is not selected:
 
@@ -50,6 +196,16 @@ make ios-fast-preflight ARGS='--report .artifacts/preflight-edit01.json apps/ios
 make ios-fast-preflight ARGS='--before-build --report .artifacts/preflight-build01.json apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureNativeRecoveryModel.swift'
 make test-ios-fast-preflight
 ```
+
+The existing Core-wide 600-physical-line ceiling explicitly covers
+`AppDIContainer.swift` in the shared preflight policy. The prepared reanalysis
+host pre-drain keeps `SupabaseManager.swift` within its unchanged 3,792-line
+ceiling and preserves the existing aggregate Auth budgets.
+
+`LibraryTransitionIssue.swift` also has exact preflight coverage under its
+existing 600-physical-line Auth-owner limit. Account-recovery alert copy does
+not increase the aggregate Auth budget or change account-transition
+authorization.
 
 Candidate paths must use canonical repository-relative file spelling; aliases,
 symlinks and directory arguments are rejected. Policy-only changes enter native
@@ -74,6 +230,21 @@ global rule. The 610-line original-owner seal does not exempt that owner from
 the global 600-line inventory rule. Each matching domain rule is also checked;
 physical-line and newline-segment counters are deliberately distinct.
 
+The exact `Configuration/TestExecutionCoordinator.swift` preflight rule mirrors
+`FeatureFlagsArchitectureTests.configurationSwiftFilesStayBounded`: 600 newline
+segments, with no coverage implied for other Configuration files. Its process
+signal ownership remains enforced by `TestExecutionCoordinatorTests`.
+
+Prepared video submission adds exact preflight coverage for
+`ObservationVideoSubmissionService` (600 physical lines),
+`OfflineQueueManager+VideoSubmission` and `ObservationVideoUploadOwner` (600
+newline segments). The latter two mirror
+`OfflineSyncFoundationArchitectureTests`. Existing-only video resume/status and
+the shared audio/video status index/owner have exact 600-physical-line coverage.
+The explicit video resume service and audio/video composition extensions also
+have exact 600-physical-line rules; the composition rules match
+`AppRootArchitectureTests`. Other domains remain fail-closed.
+
 The Python counter preserves Swift Character behavior, including CRLF as one
 Character rather than a standalone newline delimiter. The macOS
 `test-ios-fast-preflight` target compiles the Foundation-only Swift helper in
@@ -83,8 +254,13 @@ and every configured boundary fixture against Python. The portable
 Swift parity. Neither is native test-target or runtime qualification.
 
 Domain coverage is deliberately bounded to Capture, the listed Camera files, the
-globally bounded SharedMediaStorage/PhotoPreparation directories, and twelve
+globally bounded SharedMediaStorage/PhotoPreparation directories, and eighteen
 exact Network owners: `Core/Network/Inference/IdentificationPreflight.swift`,
+`Core/Network/Inference/InitialAnalysisCanonical.swift`,
+`Core/Network/Inference/InitialCompletionDocuments.swift`,
+`Core/Network/Inference/InitialCompletionSchema.swift`,
+`Core/Network/Inference/InitialRetainedResult.swift`,
+`Core/Network/Inference/InitialRetainedResultSchema.swift`,
 `Core/Network/Endpoints/MerianNetworkClient+IdentificationPreflight.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoTransferRequest.swift`,
@@ -94,27 +270,104 @@ exact Network owners: `Core/Network/Inference/IdentificationPreflight.swift`,
 `Core/Network/Models/ObservationAnalysis/InitialPhotoUploadTicket.swift`,
 `Core/Network/Transport/InitialPhotoAllocationTransport.swift`,
 `Core/Network/Transport/PinnedBoundedJSONDataTask.swift`,
-`Core/Network/Transport/AuthenticatedTransportDispatcher.swift` and
+`Core/Network/Transport/AuthenticatedTransportDispatcher.swift`,
+`Core/Network/Transport/PinnedNetworkDataTaskState.swift` and
 `Core/Network/Transport/PinnedNetworkTransport.swift`. Each Network file retains
 the existing Core Network 600 physical-line ceiling. The Auth facade
 `Core/Network/SupabaseManager.swift` additionally retains its existing 3,792
 physical-line ceiling; the Auth/Purchase aggregate budgets remain enforced by
 `CoreNetworkIntegrationArchitectureTests`. This does not cover sibling Network
-files or replace the owning architecture checks. Three exact image
-owners also retain the 600 physical-line ceiling:
+files or replace the owning architecture checks. Three exact image owners also
+retain the 600 physical-line ceiling:
 `Core/Data/Images/MediaPreparationActor.swift`,
 `Core/Data/Images/Policies/ImagePreparationPolicy.swift` and
 `Core/Media/ImageCropProcessor.swift`. Sibling image/media files remain outside
-this coverage. Other production candidates fail with an unsupported-domain
-diagnostic rather than silently using only 600 lines. Test-file and other
-domains' stricter or aggregate limits remain in their owning architecture tests;
-the preflight does not replace them. Extend shared coverage with parity fixtures
-when a new domain enters the candidate. The exact outgoing
-`Models/Schema/SchemaV66.swift` snapshot also has explicit coverage at the
-unchanged global 600 physical-line ceiling; sibling schemas and migration
-registry/recovery rules remain outside this size check. Keep the policy file
-available in the repository for native source-inspection tests, just like the
-source files those tests read.
+this coverage. The exact original-result projection owner
+`Core/Data/Database/LocalScanRecordFactory.swift` and its stateless
+`LocalScanRecordFactory+InitialCompletion.swift` extension each enforce the
+existing architecture ceiling of 150 physical lines. The domain candidate
+decoder in `Models/Species/SpeciesObservationModels.swift` retains its 600
+physical-line ceiling. The initial retained-media deletion boundary also covers
+exactly `Core/Data/Database/ScanRepository.swift`,
+`Core/Data/Database/BackgroundDatabaseActor+NonBiologicalRetention.swift` and
+`Features/Scans/Shared/Services/ScanDeletionService.swift` at the same unchanged
+600 physical-line ceiling. Sibling database/domain/Scans owners remain outside
+preflight coverage. The exact enrollment owners
+`Core/Data/AnalysisHistory/ObservationHistoryEnrollmentIntent.swift`,
+`Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift` and
+`Core/Data/AnalysisHistory/ObservationHistoryEnrollmentOwner.swift` retain the
+600 physical-line ceiling. The recovery reader additionally covers exactly
+`Core/Data/AnalysisHistory/ObservationHistoryEnrollment.swift` and
+`Core/Data/AnalysisHistory/ObservationHistoryCloudClient.swift` under the same
+global ceiling; sibling History owners remain outside this coverage. The
+retained-photo reanalysis candidate additionally covers exactly
+`Core/Data/AnalysisHistory/ObservationReanalysisRetainedInput.swift`,
+`ObservationReanalysisPreparationPlan.swift`,
+`ObservationReanalysisProducer.swift` and
+`ObservationReanalysisPersistence+Preparation.swift` in that same directory,
+plus `App/Composition/PreparedHistoryReanalysisComposition.swift`, as exact
+`globalOnlyFiles` entries at the unchanged 600 physical-line ceiling.
+`ModelsIntegrationArchitectureTests.historyStorageHasFencedAdmissionOwnersAndNoOrdinaryScheduling`
+continues to enforce the owning admission and activation boundaries. The
+retained-display join additionally covers fourteen exact Insight and inference
+owners listed in `fileRules`, preserving their owning architecture tests' 600
+newline-segment ceiling; `Core/Models/ActiveScanMedia.swift` is an exact
+`globalOnlyFiles` entry retaining the existing global physical-line ceiling.
+Sibling files remain unsupported. Boundary fixtures and Swift counter parity
+cover these entries; the owning native architecture suites remain required. The
+ordinary-completion integration additionally covers the exact twelve existing
+request, result, pipeline, transport and database files listed in `fileRules`.
+Their existing domain limits remain unchanged: 180 physical lines for
+`InferenceProcessingActor`, 200 for the background finalization service, 220 for
+scan-record support, 250 for offline persistence, 350 for live persistence, and
+the existing 600-line domain ceilings for the remaining listed owners. The new
+account-scope and ordinary-proof files are exact `globalOnlyFiles` entries under
+the unchanged global ceiling. Executable parity checks cover each rule; sibling
+owners remain unsupported and owning architecture checks remain required.
+
+The bounded cold input cleanup integration additionally covers exactly
+`Core/Data/AnalysisHistory/ObservationReanalysisErasureOwner.swift` at the
+unchanged 600 physical-line ceiling, with shared-policy boundary parity tests.
+The Core architecture gate and focused cleanup runtime tests remain required.
+
+The exact
+`Core/Network/Auth/Coordinators/LibrarySignOutRecoveryCoordinator.swift`
+preflight rule mirrors the existing 600 physical-line Core Network limit.
+`CoreNetworkIntegrationArchitectureTests` still owns the Auth aggregate budgets;
+`LibrarySignOutRecoveryTests` exercises journal drift across each asynchronous
+recovery boundary. The nested-drain batch also adds exact unchanged
+600-physical-line coverage for `AuthLocalSignOutCoordinator`,
+`Core/Security/LibrarySignOutJournal.swift` and
+`Core/Data/Database/ScanLibraryPurgeService.swift`. Boundary parity and the
+owning architecture/runtime tests remain required. Other sibling owners remain
+outside this addition.
+
+The PostgREST recovery correction adds exact preflight coverage for
+`Core/Network/Transport/AuthenticatedRequestExecutor.swift` and
+`Core/Network/Transport/EdgeFunctionRoutePolicy.swift` under the unchanged
+600-physical-line global cap. Their owning Network architecture checks and
+recovery/Edge-route tests remain required; host preflight parity tests share the
+managed build lock and must run after active native work completes.
+
+Qualification startup adds exact physical-line preflight rules for
+`AuthSessionBootstrapCoordinator.swift` and
+`AuthSessionBootstrapCoordinationDependencies.swift` at the unchanged 600-line
+ceiling. `CoreNetworkIntegrationArchitectureTests` still enforces Auth and
+combined facade budgets. Disabled-bootstrap drain/presentation regressions and
+the pinned-SDK empty qualification-storage listener test cover this boundary;
+these do not establish the running physical phone state.
+
+Other production candidates fail with an unsupported-domain diagnostic rather
+than silently using only 600 lines. Test-file and other domains' stricter or
+aggregate limits remain in their owning architecture tests; the preflight does
+not replace them. Extend shared coverage with parity fixtures when a new domain
+enters the candidate. The exact outgoing `Models/Schema/SchemaV66.swift`
+snapshot also has explicit coverage at the unchanged global 600 physical-line
+ceiling. The V68 outgoing queue and scan snapshot files and the exact V69
+registry also have coverage at that same ceiling, checked by the shared counter
+parity suite; sibling schemas and migration registry/recovery rules remain
+outside this size check. Keep the policy file available in the repository for
+native source-inspection tests, just like the source files those tests read.
 
 For the next identification-history integration trial, track implementation,
 build/test, review and blocked time separately, plus cheap failures found before
@@ -253,13 +506,19 @@ complete Deno task with `SUPABASE_DB_TEST_URL`, and finishes with database lint
 plus security and performance advisors. It declares no Production environment,
 receives no production secrets, and contains no migration push, Function
 deployment, or production smoke. A green candidate run is therefore
-database/runtime evidence, not proof of deployment. Every main push invokes this
-complete reusable gate once through `deploy.yml`; only production-relevant
-undeployed changes proceed to the separate mutation job. Candidate readiness is
-a release prerequisite, not a pre-push branch restriction. The shared Deno setup
-action makes at most three attempts with the same immutable installer SHA, then
-verifies exact version `2.9.4`; exhausted retries remain a failed candidate
-rather than being treated as passing evidence.
+database/runtime evidence, not proof of deployment. Every main push requires
+this complete gate through `deploy.yml`. Its read-only resolver can reuse the
+latest successful same-SHA standalone run within 24 hours only after checking
+complete job/step execution and retained same-attempt C1/handoff artifact
+provenance. An active standalone run stops duplicate validation; absent, stale,
+failed or unverifiable evidence requires fresh complete validation. The
+resolver's negative cases are tested in
+`resolve_candidate_validation_reuse_test.ts`; release controls are unchanged.
+Only production-relevant undeployed changes proceed to the separate mutation
+job. Candidate readiness is a release prerequisite, not a pre-push branch
+restriction. The shared Deno setup action makes at most three attempts with the
+same immutable installer SHA, then verifies exact version `2.9.4`; exhausted
+retries remain a failed candidate rather than being treated as passing evidence.
 
 The atomic-admission/C1 lane uses
 `services/supabase/scripts/test_initial_atomic_admission_c1.py` and its
@@ -286,6 +545,22 @@ installed journeys or production timing. Activation must be disabled at each
 suite's final check. Full catalog, Edge, migration-recovery and other candidate
 gates remain independently required; these receipts do not authorize activation
 or deployment.
+
+The separate original-media handoff resource harness
+(`test_initial_media_handoff_resources.py`) retains failed or unresolved
+outcomes. Its optional local bridge diagnostics record only fixed psql phase
+markers and bounded arrival times under the existing five-second transaction
+acknowledgement limit. Buffering may combine markers; missing markers do not
+prove a server phase was not reached, and arrival intervals are not server CPU
+measurements. `recovered_transfer_present` describes the validated recovery
+read; it does not turn an unresolved transfer into passing acceptance or permit
+a mutation retry. Large-input admission catalog diagnostics identify the closed
+synthetic variant, original anchor/cutoff and stage clock observations without
+input or receipt bodies. `body_completed` precedes rollback checks; pgTAP is the
+passing-test authority. `failure_observed` is sampled after exception unwind and
+may be absent for cancellation. Preserve the original failed evidence when
+running a separately identified diagnostic fixture; do not extend deadlines or
+replay an uncertain mutation to obtain a passing result.
 
 The OpenAI adapter lane explicitly denies network and environment access. It
 covers the historical evaluation adapter, production photo adapter, and closed
@@ -771,6 +1046,35 @@ boundaries:
 }
 ```
 
+Saved-photo preview adds exact fast-preflight coverage for
+`ReanalysisSavedPhotoAccess.swift` and
+`ObservationReanalysisAdmissionStore.swift`, both at the existing 600 physical
+line ceiling. Its focused suites cover ordered full-cohort reads, admission
+wrappers, presentation lifetime and the existing status/admission architecture.
+This does not qualify initial-native or video original viewing.
+
+Saved-video preview adds exact preflight coverage for `MemoryVideoAsset.swift`
+at the existing 600 physical-line ceiling. Its focused tests exercise a real MP4
+via memory after removing the fixture file, bounded range arithmetic,
+full-cohort refusal and late playback/presentation callbacks.
+
+The held-queue process-relaunch UI fixture has an exact 600-physical-line fast
+preflight rule matching the unchanged global guard. Its marker also belongs to
+the existing Release binary seed denylist, and the model integration
+architecture check requires its entire source and modifier to stay Debug-gated.
+The runtime selector remains in the shared audit manifest; its dedicated
+synthetic disk store is retained as explicitly named test evidence, separate
+from the normal in-memory UI-test library. See the
+[runtime methodology](18-ios-runtime-quality-and-benchmarking.md#november-9--dedicated-held-queue-restart-methodology).
+
+The History interaction owner has an exact fast-preflight rule matching the
+unchanged 600-segment Insights integration ceiling.
+`IdentificationHistoryViewModelTests` covers command ownership release before
+parent acknowledgement, including Undo and a failed post-acknowledgement page.
+`IdentificationHistoryReviewLifecycleTests` covers automatic receipt refresh
+with and without a revision change. These local checks do not by themselves
+resolve the intermittent installed-simulator freeze recorded in completion412.
+
 ## Local iOS Build Storage
 
 Local command-line validation uses `scripts/local-ios-build.py`. Reusing a small
@@ -934,6 +1238,50 @@ compilation, and qualified build-setting override rejection. The complete
 also trigger the iOS scope detector.
 
 ## Automated runtime acceptance and performance audit
+
+### Analysis/History storage responsiveness acceptance
+
+The November 7 user acceptance requirement (HQ-232 in the current findings
+register) includes checking and fixing demonstrated responsiveness/scaling
+impact of repeated native storage audits before the manual-testing handoff.
+Retained native230 Debug simulator profiles locate MainActor
+`appReceivingQuery → inspectApp → ScopedAudit → header → CleanGraph.pending →
+TerminalScan`
+work. They identify a production-path hotspot, not a measured Release-device
+regression; neither the twenty-hour suite nor the instrumented fixture duration
+is a phone-latency claim.
+
+At a safe checkpoint before the next complete regression, use the existing
+`SharedMediaNativeAllocationStatusRecoveryTests/allocationStatusAuditMeasurementsPreserveSavedAttempt()`
+and
+`SharedMediaNativeReceivingTerminalReaderTests/pagesHistoricalTerminalsWithoutCreatingPendingPackages()`
+measurements on the same local runtime/configuration. Reuse InspectionTrace and
+its component/checkpoint counters. Independently review any production audit
+optimization for concurrency/security and compare focused before/after results.
+Preserve all selectors, parameter rows, assertions, real durable storage, cold
+reopen, source media and race/resource cases. Keep cancellation/account/session/
+generation fences, dirty-context and same-revision corruption detection, exact
+store/root/file identities, post-await/post-save validation, bounded paging and
+crash/recovery protections. Inventory revision alone cannot justify caching or
+skipping a check. Do not introduce blanket parallelism, mocks in place of
+durable coverage, smaller matrices or an unchanged full diagnostic rerun. If
+bounded local work demonstrates no safe benefit, retain the hotspot and continue
+implementation; this does not waive final responsiveness acceptance.
+
+Integrated qualification must measure production-like Release/device behavior
+for initial submission, saved/history loading, explicit recovery/status refresh,
+reanalysis and applicable cleanup/navigation/dismissal. Include small and
+realistically larger retained histories, bounded pending-package limits, and
+cold/warm entry. Record exact build/environment, workload sizes, action/phase
+latency distributions and main-thread stalls using existing tools. Apply
+existing product performance requirements and report observed responsiveness; do
+not invent a universal wall-clock threshold. No live provider calls are needed
+merely to benchmark storage. Fix demonstrated material UI stalls or pathological
+history-size scaling and remeasure before final acceptance. Faster simulator
+tests alone do not close the requirement. Device installation or profiling that
+needs separate authority follows the existing
+[qualification packet and target controls](24-identification-history-device-review.md);
+pending device evidence must stay explicit.
 
 The acceptance selector manifest is
 [`scripts/config/ios-runtime-audit.json`](../../scripts/config/ios-runtime-audit.json).
@@ -1099,16 +1447,22 @@ cleanup preserves all evidence. SQLite fixtures deliberately retain temporary
 WAL files until the test process exits to avoid Core Data vnode traps; remove
 leftover temporary fixtures only after Simulator/test processes stop.
 
-Remaining automated-integration gaps are a single composed capture→queue→live
-response→Insight test, active sign-out across that whole chain, concurrent
-terminal-download callbacks with once-only queue cleanup/publication, injected
-partial-file/save failure, and production-bootstrap V50 plan selection through
-an injected store URL. Onboarding and Explore have selected behavioral suites
-but lack complete hermetic UI flows. Physical devices are required for camera,
-microphone, video codec/playback peak memory, thermal throttling, OS background
-transfer/process termination, first-install cold launch, actual main-thread
-stalls and sustained full-flow retained-memory growth. Simulator measurements
-cannot establish those outcomes or a provider/network performance baseline.
+The local staged-photo terminal, sign-out drain and duplicate-callback
+composition is covered by `CaptureTerminalAcceptanceTests`. Its audio method
+covers ordinary audio submission with optional text, queue-owned WAV
+preservation, actual result finalization, retained media, completed Insight
+binding and once-only publication. The responses are synthetic. Coverage and
+remaining physical boundaries are detailed in the
+[runtime quality guide](18-ios-runtime-quality-and-benchmarking.md). Injected
+partial-file/save failure across the composed all-media journey and
+production-bootstrap V50 plan selection through an injected store URL remain
+separate integration gaps. Onboarding and Explore have selected behavioral
+suites but lack complete hermetic UI flows. Physical devices are required for
+camera, microphone, video codec/playback peak memory, thermal throttling, OS
+background transfer/process termination, first-install cold launch, actual
+main-thread stalls and sustained full-flow retained-memory growth. Simulator
+measurements cannot establish those outcomes or a provider/network performance
+baseline.
 
 ## Compiled iOS CI Gate
 
@@ -2913,7 +3267,12 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 - **`FileIOActorTests.swift`**: Covers the audio persistence resolver across the
   current supported path shapes: bare Documents filename, bare temp filename,
   and absolute temp path. This is the regression suite for "audio disappears
-  after identification" class bugs.
+  after identification" class bugs. It also covers bounded chosen-video copying,
+  cancellation/partial cleanup, source mutation and replacement,
+  symlink/hardlink refusal and identity-checked cleanup.
+  `ObservationReanalysisLocalVideoInputTests` checks owner/descriptor/deletion
+  fences around copy and exact child/text/cohort reuse. These prepared-only
+  selectors do not qualify an installed route.
 - **Insights Shell and product-area suites**: The Shell owner contains
   `InsightShellArchitectureTests`, `InsightShellCapabilitiesTests`,
   `InsightShellLifecycleTests`, `InsightShellPresentationTests`,
@@ -4001,6 +4360,14 @@ current-source build, and a build blocked during package resolution does not
 execute the focused matrix. Dated local results and outstanding checks belong in
 the
 [cleanup plan](../rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+The XcodeGen-owned `SwiftLint Validation` build phase runs
+`swiftlint lint --strict --no-cache`. With SwiftLint installed, a lint warning
+fails the build phase; a missing installation still emits the existing explicit
+tool warning. Run `swiftlint lint --strict --no-cache` for the complete
+production-source baseline. Keep justified domain-name, nested-state and tuple
+exceptions local to their declarations with explanations. Do not suppress
+compiler concurrency warnings.
+
 Run strict SwiftLint on affected production sources when SourceKitten is
 functional, format changed Markdown with `deno fmt`, and finish with
 `make validate-markdown-format` and `git diff --check`.
@@ -4499,7 +4866,14 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   feature-owned view-model suite.
 - **Environment context suites**: Live under `Core/Hardware/EnvironmentContext/`
   and use initializer-injected probes rather than
-  `EnvironmentContextManager.shared` or Apple services.
+  `EnvironmentContextManager.shared` or Apple services. Debug unit-test host
+  composition selects denied, inert location hardware before any Core Location
+  construction or authorization read; the explicit UI-test process keeps live
+  hardware, and Release excludes this substitution.
+  `TestExecutionCoordinatorTests` verifies the unit/UI signal boundary and
+  `EnvironmentLocationControllerTests.unitTestHostDependenciesRemainInert`
+  verifies no authorized location or prompt path is available. The shared
+  preflight policy mirrors the controller's existing 375-segment ceiling.
   `EnvironmentLocationPolicyTests` locks authorization/prompt decisions, the
   inclusive 0...30 m accuracy boundary, invalid-fix rejection, cache precision,
   placemark display, and ISO-region normalization.
@@ -4724,9 +5098,15 @@ import, and permission-denial UI require the physical-device checklist in
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
   sixty-four Auth foundation paths and caps Auth, Purchase Identity,
   `SupabaseManager.swift`, and their combined production surface at 7,887,
-  2,016, 3,792, and 13,695 lines, respectively. It includes the effect-free
-  observable runtime owner for transition, generation, analytics-token,
-  exact-session lease/drain, and local sign-out state; focused
+  2,016, 3,792, and 13,695 lines, respectively. The November 9 approved
+  test-instrumentation allowance subtracts at most 66 Debug-only physical lines
+  from Auth (61 in `AuthSessionLifecycleLiveProvider.swift`, five in its `+Live`
+  factory). Each complete file must match its independently reviewed SHA-256
+  before subtraction; any edit requires renewed independent review and an
+  intentional hash update. All other Auth lines, purchase/facade counts and
+  individual 600-line ceilings remain physical and unchanged. It includes the
+  effect-free observable runtime owner for transition, generation,
+  analytics-token, exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;
   the listener's generation/context/transition-observation order; the bootstrap
   dependency/coordinator pair plus focused SDK service/live adapter and
@@ -9517,15 +9897,16 @@ The identity test matrix now has two explicit lanes:
   transition admission, Google verification/recovery, Apple callback acceptance,
   retained completion-task lifetime, stale callback rejection, and
   mutation-aware rollback. `AuthenticationCallbackCoordinatorTests.swift` owns
-  fifteen deterministic fallback-URL cases covering success order, pending
+  sixteen deterministic fallback-URL cases covering success order, pending
   purchase continuity, overlapping transitions and sign-out, anonymous-source
   rejection, exact linked-account refresh, different-account cleanup,
-  installation failure before and after SDK mutation, pre-install cancellation,
-  cancellation during installation, exact installed-target transition adoption,
-  purchase readiness, and entitlement loading, unready purchase identity, and
-  final-session drift. The coordinator creates no task and receives URL
-  conversion, captured SDK-session capabilities, persistence, purchase,
-  entitlement, cleanup, and diagnostics through injected boundaries.
+  installation failure before and after SDK mutation, zero publication after
+  rejected adoption even when cleanup refuses ownership, pre-install
+  cancellation, cancellation during installation, exact installed-target
+  transition adoption, purchase readiness, and entitlement loading, unready
+  purchase identity, and final-session drift. The coordinator creates no task
+  and receives URL conversion, captured SDK-session capabilities, persistence,
+  purchase, entitlement, cleanup, and diagnostics through injected boundaries.
   `GoogleOAuthAuthorizationLiveProviderTests.swift` owns presentation-context
   failure, value mapping, missing-token classification, and cancellation before
   the SDK call and after provider return.
@@ -10257,7 +10638,7 @@ Run them with `make ios-local-build ARGS='simulator test ...'`, passing one
 options. The lower-area test explicitly waits for keyboard readiness before
 typing. The capacity test verifies the fixed actions and note access at
 accessibility XXXL without horizontal scrolling. The audio-review test covers
-the compact row and 48 pt circular submission action at the largest standard
+the compact row and 52 pt circular submission action at the largest standard
 text size; the capacity test checks the same diameter at accessibility XXXL; the
 reanalysis test seeds historical evidence that wraps to multiple media rows and
 checks every node plus both actions remain reachable. It switches to Record and
@@ -13140,3 +13521,43 @@ accounting snapshot, supporting envelope and original bytes. This qualifies an
 inactive owner path only when its execution passes; it is not OS process
 relaunch, live Capture/Auth composition, audio/video or reanalysis acceptance.
 The complete native target and other outstanding acceptance remain separate.
+
+## Observation-only queued and native recovery checks
+
+The completion280 backend passed 4,384 Edge tests/1,164 steps against a fresh
+owned 515-migration replay with explicit loopback `SUPABASE_DB_TEST_URL`, no
+failures or skips, plus all 125 entrypoint typechecks and whole-tree
+lint/format. The initial unset-URL run reached an older local fallback catalog
+and failed; retain that evidence (HQ-292) rather than counting it as a passing
+gate. Never reset an existing local stack to repair such a precondition mistake.
+
+Native integration remains pending: `ScanObservationResponseTests` consumes the
+same backend wire fixture through the XcodeGen test resource;
+`NativeReceivedStatusTransportTests` and `SharedMediaNativeReceivedStatusTests`
+cover exact wire/no fallback and native lifetime;
+`CaptureNativeRecoveryClockTests` retains the settled presentation contract;
+`QueuedObservationTests` covers positive account/funding evidence, malformed
+release-marker refusal, fresh queue/job comparison, deletion in both orders,
+pre-start close/background tickets and joined late reads. Run the existing
+Content retry and architecture suites with these tests. None of these reads
+qualifies original-result recovery, hosted behavior or the final all-media/RUX
+acceptance. Source fixes HQ-293/HQ-294 have independent review; runtime remains
+required before closing them.
+
+## Private cleanup transport correlation regression
+
+`services/supabase/tests/observation_evidence_erasure_health.sql` runs only on a
+fresh owned disposable catalog and rolls back its synthetic state. It covers
+pg_net transaction-start timestamp ordering, durable UUID matching, duplicate
+responses, legacy NULL holds, valid-looking transport failures, paused
+settlement and collision rollback. Its captured HTTP insert is a local
+transactional stand-in, not hosted network qualification. Run catalog fixtures
+before committed handoff-owner suites; those suites retain synthetic
+configuration and are not pristine catalog inputs.
+
+`erase-observation-evidence/receipt_test.ts` owns header validation before work,
+legacy/v2 response compatibility and terminal-only correlation. The unchanged
+worker handler suite owns retirement/claim/deadline bounds. No iOS DTO or native
+build is affected. Full Edge/database/tooling gates remain required; scoped
+passes do not waive older local-service failures. See the
+[incident](../incidents/2026-11-private-evidence-dispatch-correlation.md).

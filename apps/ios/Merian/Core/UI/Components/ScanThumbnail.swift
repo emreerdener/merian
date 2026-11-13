@@ -14,6 +14,7 @@ struct ScanThumbnail: View {
     let showsAudioBadge: Bool
     let mediaBadgeAlignment: Alignment
     let maxDimension: Int
+    let aspectRatio: CGFloat
     let placeholderStyle: ScanThumbnailPlaceholderStyle
     let isArchivedVisual: Bool
     let onReferenceImageNeeded: (@MainActor () -> Void)?
@@ -37,6 +38,7 @@ struct ScanThumbnail: View {
         showsAudioBadge: Bool = false,
         mediaBadgeAlignment: Alignment = .bottomTrailing,
         maxDimension: Int = 600,
+        aspectRatio: CGFloat = 1,
         placeholderStyle: ScanThumbnailPlaceholderStyle = .archived,
         isArchivedVisual: Bool = false,
         onReferenceImageNeeded: (@MainActor () -> Void)? = nil,
@@ -52,6 +54,7 @@ struct ScanThumbnail: View {
         self.showsAudioBadge = showsAudioBadge
         self.mediaBadgeAlignment = mediaBadgeAlignment
         self.maxDimension = maxDimension
+        self.aspectRatio = aspectRatio
         self.placeholderStyle = placeholderStyle
         self.isArchivedVisual = isArchivedVisual
         self.onReferenceImageNeeded = onReferenceImageNeeded
@@ -91,7 +94,7 @@ struct ScanThumbnail: View {
 
     var body: some View {
         Color.clear
-            .aspectRatio(1.0, contentMode: .fit)
+            .aspectRatio(aspectRatio, contentMode: .fit)
             .overlay(
                 Group {
                     if let thumbnail {

@@ -28,12 +28,13 @@ struct CaptureNativeRecoveryHostTests {
 
     @Test(arguments: ["close", "accountGeneration", "routeGeneration", "library"])
     func invalidationCannotRestoreLatePresentationOrChangeDraft(_ reason: String) async throws {
+        let blocked = MainActorTestValue(false)
         let owner = UUID(), entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
-        var current = true, blocked = false, reads = 0
+        var current = true, reads = 0
         let model = CaptureNativeRecoveryModel(ownerID: owner, isCurrent: { current }) {
             reads += 1; await entered.open(); await release.wait(); return []
         }
-        let vm = viewModel(ownerID: owner, blocked: { blocked }) { _ in model }
+        let vm = viewModel(ownerID: owner, blocked: { blocked.value }) { _ in model }
         vm.descriptionDraft = .init(freeText: "Keep this later draft")
         let generation = vm.draftSession.generation
         vm.presentNativeRecovery()
@@ -45,7 +46,7 @@ struct CaptureNativeRecoveryHostTests {
         switch reason {
         case "accountGeneration": current = false; vm.handleDraftAccountChange()
         case "routeGeneration": vm.handleRouteAccountGenerationChanged()
-        case "library": blocked = true; vm.handleDraftAccountChange()
+        case "library": blocked.value = true; vm.handleDraftAccountChange()
         default: vm.dismissActivePresentation()
         }
         #expect(vm.nativeRecoveryModel == nil && vm.activeSheet == nil && model.state == .closed)

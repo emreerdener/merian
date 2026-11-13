@@ -16,7 +16,12 @@ struct ObservationVideoDurabilityTests {
         let cohort: ObservationVideoCohort
         let media: VideoAudioFixture
         var proof: ObservationVideoPreparation.Verified { get throws { try preparation.verified(source: source) } }
-        func remove() { media.remove(); try? FileManager.default.removeItem(at: root) }
+        func remove() {
+            media.remove()
+            try? FileManager.default.removeItem(at: root.appendingPathComponent("ReanalysisQueue"))
+            // Core Data may retain SQLite/WAL handles beyond container release.
+            // Preserve this unique database root through test-process exit.
+        }
     }
     enum Simulated: Error { case save }
 

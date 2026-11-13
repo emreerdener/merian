@@ -49,6 +49,7 @@ struct InferenceLiveResultService {
         let mediaTimeline: [CaptureSubmissionMediaItem]
         let persistenceFence: LiveInferencePersistenceFence?
         let expectedScanId: String?
+        let completionAccount: InferenceCompletionAccountScope?
     }
 
     struct CompletedResult {
@@ -111,7 +112,8 @@ struct InferenceLiveResultService {
                     videoFilePaths: request.videoFilePaths,
                     mediaTimeline: request.mediaTimeline,
                     persistenceFence: request.persistenceFence,
-                    expectedScanId: request.expectedScanId
+                    expectedScanId: request.expectedScanId,
+                    completionAccount: request.completionAccount
                 )
             }
         )
@@ -177,7 +179,8 @@ struct InferenceLiveResultService {
                 : request.submissionProjection.videoFilePaths,
             mediaTimeline: request.mediaTimeline,
             persistenceFence: request.persistenceFence,
-            expectedScanId: request.expectedScanId
+            expectedScanId: request.expectedScanId,
+            completionAccount: request.response.completionAccount
         )
     }
 }

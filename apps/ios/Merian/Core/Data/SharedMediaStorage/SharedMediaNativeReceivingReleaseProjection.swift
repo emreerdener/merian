@@ -1,10 +1,11 @@
 import Foundation
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
 /// Unconsumed metadata feasibility calculation, not admission or deletion
 /// authority. All inputs must come from the same fully audited received P2
 /// snapshot. Physical media stays charged until the existing absence authority
 /// settles it; this calculation only replaces serialized metadata liabilities.
-enum SharedMediaNativeReceivingReleaseProjection {
+enum SharedMediaNativeReceivingReleaseProjection { // swiftlint:disable:this type_name
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Intent = SharedMediaNativeReceivingIntent
 

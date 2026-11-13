@@ -1,11 +1,13 @@
 /** Synthetic local fixture only; never a profile installation. */
-import candidate from "../_shared/initialAnalysis/fixtures/cpm-photo-candidate-v1.json" with {
+import originalCandidate from "../_shared/initialAnalysis/fixtures/cpm-photo-candidate-v1.json" with {
   type: "json",
 };
 import assignmentFixture from "../_shared/initialAnalysis/fixtures/cpm-photo-assignment-v1.json" with {
   type: "json",
 };
 import { initialCanonicalText } from "../_shared/initialAnalysis/canonical.ts";
+import { initialCpmPhotoCandidateDigest } from "../_shared/initialAnalysis/cpmPhotoCandidate.ts";
+import { initialCpmPhotoContentDigest } from "../_shared/initialAnalysis/cpmPhotoContent.ts";
 import { initialCpmPhotoAssignmentDigest } from "../_shared/initialAnalysis/cpmPhotoAssignment.ts";
 import { initialMediaHash } from "../_shared/initialAnalysis/mediaBinding.ts";
 import { transferPolicyCatalog } from "./catalog.ts";
@@ -14,12 +16,28 @@ import { assertEquals } from "@std/assert";
 
 export const owner = "00000000-0000-4000-8000-000000000009";
 export const attempt = "00000000-0000-4000-8000-000000000300";
-export async function fixture(roleIndex = 0) {
+export async function fixture(
+  roleIndex = 0,
+  submittedBytes?: Uint8Array<ArrayBuffer>,
+) {
+  const candidate = structuredClone(originalCandidate);
   const assignment = structuredClone(assignmentFixture.assignment);
   const now = Date.now();
   assignment.created_at_ms = now - 10_000;
   assignment.expires_at_ms = now + 1_790_000;
   const selected = assignment.preparation.role_mapping[roleIndex];
+  if (submittedBytes) {
+    const content = JSON.parse(candidate.candidate.content_canonical);
+    const declaration = content.photos[selected.photo_ordinal][selected.role];
+    declaration.byte_count = submittedBytes.length;
+    declaration.sha256 = await initialMediaHash(submittedBytes);
+    Object.assign(selected.declaration, declaration);
+    candidate.candidate.content_canonical = initialCanonicalText(content);
+    assignment.content_digest = await initialCpmPhotoContentDigest(content);
+    assignment.candidate_digest = await initialCpmPhotoCandidateDigest(
+      candidate.candidate,
+    );
+  }
   const backend = {
     generation: assignment.preparation.backend_generation,
     provider: "r2",

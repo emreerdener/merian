@@ -4,6 +4,7 @@ struct ImageCropperView: View {
     let image: UIImage
     let initialVerticalCenter: CGFloat?
     @State private var didInitializeFrame = false
+    let confirmationTitle: LocalizedStringKey
     let onCrop: (Data, CGFloat, CGSize, CGFloat, Int) -> Void
     let onCancel: () -> Void
     let onDelete: (() -> Void)?
@@ -25,6 +26,7 @@ struct ImageCropperView: View {
         initialOffset: CGSize = .zero,
         initialQuarterTurns: Int = 0,
         initialVerticalCenter: CGFloat? = nil,
+        confirmationTitle: LocalizedStringKey = "Confirm crop",
         onCrop: @escaping (Data, CGFloat, CGSize, CGFloat, Int) -> Void,
         onCancel: @escaping () -> Void,
         onDelete: (() -> Void)? = nil,
@@ -32,6 +34,7 @@ struct ImageCropperView: View {
     ) {
         self.image = image
         self.initialVerticalCenter = initialVerticalCenter
+        self.confirmationTitle = confirmationTitle
         self.onCrop = onCrop
         self.onCancel = onCancel
         self.onDelete = onDelete
@@ -136,7 +139,7 @@ struct ImageCropperView: View {
                         Button {
                             generateCrop(displaySize: displaySize)
                         } label: {
-                            Text("Confirm crop")
+                            Text(confirmationTitle)
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)

@@ -29,13 +29,17 @@ export function initialPhotoTransferRoute(
       req,
       body,
       user.id,
-      () =>
-        dependencies ? dependencies() : {
+      () => {
+        if (dependencies) return dependencies();
+        const bridge = createCpmPhotoClosureDb(null);
+        return {
           catalog,
-          bridge: createCpmPhotoClosureDb(null),
+          bridge,
+          progress: bridge,
           recover: (owner, request, signal) =>
             allocationRepository().call(owner, request, signal),
-        },
+        };
+      },
     );
   }, {
     authenticate,

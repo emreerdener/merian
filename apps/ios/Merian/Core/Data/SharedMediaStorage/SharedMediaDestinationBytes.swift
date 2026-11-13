@@ -158,7 +158,7 @@ struct SharedMediaDestinationBytes {
                     try fault?(.afterUnlink)
                 }
             }
-            guard (parent < 0 || fsync(parent) == 0), fsync(namespace) == 0,
+            guard parent < 0 || fsync(parent) == 0, fsync(namespace) == 0,
                   try inspect(parent, access.name + ".partial") == nil,
                   try inspect(parent, access.name) == nil else { throw SharedMediaStorageFailure.unavailable }
         }

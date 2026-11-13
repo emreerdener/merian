@@ -56,6 +56,7 @@ final class AuthSessionBootstrapCoordinatorHarness {
     )
 
     var events: [String] = []
+    var isBootstrapEnabled = true
     var isTestExecution = false
     var accountDeletionCleanupPending = false
     var isAuthenticated = false
@@ -92,6 +93,7 @@ final class AuthSessionBootstrapCoordinatorHarness {
     func makeDependencies() -> AuthSessionBootstrapDependencies {
         AuthSessionBootstrapDependencies(
             state: .init(
+                isBootstrapEnabled: { self.isBootstrapEnabled },
                 isTestExecution: {
                     self.isTestExecution
                 },

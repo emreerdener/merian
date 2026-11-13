@@ -72,7 +72,7 @@ struct ObservationAnalysisReviewPersistenceTests {
         var row = try #require(JSONSerialization.jsonObject(with: saved.storedData()) as? [String: Any])
         row["reconciled_at"] = now.timeIntervalSince1970
         let data = try JSONSerialization.data(withJSONObject: row)
-        job.metadataJSON = try #require(String(bytes: data, encoding: .utf8)); job.status = .complete; job.nextRunAt = nil
+        job.metadataJSON = (try #require(String(bytes: data, encoding: .utf8))) as String; job.status = .complete; job.nextRunAt = nil
         try context.save()
     }
 

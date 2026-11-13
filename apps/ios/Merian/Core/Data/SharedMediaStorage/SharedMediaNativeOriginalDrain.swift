@@ -15,6 +15,33 @@ final class SharedMediaNativeOriginalDrain {
         fileprivate init() {}
     }
 
+    /// Two bounded local consumers, independent of native profile/account grants.
+    enum LocalConsumer: Hashable { case preparedInputs, inputRecovery }
+
+    @MainActor final class LocalBorrow {
+        fileprivate let id = UUID()
+        fileprivate weak var owner: SharedMediaNativeOriginalDrain?
+        fileprivate init(owner: SharedMediaNativeOriginalDrain) { self.owner = owner }
+
+        func fence(container: ModelContainer, cleanup: Bool = false) throws -> SharedMediaStoreReadFence {
+            guard let owner else { throw SharedMediaStorageFailure.closed }
+            return try owner.localFence(self, container: container, cleanup: cleanup)
+        }
+
+        func require(container: ModelContainer, fence: SharedMediaStoreReadFence, cleanup: Bool = false) throws {
+            guard try self.fence(container: container, cleanup: cleanup) === fence else { throw SharedMediaStorageFailure.closed }
+        }
+    }
+
+    private struct LocalRegistration {
+        let consumer: AnyObject
+        let borrow: LocalBorrow
+        let close: @MainActor () async -> Bool
+    }
+    private var localConsumers: [LocalConsumer: LocalRegistration] = [:]
+    private var sharedFence: SharedMediaStoreReadFence?
+    private var preparedAccount: (account: PhotoOriginalPreparationOwner.AccountAccess, lease: AccountBoundWorkLease)?
+
     private let configured: Bool
     private var startup: (container: ModelContainer, admission: NativeReleaseStartupAdmission)?
     private var lifetime: (account: PhotoOriginalPreparationOwner.AccountAccess, lease: AccountBoundWorkLease)?
@@ -25,6 +52,8 @@ final class SharedMediaNativeOriginalDrain {
     private var registeredOwnerID: UUID?
     private var recoveryPresentation: (token: RecoveryRegistration, close: @MainActor () async -> Void)?
     private var sealed = false
+    private(set) var shutdownFinished = false
+    var isClosed: Bool { sealed }
     private var shutdownTask: Task<Bool, Never>?
     private var didShutdown: (@MainActor (SharedMediaNativeOriginalDrain) -> Void)?
 
@@ -38,23 +67,24 @@ final class SharedMediaNativeOriginalDrain {
     }
 
     func discover(account: PhotoOriginalPreparationOwner.AccountAccess) throws -> SharedMediaNativeBootstrapDiscovery {
-        try discover(account: account) { container, admission in
-            try SharedMediaNativeBootstrapDiscovery.startup(container: container, admission: admission, ownerID: account.ownerID)
+        try discover(account: account) { container, admission, fence in
+            try SharedMediaNativeBootstrapDiscovery.startup(container: container, admission: admission, ownerID: account.ownerID, borrowing: fence)
         }
     }
 
     #if DEBUG
     func qualificationDiscover(account: PhotoOriginalPreparationOwner.AccountAccess, support: URL,
                                fault: ((SharedMediaNativeParentCreationBoundary) throws -> Void)? = nil) throws -> SharedMediaNativeBootstrapDiscovery {
-        try discover(account: account) { container, admission in
-            try .qualificationStartup(container: container, admission: admission, support: support, ownerID: account.ownerID, fault: fault)
+        try discover(account: account) { container, admission, fence in
+            try .qualificationStartup(container: container, admission: admission, support: support, ownerID: account.ownerID, fault: fault, borrowing: fence)
         }
     }
     #endif
 
     private func discover(account: PhotoOriginalPreparationOwner.AccountAccess,
-                          make: (ModelContainer, NativeReleaseStartupAdmission) throws -> SharedMediaNativeBootstrapDiscovery) throws -> SharedMediaNativeBootstrapDiscovery {
+                          make: (ModelContainer, NativeReleaseStartupAdmission, SharedMediaStoreReadFence) throws -> SharedMediaNativeBootstrapDiscovery) throws -> SharedMediaNativeBootstrapDiscovery {
         guard !sealed, configured, !discoveryAttempted, let startup else { throw SharedMediaStorageFailure.closed }
+        try requirePreparedAccount(account)
         discoveryAttempted = true
         do {
             try Task.checkCancellation()
@@ -62,7 +92,8 @@ final class SharedMediaNativeOriginalDrain {
             lifetime = (account, lease)
             guard lease.session.userID == account.ownerID, account.isCurrent(lease) else { throw PhotoPreparationFailure.accountChanged }
             try Task.checkCancellation()
-            let value = try make(startup.container, startup.admission)
+            let fence = try retainFence(container: startup.container)
+            let value = try make(startup.container, startup.admission, fence)
             discovery = value
             try Task.checkCancellation()
             guard account.isCurrent(lease) else { throw PhotoPreparationFailure.accountChanged }
@@ -70,9 +101,71 @@ final class SharedMediaNativeOriginalDrain {
         } catch {
             sealed = true
             discovery?.invalidate(); discovery = nil
-            finishLifetime()
+            // Active borrowers must exit through the owned asynchronous shutdown.
+            if localConsumers.isEmpty { finishLifetime() }
             throw error
         }
+    }
+
+    /// Registration retains the exact consumer until its actual-exit callback.
+    /// Repeated opens reuse its slot; a different owner cannot replace it.
+    func borrowLocalFence(for consumer: AnyObject, role: LocalConsumer, container: ModelContainer,
+                          close: @escaping @MainActor () async -> Bool) throws -> LocalBorrow {
+        guard !sealed, configured else { throw SharedMediaStorageFailure.closed }
+        _ = try retainFence(container: container)
+        if let existing = localConsumers[role] {
+            guard existing.consumer === consumer else { throw SharedMediaStorageFailure.closed }
+            return existing.borrow
+        }
+        let borrow = LocalBorrow(owner: self)
+        localConsumers[role] = LocalRegistration(consumer: consumer, borrow: borrow, close: close)
+        return borrow
+    }
+
+    func requirePreparedAccount(_ account: PhotoOriginalPreparationOwner.AccountAccess) throws {
+        guard !sealed else { throw SharedMediaStorageFailure.closed }
+        if let preparedAccount {
+            guard preparedAccount.account.ownerID == account.ownerID,
+                  preparedAccount.account.isCurrent(preparedAccount.lease), account.isCurrent(preparedAccount.lease) else {
+                throw PhotoPreparationFailure.accountChanged
+            }
+        }
+    }
+
+    var permitsNativeDiscovery: Bool { configured && !sealed && !discoveryAttempted }
+
+    /// Prepared input has an account lifetime; cold erasure intentionally does not.
+    func bindPreparedAccount(_ account: PhotoOriginalPreparationOwner.AccountAccess) throws {
+        guard !sealed else { throw SharedMediaStorageFailure.closed }
+        if let preparedAccount {
+            guard preparedAccount.account.ownerID == account.ownerID,
+                  preparedAccount.account.isCurrent(preparedAccount.lease), account.isCurrent(preparedAccount.lease) else {
+                throw PhotoPreparationFailure.accountChanged
+            }
+            return
+        }
+        if lifetime != nil, !recognizes(account: account) { throw PhotoPreparationFailure.accountChanged }
+        let lease = try account.begin()
+        guard lease.session.userID == account.ownerID, account.isCurrent(lease) else {
+            account.finish(lease); throw PhotoPreparationFailure.accountChanged
+        }
+        preparedAccount = (account, lease)
+    }
+
+    private func retainFence(container: ModelContainer) throws -> SharedMediaStoreReadFence {
+        guard let startup, startup.container === container else { throw SharedMediaStorageFailure.closed }
+        let fence = try sharedFence ?? startup.admission.acquireFence(container: container)
+        try startup.admission.require(container: container, fence: fence)
+        sharedFence = fence
+        return fence
+    }
+
+    private func localFence(_ borrow: LocalBorrow, container: ModelContainer, cleanup: Bool) throws -> SharedMediaStoreReadFence {
+        guard !sealed || cleanup,
+              localConsumers.values.contains(where: { $0.borrow === borrow }),
+              let fence = sharedFence, let startup, startup.container === container else { throw SharedMediaStorageFailure.closed }
+        try startup.admission.require(container: container, fence: fence)
+        return fence
     }
 
     func register(account: PhotoOriginalPreparationOwner.AccountAccess,
@@ -90,7 +183,7 @@ final class SharedMediaNativeOriginalDrain {
     /// One presentation per retained native lifetime. A dismissed presentation
     /// retains this slot until its owned tasks and best-effort settlement end.
     func registerRecoveryPresentation(ownerID: UUID,
-        close: @escaping @MainActor () async -> Void) throws -> RecoveryRegistration {
+                                      close: @escaping @MainActor () async -> Void) throws -> RecoveryRegistration {
         guard let registration, isCurrent(registration), registeredOwnerID == ownerID,
               recoveryPresentation == nil else { throw SharedMediaStorageFailure.closed }
         let token = RecoveryRegistration()
@@ -125,15 +218,27 @@ final class SharedMediaNativeOriginalDrain {
     }
 
     func shutdown() async -> Bool {
-        if let shutdownTask { return await shutdownTask.value }
+        if let shutdownTask {
+            let result = await shutdownTask.value
+            shutdownFinished = result
+            return result
+        }
         sealed = true
         discovery?.invalidate(); discovery = nil
+        if localConsumers.isEmpty { sharedFence = nil }
         let task = Task { @MainActor [self] in
             // Sealing prevents new native work, but never prevents joining the
             // model's already-owned tasks. Denied refund is still quiescence.
             let presentation = recoveryPresentation
             await presentation?.close()
-            let result = await callback?() ?? true
+            var localResult = true
+            for role in [LocalConsumer.preparedInputs, .inputRecovery] {
+                guard let consumer = localConsumers[role] else { continue }
+                if await consumer.close() { localConsumers.removeValue(forKey: role) } else { localResult = false }
+            }
+            // Always join native work, including when a local borrower is blocked.
+            let nativeResult = await callback?() ?? true
+            let result = localResult && nativeResult
             if result {
                 callback = nil; registration = nil; registeredOwnerID = nil
                 recoveryPresentation = nil
@@ -144,12 +249,16 @@ final class SharedMediaNativeOriginalDrain {
             return result
         }
         shutdownTask = task
-        return await task.value
+        let result = await task.value
+        shutdownFinished = result
+        return result
     }
 
     private func finishLifetime() {
-        let retained = lifetime
-        lifetime = nil; startup = nil
+        let retained = lifetime, prepared = preparedAccount
+        preparedAccount = nil
+        lifetime = nil; startup = nil; sharedFence = nil
         if let retained { retained.account.finish(retained.lease) }
+        if let prepared { prepared.account.finish(prepared.lease) }
     }
 }

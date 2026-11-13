@@ -23,9 +23,9 @@ struct CaptureSubmissionDependencies {
     let context: CaptureSubmissionContextDependencies
     let admission: CaptureSubmissionAdmissionDependencies
     let deferredContext: CaptureSubmissionDeferredContextService
-    var nativePhotoDraftFactory: (@MainActor (UUID) -> CaptureNativePhotoDraftSession)? = nil
-    var nativePhotoSubmission: CaptureNativePhotoSubmissionSession? = nil
-    var nativeRecoveryFactory: (@MainActor (UUID) -> CaptureNativeRecoveryModel?)? = nil
+    var nativePhotoDraftFactory: (@MainActor (UUID) -> CaptureNativePhotoDraftSession)?
+    var nativePhotoSubmission: CaptureNativePhotoSubmissionSession?
+    var nativeRecoveryFactory: (@MainActor (UUID) -> CaptureNativeRecoveryModel?)?
 
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {

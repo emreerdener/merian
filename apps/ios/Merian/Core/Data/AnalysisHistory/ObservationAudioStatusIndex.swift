@@ -4,7 +4,7 @@ import SwiftData
 /// Shared bounded local index only. It never interprets a record as source or execution authority.
 @MainActor
 struct ObservationAudioStatusIndex {
-    enum Route: Equatable, Sendable { case legacy, source }
+    enum Route: Equatable, Sendable { case legacy, source, video }
     struct Cursor: Equatable, Sendable {
         fileprivate let owner: UUID
         fileprivate let observation: UUID

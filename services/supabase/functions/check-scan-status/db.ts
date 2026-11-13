@@ -115,3 +115,34 @@ export async function fetchComplimentaryScanStates(
   }
   return result;
 }
+
+/** Fixed owner-scoped SELECTs only; row presence never proves original completion. */
+export async function fetchObservedScanState(
+  scanId: string,
+  userId: string,
+  client: SupabaseClient,
+  signal: AbortSignal,
+): Promise<{ rowExists: boolean; jobStatus: string | null }> {
+  signal.throwIfAborted();
+  const row = await client.from("scans").select("id")
+    .eq("id", scanId).eq("user_id", userId).abortSignal(signal).maybeSingle();
+  signal.throwIfAborted();
+  if (row.error) throw new Error("scan_observation_read_failed");
+  const job = await client.from("scan_ingestion_jobs").select("status")
+    .eq("scan_id", scanId).eq("user_id", userId).abortSignal(signal)
+    .maybeSingle();
+  signal.throwIfAborted();
+  if (job.error) throw new Error("scan_observation_read_failed");
+  const status: unknown = job.data?.status ?? null;
+  if (
+    status !== null && (typeof status !== "string" || ![
+      "processing",
+      "finalizing",
+      "retrying",
+      "failed_retryable",
+      "failed_terminal",
+      "complete",
+    ].includes(status))
+  ) throw new Error("scan_observation_read_failed");
+  return { rowExists: row.data?.id === scanId, jobStatus: status };
+}

@@ -52,14 +52,25 @@ extension CaptureWorkspaceViewModel {
                   try CaptureNativePhotoSubmissionSnapshot(stagedCapture, selection: session.selection) == snapshot else { return }
             if session.canAllocate {
                 let allocationAttempt = try await session.allocate(snapshot)
-                guard !Task.isCancelled, session.attemptID == allocationAttempt,
-                      draftSession.generation == generation, isDraftReadyForSubmission,
-                      isDraftAccountCurrent, baseRefinementContext == nil,
-                      !dependencies.submission.admission.isLibraryAccessBlocked(),
-                      dependencies.submission.admission.accountID() == session.selection.identity.ownerID,
-                      try CaptureNativePhotoSubmissionSnapshot(stagedCapture, selection: session.selection) == snapshot else { return }
+                let validate: CaptureNativePhotoSubmissionSession.Validator = { [self] in
+                    guard !Task.isCancelled, session.attemptID == allocationAttempt,
+                          draftSession.generation == generation, isDraftReadyForSubmission,
+                          isDraftAccountCurrent, baseRefinementContext == nil,
+                          !dependencies.submission.admission.isLibraryAccessBlocked(),
+                          dependencies.submission.admission.accountID() == session.selection.identity.ownerID,
+                          try CaptureNativePhotoSubmissionSnapshot(stagedCapture, selection: session.selection) == snapshot else {
+                        throw SharedMediaStorageFailure.stale
+                    }
+                }
+                guard (try? validate()) != nil else { return }
+                if session.hasFreshFirstTransfer {
+                    try await session.startFirstTransferIfPresent(snapshot, after: allocationAttempt, validate: validate)
+                    guard (try? validate()) != nil else { return }
+                }
             }
-            offlineToastMessage = .information("Saved locally. Identification has not been requested.")
+            offlineToastMessage = session.hasOriginalAdmission
+                ? .information("Your photos were verified and your identification request was saved.")
+                : .information("Saved locally. Identification has not been requested.")
         } catch {
             guard !Task.isCancelled, draftSession.generation == generation, isDraftAccountCurrent,
                   baseRefinementContext == nil,

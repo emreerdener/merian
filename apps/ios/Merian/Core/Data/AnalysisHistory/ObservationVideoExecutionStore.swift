@@ -123,8 +123,8 @@ enum ObservationVideoExecutionStore {
     }
 
     private static func interruptionTransaction(_ proof: ObservationVideoPreparation.Verified, _ container: ModelContainer,
-        _ scope: ObservationVideoExecutionOwner.Scope, _ save: (ModelContext) throws -> Void,
-        _ body: (Snapshot, OfflineJobRecord) throws -> Snapshot) throws -> Snapshot {
+                                                _ scope: ObservationVideoExecutionOwner.Scope, _ save: (ModelContext) throws -> Void,
+                                                _ body: (Snapshot, OfflineJobRecord) throws -> Snapshot) throws -> Snapshot {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard scope.maySettleKnownReceipt() else { throw Persistence.IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
@@ -258,7 +258,7 @@ enum ObservationVideoExecutionStore {
         return (job, text)
     }
     private static func write(_ work: Work, _ job: OfflineJobRecord, _ container: ModelContainer) throws -> Snapshot {
-        let metadata = String(decoding: try work.storedData(), as: UTF8.self)
+        guard let metadata = String(bytes: try work.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
         job.metadataJSON = metadata
         return .init(work: work, metadata: metadata, containerID: ObjectIdentifier(container))
     }

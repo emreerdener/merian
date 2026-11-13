@@ -114,34 +114,7 @@ public actor FileIOActor {
             defer {
                 if !complete { _ = destination.remove(filename, matching: output) }
             }
-            var initial = stat()
-            guard fstat(sourceFD, &initial) == 0, initial.st_size >= 0 else { return nil }
-            var remaining = initial.st_size
-            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
-            while remaining > 0 {
-                let count = buffer.withUnsafeMutableBytes {
-                    Darwin.read(sourceFD, $0.baseAddress, min($0.count, Int(min(remaining, 64 * 1024))))
-                }
-                if count < 0, errno == EINTR { continue }
-                guard count > 0 else { return nil }
-                var offset = 0
-                while offset < count {
-                    let written = buffer.withUnsafeBytes {
-                        copyIO.write(output, UnsafeRawBufferPointer(rebasing: $0[offset..<count]))
-                    }
-                    if written < 0, errno == EINTR { continue }
-                    guard written > 0 else { return nil }
-                    offset += written
-                }
-                remaining -= off_t(count)
-            }
-            var final = stat()
-            guard fstat(sourceFD, &final) == 0,
-                  initial.st_size == final.st_size,
-                  initial.st_mtimespec.tv_sec == final.st_mtimespec.tv_sec,
-                  initial.st_mtimespec.tv_nsec == final.st_mtimespec.tv_nsec,
-                  initial.st_ctimespec.tv_sec == final.st_ctimespec.tv_sec,
-                  initial.st_ctimespec.tv_nsec == final.st_ctimespec.tv_nsec,
+            guard let initial = copyBytes(from: sourceFD, to: output),
                   source.matches(name, descriptor: sourceFD),
                   destination.matches(filename, descriptor: output),
                   copyIO.synchronize(output) == 0, copyIO.synchronize(destination.fd) == 0 else { return nil }
@@ -152,6 +125,130 @@ public actor FileIOActor {
             _ = source.remove(name, matching: sourceFD, snapshot: initial, synchronize: copyIO.synchronize)
             return filename
         }
+    }
+
+    /// Only the existing reanalysis FileStore supplies this held, empty output
+    /// descriptor after its durable identity commit. It owns all cleanup and
+    /// directory synchronization; this actor owns the existing bounded copy.
+    func copyVideoInput(filename: String, ownedOutput: Int32) -> Bool {
+        guard !filename.isEmpty, !filename.contains("/"), !filename.contains("\0"), !Task.isCancelled else { return false }
+        var destination = stat()
+        guard fstat(ownedOutput, &destination) == 0, destination.st_mode & S_IFMT == S_IFREG,
+              destination.st_nlink == 1, destination.st_size == 0,
+              lseek(ownedOutput, 0, SEEK_CUR) == 0 else { return false }
+        return withFile(at: filename, bareRoots: [documents]) { source, name, sourceFD in
+            guard let initial = copyBytes(from: sourceFD, to: ownedOutput,
+                    maximumBytes: off_t(ScanMediaPayloadPolicy.maxSavedVideoBytes), cancellable: true),
+                  copyIO.synchronize(ownedOutput) == 0, !Task.isCancelled,
+                  source.matches(name, descriptor: sourceFD, snapshot: initial) else { return false }
+            var final = stat()
+            guard fstat(ownedOutput, &final) == 0, final.st_mode & S_IFMT == S_IFREG,
+                  final.st_nlink == 1, final.st_dev == destination.st_dev, final.st_ino == destination.st_ino,
+                  final.st_birthtimespec.tv_sec == destination.st_birthtimespec.tv_sec,
+                  final.st_birthtimespec.tv_nsec == destination.st_birthtimespec.tv_nsec,
+                  final.st_size == initial.st_size else { return false }
+            return true
+        } ?? false
+    }
+
+    /// Caller must separately establish observation/account/media authority. This
+    /// copies one explicitly chosen flat Documents attachment without adopting or deleting it.
+    /// The returned token is process-local input ownership, never historical media evidence.
+    func snapshotVideoFile(filename: String) -> VideoSnapshot? {
+        guard !filename.isEmpty, !filename.contains("/"), !Task.isCancelled else { return nil }
+        return withFile(at: filename, bareRoots: [documents]) { source, name, sourceFD in
+            guard let destination = LegacyMediaDirectory(temporaryDirectory) else { return nil }
+            let copiedName = "\(UUID().uuidString.lowercased())_reanalysis-video.mp4"
+            let output = openat(destination.fd, copiedName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+            guard output >= 0 else { return nil }
+            defer { Darwin.close(output) }
+            var complete = false
+            defer { if !complete { _ = destination.remove(copiedName, matching: output) } }
+            guard let initial = copyBytes(from: sourceFD, to: output,
+                    maximumBytes: off_t(ScanMediaPayloadPolicy.maxSavedVideoBytes), cancellable: true),
+                  copyIO.synchronize(output) == 0, copyIO.synchronize(destination.fd) == 0,
+                  !Task.isCancelled, source.matches(name, descriptor: sourceFD, snapshot: initial),
+                  destination.matches(copiedName, descriptor: output) else { return nil }
+            var copied = stat(), root = stat()
+            guard fstat(output, &copied) == 0, fstat(destination.fd, &root) == 0 else { return nil }
+            complete = true
+            return VideoSnapshot(url: temporaryDirectory.appendingPathComponent(copiedName),
+                identity: .init(copied), rootDevice: root.st_dev, rootInode: root.st_ino)
+        }
+    }
+
+    /// Check before and after consuming the owned URL. A replaced/changed copy
+    /// cannot be delivered, and cleanup must not remove its replacement.
+    func videoSnapshotIsCurrent(_ snapshot: VideoSnapshot) -> Bool {
+        withVideoSnapshot(snapshot) { _, _, _ in true } ?? false
+    }
+
+    @discardableResult
+    func discardVideoSnapshot(_ snapshot: VideoSnapshot) -> Bool {
+        withVideoSnapshot(snapshot) { directory, name, fd in directory.remove(name, matching: fd) } ?? false
+    }
+
+    private func withVideoSnapshot<T>(_ snapshot: VideoSnapshot,
+                                      body: (LegacyMediaDirectory, String, Int32) -> T?) -> T? {
+        guard snapshot.url.deletingLastPathComponent().path == temporaryDirectory.path else { return nil }
+        return withFile(at: snapshot.url.path, bareRoots: [temporaryDirectory]) { directory, name, fd in
+            var info = stat(), root = stat()
+            guard fstat(fd, &info) == 0, fstat(directory.fd, &root) == 0,
+                  root.st_dev == snapshot.rootDevice, root.st_ino == snapshot.rootInode,
+                  VideoSnapshot.Identity(info) == snapshot.identity else { return nil }
+            return body(directory, name, fd)
+        }
+    }
+
+    struct VideoSnapshot: Sendable {
+        let url: URL
+        fileprivate let identity: Identity
+        fileprivate let rootDevice: dev_t
+        fileprivate let rootInode: ino_t
+
+        // Descriptor identity remains scoped to the file-I/O snapshot owner.
+        // swiftlint:disable:next nesting
+        fileprivate struct Identity: Equatable, Sendable {
+            let device: dev_t, inode: ino_t, size: off_t
+            let modifiedSeconds: time_t, changedSeconds: time_t
+            let modifiedNanos: Int, changedNanos: Int
+            init(_ value: stat) {
+                device = value.st_dev; inode = value.st_ino; size = value.st_size
+                modifiedSeconds = value.st_mtimespec.tv_sec; changedSeconds = value.st_ctimespec.tv_sec
+                modifiedNanos = value.st_mtimespec.tv_nsec; changedNanos = value.st_ctimespec.tv_nsec
+            }
+        }
+    }
+
+    private func copyBytes(from sourceFD: Int32, to output: Int32,
+                           maximumBytes: off_t? = nil, cancellable: Bool = false) -> stat? {
+        var initial = stat()
+        guard fstat(sourceFD, &initial) == 0, initial.st_size >= 0,
+              maximumBytes.map({ initial.st_size > 0 && initial.st_size <= $0 }) ?? true else { return nil }
+        var remaining = initial.st_size
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while remaining > 0 {
+            guard !cancellable || !Task.isCancelled else { return nil }
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(sourceFD, $0.baseAddress, min($0.count, Int(min(remaining, 64 * 1024))))
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { return nil }
+            var offset = 0
+            while offset < count {
+                let written = buffer.withUnsafeBytes {
+                    copyIO.write(output, UnsafeRawBufferPointer(rebasing: $0[offset..<count]))
+                }
+                if written < 0, errno == EINTR { continue }
+                guard written > 0 else { return nil }
+                offset += written
+            }
+            remaining -= off_t(count)
+        }
+        var final = stat()
+        guard fstat(sourceFD, &final) == 0,
+              VideoSnapshot.Identity(initial) == VideoSnapshot.Identity(final) else { return nil }
+        return initial
     }
 
     /// Preserve the historical Documents-only lookup for bare audio names.

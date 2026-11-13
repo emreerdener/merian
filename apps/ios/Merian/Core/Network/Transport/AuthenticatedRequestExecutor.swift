@@ -339,7 +339,9 @@ struct AuthenticatedRequestExecutor {
             "Edge function failed; route=\(request.url.lastPathComponent, privacy: .public) status=\(response.statusCode, privacy: .public) code=\(safeCode, privacy: .public)."
         )
 
-        if EdgeFunctionRoutePolicy.isUnavailable(
+        // PostgREST shares gateway headers but has no Edge execution ID. Its
+        // missing-row response must reach the RPC caller without route replay.
+        if EdgeFunctionRoutePolicy.isFunctionURL(request.url), EdgeFunctionRoutePolicy.isUnavailable(
             evidence: EdgeFunctionRouteResponseEvidence(response: response),
             responseData: data
         ) {

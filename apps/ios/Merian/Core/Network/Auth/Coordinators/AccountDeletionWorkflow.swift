@@ -125,6 +125,7 @@ enum AccountDeletionWorkflow {
     /// Once the server accepts deletion, record recovery state before the next
     /// suspension. A terminated task can then finish local erasure on launch.
     static func performAcceptedCleanup(
+        validateContext: @MainActor () -> Bool,
         receipt: AccountDeletionReceipt,
         recordCleanupPending: @MainActor () -> Bool,
         recordManualProviderRevocation: @MainActor () -> Void,
@@ -143,22 +144,23 @@ enum AccountDeletionWorkflow {
         if receipt.manualProviderRevocationRequired {
             recordManualProviderRevocation()
         }
-        guard await performLocalSignOut() else { return false }
-        guard await purgeLocalData() else { return false }
-        guard await acknowledgeRecovery() else { return false }
+        guard validateContext(), await performLocalSignOut(), validateContext() else { return false }
+        guard await purgeLocalData(), validateContext() else { return false }
+        guard await acknowledgeRecovery(), validateContext() else { return false }
         guard recordRecoveryRetirementPending() else { return false }
         guard retireRecoveryCapability() else { return false }
         return resolveCleanup()
     }
 
     static func performRecoveryRetirement(
+        validateContext: @MainActor () -> Bool,
         performLocalSignOut: @MainActor () async -> Bool,
         purgeLocalData: @MainActor () async -> Bool,
         retireRecoveryCapability: @MainActor () -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) async -> Bool {
-        guard await performLocalSignOut() else { return false }
-        guard await purgeLocalData() else { return false }
+        guard validateContext(), await performLocalSignOut(), validateContext() else { return false }
+        guard await purgeLocalData(), validateContext() else { return false }
         guard retireRecoveryCapability() else { return false }
         return resolveCleanup()
     }
@@ -202,12 +204,13 @@ enum AccountDeletionWorkflow {
     }
 
     static func performPendingLocalCleanup(
+        validateContext: @MainActor () -> Bool,
         performLocalSignOut: @MainActor () async -> Bool,
         purgeLocalData: @MainActor () async -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) async -> Bool {
-        guard await performLocalSignOut() else { return false }
-        guard await purgeLocalData() else { return false }
+        guard validateContext(), await performLocalSignOut(), validateContext() else { return false }
+        guard await purgeLocalData(), validateContext() else { return false }
         return resolveCleanup()
     }
 }

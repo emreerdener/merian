@@ -151,6 +151,69 @@ struct SharedMediaNativeReceivedPhotoReadbackTests {
         else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
     }
 
+    @Test(arguments: [1, 2])
+    func originalPreviewIsBoundedOrderedReadOnlyAndColdRecoverable(_ count: Int) async throws {
+        let (h, owner, prepared) = try await fixture(count: count)
+        let before = try SharedMediaNativeReceivingStagingTests().facts(h)
+        try owner.setMetadataFault { if $0 != .beforeReadback { Issue.record("Preview attempted a write") } }
+        for index in 0..<count {
+            let preview = try await owner.previewReceivedAppOriginal(prepared, index: index)
+            #expect(preview.index == index && preview.count == count)
+            #expect(preview.image.cgImage.width > 0 && preview.image.cgImage.height > 0)
+            #expect(max(preview.image.cgImage.width, preview.image.cgImage.height) <= 2048)
+            try await preview.validate()
+        }
+        for index in [-1, count] {
+            await #expect(throws: (any Error).self) { _ = try await owner.previewReceivedAppOriginal(prepared, index: index) }
+        }
+        #expect(try SharedMediaNativeReceivingStagingTests().facts(h) == before)
+        #expect(try h.context().fetch(FetchDescriptor<OfflineQueuedScan>()).allSatisfy { $0.queueNeedsAttention && $0.queueAttemptCount == 0 })
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let cold = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        let preview = try await cold.previewReceivedAppOriginal(prepared, index: count - 1)
+        try await preview.validate()
+        #expect(preview.count == count)
+        #expect(await cold.invalidateAndAwaitForAccountTransition())
+        await #expect(throws: (any Error).self) { try await preview.validate() }
+    }
+
+    @Test(arguments: ["missingSibling", "replacedSibling", "changedSelected", "account", "cancel", "queue", "afterRead"])
+    func originalPreviewRejectsWholeCohortAndLifetimeRaces(_ fault: String) async throws {
+        let (h, owner, prepared) = try await fixture(count: 2)
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        let originals = try frozen.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).preparation.original }
+        let original = originals[fault == "changedSelected" ? 0 : 1]
+        let file = h.parent.appendingPathComponent("photo/PhotoPreparation")
+            .appendingPathComponent(h.ownerID.uuidString.lowercased()).appendingPathComponent(h.packageID.uuidString.lowercased())
+            .appendingPathComponent(original.reference.assetID.uuidString.lowercased())
+        let gate = Gate(after: 1)
+        if fault != "afterRead" { try await owner.setAcquisitionEntryPause { if $0 == .previewOriginal { await gate.pause() } } }
+        let operation = Task { try await owner.previewReceivedAppOriginal(prepared, index: 0) }
+        let saved: SharedMediaNativeOriginalPreview?
+        if fault == "afterRead" { saved = try await operation.value } else { saved = nil; await gate.entered.wait() }
+        var transition: Task<Bool, Never>?
+        switch fault {
+        case "missingSibling", "afterRead": try FileManager.default.removeItem(at: file)
+        case "replacedSibling":
+            let bytes = try Data(contentsOf: file)
+            try FileManager.default.moveItem(at: file, to: file.appendingPathExtension("retained-test-original"))
+            try bytes.write(to: file)
+        case "changedSelected": try Data([0]).write(to: file)
+        case "cancel": operation.cancel()
+        case "queue":
+            let context = h.context()
+            context.delete(try #require(try context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)); try context.save()
+        default:
+            transition = Task { await owner.invalidateAndAwaitForAccountTransition() }
+            while !owner.heldOriginalAdmissionClosedForTesting { await Task.yield() }
+        }
+        await gate.release.open()
+        if let saved { await #expect(throws: (any Error).self) { try await saved.validate() } }
+        else { await #expect(throws: (any Error).self) { _ = try await operation.value } }
+        if let transition { #expect(await transition.value) }
+        else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
+    }
+
     private func fixture(count: Int) async throws -> (SharedMediaNativeAppMetadataTests.Store, SharedMediaNativeOriginalOwner, SharedMediaNativeReceivingIntent.Prepared) {
         let (store, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: count, staged: true)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)

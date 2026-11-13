@@ -74,6 +74,40 @@ struct IdentificationHistoryViewModelTests {
         #expect(model.selected == fixture.a && fixture.prepares == 2 && fixture.sends == 2)
         #expect(model.rows.count == 2)
     }
+    @Test(arguments: [false, true])
+    func selectionAndUndoReleaseCommandBeforeNotifyingParent(failPage: Bool) async {
+        let fixture = Fixture()
+        var dependencies = fixture.dependencies
+        let page = dependencies.page
+        dependencies.page = { before in
+            if failPage && fixture.revision > 1 { throw ObservationHistoryError.unavailable }
+            return try await page(before)
+        }
+        var model: IdentificationHistoryViewModel!
+        var notifications = 0
+        model = IdentificationHistoryViewModel(dependencies: dependencies, didAdmit: {
+            notifications += 1
+            #expect(!model.isBusy && !model.pending)
+            #expect(model.selected == fixture.selected)
+            #expect(model.undoOperation == fixture.undo)
+            // The real callback reloads the outer Insight and can revalidate
+            // this presentation. It must not recursively deliver admission.
+            #expect(model.validate())
+            if !failPage { model.start(.newest) }
+        })
+        await model.perform(.newest); await model.perform(.preview(fixture.b))
+        model.start(.restore)
+        for _ in 0..<100 where notifications < 1 || model.isBusy || (!failPage && fixture.reads < 3) { await Task.yield() }
+        #expect(notifications == 1 && model.selected == fixture.b)
+        #expect(failPage || fixture.reads == 3)
+        model.start(.undo)
+        for _ in 0..<100 where notifications < 2 || model.isBusy || (!failPage && fixture.reads < 5) { await Task.yield() }
+        #expect(notifications == 2 && model.selected == fixture.a && !model.isBusy)
+        #expect(fixture.prepares == 2 && fixture.sends == 2)
+        #expect(failPage || fixture.reads == 5)
+        model.close()
+    }
+
     @Test func lostResponseKeepsPendingAndRetryDoesNotPrepareAnotherOperation() async {
         let fixture = Fixture(), model = fixture.model()
         await model.perform(.newest); await model.perform(.preview(fixture.b)); fixture.failSend = true

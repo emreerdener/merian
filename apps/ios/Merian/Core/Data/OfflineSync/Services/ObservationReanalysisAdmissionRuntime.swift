@@ -12,7 +12,7 @@ final class ObservationReanalysisAdmissionRuntime {
         func matches(_ other: Scope?) -> Bool { other?.ownerID == ownerID && other?.container === container }
     }
     enum Opportunity { case automatic, foreground, networkChanged, consentGranted(UUID), submitted(UUID) }
-    struct Dependencies {
+    @MainActor struct Dependencies {
         var scope: () -> Scope?
         var consentGranted: Validator
         var networkAllowed: Validator

@@ -5,16 +5,25 @@ import Observation
 final class ReanalysisStatusViewModel {
     private(set) var rows: [ObservationReanalysisOperationStatus.Summary] = []
     private(set) var next: ObservationReanalysisOperationStatus.Cursor?
-    private(set) var isBusy = false
+    private var isWorking = false
+    private(set) var recovery: AnalysisRecoveryCheckingModel?
+    private(set) var photo: ReanalysisSavedPhotoAccess.Preview?
+    private(set) var photoRow: ObservationReanalysisOperationStatus.Summary?
+    var isBusy: Bool { !isClosed && (isWorking || recovery?.isRunning == true) }
+    var recoveryMessage: String? { isClosed ? nil : recovery?.message }
+    var showsProgress: Bool { isWorking || recovery?.state == .checking }
     private(set) var isClosed = false
     private(set) var message: String?
     private let dependencies: ReanalysisStatusDependencies
     private let isPresented: () -> Bool
     private var generation = 0
+    private var photoGeneration = 0
+    private var isVisible = true
     private var work: Task<Void, Never>?
     private var libraryRefreshPending = false
     private var retirementRequest: (child: UUID, operation: UUID)?
-    var allowsOutcomeRecovery: Bool { dependencies.recoverOutcome != nil }
+    var allowsOutcomeRecovery: Bool { dependencies.recovery != nil }
+    var allowsPhotoPreview: Bool { dependencies.photo != nil }
     var allowsRetirement: Bool { dependencies.retire != nil }
     var deliveryGeneration: UInt64 { dependencies.generation() }
     var isSessionCurrent: Bool { !isClosed && isPresented() && dependencies.isCurrent() }
@@ -36,8 +45,9 @@ final class ReanalysisStatusViewModel {
     func load(more: Bool = false) async {
         guard !isBusy, validate(), !more || next != nil else { return }
         let cursor = more ? next : nil, expected = generation
-        isBusy = true; message = nil
-        defer { if generation == expected { isBusy = false; refreshLibraryWhenIdle() } }
+        closePhoto()
+        isWorking = true; message = nil
+        defer { if generation == expected { isWorking = false; refreshLibraryWhenIdle() } }
         do {
             let result = try await dependencies.page(cursor)
             guard generation == expected, !Task.isCancelled, validate() else { return }
@@ -50,6 +60,7 @@ final class ReanalysisStatusViewModel {
     func requestRetirement(_ row: ObservationReanalysisOperationStatus.Summary) {
         guard work == nil, !isBusy, validate(), rows.contains(row), row.retirement != nil,
               let retire = dependencies.retire else { return }
+        closePhoto()
         if let retained = retirementRequest, retained.child != row.id {
             message = "Finish checking the previous request before choosing another."
             return
@@ -58,12 +69,12 @@ final class ReanalysisStatusViewModel {
         let operation = retirementRequest?.operation ?? UUID()
         retirementRequest = (row.id, operation)
         let expected = generation
-        isBusy = true; message = nil
+        isWorking = true; message = nil
         work = Task { [weak self] in
             do {
                 let result = try await retire(row, operation)
                 guard let self, generation == expected, !Task.isCancelled, validate() else { return }
-                work = nil; isBusy = false
+                work = nil; isWorking = false
                 if result == .saved {
                     retirementRequest = nil
                     start()
@@ -73,7 +84,7 @@ final class ReanalysisStatusViewModel {
                 }
             } catch {
                 guard let self, generation == expected, !Task.isCancelled, validate() else { return }
-                work = nil; isBusy = false
+                work = nil; isWorking = false
                 message = "The stop request could not be confirmed. Try checking the same request again."
                 refreshLibraryWhenIdle()
             }
@@ -82,25 +93,57 @@ final class ReanalysisStatusViewModel {
 
     func checkOutcome(_ row: ObservationReanalysisOperationStatus.Summary) {
         guard work == nil, !isBusy, validate(), rows.contains(row), row.canCheckOutcome,
-              let recover = dependencies.recoverOutcome else { return }
-        let expected = generation
-        isBusy = true; message = nil
-        work = Task { [weak self] in
-            do {
-                let completed = try await recover(row)
-                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
-                work = nil; isBusy = false
-                if completed { start() } else {
-                    message = "No completed result is available yet. This request remains paused; no new analysis was started."
-                    refreshLibraryWhenIdle()
-                }
-            } catch {
-                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
-                work = nil; isBusy = false
-                message = "The original result could not be checked. This request remains paused."
+              let open = dependencies.recovery else { return }
+        closePhoto()
+        do {
+            let access = try open(row)
+            message = nil
+            recovery = AnalysisRecoveryCheckingModel(access: access, didFinish: { [weak self] in
+                guard let self, validate() else { return }
+                if recovery?.state == .recovered { libraryRefreshPending = true }
                 refreshLibraryWhenIdle()
+            })
+            recovery?.check()
+        } catch { message = "The original result cannot be checked right now." }
+    }
+
+    func viewPhoto(_ row: ObservationReanalysisOperationStatus.Summary, index: Int = 0) {
+        guard work == nil, !isBusy, isVisible, validate(), rows.contains(row), let read = dependencies.photo else { return }
+        closePhoto()
+        let expected = generation, expectedPhoto = photoGeneration
+        isWorking = true; message = nil
+        work = Task { [weak self] in
+            guard let self else { return }
+            defer { if generation == expected { work = nil; isWorking = false; refreshLibraryWhenIdle() } }
+            do {
+                let result = try await read(row, index, { [weak self] in
+                    self?.generation == expected && self?.photoGeneration == expectedPhoto &&
+                        self?.isVisible == true && self?.isSessionCurrent == true
+                })
+                guard !Task.isCancelled, generation == expected, photoGeneration == expectedPhoto,
+                      isVisible, validate(), rows.contains(row) else { return }
+                try result.validate()
+                photo = result; photoRow = row
+            } catch {
+                guard !Task.isCancelled, generation == expected, photoGeneration == expectedPhoto, validate() else { return }
+                message = "The saved photos are unavailable. Your request has been kept."
             }
         }
+    }
+
+    func closePhoto() { photoGeneration += 1; photo = nil; photoRow = nil }
+    func checkPhotoScope() {
+        guard validate(), let photo else { return }
+        do { try photo.validate() } catch {
+            closePhoto(); message = "The saved photos are unavailable. Your request has been kept."
+        }
+    }
+
+    func setVisible(_ visible: Bool) {
+        isVisible = visible
+        if !visible { closePhoto() }
+        if visible, !validate() { return }
+        recovery?.setVisible(visible)
     }
 
     func refreshForLibraryChange() {
@@ -119,8 +162,10 @@ final class ReanalysisStatusViewModel {
     }
     func close() {
         guard !isClosed else { return }
+        recovery?.close()
+        closePhoto()
         generation += 1; isClosed = true; work?.cancel(); work = nil
-        rows = []; next = nil; message = nil; isBusy = false; retirementRequest = nil
+        rows = []; next = nil; message = nil; isWorking = false; retirementRequest = nil
         dependencies.close()
     }
 }

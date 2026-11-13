@@ -18,6 +18,8 @@ struct SharedMediaNativeReleaseContinuation: Equatable {
 }
 
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReleaseContinuationAudit {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
@@ -38,13 +40,15 @@ enum SharedMediaNativeReleaseContinuationAudit {
         guard case .releasing(let snapshot) = witnesses[plan.package.id], snapshot.release.progress == progress,
               snapshot.inventoryRevision == header.inventory.revision else { throw SharedMediaStorageFailure.stale }
         try SharedMediaNativeReleaseSurvivorProjection.maximum(snapshot).requireMetadataCapacity()
-        _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add([SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances] + witnesses.values.map { try $0.remainingAdvances }))
+        _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add([SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).remainingAdvances] + witnesses.values.map { try $0.remainingAdvances }))
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         return snapshot
     }
 }
 
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppReleaseContinuationOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     let container: ModelContainer

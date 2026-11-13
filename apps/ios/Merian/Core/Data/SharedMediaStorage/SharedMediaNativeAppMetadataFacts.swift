@@ -124,7 +124,7 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
               current.packages == expected, current.consumers == consumers else { throw SharedMediaStorageFailure.conflict }
     }
     @MainActor static func pairPlanPoststate(_ context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                            proof: SharedMediaNativeAppPairPlanPoststate) throws -> Self {
+                                             proof: SharedMediaNativeAppPairPlanPoststate) throws -> Self {
         try proof.validate(context: context, inventory: inventory)
         return try read(context, profile: proof.profile, preserving: proof.allocationPeers)
     }
@@ -203,8 +203,8 @@ struct SharedMediaNativeAppMetadataFacts: Equatable, Sendable {
     /// Descriptive comparison only; the sealed phase proof separately checks
     /// the exact write set and permitted transition against the captured row.
     @MainActor func validateIntentTransition(_ context: ModelContext,
-        row: SharedMediaNativeReceivingIntentGraph.Row, package: Package,
-        consumer: SharedMediaConsumerRecord?) throws {
+                                             row: SharedMediaNativeReceivingIntentGraph.Row, package: Package,
+                                             consumer: SharedMediaConsumerRecord?) throws {
         let current = try Self.read(context, profile: profile, preserving: allocationPeers)
         var expectedIntents = intents, expectedPackages = packages, expectedConsumers = consumers
         guard intents[row.id] != nil, packages[row.id] != nil, members[row.id] != nil,

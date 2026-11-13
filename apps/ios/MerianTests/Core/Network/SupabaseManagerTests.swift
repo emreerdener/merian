@@ -760,6 +760,26 @@ struct PhotoPreparationAuthDrainTests {
         #expect(order == (nativeSucceeds ? ["native", "photo"] : ["native"]))
     }
 
+    @Test(arguments: ["before", "native", "photo", "account"])
+    func destructiveScopeMustRemainCurrentAcrossEveryDrain(boundary: String) async {
+        var current = boundary != "before", order: [String] = []
+        let result = await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("photo"); await Task.yield()
+            if boundary == "photo" { current = false }
+            return true
+        }, native: {
+            order.append("native"); await Task.yield()
+            if boundary == "native" { current = false }
+            return true
+        }, validate: { current }, drain: {
+            order.append("account"); await Task.yield()
+            if boundary == "account" { current = false }
+        })
+        #expect(!result)
+        let expected = ["before": [], "native": ["native"], "photo": ["native", "photo"], "account": ["native", "photo", "account"]]
+        #expect(order == expected[boundary])
+    }
+
     @Test func successfulOwnerClosurePrecedesAccountDrain() async {
         var order: [String] = []
         #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {

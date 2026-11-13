@@ -12,10 +12,12 @@ enum ScanLibraryPurgeService {
         resetRuntimeState: @MainActor () -> Void,
         sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
         erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
+        validateAuthorization: @MainActor () -> Bool = { true },
         eraseReanalysis: @MainActor () async throws -> Void = {
-            try await ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
+            try ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
         }
     ) async -> Bool {
+        guard validateAuthorization() else { return false }
         let cleanup = OfflineQueueManager.shared.reanalysisErasureOwner
         var suspended = false
         defer { if suspended { cleanup.resumeAfterLibraryPurge() } }
@@ -36,6 +38,7 @@ enum ScanLibraryPurgeService {
                 suspended = true
             }
         } catch { return false }
+        guard validateAuthorization() else { return false }
         do {
             let hasP1Namespace = FileManager.default.fileExists(atPath:
                 URL.documentsDirectory.appendingPathComponent("PhotoPreparation").path)
@@ -50,6 +53,7 @@ enum ScanLibraryPurgeService {
             } else if try PhotoPreparationRepository.hasLiabilities(in: modelContext) || hasP1Namespace {
                 throw PhotoPreparationFailure.cleanupPending
             }
+            guard validateAuthorization() else { return false }
             try modelContext.delete(model: CapturedMediaEntry.self)
             try modelContext.delete(model: LocalAnalysisStateRecord.self)
             try modelContext.delete(model: LocalAnalysisRecord.self)
@@ -69,6 +73,7 @@ enum ScanLibraryPurgeService {
             return false
         }
 
+        guard validateAuthorization() else { return false }
         do {
             // Auth transition/recovery barriers remain held across this suspension.
             // Failure after the row commit keeps the durable cleanup marker for an idempotent retry.
@@ -79,7 +84,7 @@ enum ScanLibraryPurgeService {
             return false
         }
 
-        guard AccountScopedPreferences.purgeAndVerify(
+        guard validateAuthorization(), AccountScopedPreferences.purgeAndVerify(
             userDefaults: userDefaults
         ) else {
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)

@@ -131,6 +131,8 @@ DECLARE scan UUID:=gen_random_uuid(); owner_id UUID:='00000000-0000-4000-8000-00
  stage internal.initial_preparation_admission_staging; receipt internal.initial_preparation_admission_receipts;
  response JSONB; before_replay JSONB; result BOOLEAN:=FALSE; fixture_definition TEXT;
  selected_profile TEXT; new_install TEXT; expected_handoff TEXT; new_selection UUID:=gen_random_uuid(); original_selection UUID;
+ diagnostic_variant TEXT:=CASE symbol WHEN 'a' THEN 'plain' WHEN chr(1) THEN 'escaped' WHEN chr(128998) THEN 'non-BMP' ELSE 'other' END;
+ phase_times JSONB:='{}';
 BEGIN
  SELECT generation INTO STRICT original_selection FROM internal.initial_preparation_current_selection WHERE input_profile='multimodal_video_audio_v1';
  BEGIN
@@ -180,6 +182,7 @@ BEGIN
   PERFORM pg_temp.execution_advance(scan,4);
   PERFORM internal.create_initial_admission_stage(owner_id,scan);
   SELECT * INTO STRICT stage FROM internal.initial_preparation_admission_staging WHERE scan_id=scan;
+  phase_times:=jsonb_build_object('stage_ready',floor(extract(epoch FROM clock_timestamp())*1000));
   IF stage.assignment::JSONB#>>'{handoff,installation_digest}' IS DISTINCT FROM new_install
    OR stage.assignment::JSONB#>>'{handoff,profile_digest}' IS DISTINCT FROM expected_handoff
    OR stage.assignment::JSONB#>>'{handoff,profile,phase_ms,admission}' IS DISTINCT FROM '140000'
@@ -191,10 +194,15 @@ BEGIN
   PERFORM set_config('merian.initial_preparation_funding',owner_id::TEXT||':'||scan::TEXT,TRUE);
   PERFORM set_config('merian.initial_analysis_admission',owner_id::TEXT||':'||scan::TEXT,TRUE);
   PERFORM * FROM public.reserve_identification_quota(owner_id,'scan_identification',scan,repeat('a',64),scan,FALSE,3,FALSE,'multimodal_video_audio_v1','google_gemini',6);
+  phase_times:=phase_times||jsonb_build_object('before_materialize',floor(extract(epoch FROM clock_timestamp())*1000));
   PERFORM internal.materialize_initial_admission(scan);
+  phase_times:=phase_times||jsonb_build_object('after_materialize',floor(extract(epoch FROM clock_timestamp())*1000));
   PERFORM internal.freeze_initial_admission_ledger(scan);
+  phase_times:=phase_times||jsonb_build_object('after_freeze',floor(extract(epoch FROM clock_timestamp())*1000));
   PERFORM internal.begin_initial_admission_consumption(scan);
+  phase_times:=phase_times||jsonb_build_object('before_finish',floor(extract(epoch FROM clock_timestamp())*1000));
   receipt:=internal.finish_initial_admission(scan);
+  phase_times:=phase_times||jsonb_build_object('after_finish',floor(extract(epoch FROM clock_timestamp())*1000));
   SET CONSTRAINTS ALL IMMEDIATE;
   IF receipt.input IS DISTINCT FROM internal.initial_canonical(input_value)
    OR NOT EXISTS(SELECT 1 FROM internal.initial_analysis_submissions s WHERE s.scan_id=scan
@@ -215,8 +223,20 @@ BEGIN
    OR EXISTS(SELECT 1 FROM internal.identification_invocations WHERE scan_id=scan)
    THEN RAISE EXCEPTION 'synthetic boundary recovery mismatch'; END IF;
   result:=TRUE;
+  -- The body completed; only the subsequent rollback invariants and pgTAP can
+  -- establish fixture success. This notice is not a passing-test result.
+  RAISE NOTICE 'initial_boundary_diagnostic %',jsonb_build_object('variant',diagnostic_variant,'outcome','body_completed',
+   'anchor_ms',stage.phase_window::JSONB->'anchor_ms','admission_cutoff_ms',stage.phase_window::JSONB#>'{cutoffs,admission}',
+   'observed_epoch_ms',phase_times);
   RAISE EXCEPTION 'rollback successful boundary fixture' USING ERRCODE='ZX731';
  EXCEPTION WHEN SQLSTATE 'ZX731' THEN NULL;
+ WHEN OTHERS THEN
+  -- Closed synthetic timing only. Do not print SQLERRM, inputs, identities or
+  -- receipt bodies. Preserve the original error and all original cutoffs.
+  RAISE NOTICE 'initial_boundary_diagnostic %',jsonb_build_object('variant',diagnostic_variant,'outcome','failed','sqlstate',SQLSTATE,
+   'anchor_ms',stage.phase_window::JSONB->'anchor_ms','admission_cutoff_ms',stage.phase_window::JSONB#>'{cutoffs,admission}',
+   'observed_epoch_ms',phase_times||jsonb_build_object('failure_observed',floor(extract(epoch FROM clock_timestamp())*1000)));
+  RAISE;
  END;
  RETURN result AND NOT EXISTS(SELECT 1 FROM internal.initial_analysis_operation_fences WHERE scan_id=scan)
   AND (SELECT generation FROM internal.initial_preparation_current_selection WHERE input_profile='multimodal_video_audio_v1')=original_selection
@@ -2506,6 +2526,7 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'internal.initial_analysis_submissions',
  'internal.initial_cancellation_credit_witness',
  'internal.initial_cancellation_erasure_witness',
+ 'internal.initial_cancellation_invocation_witness',
  'internal.initial_cancellation_lifecycle_witness',
  'internal.initial_cancellation_quota_statements',
  'internal.initial_cancellation_receipt_witness',
@@ -2534,6 +2555,7 @@ SELECT extensions.is((SELECT array_agg(relation_name ORDER BY relation_name) FRO
  'internal.observation_analysis_source_bindings',
  'internal.observation_histories',
  'internal.scan_deletion_tombstones',
+ 'public.ai_usage_events',
  'public.scan_ingestion_intents',
  'public.scan_ingestion_jobs',
  'public.scans',

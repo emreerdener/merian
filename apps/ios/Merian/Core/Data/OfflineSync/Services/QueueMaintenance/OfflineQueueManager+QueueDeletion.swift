@@ -120,8 +120,7 @@ extension OfflineQueueManager {
 
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks: [URLSessionTask]
-        if let enumerateBackgroundTasks { allTasks = await enumerateBackgroundTasks() }
-        else { allTasks = await backgroundSession.allTasks }
+        if let enumerateBackgroundTasks { allTasks = await enumerateBackgroundTasks() } else { allTasks = await backgroundSession.allTasks }
         if let foregroundInferenceExpectation {
             guard !Task.isCancelled,
                   foregroundInferenceGenerations[scanId]

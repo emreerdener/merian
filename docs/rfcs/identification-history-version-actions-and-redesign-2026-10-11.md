@@ -19,6 +19,14 @@
 
 ## Summary and sequencing
 
+October 18, 2026 (Chicago) scheduling addendum:
+[unresolved-analysis recovery UX](unresolved-analysis-recovery-and-replacement-2026-10-18.md)
+is part of current native integration acceptance and is reused by the redesign.
+Its separately gated **Replace pending identification** milestone defaults to
+following the deletion/export and redesign sequence below. It does not block or
+reorder these milestones. Existing selection, review and permanent
+version-deletion behavior is unchanged.
+
 Use the supplied mockup as the target experience, delivered in this order:
 
 1. Finish the current media-required identification-history and analysis-engine

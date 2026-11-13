@@ -87,7 +87,13 @@ may contain a known user with an expired access token;
 restoration while leaving authenticated request state closed. The retained
 `AuthSessionLifecycleLiveProvider` owns and maps the SDK stream/listener task;
 restarting the listener cancels the superseded task and its deferred replay, and
-canceled work cannot publish the trailing credential-revocation resume effect.
+canceled work cannot publish the trailing credential-revocation resume effect. A
+Debug-only initial-media UI fixture join observes the initial signed-out
+handler's actual exit, including identity cleanup, before installing synthetic
+test state. It is bounded and cancellable, rejects deferred/superseded initial
+work and does not stop the indefinite listener. This is a test synchronization
+boundary, not an app startup readiness or authentication contract.
+
 `SupabaseManager` injects only weak facade effects. Only the subsequent
 `tokenRefreshed` or `signedOut` event may advance the root. A non-cancellation
 reconciliation failure retains this neutral root, shows an immediate retry

@@ -51,8 +51,7 @@ struct SharedMediaPurgeOperations {
         for pair in pairs { try await discardPair(pair.request) }
         for handle in try read({ try $0.photos.purgeHandles() }) { try await discardOriginal(handle) }
         try await destinationIO.prune(read { try $0.photos.inventory() })
-        do { return try storage.finishPurge(access) }
-        catch { return try storage.finishPurge(access) } // Fresh terminal readback; no file or AI retry.
+        do { return try storage.finishPurge(access) } catch { return try storage.finishPurge(access) } // Fresh terminal readback; no file or AI retry.
     }
 
     private func discardSource(_ initial: SharedMediaInboxSource) async throws {

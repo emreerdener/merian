@@ -51,7 +51,7 @@ import XCTest
         let original = identity.label
         XCTAssertNotNil(UUID(uuidString: original))
         let counts = app.staticTexts["AudioFixtureCounts"]
-        XCTAssertEqual(counts.label, "1:1")
+        XCTAssertEqual(counts.label, "1:1:0")
         app.buttons["AudioFixtureConsume"].tap()
         XCTAssertEqual(identity.label, original)
         let savedOpen = app.buttons["AudioFixtureSavedOpen"]
@@ -60,12 +60,22 @@ import XCTest
         let action = app.buttons["SavedAudioContinue"]
         XCTAssertTrue(row.waitForExistence(timeout: 10)); XCTAssertFalse(action.isEnabled)
         app.buttons["SavedAudioDone"].tap()
-        XCTAssertTrue(row.waitForNonExistence(timeout: 5)); XCTAssertEqual(counts.label, "1:1")
-        for expected in ["2:1", "3:1"] {
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5)); XCTAssertEqual(counts.label, "1:1:0")
+        for expected in ["1:1:1", "1:1:2"] {
             savedOpen.tap()
             XCTAssertTrue(row.waitForExistence(timeout: 10)); XCTAssertFalse(action.isEnabled)
-            row.tap(); XCTAssertEqual(action.label, "Check saved result"); action.tap()
-            XCTAssertTrue(app.staticTexts["SavedAudioMessage"].waitForExistence(timeout: 10))
+            row.tap(); XCTAssertEqual(action.label, "Check saved result")
+            app.buttons["SavedAudioPreview"].tap()
+            let unavailable = app.staticTexts["SavedAudioMessage"]
+            XCTAssertTrue(unavailable.waitForExistence(timeout: 10))
+            XCTAssertTrue(unavailable.label.contains("saved audio is unavailable"))
+            action.tap()
+            let recovery = app.staticTexts["SavedAudioRecoveryMessage"]
+            XCTAssertTrue(recovery.waitForExistence(timeout: 10))
+            let absent = NSPredicate(format: "label == %@", "We haven’t been able to recover your result yet.")
+            expectation(for: absent, evaluatedWith: recovery)
+            waitForExpectations(timeout: 10)
+            XCTAssertTrue(app.staticTexts["SavedAudioConnectivity"].label.contains("internet connection"))
             app.buttons["SavedAudioDone"].tap()
             XCTAssertTrue(row.waitForNonExistence(timeout: 5))
             XCTAssertEqual(counts.label, expected); XCTAssertEqual(identity.label, original)
@@ -74,7 +84,7 @@ import XCTest
         app.buttons["AudioFixtureLoseAccount"].tap()
         XCTAssertTrue(action.waitForNonExistence(timeout: 5))
         app.buttons["SavedAudioDone"].tap()
-        XCTAssertEqual(counts.label, "3:1"); XCTAssertEqual(identity.label, original)
+        XCTAssertEqual(counts.label, "1:1:2"); XCTAssertEqual(identity.label, original)
     }
 
 }

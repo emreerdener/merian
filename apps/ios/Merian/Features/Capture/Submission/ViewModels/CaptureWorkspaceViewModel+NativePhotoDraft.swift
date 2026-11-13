@@ -24,7 +24,7 @@ extension CaptureWorkspaceViewModel {
               !dependencies.submission.admission.isLibraryAccessBlocked(),
               let account = dependencies.submission.admission.accountID(),
               let factory = dependencies.submission.nativePhotoDraftFactory,
-              (nativePhotoDraftSession != nil || (stagedCapture.images.isEmpty && stagedCapture.nativePhotoDraft == nil)),
+              nativePhotoDraftSession != nil || (stagedCapture.images.isEmpty && stagedCapture.nativePhotoDraft == nil),
               inputs.count + (nativePhotoDraftSession?.items.count ?? 0) <= 2,
               let operation = beginDraftOperation(nativePhoto: true) else {
             offlineToastMessage = .error("These photos couldn’t be added to this local draft. Your current media and details are retained.")

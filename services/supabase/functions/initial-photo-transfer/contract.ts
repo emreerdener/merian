@@ -11,33 +11,38 @@ import {
 } from "../_shared/initialAnalysis/cpmPhotoWriteStatus.ts";
 import schema from "./schema-v1.json" with { type: "json" };
 
+import roleProgress from "./role-progress-schema-v2.json" with { type: "json" };
+
 export const TRANSFER_BODY_LIMIT = 2 * 1048576 + 4096;
 export const TRANSFER_REPLY_LIMIT = 8192;
 export type TransferRequest = Readonly<{
-  action: "issue" | "status";
+  action: "issue" | "status" | "role_progress";
   scan: string;
   assignmentDigest: string;
   object: string;
   created: number;
   expires: number;
+  attempt: string | null;
   allocation: AllocationRequest | null;
 }>;
 
 export function parseTransferRequest(body: unknown): TransferRequest {
   if (
     !matchesInitialSchema(body, schema.issue) &&
-    !matchesInitialSchema(body, schema.status)
+    !matchesInitialSchema(body, schema.status) &&
+    !matchesInitialSchema(body, roleProgress)
   ) {
     throw initialMediaUnavailable();
   }
   // The executable closed schema checks every key and primitive before mapping.
   const value = body as {
-    action: "issue" | "status";
+    action: "issue" | "status" | "role_progress";
     scan_id: string;
     assignment_digest: string;
     object_id: string;
     allocation_created_at_ms: number;
     allocation_expires_at_ms: number;
+    attempt_id?: string;
     candidate_canonical?: string;
   };
   if (
@@ -62,6 +67,7 @@ export function parseTransferRequest(body: unknown): TransferRequest {
     object: value.object_id,
     created: value.allocation_created_at_ms,
     expires: value.allocation_expires_at_ms,
+    attempt: value.attempt_id ?? null,
     allocation,
   });
 }

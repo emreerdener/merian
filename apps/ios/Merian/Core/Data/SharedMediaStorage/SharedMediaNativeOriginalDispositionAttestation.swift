@@ -5,6 +5,8 @@ import SwiftData
 /// Versioned transaction attestation, not a physical-original proof. Reference
 /// pages are hashed incrementally under the store lock; no unbounded array.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeOriginalDispositionAttestation {
     typealias Raw = SharedMediaNativeReleasePairRaw
     static func digest(before: SharedMediaNativeReceivingReleaseValues.Progress,

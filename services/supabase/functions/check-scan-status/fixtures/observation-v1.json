@@ -1,0 +1,21 @@
+{
+  "request": {
+    "initial_recovery": {
+      "version": 1,
+      "phase": "observe",
+      "original": {
+        "owner_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "scan_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      }
+    }
+  },
+  "response": {
+    "version": 1,
+    "phase": "observe",
+    "owner_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "scan_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "row_exists": true,
+    "job_status": "complete",
+    "original_result": "unavailable"
+  }
+}

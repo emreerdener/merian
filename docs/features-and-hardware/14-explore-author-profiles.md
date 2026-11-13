@@ -25,20 +25,31 @@ exposing private scan IDs or opening private achievement evidence.
   preview for currently visible Explore publications. Local files may supply a
   thumbnail fallback for an already-visible server post, but local share cache
   never creates an extra public tile.
+- Both the user's own Profile and Explore public profiles group the published
+  preview in a secondary grouped-background card with 16-point internal padding
+  and a 24-point continuous corner radius. **Published scans** uses bold title2,
+  matching the Profile stat values and active Field trip title; the count stays
+  secondary and moves below the heading when horizontal space is insufficient.
+  The three-column grid and full-width **View all scans** footer share the card
+  inset. The footer retains the outlined capsule button inside the card. Loading
+  and empty/error content use the same container when the preview is shown; the
+  owner's empty preview remains hidden when there is no loading, error, or
+  recovery state.
 - When a publication needs media recovery, the owner sees concise, anchored copy
   showing the unavailable-media count, a `Review scans` link, and an
-  account-scoped dismiss action. Dismissal hides only the Profile notice for the
-  acknowledged unavailable-media count across reloads and app launches. Changes
-  to healthy publication totals or quarantine status do not show it again. A
-  lower confirmed unavailable count reduces the saved count, an increase shows
-  the notice again, and resolving all published incidents clears the dismissal.
-  Loading or failed refreshes preserve it. This uses aggregate counts, so
-  replacing one unavailable item with another at the same count cannot be
-  distinguished without incident-level data. The link opens Scan Library, where
-  a matching compact count and refresh action remain anchored above the filters.
-  The refresh link becomes an in-line loading indicator while the incident
-  request runs. The grid automatically scopes to local scans with media issues
-  when their incident IDs are available.
+  account-scoped dismiss action inside the card, below the heading and above the
+  grid. The notice and actions stack when space is tight. Dismissal hides only
+  the Profile notice for the acknowledged unavailable-media count across reloads
+  and app launches. Changes to healthy publication totals or quarantine status
+  do not show it again. A lower confirmed unavailable count reduces the saved
+  count, an increase shows the notice again, and resolving all published
+  incidents clears the dismissal. Loading or failed refreshes preserve it. This
+  uses aggregate counts, so replacing one unavailable item with another at the
+  same count cannot be distinguished without incident-level data. The link opens
+  Scan Library, where a matching compact count and refresh action remain
+  anchored above the filters. The refresh link becomes an in-line loading
+  indicator while the incident request runs. The grid automatically scopes to
+  local scans with media issues when their incident IDs are available.
 - The user's own Profile tab also shows active and published Field trip modules
   when the Field trips endpoint returns visible summaries, plus lightweight
   Field trip challenge badges when awarded. Automatic Backyard Safari enrollment
@@ -49,7 +60,8 @@ exposing private scan IDs or opening private achievement evidence.
   - persona derived from species discovered
   - follower and following counts
   - a `Follow` / `Following` button for non-self profiles
-  - a non-self overflow menu with `Report user` when `viewer_can_report == true`
+  - a non-self overflow menu with `Block user`, followed by `Report user` when
+    `viewer_can_report == true`
   - species discovered
   - current streak
   - 52-week scan heatmap
@@ -59,9 +71,9 @@ exposing private scan IDs or opening private achievement evidence.
   - up to 3 pinned published Field trips before the general Field trip modules
   - Field trip challenge completion badges, when visible
   - achievements rendered as informational cards only
-- The "View all published scans" button side-transitions the profile route into
-  the author's full published scan library. The leading toolbar button reverses
-  the transition back to the profile content.
+- The "View all scans" button side-transitions the profile route into the
+  author's full published scan library. The leading toolbar button reverses the
+  transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the same Explore navigation
   stack. The post detail carries the originating author-profile depth, disables
   insight presentation, and blocks one more author-profile hop after
@@ -84,6 +96,11 @@ exposing private scan IDs or opening private achievement evidence.
   characters), shows loading/error/success state, and dismisses after successful
   submission. It does not automatically block, unfollow, hide, or navigate away
   from the profile.
+- Blocking uses the same action as the feed and post-detail menus, including for
+  profiles with no published posts. Success removes the author's cached Explore
+  posts, shows `User blocked`, and closes the profile. Failure keeps the profile
+  open with error feedback. The block action and follow control are disabled
+  while blocking is in progress.
 - Logged-in/provider-derived authors keep display names such as `Emre E.` as the
   primary profile/feed label. Default/ghost identities render as
   `@public_username`.

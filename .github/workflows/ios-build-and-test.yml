@@ -839,6 +839,7 @@ jobs:
 
           bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"
           bash scripts/validate-ios-transport-security.sh "$app_info"
+          python3 scripts/validate-ios-history-release.py "$app_info"
 
           project_version="$(
             awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
@@ -907,6 +908,7 @@ jobs:
           release_strings_file="${RUNNER_TEMP}/ios-release-main-binary-strings.txt"
           LC_ALL=C /usr/bin/strings -a "$main_binary" > "$release_strings_file"
           for forbidden_ui_seed_marker in \
+            "HistoryLocalDiagnostics" \
             "-seedCurrentRequiredConsent" \
             "-seedLocationPermissionPromptSuppressed" \
             "-seedAchievementDetailFlow" \
@@ -914,6 +916,12 @@ jobs:
             "-seedCaptureGoalIndicatorFlow" \
             "-seedCaptureGoalIntroductionFlow" \
             "-seedQueuedAudioHandoffFlow" \
+            "-seedQueuedObservationRestart" \
+            "-seedNativePhotoRecoveryRestart" \
+            "-seedNativePhotoRecoveryHistory" \
+            "-seedReanalysisRecoveryRestart" \
+            "-seedReanalysisRecoverySuccess" \
+            "-seedInitialMediaHistory" \
             "-seedQueuedRetryPresentationFlow" \
             "-seedOpenAIPermissionFlow" \
             "-seedLiveQueueHandoffFlow" \
@@ -986,6 +994,8 @@ jobs:
               dsym_uuid_match: true,
               privacy_manifest_valid: true,
               transport_security: "ats-default",
+              history_enabled_normal_oauth: true,
+              local_history_diagnostics_absent: true,
               ui_test_seed_markers_absent: true
             }' > "$XCODE_EVIDENCE"
 

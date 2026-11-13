@@ -206,7 +206,7 @@ struct SharedMediaNativeAppMetadataTests {
         func queue(_ c: ModelContext) throws -> OfflineQueuedScan {
             try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
         }
-        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
+        let initial = AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
             observationID: prepared.observationID, operationID: prepared.operationID))
         let first = try initial.reserve(id: UUID()).reserved.encoded(), secondBytes = try initial.reserve(id: UUID()).reserved.encoded()
         #expect(first.count == secondBytes.count && first != secondBytes)

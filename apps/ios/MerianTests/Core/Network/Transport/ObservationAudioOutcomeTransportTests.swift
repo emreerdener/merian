@@ -18,7 +18,7 @@ struct ObservationAudioOutcomeTransportTests {
         state["observation_id"] = fixture.seed.source.observationID.uuidString.lowercased()
         state["selected_analysis_id"] = fixture.seed.source.analysisID.uuidString.lowercased()
         var item = try #require(state["analysis"] as? [String: Any])
-        item["snapshot"] = try #require(String(bytes: bytes, encoding: .utf8))
+        item["snapshot"] = (try #require(String(bytes: bytes, encoding: .utf8))) as String
         state["analysis"] = item
         return try JSONSerialization.data(withJSONObject: state)
     }

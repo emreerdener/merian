@@ -44,7 +44,7 @@ enum SharedMediaNativeReleaseStageIdentity {
         for witness in witnesses {
             guard !witness.identities.contains(id) else { throw SharedMediaStorageFailure.conflict }
             switch witness {
-            case .allocating(let value): try requireAbsent(id, prepared: value.prepared)
+            case .allocating(let value), .initial(let value): try requireAbsent(id, prepared: value.prepared)
             case .generic(let value):
                 switch value.slot {
                 case .prepared(let p), .received(let p, _, _):
@@ -117,7 +117,9 @@ enum SharedMediaNativeReleaseStageIdentity {
             $0.id == id || $0.sourceID == id || $0.assetID == id || $0.referenceID == id || $0.leaseID == id || $0.sourceHoldID == id
         }))
         try empty(c, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id || $0.operationID == id }))
-        let aliases = [id.uuidString.lowercased(), id.uuidString.uppercased()]
+        let lower = id.uuidString.lowercased(), upper = id.uuidString.uppercased()
+        let lowerJob = "scan-ingestion:" + lower, upperJob = "scan-ingestion:" + upper
+        let aliases = [lower, upper]
         let jobs = aliases.map { "scan-ingestion:" + $0 }
         try empty(c, FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
             $0.id == id || $0.packageID == id || $0.retirementID == id || $0.inferenceGeneration == id
@@ -127,10 +129,10 @@ enum SharedMediaNativeReleaseStageIdentity {
         }))
         try empty(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { aliases.contains($0.id) || $0.sharedMediaConsumerID == id }))
         try empty(c, FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
-            jobs.contains($0.id) || ($0.subjectId != nil && aliases.contains($0.subjectId!))
+            jobs.contains($0.id) || $0.subjectId == lower || $0.subjectId == upper
         }))
         try empty(c, FetchDescriptor<OfflineQueueEvent>(predicate: #Predicate {
-            aliases.contains($0.id) || ($0.scanId != nil && aliases.contains($0.scanId!)) || ($0.jobId != nil && jobs.contains($0.jobId!))
+            aliases.contains($0.id) || $0.scanId == lower || $0.scanId == upper || $0.jobId == lowerJob || $0.jobId == upperJob
         }))
         try empty(c, FetchDescriptor<LocalScanRecord>(predicate: #Predicate { aliases.contains($0.id) || $0.sharedMediaConsumerID == id }))
         try empty(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {

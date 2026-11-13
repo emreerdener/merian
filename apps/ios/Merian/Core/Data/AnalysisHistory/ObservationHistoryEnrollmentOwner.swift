@@ -16,6 +16,8 @@ final class ObservationHistoryEnrollmentOwner {
         let token: UUID
         let scope: Scope
         let baseline: ObservationHistoryStateSyncService.ReviewBaseline
+        let recovery: NativeInitialEnrollmentRecovery?
+        let baselineRecovery: ObservationHistoryEnrollmentService.BaselineRecoveryAdmission?
         let task: Task<UUID, Error>
         var cancelled = false
     }
@@ -24,10 +26,24 @@ final class ObservationHistoryEnrollmentOwner {
 
     func contains(_ observation: UUID) -> Bool { entries[observation] != nil }
 
+    /// Explicit initial-History continuation; an already enrolled parent is read-only recovery.
+    func continueInitialHistory(observation: UUID, owner: UUID, generation: UInt64, container: ModelContainer,
+                                cloud: ObservationHistoryCloudClient, isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
+        try Task.checkCancellation()
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        if try ObservationHistoryEnrollmentService.requiresBaselineRecovery(observation: observation, owner: owner, container: container) {
+            return try await recoverBaseline(observation: observation, owner: owner, generation: generation,
+                container: container, cloud: cloud, isCurrent: isCurrent)
+        }
+        return try await enroll(observation: observation, owner: owner, generation: generation,
+            container: container, cloud: cloud, isCurrent: isCurrent)
+    }
+
     /// The supplied predicate owns current account/generation/container admission, independently of inference consent.
     func enroll(observation: UUID, owner: UUID, generation: UInt64, container: ModelContainer,
                 cloud: ObservationHistoryCloudClient,
                 expectedBaseline: ObservationHistoryStateSyncService.ReviewBaseline? = nil,
+                recovery: NativeInitialEnrollmentRecovery? = nil,
                 isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
         try Task.checkCancellation()
         guard drains == 0 else { throw Failure.draining }
@@ -35,8 +51,12 @@ final class ObservationHistoryEnrollmentOwner {
         let scope = Scope(owner: owner, generation: generation, container: ObjectIdentifier(container))
         let entry: Entry
         if let active = entries[observation] {
-            guard active.scope == scope, !active.cancelled else { throw Failure.busy }
+            guard active.scope == scope, !active.cancelled, active.baselineRecovery == nil else { throw Failure.busy }
             let baseline = try expectedBaseline ?? ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
+            if let recovery {
+                guard try ObservationHistoryEnrollmentService.nativeRecoveryAdmission(recovery.candidate, container: container) == recovery,
+                      active.recovery == nil || active.recovery == recovery else { throw ObservationHistoryEnrollmentService.AdmissionError.localStateChanged }
+            }
             guard active.baseline == baseline else { throw ObservationHistoryEnrollmentService.AdmissionError.localStateChanged }
             entry = active
         } else {
@@ -53,15 +73,56 @@ final class ObservationHistoryEnrollmentOwner {
                 var scopedCloud = cloud
                 scopedCloud.isCurrent = { cloud.isCurrent($0) && current() }
                 let result = try await ObservationHistoryEnrollmentService(cloud: scopedCloud).enroll(
-                    observationID: observation.uuidString, expectedOwnerID: owner, container: container, expectedBaseline: baseline)
+                    observationID: observation.uuidString, expectedOwnerID: owner, container: container, expectedBaseline: baseline, recovery: recovery)
                 try Task.checkCancellation()
                 guard current() else { throw ObservationHistoryError.accountChanged }
                 return result
             }
-            entry = Entry(token: token, scope: scope, baseline: baseline, task: task)
+            entry = Entry(token: token, scope: scope, baseline: baseline, recovery: recovery, baselineRecovery: nil, task: task)
             entries[observation] = entry
         }
         // A dismissed waiter cannot cancel another caller's admission. Queue/Auth/deletion own the task.
+        let result = await entry.task.result
+        try Task.checkCancellation()
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        return try result.get()
+    }
+
+    /// Uses the same bounded observation slots and account/deletion drains as enrollment.
+    /// An association recovery can never join a creation-capable enrollment task.
+    func recoverBaseline(observation: UUID, owner: UUID, generation: UInt64, container: ModelContainer,
+                         cloud: ObservationHistoryCloudClient,
+                         isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
+        try Task.checkCancellation()
+        guard drains == 0 else { throw Failure.draining }
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        let scope = Scope(owner: owner, generation: generation, container: ObjectIdentifier(container))
+        let baseline = try ObservationHistoryEnrollmentService.baselineRecoveryAdmission(observation: observation, owner: owner, container: container)
+        let entry: Entry
+        if let active = entries[observation] {
+            guard active.scope == scope, !active.cancelled, active.baselineRecovery == baseline else { throw Failure.busy }
+            entry = active
+        } else {
+            guard entries.count < Self.maximumActiveObservations else { throw Failure.capacity }
+            let token = UUID()
+            let task = Task { @MainActor [self] in
+                defer { if entries[observation]?.token == token { entries[observation] = nil } }
+                let current = { [self] in
+                    entries[observation]?.token == token && entries[observation]?.cancelled == false && isCurrent()
+                }
+                try Task.checkCancellation()
+                guard current() else { throw ObservationHistoryError.accountChanged }
+                var scopedCloud = cloud
+                scopedCloud.isCurrent = { cloud.isCurrent($0) && current() }
+                let result = try await ObservationHistoryEnrollmentService(cloud: scopedCloud).recoverBaseline(
+                    observation: observation, owner: owner, container: container, expected: baseline)
+                try Task.checkCancellation()
+                guard current() else { throw ObservationHistoryError.accountChanged }
+                return result
+            }
+            entry = Entry(token: token, scope: scope, baseline: baseline.display, recovery: nil, baselineRecovery: baseline, task: task)
+            entries[observation] = entry
+        }
         let result = await entry.task.result
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }

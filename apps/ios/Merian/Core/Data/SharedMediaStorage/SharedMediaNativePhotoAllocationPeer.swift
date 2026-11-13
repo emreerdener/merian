@@ -11,6 +11,7 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
     let received: SharedMediaNativeReceivingIntent.Received
     let transaction: SharedMediaNativeReceivingIntent.Transaction
     let allocation: SharedMediaNativePhotoAllocation
+    let initialPin: SharedMediaNativePhotoAllocationSnapshot.InitialPin?
     let recoveryPresentationData: Data?
     private let package: Facts.Package
     private let member: Facts.Member
@@ -25,7 +26,7 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
         let membership = try SharedMediaNativePairPlanGraph.one(context,
             FetchDescriptor<SharedMediaPendingMembershipRecord>(predicate: #Predicate { $0.id == id }))
         row = snapshot.row; prepared = snapshot.prepared; received = snapshot.received
-        transaction = snapshot.transaction; allocation = snapshot.allocation
+        transaction = snapshot.transaction; allocation = snapshot.allocation; initialPin = snapshot.initialPin
         recoveryPresentationData = snapshot.recoveryPresentationData
         package = Facts.Package(packageRow); member = Facts.Member(membership); consumer = Facts.Consumer(rows.consumer)
     }
@@ -77,12 +78,16 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
             guard let saved = try SharedMediaNativeReceivingPhaseGraph.row(member.id, in: context) else { continue }
             let row = Row(saved)
             guard rows.updateValue(row, forKey: row.id) == nil else { throw SharedMediaStorageFailure.conflict }
-            if row.allocationData != nil || row.allocationSHA256 != nil {
+            if row.allocationData != nil || row.allocationSHA256 != nil || row.initialAdmissionData != nil || row.initialAdmissionSHA256 != nil || row.initialCompletionData != nil || row.initialCompletionSHA256 != nil {
                 if context.hasChanges {
                     guard let peer = preserving?[row.id] else { throw SharedMediaStorageFailure.closed }
                     try peer.requireUnchanged(context); peers[row.id] = peer
                 } else {
-                    peers[row.id] = try Self(.read(row, inventory: inventory, context: context), context: context)
+                    let hasInitial = row.initialAdmissionData != nil || row.initialAdmissionSHA256 != nil || row.initialCompletionData != nil || row.initialCompletionSHA256 != nil
+                    let snapshot = try hasInitial
+                        ? SharedMediaNativePhotoAllocationSnapshot.readInitial(row, inventory: inventory, context: context)
+                        : SharedMediaNativePhotoAllocationSnapshot.read(row, inventory: inventory, context: context)
+                    peers[row.id] = try Self(snapshot, context: context)
                 }
                 guard let peer = peers[row.id] else { throw SharedMediaStorageFailure.conflict }
                 presentations[row.id] = try SharedMediaNativeReceivingRows.recoveryPresentation(peer.recoveryPresentationData, prepared: peer.prepared)
@@ -109,14 +114,14 @@ struct SharedMediaNativePhotoAllocationPeer: Equatable, Sendable {
             let witness: SharedMediaNativeReceivingPhaseGraph.Witness
             if let peer = peers[row.id] {
                 witness = .init(row: row, slot: .received(peer.prepared, peer.received, peer.transaction), states: [], recoveryPresentationData: peer.recoveryPresentationData)
-                remaining = try SharedMediaStoragePolicy.add(remaining, peer.allocation.remainingAdvances)
+                remaining = try PhotoPreparationPolicy.add([remaining, peer.allocation.remainingAdvances, peer.initialPin?.remainingAdvances ?? 0])
             } else { witness = try SharedMediaNativeReceivingPhaseGraph.validate(row, context: context, inventory: inventory) }
             remaining = try SharedMediaStoragePolicy.add(remaining, witness.recoveryPresentation?.remainingTransitions ?? 0)
             let ids = SharedMediaNativeReceivingCleanGraph.Witness.generic(witness).identities
             for id in ids { guard identities.insert(id).inserted else { throw SharedMediaStorageFailure.conflict } }
             result[row.id] = witness
         }
-        let terminal = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
+        let terminal = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).remainingAdvances
         _ = try SharedMediaStoragePolicy.add(inventory.revision, PhotoPreparationPolicy.add([remaining, terminal]))
         return result
     }

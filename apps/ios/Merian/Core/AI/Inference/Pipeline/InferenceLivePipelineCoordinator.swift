@@ -170,6 +170,8 @@ final class InferenceLivePipelineCoordinator {
                 return
             }
 
+            defer { requestResponse.completionAccount?.finish() }
+
             callbacks.cancelLocalAnalysis()
             let postFlightStartedAt = CFAbsoluteTimeGetCurrent()
             guard let completion = try await processResult(
@@ -277,6 +279,8 @@ final class InferenceLivePipelineCoordinator {
                 validateAttempt: { try self.check(session) }
             )
             let postFlightStartedAt = CFAbsoluteTimeGetCurrent()
+            defer { requestResponse.completionAccount?.finish() }
+
             guard let completion = try await processResult(
                 InferenceLiveResultService.Request(
                     response: requestResponse,

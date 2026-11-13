@@ -77,7 +77,7 @@ struct PhotoPreparationIntent: Sendable {
     let acquisitionKind: String
     let maximumBytes: Int64
     var sourceByteLiability: Int64 = 0
-    var sourceIdentity: String? = nil
+    var sourceIdentity: String?
 
     var fileToken: String { ownerID.uuidString.lowercased() + "/" + packageID.uuidString.lowercased() + "/" + assetID.uuidString.lowercased() }
 }

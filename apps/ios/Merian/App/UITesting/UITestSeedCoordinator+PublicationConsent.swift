@@ -134,6 +134,7 @@ extension UITestSeedCoordinator {
     func session(_ observation: String, _ candidate: ModelContainer) throws -> IdentificationHistorySession {
         guard observation == Self.observation, candidate === container else { throw ObservationHistoryError.accountChanged }
         let cloud = cloud, bytes = bytes, digest = digest
+        let observation = Self.observation, selected = Self.selected, media = Self.media
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: { request in
             guard request.observation_id == Self.observation, request.analysis_id == Self.selected,
                   Self.media.contains(request.media_id) else { throw ObservationHistoryError.invalidSnapshot }
@@ -142,8 +143,8 @@ extension UITestSeedCoordinator {
                 sha256: digest, url: URL(string: "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.r2.cloudflarestorage.com/synthetic")!,
                 expires_at_ms: Int64(Date().addingTimeInterval(20).timeIntervalSince1970 * 1_000))
         }, download: { ticket in
-            guard ticket.observation_id == Self.observation, ticket.analysis_id == Self.selected,
-                  Self.media.contains(ticket.media_id), ticket.sha256 == digest, ticket.byte_count == bytes.count else {
+            guard ticket.observation_id == observation, ticket.analysis_id == selected,
+                  media.contains(ticket.media_id), ticket.sha256 == digest, ticket.byte_count == bytes.count else {
                 throw ObservationHistoryError.invalidSnapshot
             }
             return bytes

@@ -9,23 +9,25 @@ struct ObservationAnalysisReviewAdmissionTests {
     let source = ObservationHistoryStateSyncTests()
     typealias Store = ObservationAnalysisReviewPersistence
 
-    func seed(audio: Bool = false) async throws -> (ModelContainer, ObservationAnalysisReviewTicket) {
+    func seed(audio: Bool = false, video: Bool = false) async throws -> (ModelContainer, ObservationAnalysisReviewTicket) {
         let container = try SavedIdentificationDisplayBaselineTests().container()
-        _ = try await source.service(data: audio ? audioState(source.fixture(revision: 10)) : source.fixture(revision: 10)).syncSelected(observationID: source.support.observation, container: container)
+        _ = try await source.service(data: video ? mediaState(source.fixture(revision: 10), version: 5) : (audio ? audioState(source.fixture(revision: 10)) : source.fixture(revision: 10))).syncSelected(observationID: source.support.observation, container: container)
         let context = ModelContext(container)
         let scan = try ObservationHistorySyncService.enrolledScan(source.support.observation, context: context)
         let entry = try ObservationHistoryListingService.entry(UUID(uuidString: source.analysisID)!, scan: scan, context: context)
         return (container, try .init(entry: entry, context: .init(owner: source.support.owner, selected: entry.result.analysisID,
             revision: 10, pendingOperation: nil, undoOperation: nil), observationID: UUID(uuidString: scan.id)!))
     }
-    func audioState(_ data: Data) throws -> Data {
+    func audioState(_ data: Data) throws -> Data { try mediaState(data, version: 4) }
+    func mediaState(_ data: Data, version: Int) throws -> Data {
         var state = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         var item = try #require(state["analysis"] as? [String: Any])
         let text = try #require(item["snapshot"] as? String)
         let original = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
-        var snapshot = try ObservationHistorySyncTests().audioSnapshot()
+        var snapshot = try version == 5 ? ObservationHistorySyncTests().videoSnapshot() : ObservationHistorySyncTests().audioSnapshot()
         snapshot["observation_id"] = original["observation_id"]; snapshot["analysis_id"] = original["analysis_id"]
-        snapshot["ordinal"] = original["ordinal"]; snapshot["source_analysis_id"] = NSNull()
+        snapshot["ordinal"] = original["ordinal"]
+        if version == 4 { snapshot["source_analysis_id"] = NSNull() }
         item["snapshot"] = String(decoding: try JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys]), as: UTF8.self)
         state["analysis"] = item
         return try JSONSerialization.data(withJSONObject: state)
@@ -40,8 +42,8 @@ struct ObservationAnalysisReviewAdmissionTests {
             observationID: intent.request.observationID, analysisID: intent.request.analysisID, container: container, isCurrent: { true })
     }
 
-    @Test(arguments: [false, true]) func immutableTapStagesWithoutChangingSelectionAndExactReplaySurvivesRevisionChange(audio: Bool) async throws {
-        let (container, ticket) = try await seed(audio: audio), request = try ticket.request(.reject, operationID: UUID())
+    @Test(arguments: [3, 4, 5]) func immutableTapStagesWithoutChangingSelectionAndExactReplaySurvivesRevisionChange(version: Int) async throws {
+        let (container, ticket) = try await seed(audio: version == 4, video: version == 5), request = try ticket.request(.reject, operationID: UUID())
         let intent = try ObservationAnalysisReviewAdmission.stage(request, ticket: ticket, container: container, isCurrent: { true })
         #expect(try status(intent, in: container)?.phase == .pending)
         #expect(try ObservationAnalysisReviewStatus.pending(ownerID: ticket.ownerID, observationID: ticket.observationID,
@@ -55,9 +57,9 @@ struct ObservationAnalysisReviewAdmissionTests {
         #expect(throws: (any Error).self) { try stage(ticket, in: container) }
     }
 
-    @Test(arguments: ["global", "selection", "authority", "owner", "legacy", "delete"], [false, true])
-    func changedDisplayedBaselineNeverStages(change: String, audio: Bool) async throws {
-        let (container, ticket) = try await seed(audio: audio)
+    @Test(arguments: ["global", "selection", "authority", "owner", "legacy", "delete"], [3, 4, 5])
+    func changedDisplayedBaselineNeverStages(change: String, version: Int) async throws {
+        let (container, ticket) = try await seed(audio: version == 4, video: version == 5)
         try source.update(container) { scan, context in
             switch change {
             case "global": scan.observationStateRevision = 11

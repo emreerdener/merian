@@ -68,8 +68,7 @@ final class SharedMediaNativeFreezeMutation {
         try beforeSave(); try authority.validate()
         guard try fresh().request(operationID: request.commit.operationID, pairIDs: ids, proofs: proofs) == request else { throw SharedMediaStorageFailure.stale }
         try verifyProofs(proofs)
-        do { try context.save(); try afterSave() }
-        catch {
+        do { try context.save(); try afterSave() } catch {
             let failure = error; context.rollback()
             guard (try? fresh().result(request)) == request.commit else { throw failure }
         }

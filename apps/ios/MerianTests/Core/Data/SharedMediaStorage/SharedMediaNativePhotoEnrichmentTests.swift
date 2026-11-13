@@ -292,7 +292,7 @@ struct SharedMediaNativePhotoEnrichmentTests {
         try owner.setMetadataFault({ boundary in
             if fault == "afterSave", boundary == .afterSave, fail { fail = false; throw SharedMediaStorageFailure.unavailable }
         }, availableBytes: fault == "capacity" ? 0 : nil)
-        let send: SharedMediaNativePhotoAllocationTransportAccess.RolesSend = { request, _, _ in
+        let send: NativePhotoAllocationTransportAccess.RolesSend = { request, _, _ in
             calls += 1; #expect(request.action == .status && request.allocation.version == 6)
             return .held(.notFound)
         }

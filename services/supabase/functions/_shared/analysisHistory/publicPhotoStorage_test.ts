@@ -246,7 +246,7 @@ Deno.test("public copy configuration requires dedicated read/write credentials a
   const env: Record<string, string> = {
     R2_ACCOUNT_ID: "a".repeat(32),
     R2_BUCKET_NAME: "synthetic-public",
-    R2_HISTORY_BUCKET_NAME: "synthetic-private",
+    R2_SCANS_PRIVATE_BUCKET_NAME: "synthetic-private",
     R2_ACCESS_KEY_ID: "generic-key",
     R2_SECRET_ACCESS_KEY: "generic-secret",
   };
@@ -273,7 +273,7 @@ Deno.test("public copy configuration requires dedicated read/write credentials a
     getPublicationPhotoConfig("read", read).bucketName,
     "synthetic-public",
   );
-  env.R2_HISTORY_BUCKET_NAME = env.R2_BUCKET_NAME;
+  env.R2_SCANS_PRIVATE_BUCKET_NAME = env.R2_BUCKET_NAME;
   assertThrows(
     () => getPublicationPhotoConfig("write", read),
     Error,
@@ -302,7 +302,7 @@ Deno.test("public copy credentials cannot alias generic, private or opposite-acc
   const base: Record<string, string> = {
     R2_ACCOUNT_ID: "a".repeat(32),
     R2_BUCKET_NAME: "synthetic-public",
-    R2_HISTORY_BUCKET_NAME: "synthetic-private",
+    R2_SCANS_PRIVATE_BUCKET_NAME: "synthetic-private",
     R2_PUBLICATION_WRITE_ACCESS_KEY_ID: "synthetic-write",
     R2_PUBLICATION_WRITE_SECRET_ACCESS_KEY: "synthetic-write-secret",
     R2_PUBLICATION_READ_ACCESS_KEY_ID: "synthetic-read",
@@ -313,8 +313,8 @@ Deno.test("public copy credentials cannot alias generic, private or opposite-acc
     for (
       const prefix of [
         "R2",
-        "R2_HISTORY_READ",
-        "R2_HISTORY_WRITE",
+        "R2_SCANS_PRIVATE_READ",
+        "R2_SCANS_PRIVATE_WRITE",
         access === "read" ? "R2_PUBLICATION_WRITE" : "R2_PUBLICATION_READ",
       ]
     ) {

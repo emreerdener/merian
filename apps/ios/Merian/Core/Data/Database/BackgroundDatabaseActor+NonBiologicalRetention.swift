@@ -77,6 +77,13 @@ extension BackgroundDatabaseActor {
                 descriptor.fetchLimit = 1
                 let record = try context.fetch(descriptor).first
 
+                // Recheck both the row marker and reverse ledger ownership.
+                // A missing/downgraded scan cannot expose native paths from a
+                // stale UI payload to generic cleanup or cloud deletion.
+                if let record, !SharedMediaConsumerAuthority.permitsLegacyScanRemoval(
+                    raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID) { continue }
+                if try SharedMediaConsumerLookup.hasScanOwner(scanId, in: context) { continue }
+
                 // The UI snapshots eligible rows before crossing into this
                 // actor. Revalidate here so a concurrent reconciliation that
                 // promotes the row to biological cannot be erased by stale
@@ -154,6 +161,9 @@ extension BackgroundDatabaseActor {
             let read = ModelContext(modelContainer)
             let page = try read.fetch(descriptor)
             for record in page where payloads.count < limit {
+                guard SharedMediaConsumerAuthority.permitsLegacyScanRemoval(
+                    raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID),
+                    try !SharedMediaConsumerLookup.hasScanOwner(record.id, in: read) else { continue }
                 guard try !ObservationHistoryEnrollmentIntent.holds(record.id, context: read) else { continue }
                 let media = record.capturedMediaSnapshot
                 payloads.append(.init(id: record.id, mediaPaths: media.thumbnailImagePaths + media.audioPaths + media.videoPaths))

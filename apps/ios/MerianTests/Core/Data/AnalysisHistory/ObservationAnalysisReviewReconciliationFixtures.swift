@@ -44,7 +44,7 @@ extension ObservationAnalysisReviewReconciliationTests {
             snapshot["analysis_id"] = selected.uuidString.lowercased(); snapshot["ordinal"] = 2
             var item = try #require(row["analysis"] as? [String: Any])
             let snapshotData = try source.support.bytes(snapshot)
-            item["snapshot"] = try #require(String(bytes: snapshotData, encoding: .utf8))
+            item["snapshot"] = (try #require(String(bytes: snapshotData, encoding: .utf8))) as String
             row["analysis"] = item
         }
         return try source.support.bytes(row)

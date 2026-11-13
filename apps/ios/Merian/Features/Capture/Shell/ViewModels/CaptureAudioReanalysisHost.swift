@@ -165,6 +165,17 @@ final class CaptureAudioReanalysisHost {
         invalidationHandler?()
     }
 
+    /// Cancellation alone is not quiescence: the caller-file task has no
+    /// account lease, so the retained host must join its actual cleanup too.
+    func invalidateAndAwait() async {
+        invalidate()
+        let submission = work, preparation = inputWork
+        await submission?.value
+        await preparation?.value
+    }
+
+    var isRuntimeQuiescent: Bool { work == nil && inputWork == nil }
+
     func onInvalidation(_ action: @escaping () -> Void) { invalidationHandler = action }
 
     @discardableResult private func validate() -> Bool {
@@ -176,6 +187,14 @@ final class CaptureAudioReanalysisHost {
 /// One parent lifetime. Capacity never evicts a candidate or grants replacement authority.
 @MainActor
 final class CaptureAudioReanalysisHostOwner {
+    enum DrainDisposition: Equatable {
+        case cleaned
+        case retainedStorage
+        case blocked
+
+        var isRuntimeQuiescent: Bool { self != .blocked }
+    }
+
     private struct Key: Hashable {
         let owner: UUID
         let observation: UUID
@@ -183,22 +202,35 @@ final class CaptureAudioReanalysisHostOwner {
         let container: ObjectIdentifier
     }
     private var hosts: [Key: CaptureAudioReanalysisHost] = [:]
+    private var videoHosts: [Key: CaptureVideoReanalysisHost] = [:]
+    private var cleanup: Task<DrainDisposition, Never>?
+    private var lifetimeManager: AnyObject?
     private var isInvalidated = false
+
+    var isClosed: Bool { isInvalidated }
+
+    /// A successor must be a new owner. Retained storage still requires the
+    /// existing authorized purge acknowledgement before this can succeed.
+    func retireAccountLifetime(manager: AnyObject) async -> Bool {
+        guard lifetimeManager == nil || lifetimeManager === manager else { return false }
+        return await invalidateAndAwaitDisposition() == .cleaned
+    }
 
     func open(target: HistoricalReanalysisTarget, container: ModelContainer, route: CaptureAudioReanalysisHost.Route = .legacy,
               make: () throws -> CaptureAudioReanalysisHost) throws -> CaptureAudioReanalysisHost {
         guard !isInvalidated else { throw ObservationHistoryError.accountChanged }
         // Do not discard a stale entry and silently authorize a replacement in a newer account scope.
-        guard hosts.values.allSatisfy(\.isCurrent) else {
+        guard hosts.values.allSatisfy(\.isCurrent), videoHosts.values.allSatisfy(\.isCurrent) else {
             invalidate(); throw ObservationHistoryError.accountChanged
         }
         let key = Key(owner: target.ownerID, observation: target.observationID,
             source: target.analysisID, container: ObjectIdentifier(container))
+        guard videoHosts[key] == nil else { throw ObservationHistoryError.unavailable }
         if let host = hosts[key] {
             guard host.route == route else { throw ObservationHistoryError.unavailable }
             return host
         }
-        guard hosts.count < 4 else { throw ObservationHistoryError.unavailable }
+        guard hosts.count + videoHosts.count < 4 else { throw ObservationHistoryError.unavailable }
         let host = try make()
         guard !isInvalidated, host.isCurrent, host.route == route else { host.invalidate(); throw ObservationHistoryError.accountChanged }
         host.onInvalidation { [weak self] in self?.invalidate() }
@@ -206,11 +238,99 @@ final class CaptureAudioReanalysisHostOwner {
         return host
     }
 
+    /// Bind once on explicit feature opening. Retaining the instance prevents identity reuse.
+    func armAccountLifetime(manager: AnyObject) throws {
+        guard !isInvalidated else { throw ObservationHistoryError.accountChanged }
+        if let bound = lifetimeManager {
+            guard bound === manager else { throw ObservationHistoryError.accountChanged }
+        } else { lifetimeManager = manager }
+    }
+
+    /// Ordinary transitions still require successful storage cleanup.
+    func drainAccountLifetime(manager: AnyObject) async -> Bool {
+        await drainAccountLifetimeDisposition(manager: manager) == .cleaned
+    }
+
+    /// A retained-storage result grants no purge, destination or fresh admission.
+    /// Destructive workflows must independently prove their exact authority.
+    func drainAccountLifetimeDisposition(manager: AnyObject) async -> DrainDisposition {
+        guard let bound = lifetimeManager else { return .cleaned }
+        guard bound === manager else { return .blocked }
+        return await invalidateAndAwaitDisposition()
+    }
+
+    func recognizesLibraryContainer(_ container: ModelContainer) -> Bool {
+        let identity = ObjectIdentifier(container)
+        return hosts.keys.allSatisfy { $0.container == identity } && videoHosts.keys.allSatisfy { $0.container == identity }
+    }
+
+    /// Called only after the complete authorized purge; never reopens this owner.
+    func acknowledgeLibraryPurge(container: ModelContainer, manager: AnyObject) -> Bool {
+        guard lifetimeManager == nil || lifetimeManager === manager,
+              recognizesLibraryContainer(container), cleanup == nil, disposition.isRuntimeQuiescent else { return false }
+        if hosts.isEmpty && videoHosts.isEmpty { return true }
+        guard isInvalidated else { return false }
+        hosts.removeAll(); videoHosts.removeAll()
+        return true
+    }
+
+    func openVideo(target: HistoricalReanalysisTarget, container: ModelContainer,
+                   make: () throws -> CaptureVideoReanalysisHost) throws -> CaptureVideoReanalysisHost {
+        guard !isInvalidated else { throw ObservationHistoryError.accountChanged }
+        guard hosts.values.allSatisfy(\.isCurrent), videoHosts.values.allSatisfy(\.isCurrent) else {
+            invalidate(); throw ObservationHistoryError.accountChanged
+        }
+        let key = Key(owner: target.ownerID, observation: target.observationID,
+            source: target.analysisID, container: ObjectIdentifier(container))
+        guard hosts[key] == nil else { throw ObservationHistoryError.unavailable }
+        if let host = videoHosts[key] { return host }
+        guard hosts.count + videoHosts.count < 4 else { throw ObservationHistoryError.unavailable }
+        let host = try make()
+        guard !isInvalidated, host.isCurrent else { host.invalidate(); throw ObservationHistoryError.accountChanged }
+        host.onInvalidation { [weak self] in self?.invalidate() }
+        videoHosts[key] = host
+        return host
+    }
+
     func invalidate() {
         guard !isInvalidated else { return }
         isInvalidated = true
         for host in hosts.values { host.invalidate() }
-        hosts.removeAll()
-        // A closed owner cannot become a fresh-admission capability, even after waiters exit.
+        for host in videoHosts.values { host.invalidate() }
+        beginCleanup()
+        // Unresolved video cleanup keeps the host and bounded capacity retained.
+        // A closed owner cannot become a fresh-admission capability after waiters exit.
+    }
+
+    func invalidateAndAwait() async -> Bool {
+        await invalidateAndAwaitDisposition() == .cleaned
+    }
+
+    func invalidateAndAwaitDisposition() async -> DrainDisposition {
+        invalidate()
+        beginCleanup()
+        guard let task = cleanup else { return disposition }
+        return await task.value
+    }
+
+    private var disposition: DrainDisposition {
+        if hosts.isEmpty && videoHosts.isEmpty { return .cleaned }
+        guard hosts.values.allSatisfy(\.isRuntimeQuiescent), videoHosts.values.allSatisfy(\.isRuntimeQuiescent) else { return .blocked }
+        return .retainedStorage
+    }
+
+    private func beginCleanup() {
+        guard isInvalidated, cleanup == nil, !hosts.isEmpty || !videoHosts.isEmpty else { return }
+        cleanup = Task { @MainActor [self] in
+            defer { cleanup = nil }
+            for (key, host) in Array(hosts) {
+                await host.invalidateAndAwait()
+                if host.isRuntimeQuiescent, hosts[key] === host { hosts[key] = nil }
+            }
+            for (key, host) in Array(videoHosts) {
+                if await host.invalidateAndAwait(), videoHosts[key] === host { videoHosts[key] = nil }
+            }
+            return disposition
+        }
     }
 }

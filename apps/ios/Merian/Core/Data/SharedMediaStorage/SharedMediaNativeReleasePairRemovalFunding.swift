@@ -1,6 +1,8 @@
 import Foundation
 
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReleasePairRemovalFunding {
     typealias Projection = SharedMediaNativeReleaseSurvivorProjection
     static func check(_ value: SharedMediaNativeReleasePairRemovalCapability) throws {

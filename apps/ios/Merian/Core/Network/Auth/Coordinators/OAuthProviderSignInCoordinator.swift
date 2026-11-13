@@ -21,7 +21,8 @@ final class OAuthProviderSignInCoordinator {
     func signInWithGoogle(
         dependencies: OAuthProviderSignInDependencies
     ) async {
-        guard let transition = dependencies.transition.begin(.google) else {
+        guard MerianEnvironment.permitsQualificationGooglePresentation,
+              let transition = dependencies.transition.begin(.google) else {
             dependencies.diagnostics.report(
                 .transitionRejected(.google),
                 nil
@@ -54,6 +55,9 @@ final class OAuthProviderSignInCoordinator {
             case .authorized(let authorization):
                 try await dependencies.transition
                     .verifyExpectedSessionIfPresent(transition)
+                try MerianEnvironment.requireQualificationGoogleExchange(
+                    isGoogle: authorization.credentials.provider == .google,
+                    subject: OAuthIdentityTokenPolicy.providerSubject(from: authorization.credentials.idToken, preservingExactBytes: true))
                 try await dependencies.completion.complete(
                     authorization,
                     transition,
@@ -62,11 +66,10 @@ final class OAuthProviderSignInCoordinator {
                 dependencies.diagnostics.report(.completed(.google), nil)
             }
         } catch {
-            await dependencies.completion.recoverAfterFailure(
-                didMutateSession,
-                sourceSession,
-                transition
-            )
+            if !(error is QualificationAuthStorage.SettlementFailure) {
+                await dependencies.completion.recoverAfterFailure(
+                    didMutateSession, sourceSession, transition)
+            }
             dependencies.diagnostics.report(
                 .completionFailed(.google),
                 error
@@ -77,7 +80,8 @@ final class OAuthProviderSignInCoordinator {
     func startAppleSignIn(
         dependencies: OAuthProviderSignInDependencies
     ) {
-        guard let transition = dependencies.transition.begin(.apple) else {
+        guard !MerianEnvironment.isHistoryQualificationBuild,
+              let transition = dependencies.transition.begin(.apple) else {
             dependencies.diagnostics.report(
                 .transitionRejected(.apple),
                 nil

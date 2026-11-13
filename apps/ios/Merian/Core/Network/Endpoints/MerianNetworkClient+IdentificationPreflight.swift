@@ -77,7 +77,7 @@ extension MerianNetworkClient {
     }
 
     private func synchronizeIdentificationConsent(expectedAuthUserID: UUID,
-                                              validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws {
+                                                  validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws {
         try Task.checkCancellation()
         guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
             throw SupabaseAuthTransitionError.signOutSessionChanged

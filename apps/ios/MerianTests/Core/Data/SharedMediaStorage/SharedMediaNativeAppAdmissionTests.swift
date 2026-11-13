@@ -174,6 +174,71 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.begins == h.finishes)
     }
 
+    @Test(arguments: [false, true])
+    func nativeAndDurableVideoInputShareOriginalFenceInEitherOrder(nativeFirst: Bool) async throws {
+        let historyFixture = ObservationReanalysisSourceTests()
+        let h = try Fixture(ownerID: historyFixture.fixture.owner)
+        let history = try historyFixture.seed(version: 3, in: h.container)
+        let context = ModelContext(h.container)
+        let parent = try #require(try context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        parent.capturedMediaJSON = CapturedMediaSnapshot(items: [.video(.init(video: .documents("chosen.mp4")))]).jsonString
+        try context.save()
+        let source = try ObservationReanalysisSource.captureForVideo(observationID: history.observationID, ownerID: h.ownerID, container: h.container)
+        let choice = try #require(try ObservationReanalysisLocalVideoInput.choices(source: source, container: h.container).first)
+        let documents = h.support.appendingPathComponent("InputDocuments"), temporary = h.support.appendingPathComponent("InputTemporary")
+        for directory in [documents, temporary] { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false) }
+        let bytes = Data(repeating: 7, count: 150_001)
+        try bytes.write(to: documents.appendingPathComponent("chosen.mp4"))
+        let consumer = NSObject()
+        var input: ObservationReanalysisLocalVideoInput?
+        if nativeFirst { _ = try await h.open() }
+        let borrow = try h.di.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
+            install: { _ in h.installs += 1 }, close: {
+                guard let input else { return true }
+                _ = await input.discardCopiedInput()
+                return input.isRuntimeQuiescent
+            })
+        let account = h.account()
+        let cloud = ObservationHistoryCloudClient(begin: { owner in
+            guard owner == h.ownerID else { throw PhotoPreparationFailure.accountChanged }
+            return try account.begin()
+        }, isCurrent: account.isCurrent, finish: account.finish, fetch: { _ in throw MerianError.invalidResponse })
+        _ = try await ObservationReanalysisLocalVideoInput.freeze(choice, descriptions: [" exact text "], container: h.container,
+            files: FileIOActor(documents: documents, temporaryDirectory: temporary), account: cloud,
+            startup: h.admission, borrowing: borrow, store: ObservationReanalysisFileStore(documents: documents),
+            ownership: .init(), owning: { input = $0 }, isCurrent: { true })
+        if !nativeFirst { _ = try await h.open() }
+        #expect(h.installs == 1 && h.di.nativeMediaOwner?.isReadyForAppDispatch == true)
+        let retained = try #require(input)
+        let receipt = try #require(try ObservationReanalysisInputPersistence.read(child: retained.analysisID, container: h.container))
+        #expect(try Data(contentsOf: documents.appendingPathComponent("ReanalysisInputs/\(receipt.slot)/input.mp4")) == bytes)
+        #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
+        try #require(await h.shutdown())
+        #expect(retained.isRuntimeQuiescent && h.begins == h.finishes)
+        #expect(throws: (any Error).self) { _ = try borrow.fence(container: h.container, cleanup: true) }
+        _ = try h.admission.acquireFence(container: h.container)
+    }
+
+    @Test func borrowerOnlyLifetimeRejectsForeignAccountWithoutClosingOriginal() async throws {
+        let h = try Fixture(), consumer = NSObject()
+        var closed = false
+        let borrow = try h.di.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
+            install: { _ in h.installs += 1 }, close: { closed = true; return true })
+        let foreign = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: AuthRuntimeState())
+        await #expect(throws: PhotoPreparationFailure.accountChanged) {
+            _ = try await h.di.nativeMediaOwnerForTesting(account: foreign, support: h.support, install: { _ in Issue.record("Reinstalled") })
+        }
+        #expect(!closed && h.di.nativeMediaOwner == nil)
+        _ = try borrow.fence(container: h.container)
+        #expect(throws: (any Error).self) {
+            _ = try h.di.preparedInputBorrowForTesting(container: h.container, account: foreign, consumer: consumer,
+                install: { _ in Issue.record("Reinstalled") }, close: { Issue.record("Replaced callback"); return true })
+        }
+        try #require(await h.shutdown())
+        #expect(closed && h.installs == 1 && h.begins == h.finishes)
+        await #expect(throws: (any Error).self) { _ = try await h.open() }
+    }
+
     @MainActor private final class Fixture {
         let di = AppDIContainer.preview
         let support: URL, container: ModelContainer, admission: NativeReleaseStartupAdmission, ownerID: UUID
@@ -181,9 +246,9 @@ struct SharedMediaNativeAppAdmissionTests {
         var ready = true, current = true, installFails = false
         var begins = 0, finishes = 0, installs = 0
         var parent: URL { support.appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName) }
-        init() throws {
+        init(ownerID: UUID? = nil) throws {
             let store = try SharedMediaNativeAppBootstrapTests.Store(startupEligible: true)
-            support = store.parent.deletingLastPathComponent(); ownerID = store.ownerID
+            support = store.parent.deletingLastPathComponent(); self.ownerID = ownerID ?? store.ownerID
             let startup = try store.startup(); container = startup.0; admission = startup.1
             try di.configureNativeMediaForTesting(container: container, admission: admission)
         }

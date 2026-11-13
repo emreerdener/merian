@@ -10,4 +10,5 @@ deno test --frozen --no-prompt --deny-net --deny-env \
   --config services/supabase/functions/deno.json \
   --allow-read="$repository,$test_root" --allow-write="$test_root" \
   --allow-run=git,ln \
-  services/supabase/scripts/build_initial_source_archive_integration.ts -- "$test_root"
+  services/supabase/scripts/build_initial_source_archive_integration.ts \
+  services/supabase/scripts/initial_configuration_build_integration.ts -- "$test_root"

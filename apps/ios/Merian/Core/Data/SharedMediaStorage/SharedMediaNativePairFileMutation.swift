@@ -9,10 +9,16 @@ final class SharedMediaNativePairFileMutation {
     @MainActor private enum Authority {
         case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppPairAuthority)
         var binding: SharedMediaNativeBinding {
-            switch self { case .qualification(let value): return value.binding; case .app(let value): return value.binding }
+            switch self {
+            case .qualification(let value): return value.binding
+            case .app(let value): return value.binding
+            }
         }
         func validate(_ container: ModelContainer) throws {
-            switch self { case .qualification(let value): try value.validate(); case .app(let value): try value.validate(container) }
+            switch self {
+            case .qualification(let value): try value.validate()
+            case .app(let value): try value.validate(container)
+            }
         }
     }
     private let authority: Authority
@@ -170,8 +176,7 @@ final class SharedMediaNativePairFileMutation {
         inventory.revision = try SharedMediaStoragePolicy.add(inventory.revision, 1)
         package.revision = try SharedMediaStoragePolicy.add(package.revision, 1)
         let bytes: Data
-        if case .app(let witness) = authority { bytes = try SharedMediaNativeAppPairPoststate.membership(witness) }
-        else { bytes = try SharedMediaPendingGraph.derive(in: context, inventory: inventory).membership(packageID: package.id).encoded() }
+        if case .app(let witness) = authority { bytes = try SharedMediaNativeAppPairPoststate.membership(witness) } else { bytes = try SharedMediaPendingGraph.derive(in: context, inventory: inventory).membership(packageID: package.id).encoded() }
         if member.membersData != bytes { member.membersData = bytes; member.revision = try SharedMediaStoragePolicy.add(member.revision, 1) }
     }
     private func fresh() throws -> SharedMediaNativePairFileMutation {
@@ -191,8 +196,7 @@ final class SharedMediaNativePairFileMutation {
         _ = try SharedMediaNativeAcquisitionBudget.evaluate(context: context, inventory: inventory)
         try beforeSave(); try authority.validate(container)
         guard try fresh().before == before else { throw SharedMediaStorageFailure.stale }
-        do { try context.save(); try afterSave() }
-        catch {
+        do { try context.save(); try afterSave() } catch {
             let failure = error; context.rollback()
             guard (try? fresh().before) == expected else { throw failure }
         }
@@ -221,8 +225,7 @@ final class SharedMediaNativePairFileMutation {
             _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: read, inventory: inv, ownerID: proof.profile.ownerID, format: .appV2)
             return proof.expected
         }
-        do { try context.save(); try afterSave() }
-        catch {
+        do { try context.save(); try afterSave() } catch {
             let failure = error; context.rollback()
             do { return try acknowledge() } catch { throw failure }
         }

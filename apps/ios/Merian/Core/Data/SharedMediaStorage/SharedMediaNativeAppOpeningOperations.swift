@@ -6,9 +6,9 @@ import SwiftData
 @MainActor
 enum SharedMediaNativeAppOpeningOperations {
     static func open(container: ModelContainer, parent: URL, inventoryID: UUID, ownerID: UUID,
-        discovery: SharedMediaNativeBootstrapDiscovery?, initialization: SharedMediaNativeAppGrant?,
-        initializationOnly: Bool, retain: (SharedMediaNativeStorageRepository) -> Void,
-        dispatch: (SharedMediaNativeAppProfile) -> SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppOpenResult {
+                     discovery: SharedMediaNativeBootstrapDiscovery?, initialization: SharedMediaNativeAppGrant?,
+                     initializationOnly: Bool, retain: (SharedMediaNativeStorageRepository) -> Void,
+                     dispatch: (SharedMediaNativeAppProfile) -> SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppOpenResult {
         let candidate: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant
         if let initialization {
             candidate = try .initializeApp(container: container, parent: parent, inventoryID: inventoryID,

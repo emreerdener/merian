@@ -1,12 +1,54 @@
 """Two public cancellation versus trusted synthetic admission counter orders."""
 import datetime
 import json
+import math
 import re
 import subprocess
 import time
 import uuid
 from initial_atomic_admission_fixture import AdmissionFixture
 from initial_atomic_admission_sessions import BASE, PROJECTION, Session
+
+
+def require_counter_runway(sample, sleep=time.sleep, monotonic=time.monotonic):
+    """Establish this fixture's same-minute premise before either admission.
+
+    One bounded wait, no admission retry. Real database time is sampled again
+    after sleeping; the independent postimages and lock observation still must pass.
+    """
+    began = monotonic()
+    samples = []
+    for attempt in range(2):
+        before_sample = monotonic()
+        sample_budget = min(5, 55 - (before_sample - began))
+        if sample_budget <= 0:
+            raise RuntimeError('same-window fixture wait exhausted')
+        value = sample(sample_budget)
+        after_sample = monotonic()
+        age = after_sample - before_sample
+        epoch = value.get('epoch')
+        if (isinstance(epoch, bool) or not isinstance(epoch, (float, int))
+                or not math.isfinite(epoch) or epoch <= 0
+                or value.get('user_window_seconds') != 60
+                or value.get('ip_window_seconds') != 60
+                or value.get('daily_enabled') is not True):
+            raise RuntimeError('same-window fixture policy unsupported')
+        raw_remaining = min(60 - epoch % 60, 86400 - epoch % 86400)
+        usable_remaining = raw_remaining - age
+        elapsed = after_sample - began
+        samples.append(dict(value, raw_remaining_seconds=raw_remaining,
+                            sample_seconds=age, usable_remaining_seconds=usable_remaining))
+        if age < 0 or age > sample_budget or elapsed < 0 or elapsed > 55:
+            raise RuntimeError('same-window fixture wait exhausted')
+        if usable_remaining >= 50:
+            return dict(samples=samples, elapsed_seconds=elapsed, required_runway_seconds=50)
+        if attempt:
+            raise RuntimeError('same-window fixture runway unavailable')
+        delay = raw_remaining + .05
+        if delay >= 55 - elapsed:
+            raise RuntimeError('same-window fixture wait exhausted')
+        sleep(delay)
+    raise AssertionError('unreachable')
 
 
 def counter_order_cases(qualification):
@@ -44,12 +86,28 @@ def counter_order_cases(qualification):
         return "DO $$ DECLARE actual JSONB;expected JSONB;BEGIN SELECT COALESCE(jsonb_agg(value ORDER BY value::TEXT),'[]'::JSONB) INTO expected FROM expected_counters;actual:=" + counter_projection + ';IF actual IS DISTINCT FROM expected OR (SELECT value FROM peer_before) IS DISTINCT FROM ' + peer_projection + ' OR (SELECT count(*) FROM before_counters WHERE charged AND request_count>1)<>' + str(expected_shared) + ' OR (SELECT count(*) FROM before_counters WHERE NOT charged)<>' + str(expected_unlinked) + " THEN RAISE EXCEPTION USING ERRCODE='ZX593';END IF;END $$;"
     def literal(v):
         return "'" + json.dumps(v).replace("'", "''") + "'::JSONB"
-    def admission_checks(a_counters, bowner, c1_first):
+    def admission_expected(a_counters, bowner, c1_first):
         image = literal(a_counters)
         expected = "SELECT (to_jsonb(c)||jsonb_build_object('scope_key',CASE WHEN scope_type='ip_rate' THEN scope_key ELSE '" + bowner + "' END,'request_count',1,'updated_at',transaction_timestamp())) value FROM jsonb_populate_recordset(NULL::internal.ai_quota_counters," + image + ') c'
         if not c1_first:
             expected = "SELECT CASE WHEN scope_type='ip_rate' THEN to_jsonb(c)||jsonb_build_object('request_count',2,'updated_at',transaction_timestamp()) ELSE to_jsonb(c) END value FROM jsonb_populate_recordset(NULL::internal.ai_quota_counters," + image + ') c UNION ALL ' + expected + " WHERE scope_type<>'ip_rate'"
+        return expected
+
+    def admission_checks(a_counters, bowner, c1_first):
+        image = literal(a_counters)
+        expected = admission_expected(a_counters, bowner, c1_first)
         return "DO $$ DECLARE expected JSONB;r internal.initial_preparation_admission_receipts;BEGIN SELECT COALESCE(jsonb_agg(value ORDER BY value::TEXT),'[]'::JSONB) INTO expected FROM (" + expected + ') x;IF expected IS DISTINCT FROM ' + counter_projection + " OR EXISTS(SELECT 1 FROM internal.initial_preparation_admission_staging) THEN RAISE EXCEPTION USING ERRCODE='ZX601';END IF;SELECT * INTO STRICT r FROM internal.initial_preparation_admission_receipts WHERE owner_id='" + bowner + "';IF (SELECT count(*) FROM internal.ai_quota_reservation_counters l JOIN internal.ai_quota_reservations q ON q.id=l.reservation_id WHERE q.original_analysis_id=r.scan_id)<>3 OR NOT EXISTS(SELECT 1 FROM internal.ai_quota_reservation_counters l JOIN internal.ai_quota_reservations q ON q.id=l.reservation_id JOIN jsonb_populate_recordset(NULL::internal.ai_quota_counters," + image + ") a ON (a.scope_type,a.scope_key,a.bucket,a.window_start)=(l.scope_type,l.scope_key,l.bucket,l.window_start) WHERE q.original_analysis_id=r.scan_id AND l.scope_type='ip_rate') OR NOT EXISTS(SELECT 1 FROM internal.ai_quota_reservations WHERE original_analysis_id=r.scan_id AND state='reserved' AND refund_count=0) OR EXISTS(SELECT 1 FROM internal.identification_invocations) THEN RAISE EXCEPTION USING ERRCODE='ZX602';END IF;END $$;"
+    def verify_admission(session, phase, original, new_owner, c1_first):
+        # Record a bounded, identity-free image BEFORE the unchanged assertion
+        # can abort the transaction. Actual images never define the oracle.
+        expected = admission_expected(original, new_owner, c1_first)
+        safe_image = "jsonb_build_object('scope',CASE WHEN value->>'scope_type' IN ('user_daily','user_rate','ip_rate') THEN value->>'scope_type' ELSE 'unexpected' END,'owner',CASE WHEN value->>'scope_type'='ip_rate' THEN 'ip' WHEN value->>'scope_key'='" + new_owner + "' THEN 'new' ELSE 'original_or_unexpected' END,'window_start',value->'window_start','window_seconds',value->'window_seconds','request_count',value->'request_count','updated_at',value->'updated_at')"
+        sql = "WITH expected AS (" + expected + "),actual AS (SELECT to_jsonb(c) value FROM internal.ai_quota_counters c) SELECT jsonb_build_object('counter_equal',(SELECT COALESCE(jsonb_agg(value ORDER BY value::TEXT),'[]'::JSONB) FROM expected)=" + counter_projection + ",'staging_count',(SELECT count(*) FROM internal.initial_preparation_admission_staging),'transaction_started_at',transaction_timestamp(),'observed_at',clock_timestamp(),'expected',(SELECT jsonb_agg(" + safe_image + " ORDER BY value::TEXT) FROM expected),'actual',(SELECT jsonb_agg(" + safe_image + " ORDER BY value::TEXT) FROM actual))::TEXT;"
+        diagnostic = payload(session.run('counter_postimage_diagnostic', sql))
+        qualification.record.setdefault('counter_postimages', []).append(dict(phase=phase, **diagnostic))
+        qualification.save()
+        session.run('assert_admission_counter_postimage', admission_checks(original, new_owner, c1_first))
+
     def peer(name):
         session = Session(qualification, name)
         sessions.append(session)
@@ -86,6 +144,18 @@ def counter_order_cases(qualification):
         for index, c1_first in enumerate([True, False]):
             phase = 'c1_first' if c1_first else 'admission_first'
             aowner, bowner = owners[index*2:index*2+2]
+            def window_sample(timeout):
+                # Fresh read-only psql: no admission transaction or row lock
+                # exists while waiting, including for the second order.
+                sql = "BEGIN READ ONLY;SET LOCAL statement_timeout='2s';SELECT jsonb_build_object('epoch',extract(epoch FROM clock_timestamp()),'user_window_seconds',p.user_window_seconds,'ip_window_seconds',p.ip_window_seconds,'daily_enabled',p.daily_limit IS NOT NULL) FROM internal.ai_quota_policies p WHERE p.operation='scan_identification' AND p.effective_plan='pro_complimentary' AND p.enabled AND p.allowed;COMMIT;"
+                result = subprocess.run(qualification.command, input=sql, text=True,
+                                        capture_output=True, timeout=timeout)
+                if result.returncode or result.stderr:
+                    raise RuntimeError('same-window fixture clock sample failed')
+                return json.loads(result.stdout.strip())
+            runway = require_counter_runway(window_sample)
+            qualification.record.setdefault('counter_window_preconditions', []).append(dict(phase=phase, **runway))
+            qualification.save()
             ascan = fixture.admit_one(owner_id=aowner).scan_id
             bscan = str(uuid.uuid4())
             a_counters = payload(b.run('read_original_counter_baseline', 'SELECT '+counter_projection+'::TEXT;'))
@@ -99,16 +169,18 @@ def counter_order_cases(qualification):
             p.run('save_original_identity', selected_start(ascan))
             # B intentionally selects A so its peer image includes B and older terminals.
             b_start = selected_start(ascan)
-            b_call = fixture.prepare_admission(bowner, bscan, commit=False) + admission_checks(a_counters,bowner,c1_first) + "SELECT jsonb_build_object('counters',"+counter_projection+",'peers',"+peer_projection+",'other_users',(SELECT jsonb_agg(to_jsonb(u) ORDER BY id) FROM public.users u WHERE id<>'"+aowner+"'))::TEXT;"
+            b_call = fixture.prepare_admission(bowner, bscan, commit=False) + "SELECT jsonb_build_object('counters',"+counter_projection+",'peers',"+peer_projection+",'other_users',(SELECT jsonb_agg(to_jsonb(u) ORDER BY id) FROM public.users u WHERE id<>'"+aowner+"'))::TEXT;"
             if c1_first:
                 p.run('cancel_uncommitted', prepare+cancel+check_after(0,0))
                 b.start('admit_uncommitted_after_cancellation', b_start+b_call)
                 observe_counter_wait(observer,p,b)
                 p.run('cancel_commit','COMMIT;')
                 winner = payload(b.finish())
+                verify_admission(b, phase, a_counters, bowner, c1_first)
                 fixture.commit_prepared()
             else:
                 winner = payload(b.run('admit_uncommitted_before_cancellation', b_start+b_call))
+                verify_admission(b, phase, a_counters, bowner, c1_first)
                 prep=prepare.replace('FROM internal.ai_quota_counters c;', 'FROM jsonb_populate_recordset(NULL::internal.ai_quota_counters,'+literal(winner['counters'])+') c;').replace('SELECT '+peer_projection+' value;', 'SELECT '+literal(winner['peers'])+' value;')
                 actual_cancel=cancel.replace('SELECT jsonb_agg(to_jsonb(u) ORDER BY id) INTO other_users FROM public.users u WHERE id<>r.owner_id;', 'other_users:='+literal(winner['other_users'])+';')
                 p.start('cancel_after_uncommitted_admission',prep+actual_cancel+check_after(1,2))

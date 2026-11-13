@@ -20,11 +20,11 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
     init(data: Data, allocation: SharedMediaNativePhotoAllocation,
          destination: InitialPhotoUploadDestination, nowMilliseconds: Int64) throws {
         _ = try allocation.encoded()
-        guard allocation.version == 5 || allocation.version == 9 || allocation.version == 11, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
+        guard allocation.transferPhase == 5 || allocation.transferPhase == 9 || allocation.transferPhase == 11, allocation.ticketRequestStarted == true, allocation.remoteAttempt == nil,
               let receipt = allocation.receipt, let transfer = allocation.transferReservation,
               (1...8_640_000_000_000_000).contains(nowMilliseconds), data.count <= Self.maximumBytes,
               let row = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { throw MerianError.invalidResponse }
-        if allocation.version == 9 || allocation.version == 11 {
+        if allocation.transferPhase == 9 || allocation.transferPhase == 11 {
             guard let binding = allocation.backendBinding,
                   binding.generation == destination.backendGeneration,
                   binding.configurationDigest == destination.configurationDigest else { throw MerianError.invalidResponse }
@@ -81,7 +81,7 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
     }
 
     func requirePutSuccessor(_ after: SharedMediaNativePhotoAllocation) throws {
-        guard allocation.version == 11, let issuedAttempt,
+        guard allocation.transferPhase == 11, let issuedAttempt,
               try allocation.startingPut(issuedAttempt) == after else { throw SharedMediaStorageFailure.stale }
     }
 
@@ -95,7 +95,7 @@ struct InitialPhotoUploadTicket: Sendable, CustomStringConvertible, CustomDebugS
     @MainActor func authorizedRequest(_ authority: SharedMediaNativePhotoPutAuthorization,
                                       nowMilliseconds: Int64) throws -> (URLRequest, Int64) {
         try authority.consume(matching: self)
-        guard allocation.version == 11, let issuedAt, let signedExpiry, let url, let headers,
+        guard allocation.transferPhase == 11, let issuedAt, let signedExpiry, let url, let headers,
               let transfer = authority.allocation.transferReservation else {
             throw SharedMediaStorageFailure.closed
         }

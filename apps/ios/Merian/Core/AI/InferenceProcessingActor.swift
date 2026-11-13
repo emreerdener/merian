@@ -78,7 +78,8 @@ actor InferenceProcessingActor {
         videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         persistenceFence: LiveInferencePersistenceFence? = nil,
-        expectedScanId: String? = nil
+        expectedScanId: String? = nil,
+        completionAccount: InferenceCompletionAccountScope? = nil
     ) async throws -> ParseAndSaveResult {
         let decoded = try await InferenceResponsePreparationService.live
             .prepare(
@@ -100,6 +101,12 @@ actor InferenceProcessingActor {
             )
         }
 
+        let originalCompletion = try (mappedData.requiresSavedRecord ? persistenceFence : nil).flatMap { fence in
+            try completionAccount.map { account in
+                try OrdinaryInferenceCompletion.prepare(resultData: resultData, mappedData: mappedData,
+                    scanID: fence.scanId, generation: fence.generation, account: account)
+            }
+        }
         var newDiscovery = false
         var savedPaths: [String] = []
         // Confidence-zero is a valid terminal provider response. It intentionally creates no
@@ -125,7 +132,8 @@ actor InferenceProcessingActor {
                     audioFilePaths: audioFilePaths,
                     videoFilePaths: videoFilePaths,
                     mediaTimeline: mediaTimeline,
-                    persistenceFence: persistenceFence
+                    persistenceFence: persistenceFence,
+                    originalCompletion: originalCompletion
                 )
                 didCompletePersistence = persistenceResult.wasSaved
                 newDiscovery = persistenceResult.isNewDiscovery
@@ -141,7 +149,8 @@ actor InferenceProcessingActor {
                     audioFilePaths: audioFilePaths,
                     videoFilePaths: videoFilePaths,
                     mediaTimeline: mediaTimeline,
-                    persistenceFence: persistenceFence
+                    persistenceFence: persistenceFence,
+                    originalCompletion: originalCompletion
                 )
                 didCompletePersistence = persistenceResult.wasSaved
                 newDiscovery = persistenceResult.isNewDiscovery

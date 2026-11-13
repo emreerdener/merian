@@ -101,9 +101,7 @@ final class PinnedNetworkDataTaskState: Sendable {
         completionPause?()
         #endif
         let result: Result<PinnedNetworkResponse, Error>
-        if let error { result = .failure(error) }
-        else if let response { result = .success(.init(data: data ?? Data(), response: response)) }
-        else { result = .failure(URLError(.badServerResponse)) }
+        if let error { result = .failure(error) } else if let response { result = .success(.init(data: data ?? Data(), response: response)) } else { result = .failure(URLError(.badServerResponse)) }
         finish(with: result, cancellingRequest: false)
         let waiters = state.withLock { value in
             value.locallyTerminated = true
@@ -134,5 +132,51 @@ final class PinnedNetworkDataTaskState: Sendable {
         guard let pending else { return }
         if cancellingRequest { pending.task?.cancel() }
         pending.continuation?.resume(with: result)
+    }
+}
+
+/// Created privately for one ephemeral upload session. Only that session has
+/// this delegate. Joiners wait for Foundation's invalidation callback.
+final class PhotoUploadSessionEnd: NSObject, URLSessionDelegate, Sendable {
+    private struct State {
+        var requested = false
+        var resetFinished = false
+        var acknowledged: Bool?
+        var waiters: [CheckedContinuation<Void, Never>] = []
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    var acknowledged: Bool { state.withLock { $0.acknowledged == true } }
+
+    func finish(_ session: URLSession) async {
+        await withCheckedContinuation { continuation in
+            let action = state.withLock { value -> (done: Bool, start: Bool) in
+                if value.acknowledged != nil { return (true, false) }
+                value.waiters.append(continuation)
+                let shouldStart = !value.requested
+                value.requested = true
+                return (false, shouldStart)
+            }
+            if action.done { continuation.resume() }
+            if action.start {
+                // This session owns exactly one foreground PUT and has no
+                // shared cookie, credential or cache store and no downloads.
+                session.reset {
+                    self.state.withLock { $0.resetFinished = true }
+                    session.finishTasksAndInvalidate()
+                }
+            }
+        }
+    }
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+        let waiters = state.withLock { value in
+            value.acknowledged = value.requested && value.resetFinished && error == nil
+            defer { value.waiters.removeAll() }
+            return value.waiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        PinnedNetworkTransport.handleServerTrustChallenge(session, challenge: challenge, completionHandler: completionHandler)
     }
 }

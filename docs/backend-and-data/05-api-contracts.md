@@ -1,3 +1,107 @@
+## November 9 — prepared original recovery service reads
+
+The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
+candidate exposes two service-only wrappers for the existing locked immutable
+readers: `discover_initial_completion_v1` and
+`read_initial_cpm_saved_admission_v1`. Each checks the service caller inside a
+postgres-owned SECURITY DEFINER function with an empty search path and a
+five-second statement-timeout configuration. The existing abortable transport
+deadline remains required; this catalog setting alone does not qualify server
+execution or lock-wait duration. Exact signatures are registered in the existing
+privileged-routine allowlist. Anonymous/authenticated callers and direct
+internal access remain denied.
+
+The wrappers delegate original owner/admission/dispatch/funding and
+cancellation/deletion validation without copying those rules or adding writes.
+The saved-admission response includes private assignment context for server
+validation; it must never be relayed as the native acknowledgement. The local
+status route now composes these readers through the existing
+`initialRecovery.ts` owner. Full S0 admission, media/execution/settlement and
+old-writer quiescence prerequisites remain. Ordinary legacy absence cannot gain
+an immutable result through these reads.
+
+Local validation passed: full 516-migration replay, 190 catalog files with
+10,384 executed assertions and two existing declared skips, strict
+public/internal SQL lint, and four owned recovery journeys with 341 checks.
+Independent review verified the permission-test correction, source applicability
+and owned cleanup. The migration remains unpublished and unapplied to hosted
+environments. These synthetic SQL journeys do not qualify the HTTP route,
+concurrent deletion/merge, server timeout or native integration;
+initial-recovery acceptance remains open.
+
+The composed local HTTP recovery owner additionally passed four SQL-response
+bridge journeys (341 checks), the full Edge suite (4,390 tests/1,170 steps),
+whole-tree lint and 125 deployable entrypoint checks. Focused native wire tests
+passed four methods/17 cases in the integrated app checkout. The tooling
+components passed across retained split execution: the original monolithic run
+failed because the sandbox denied synthetic hidden-input terminal access; the
+unchanged fake-provider PTY test and remaining shell tests then passed with
+terminal permission. Independent review verified these scoped results and
+cleanup. Durable original recovery-to-History, actual audio/video queued UI
+restart and broader S0/RUX/cumulative acceptance remain open.
+
+## November 9 — explicit observation-only status protocol
+
+The source candidate adds an authenticated `observe-v1` branch to
+`check-scan-status`. It uses `X-Merian-Initial-Recovery: observe-v1` and a
+closed body containing only `initial_recovery`, with version1, phase`observe`
+and nested `original.owner_id`/`original.scan_id`. The owner must match
+authenticated Auth; the nested scan is a canonical UUID. Legacy
+top-level`scan_id`,`scans` and `recovery_scan` are rejected. Their absence also
+makes legacy handlers that predate reserved-marker guards fail required-field
+validation before repair. Unknown/mismatched phases never fall through to the
+legacy route.
+
+The branch performs only two owner-scoped SELECTs: scan row ID and ingestion-job
+status. `row_exists` is literal row presence and may include a retained or
+tombstoned row. The reads are separate snapshots, not completion or execution
+proof. The closed response echoes version/phase/owner/scan and includes
+`row_exists`, nullable`job_status` and`original_result: "unavailable"`. Neither
+row presence nor a`complete` job grants original-result import, History
+selection, retry, replacement, funding settlement or provider dispatch. Missing,
+failed, unknown or refused observations keep the exact request held.
+
+Actual request bytes are capped at1024 and response bytes at4096. The branch's
+five-second budget begins after shared authentication and includes body
+collection and reads; it is not an end-to-end authenticated-handler latency
+claim. Caller cancellation discards late reads and prevents a subsequent query.
+Responses are no-store and failures reveal only a fixed unavailable code. The
+shared wire fixture is
+`services/supabase/functions/check-scan-status/fixtures/observation-v1.json`.
+
+This is source preparation, not deployed or installed qualification. The
+isolated backend candidate passed 4,384 Edge tests (1,164 steps), zero failures
+or skips, against an owned 515-migration replay; all 125 deployable entrypoints
+typechecked, and whole-tree lint/format checks passed. The initial run against
+an older local fallback catalog failed and remains retained. Native transport/UI
+adoption and its affected gates remain pending. Existing legacy routes are
+unchanged. IC-1 admission/completion serving remains disabled: this
+observational branch does not waive S0, create a result sidecar, backfill legacy
+proof or provide any original-completion authority.
+
+# API Contracts and Network Mappings
+
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
+
+Naturebook operates through a decoupled backend. The iOS application exclusively
+hits Supabase Edge Functions, abstracting its networking away from 3rd-party
+providers like Google Gemini.
+
+The normative end-to-end success, retry, recovery, security, and rollout
+contract for Capture → Identify → Insight → Field Chat / Explore is
+[Scan Ingestion Reliability and Recovery](./16-scan-ingestion-reliability-and-recovery.md).
+The sections below remain authoritative for individual request and response
+shapes.
+
 ## Dormant current verification observation — November 2
 
 `assert_initial_cpm_photo_verification_current(p_owner, p_scan,
@@ -116,6 +220,35 @@ PUT through its injected pinned task; recovered markers and arbitrary decoded
 tickets grant no upload permission. The
 [scan handoff contract](16-scan-ingestion-reliability-and-recovery.md#october-30--fresh-ticket-to-durable-put-handoff-candidate)
 owns lease, acknowledgement, expiry and task-drain requirements.
+
+A separate
+[v2 role-progress request](../../services/supabase/functions/initial-photo-transfer/role-progress-schema-v2.json)
+adds the original attempt ID to the saved status identity. Its read-only
+response binds the authenticated owner, scan, assignment, object and attempt to
+the live role, exact count, digest, content type, original backend and write
+policy, and microsecond observation timestamp. A closed status or historical
+marker alone is insufficient. The final live read rechecks the original policy,
+retirement, cancellation and deletion fences. It returns no capability and makes
+no storage request. The inactive native receiving owner requires a saved V12
+closed attempt, checks the same allocation around the authenticated request, and
+matches the response to the submitted role and backend. The read does not change
+the receiving row. A separate native action retains the receipt and all prior
+liabilities in V13. Advancing to another role still requires durable progression
+and separate transfer-copy accounting; this reply grants neither a PUT nor an AI
+run.
+
+The private
+[v3 cohort request](../../services/supabase/functions/initial-photo-transfer/cohort-verification-schema-v3.json)
+names the frozen candidate, scan, assignment digest, original clocks and
+backend. The server reconstructs the assigned roles from the authenticated
+allocation. Its optional trusted runtime checks for an existing admission before
+opening a fresh verification, reads the assigned JPEGs, and reconciles an
+uncertain settlement through the same admission receipt. The closed reply binds
+the scan, candidate digest, assignment and backend to `admitted` or `held`, with
+`authority: none`. The client separately reads and validates the original
+acknowledgement before pinning it. A 35-second timeout, including response
+transit, leaves the original operation available for receipt recovery. The route
+has no installed runtime or serving entry point.
 
 Owner identity comes only from the verified Edge session. Issue reuses v3
 allocation status and validates the complete saved assignment, selected role and
@@ -596,6 +729,18 @@ contract for Capture → Identify → Insight → Field Chat / Explore is
 [Scan Ingestion Reliability and Recovery](./16-scan-ingestion-reliability-and-recovery.md).
 The sections below remain authoritative for individual request and response
 shapes.
+
+## Private initial-media handoff rows
+
+The local qualification bridge reads the current SQL receipt composite through
+`mediaHandoffRows.ts`. Its exact 22-column decoder permits only
+`server_prepared_v3` with all five CPM-only storage fields null. It then
+validates the unchanged twelve canonical admitted-proof texts and original
+scope/digests. The same check protects state, copy and verification loaders. CPM
+admissions, missing discriminants and unknown columns fail closed; no client DTO
+or public API shape changes. See the
+[initial-analysis owner](../../services/supabase/functions/_shared/initialAnalysis/README.md)
+for the current private boundary and qualification limits.
 
 ## Fleet-Wide JSON Ingress and Error Contract
 
@@ -5217,6 +5362,43 @@ must not reconstruct this DTO through direct privileged table reads. Public-web
 wrappers select their detail fields explicitly and do not forward the native
 detail endpoint's optional `map_point`. Exact-SHA verification is tracked in the
 [release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
+
+### `GET /api/explore?cursor={opaqueCursor}` (Public Web)
+
+The homepage requests 48 canonical anonymous cards through the service-only
+`get_public_web_explore_posts_page(p_max_limit, p_before_shared_at,
+p_before_post_id)`
+RPC. SQL returns at most 49 rows. The server trims lookahead and returns
+`{items: [{id, label, poster}], nextCursor, hasMore}`. `poster` is a same-origin
+poster route or null; no scan/account IDs or private fields cross this boundary.
+The cursor is base64url JSON `[1, shared_at, post_id]`, preserving PostgreSQL
+fractional-second precision. Invalid cursors return 400; upstream failure
+returns 503, never an empty successful page. Responses are `no-store`.
+Descending timestamp/UUID ordering prevents tied-time skips. Refresh starts a
+new session; pagination is not a snapshot and rechecks current visibility.
+
+For compatibility before the pagination migration is applied, an initial request
+whose RPC returns `PGRST202` may use the existing canonical public
+`get_public_web_explore_posts` projection with limit 48. That bounded selection
+returns `hasMore: false` and `nextCursor: null`; it does not emulate pagination.
+Continuation requests and authorization/network failures never take this path.
+Both RPC calls have an 8-second deadline. Missing server configuration or
+failure of the compatibility RPC still returns 503, separately from a genuinely
+empty public feed. No direct table reads or decorative observations are
+substituted.
+
+### `GET /api/explore/poster/{postId}` (Public Web)
+
+Resolves a UUID through the existing public post projection and applies the
+existing image/video/audio poster policy. Allows only HTTPS raster images under
+`media.merian.app/public_uploads/free|pro/` or
+`upload.wikimedia.org/wikipedia/commons/`; credentials, queries, fragments,
+encoded paths and redirects are rejected. Fetches have an 8-second deadline and
+8 MiB streaming ceiling. Decoding is limited to 16 megapixels and output to a
+512px WebP, with a 3-second processing timeout. Invalid or unavailable posts and
+unsupported sources return 404, upstream invalid media returns 502, and other
+failures return 503. All responses are `no-store`; missing media uses a neutral
+client placeholder. This endpoint does not accept caller-supplied URLs.
 
 ### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
 
@@ -10793,11 +10975,16 @@ The
 defines bounded identity, selection, pagination and chat-context contracts.
 Explicit history readers 7–11 support their versioned snapshot capabilities;
 these do not change the general Identify reader. Current native page/state
-requests use reader 11 for V1–V5, selection/review use reader 10, enrollment
-uses reader 9, and private photo resolution remains reader 8. Saved imports
-retain unknown original completion dates. V5 is read-only: selection, review,
-source reuse, publication and selected chat are unavailable. Explicit
-queue-level video execution does not install a user-facing editor route.
+requests use reader 11 for V1–V5. The completion271 candidate also uses reader
+11 for explicit selection, review and confirmation/rejection Undo, including
+completed V5; focused qualification is in progress and activation remains
+closed. Enrollment uses reader 9, and private photo resolution remains reader 8.
+Saved imports retain unknown original completion dates. V5 source reuse,
+publication and selected chat remain unavailable. Action reader11 does not admit
+execution-status or retirement operations: those wrappers retain readers9/10,
+and the shared compatibility guard rejects reader11 with a non-null operation
+scope. Explicit queue-level video execution does not install a user-facing
+editor route.
 
 Prepared read, selection, review and protected-chat owners remain behind their
 independent activation controls; ordinary native access is nil. Enrollment still
@@ -12891,19 +13078,45 @@ scientific allowlisting, and a private-bucket/credential audit with real R2 race
 evidence. No public-CDN URL, staging URL, signed URL or caller-nominated key can
 stand in for a durable protected-media receipt.
 
+### Private evidence request cancellation
+
+The private read/write configurations disable SDK transport retries. The durable
+operation owner handles recovery using the original receipt or cleanup claim;
+HTTP 429/5xx does not start an SDK retry/backoff loop. `evidenceStorage.ts`
+explicitly passes the combined caller/request signal through aws4fetch signing,
+so native fetch retains the existing ten-second request timeout and caller
+cancellation for upload PUT/HEAD, verified GET and erasure PUT/HEAD. Hashing,
+signing and body cloning remain non-preemptive; this is not a hard
+whole-operation wall-clock guarantee. An uncertain PUT remains uncertain and
+cannot allocate a replacement object. The cancellation correction was included
+in the backend whose deployment1866 completed; actual hosted cleanup and phone
+qualification remain separate. See the
+[incident record](../incidents/2026-11-private-evidence-request-cancellation.md).
+
 ## Prepared private-evidence cleanup RPCs
 
-The separate `private_evidence_erasure_enabled` gate starts false. Only a
-service caller may execute `retire_expired_observation_evidence()` and
-`claim_observation_evidence_erasure()`. Retirement returns an integer from zero
-to five: one exact expired unbound cohort, or one legacy noncohort receipt.
-Discovery and the locked recheck exclude intent/result-owned evidence; invalid
-or mismatched immutable cohorts are held while later eligible work can progress.
-The original cohort descriptor and expiry survive receipt cleanup, so retrying
-an expired analysis cannot allocate new object keys. Parent/account deletion
-continues to remove private descriptors and enqueue opaque obligations.
+The local recovery-fence successor (not deployed) retains the separate
+`private_evidence_erasure_enabled` gate and permanently denies the original
+no-argument acquisition RPCs. Service callers use
+`retire_expired_observation_evidence_for_dispatch(p_dispatch_id UUID)`,
+`retire_expired_observation_video_evidence_for_dispatch(p_dispatch_id UUID)` and
+`claim_observation_evidence_erasure_for_dispatch(p_dispatch_id UUID)`. The
+mandatory UUID must match the enabled pending worker slot with valid project
+transport and open cleanup gate; the singleton stays locked through the existing
+operation. A supplied null/stale UUID, paused worker or mismatched authority
+returns42501. Omitting the required RPC argument is a routing/signature denial
+(for example PostgREST404/PGRST202), not a guaranteed42501 response. The
+service-role and private implementation grants remain separate boundaries.
+Photo/audio retirement returns an integer from zero to five; video retirement
+returns zero to seven. The photo/audio owner retires one exact expired unbound
+cohort, or one legacy noncohort receipt. Discovery and the locked recheck
+exclude intent/result-owned evidence; invalid or mismatched immutable cohorts
+are held while later eligible work can progress. The original cohort descriptor
+and expiry survive receipt cleanup, so retrying an expired analysis cannot
+allocate new object keys. Parent/account deletion continues to remove private
+descriptors and enqueue opaque obligations.
 
-Claim returns SQL null when disabled or no obligation is due, otherwise exactly
+An admitted claim returns SQL null when no obligation is due, otherwise exactly
 `object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
 never extended.
 `finish_observation_evidence_erasure(p_object,p_claim,p_success)` returns a
@@ -12911,18 +13124,64 @@ boolean for the original unexpired token. It remains callable after the gate
 closes; successful settlement still requires the trusted caller to PUT and
 HEAD-verify the permanent empty marker. The prepared
 `erase-observation-evidence` service-authenticated POST endpoint now connects
-these RPCs. It consumes no caller body or object key and returns only `retired`
-(0–5), `claimed`, `marked`, and `acknowledged` (0–1 each). All responses are
-no-store. One request retires at most one cohort, then marks at most one
-independently claimed opaque object. A 90-second shared request deadline caps
-twelve-second RPCs and a 25-second PUT/HEAD stage. Storage starts only with at
-least 38 seconds left in the original 60-second claim and request, reserving
-twelve seconds plus scheduling margin for settlement. The claim is never
-renewed. Failed or uncertain marker writes report failure when time allows; lost
-acknowledgements recover through the durable outbox without in-request retries.
-Parent cancellation reaches both storage calls. Configured source participates
-in future main deployment planning; no deployment, schedule or activation is
-implied. Public-copy cleanup cannot drain this separate private outbox.
+these versioned RPCs and requires the canonical dispatch header before work. It
+consumes no caller body or object key. Terminal receipts retain the v2 UUID and
+six bounded counters. Legacy requests are refused; no fallback is allowed.
+Existing exact-token settlement remains independent of current dispatch. This
+intentional service-only cutover requires closed gates and positively drained
+old SQL transactions before activation; it is not an iOS wire change. All
+responses are no-store. Each media lane gets one bounded retirement attempt; a
+failure, malformed count or unknown acknowledgement is counted without retrying
+or assuming rollback. That lane's zero count is not proof of zero mutations. The
+independent other lane and authoritative registry claim can still progress.
+Parent cancellation and the overall deadline stop subsequent work. One request
+then marks at most one independently claimed opaque object. A 90-second shared
+request deadline caps twelve-second RPCs and a 25-second PUT/HEAD stage. Storage
+starts only with at least 38 seconds left in the original 60-second claim and
+request, reserving twelve seconds plus scheduling margin for settlement. The
+claim is never renewed, and no new claim is acquired with less than50seconds
+left for its RPC and existing marker reserve. Zero claims is not an
+empty-backlog assertion. Retirement failures, `claimed=1, marked=0` even with
+`acknowledged=1`, or `marked=1, acknowledged=0` are unhealthy outcomes; HTTP200
+alone does not prove successful cleanup. Failed or uncertain marker writes
+report failure when time allows; lost acknowledgements recover through the
+durable outbox without in-request retries. Parent cancellation reaches both
+storage calls. Configured source participates in future main deployment
+planning; no deployment, schedule or activation is implied. Public-copy cleanup
+cannot drain this separate private outbox.
+
+`get_observation_evidence_erasure_health()` is a service-only, read-only JSON
+aggregate (`schema_version=1`, `generated_at`, `queue`, `retirement`, `worker`).
+Queue counts include claimable, deferred and live-claim partitions of all
+pending obligations, overlapping expired claims, unknown original ages, and
+separate pending/due ages. Future obligations retain immutable
+`first_observed_at`; historical NULL values stay unknown. Retirement aggregates
+separate media discovery candidates/object counts, bound retained objects and
+expired unbound objects outside discovery. Discovery is not proof that locked
+retirement will succeed, particularly video source/descriptor revalidation. No
+identities, object keys, request IDs, headers or response bodies are exposed.
+
+The private scheduler starts disabled and has no cron registration. Its durable
+pending request survives asynchronous transport. Only a bounded valid terminal
+v2 receipt correlated to the exact request ID and durable random dispatch UUID,
+with exactly one response and a finite nonfuture timestamp, releases the slot;
+gateway errors, missing/malformed/duplicate responses and timeouts remain
+unknown. In the local acquisition-fence successor, `X-Merian-Evidence-Dispatch`
+is required and must be a canonical lowercase UUIDv4; missing, invalid or empty
+values reject before worker operations. V2 adds exactly `schema_version: 2` and
+matching `dispatch_id` to the six counters. The dispatch is a private SQL
+admission fence and correlation value; it does not replace service authorization
+and is not health output. Legacy absent-header requests are refused by the
+successor. Legacy pending NULL-correlation slots cannot be automatically
+consumed or backfilled. A new scheduler talking to an old worker holds safely
+rather than retrying. pg_net's response `created` is transaction start, may
+precede dispatch and is not HTTP completion time. Delayed reconciliation keeps
+the old response time for success/marker age. Health reads never reconcile or
+clear this state. The monitor workflow also starts inactive behind an explicit
+repository variable and main-branch check. Proposed cadence/alert thresholds and
+the original-slot operator reconciliation procedure are documented in the
+[worker owner guide](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes).
+They do not authorize deployment, activation or promise measured throughput.
 
 ## Prepared protected photo analyses
 
@@ -13302,7 +13561,94 @@ existing public projection. Merge can return `pending_library_work` or
 These additive RPCs must precede a client that requires their restoration
 response.
 
-### Prepared saved-identification enrollment and protocol 9
+### Prepared enrollment-baseline recovery
+
+The November 4 candidate
+`get_owned_observation_enrollment_baseline(jsonb,integer)` reads only an
+existing ordinal-one V3 saved baseline. Reader9 requests contain exactly
+`schema_version: 1` and canonical `observation_id`; caller identity comes from
+authentication. Both existing reader gates remain required and inactive.
+Owner-row, observation-advisory, owned-live-scan and history locks preserve
+account/deletion ordering. Missing history or baseline fails; this routine never
+calls enrollment, creates history, restores selection or changes funding.
+
+The exact response fields are `schema_version: 1`, `owner_id`, `observation_id`,
+`baseline_analysis_id`, `snapshot` and `snapshot_sha256`. Snapshot is the
+existing immutable serializer's exact UTF-8 text, bounded to one MiB; the
+complete JSON response is bounded to four MiB. Its SHA-256 domain is
+`merian.observation-history.enrollment-baseline.v1` followed by one newline and
+the exact snapshot bytes, matching the existing native baseline digest.
+`baselineRecovery.ts` validates closed fields, identities, V3 saved origin,
+ordinal and digest without reserializing the snapshot. No current selection,
+review or original local enrollment intent is claimed.
+
+The candidate includes an association-only native transaction through the
+existing enrollment owner. It compares the exact persisted baseline bytes and
+records a closed version-two `serverRecovery` provenance variant without
+inventing an old intent ID. Version-one associations retain their original
+intent and encoding. The transaction rechecks account, deletion, pending intent
+and saved display state after the read; it leaves selection, review, media and
+inventory unchanged. The existing native acknowledgement remains a separate
+transition. Focused contract/static checks and fresh local migration replay
+pass. Native209 passed28methods/40cases; six local reader-first/writer-first
+schedules passed against legacy deletion refusal, account tombstoning and
+successful Ghost merge. The destination reader retains the exact baseline
+response except owner identity. The complete local catalog suite and
+privileged-routine audit pass. These are local candidate results, not
+deployment, installed qualification or exhaustive owner-ID ordering. Missing or
+mismatched local evidence remains held; advanced selected-result reconciliation
+is separate. Existing active-intent recovery stays unchanged.
+
+### Prepared original/current enrollment pair
+
+Candidate210 adds `get_owned_observation_enrollment_selection(jsonb,integer)`
+for the first local import when the server has already selected another result.
+Only authenticated reader11 may call it. The request is the same closed
+`schema_version: 1`, `observation_id` object as baseline recovery; callers
+cannot nominate an analysis, owner, intent or review. Both existing reader gates
+remain inactive. The wrapper first obtains the existing V3 ordinal-one baseline
+using the reader9 baseline routine, then reads that explicit baseline and the
+current selection using reader11 while retaining the same owner, observation,
+scan and history locks. It performs no enrollment, selection, execution or
+funding write.
+
+The response contains exactly `schema_version: 1`, `baseline_sha256`,
+`baseline_state` and `selected_state`. Each state follows the existing state
+contract, including its review authority; owner, observation, state revision and
+selected ID must agree. Baseline bytes and digest must match the original
+baseline reader and saved enrollment receipt. The entire envelope is bounded to
+four MiB in addition to each nested contract's limits. Reader11 preserves
+current photo, audio V4 and video V5 result support. This is one locked server
+response, never a client join of independently fetched states.
+
+The existing enrollment service imports and caches original A and selected B in
+one local transaction, preserving A's saved display association and original
+intent while projecting B from B's own representable display/review. It retires
+the intent in that save without persisting A as current selection. The ordinary
+state-sync Undo guards remain unchanged. Changed local review/display, account,
+deletion, intent or unsupported B projection holds the import. Uncertain saves
+recover the durable outcome; native media acknowledgement remains separate and
+uses exact A. Scoped native qualification covers61methods/82expanded runs:59
+passing methods remain applicable from the first runtime run, and the two
+fixture corrections pass a focused rerun. Photo/audio/video pair imports,
+interruption fences and native acknowledgement after later selection are
+covered. The original compile and fixture failures remain recorded. Two actual
+selector/read orderings pass with observed blockers and exact result-row
+preservation. The direct caller guard,12pair assertions and privileged-access
+audits pass on a fresh511migration replay;185unchanged catalog files retain
+prior-replay evidence. This is not a complete catalog rerun on the corrected
+candidate. The implementation remains inactive and does not establish installed,
+SQLite/crash or cumulative functional acceptance.
+
+Implementation and executable contracts:
+[SQL wrapper](../../services/supabase/migrations/20261104211256_recover_observation_enrollment_selection.sql),
+[closed decoder](../../services/supabase/functions/_shared/analysisHistory/enrollmentSelection.ts),
+[shared media vectors](../../services/supabase/functions/_shared/analysisHistory/fixtures/enrollment-selection-media-v1.json),
+[SQL checks](../../services/supabase/tests/observation_enrollment_selection.sql)
+and
+[both-order harness](../../services/supabase/scripts/test_observation_enrollment_selection_races.py).
+
+## Prepared saved-identification enrollment and protocol 9
 
 Migration `20261003152940_prepare_saved_identification_enrollment.sql` adds
 `enroll_owned_observation_history(p_observation uuid, p_reader integer)`. Only
@@ -13455,12 +13801,17 @@ The native `ObservationHistoryEnrollmentService` now implements the two-response
 admission contract above without an app caller. Its bounded exact-key
 `ObservationHistoryEnrollment` decoder shares `enrollment-v1.json` with Deno.
 The authenticated account lease must survive both the enrollment RPC and current
-state read. Only a still-selected V3 baseline whose surviving evidence and exact
-review match the unchanged local scan can establish local ownership/selection.
-The result, authority, saved-local display and enrollment fields commit
-together; existing display, review and private details are preserved. Divergence
-requires reconciliation, never silent server preference. Lost responses leave no
-local acknowledgment and permit idempotent server retry.
+state read. The original V3 baseline must match the unchanged local evidence and
+review. If a newer result is selected, use the authenticated
+[original/current pair](#prepared-originalcurrent-enrollment-pair); the client
+never reselects the original to complete enrollment. The result, authority,
+saved-local display and enrollment fields commit together. For a pristine native
+first import whose original is still selected, the candidate records the
+server's exact revision-zero unreviewed clear in the local review envelope. It
+requires the same validated application receipt, durable enrollment intent and
+unchanged displayed baseline across the read. It changes no visible review,
+species identity or private details. Legacy default tuples alone do not qualify.
+Divergence requires reconciliation. Lost responses retain the original intent.
 
 Before dispatch, native admission now commits a bounded owner-bound enrollment
 intent in the existing job store. Lost responses and failed local admission
@@ -18783,6 +19134,43 @@ backlog scan, timer, scheduler admission, App/UI installation or activation is
 added. Ordinary access remains nil. Device/external qualification and Field
 Trip's held reconciliation consumer remain separate requirements.
 
+### Prepared video submission handoffs
+
+`ObservationVideoSubmissionService` composes the existing reservation, upload
+and execution stores without a new wire contract. An explicitly staged source
+may advance after a normally returned, durably observed reserved reply. Only a
+normally returned ready upload may validate current consent and stage execution.
+Throwing phase saves stop advancement, including commit-then-throw. Unknown
+reservation/upload replies never dispatch another attempt or a later phase.
+
+`requestVideoSourceSubmission` and `requestVideoUploadSubmission` use the
+existing retained queue owners. The next owner admits work only after actual
+prior account-lease and slot exit, rechecking account/session/generation,
+container and connectivity. Presentation scope never becomes queue authority.
+The upload key's default `.upload` route requires a next media item. Its
+separate `.bindReady` route requires a ready receipt and permits explicit
+consent/binding continuation without uploading again; route participates in
+coalescing. Neither route admits an unknown upload. Existing consumed execution
+remains exact outcome-only recovery. No scheduler, discovery, App/UI
+installation or feature activation is added. The focused queue regression is
+`ObservationVideoSubmissionTests`; cumulative and external qualification remain
+separate.
+
+### Explicit saved video continuation (prepared)
+
+The native saved-child continuation reconstructs existing preparation,
+reservation, upload or execution state. Complete-cohort recovery supplies no new
+media. Only initial staged reservations, durably reserved upload staging,
+next-item/ready uploads, idle execution and consumed exact-result recovery may
+hand off to their existing owners. Unknown attempts and unconsumed non-idle
+execution remain held. Throwing stage saves never return a dispatchable result.
+The prepared chooser requires explicit selection and a final tap. Its status
+reader shares the existing four-slot audio/video owner. The live upload facade
+reuses the authenticated dispatcher and the unchanged Wire1 endpoint. No DTO,
+SQL, remote flag or ordinary app installation change is introduced. Native
+qualification is pending; source review is accepted. See the
+[scan journey](../development-guides/25-scan-to-history.md).
+
 ## Prepared initial admission under IC-1 (inactive)
 
 The initial engine's uninstalled `InitialAnalysisLifecycleRepository` uses only
@@ -19441,6 +19829,197 @@ unchanged. The
 records the 8,190-byte maximum rendering allowance, structural catalog coverage
 and separate full materialization/C1 qualification requirement.
 
+### Prepared original completion document decoder (inactive)
+
+The private
+[`completion-schema-v1.json`](../../services/supabase/functions/_shared/initialAnalysis/completion-schema-v1.json)
+and paired decoder describe the existing original completion receipt and
+projection. Receipt and projection remain independently bounded at16KiB and
+64KiB in both canonical and JSONB rendering. The decoder correlates original
+owner/scan/result, submitted input version, finalized media digest, settlement
+and projection digest, preserving UTC microseconds and ordered media references.
+It returns canonical documents, not execution or access authority. The private
+server adapter below binds the exact saved request. Authenticated native
+delivery still requires the existing account and operation fences; matching
+digests alone do not establish access authority.
+
+This prepares a consumer of the private SQL output. It adds no HTTP/RPC grant,
+activation or generated public Identify DTO change. The inactive native
+`InitialCompletionDocuments` consumer uses a generated copy of the structural
+schema and the strict `InitialAnalysisCanonical` byte grammar. Shared synthetic
+fixtures cover canonical Unicode, safe integers, closed fields, media,
+settlement, microseconds and both byte ceilings. The selected native suite
+passed 19methods without skips; shared parity passed 31 SQL vectors/157 checks
+and 7 Deno tests/89 steps. Unsigned local device Release compilation passed; its
+retained warnings and comment-only lint dispositions do not imply a warning-free
+checkout or device runtime acceptance. Durable delivery and available History
+import remain unfinished; these checks do not qualify the full app. Regenerate
+with
+`deno run --frozen --config services/supabase/functions/deno.json --allow-read --allow-write services/supabase/scripts/generate_initial_completion_contract.ts --write`
+and use `--check` with read permission to detect drift. The
+[initial-analysis owner guide](../../services/supabase/functions/_shared/initialAnalysis/README.md)
+records the implementation and local synthetic verification boundary.
+
+The generator also emits `InitialRetainedResultSchema` from the immutable
+private `resultSchemaV1.ts`, separate from the live public Identify DTO. The
+inactive native `InitialRetainedResult` candidate checks exact original
+references and provenance, frozen field/scalar rules, primary-result semantics,
+provider usage and domain hashes. Its shared synthetic vectors pass the frozen
+Deno recovery decoder and all37 passed the nine-method native suite with
+independent parity verification. This prerequisite grants no authentication,
+execution, persistence or application authority.
+
+Its prepared local projection uses the frozen rules to restore numeric JSON
+fields, retaining original candidate/pet field spelling for V3 enrollment and
+top-level reasoning from the retained result. The existing domain provenance
+limit remains 2 KiB after numeric projection; a larger projection is explicitly
+rejected before record construction. This does not reduce the private 64 KiB
+provenance evidence limit or alter its canonical bytes. The stateless
+`LocalScanRecordFactory.makeInitialRecord` remains unsaved and unowned; original
+completion identity/capture binding and atomic retained-media application are
+still required before use. See the
+[data owner guide](../../apps/ios/Merian/Core/Data/README.md#scan-finalization-persistence).
+
+The appended private `read_initial_completion_v1` delivery preparation reuses
+original result/owner/deletion locking and returns version1 with outcome
+`absent` or `found`, the original result reference, and nullable `completion`
+and `result`. Found completion carries canonical receipt/projection strings;
+result uses the existing retained-result evidence envelope. Absence is an
+observation, never permission to repeat execution or finalize. The reader passed
+local CPM/photo/audio/video checks and independent source review. Committed
+deletion denial is covered; physical erasure and concurrent read/delete orders
+are not qualified by those checks. No serving grant or public response contract
+is activated.
+
+The existing private `resultStore.ts` now prepares a fixed completion read,
+validated by `completionDelivery.ts` against independently retained original
+reference, result digest, provenance, route, input version, funding identity and
+ordered-description digest/count. Missing binding prevents the request. It
+retains the five-second deadline and bounded response collection; lost, invalid
+or cancelled reads remain uncertain and never retry or finalize. The response
+budget is2,398,208bytes, including canonical strings embedded in JSON. This
+server-side adapter is inactive and does not provide native account authority.
+
+Original CPM admission acknowledgement has its own private versioned reader:
+`read_initial_cpm_completion_admission_v1`. It matches the independently saved
+owner/scan, exact candidate and assignment, assignment digest and backend
+generation/configuration digest before projecting the retained admission. Its
+closed `cpm-completion-admission-schema-v1.json` envelope retains receipt
+identity/digest and the exact12-field `admission_canonical` (4KiB maximum).
+`cpmCompletionAdmission.ts` additionally correlates original content and ordered
+context digests/counts; it snapshots both inputs before asynchronous validation.
+The complete acknowledgement is bounded to8KiB. The existing
+`createCpmPhotoAdmissionDb` exposes a separate `readCompletionAdmission` method
+with one fixed read, a five-second deadline and that streaming cap; the older
+boolean `recover` method is unchanged.
+
+The inactive `completionStatusRequest.ts` boundary prepares two closed status
+recovery phases. Both require an already authenticated owner matching the saved
+owner and scan; unknown phases, extra legacy fields and malformed bindings fail
+without falling through to legacy repair. Admission uses the eight native saved
+`CpmBinding` fields, including exact candidate bytes and candidate/content/
+assignment digests. Native does not supply the full server assignment. The
+request ceilings are2,101,248bytes for admission and8,192bytes for completion;
+the eventual HTTP collector must enforce them before parsing. Completion uses
+the already-pinned twelve-field admission and cannot select a result.
+
+`read_initial_cpm_saved_admission_v1` resolves the original assignment under the
+existing lifecycle locks and delegates to the exact admission reader. Its
+private envelope supplies assignment context plus the existing acknowledgement;
+`createInitialSavedAdmissionAcquisition` validates both and returns only the
+acknowledgement. The private response ceiling is151,552bytes with the existing
+five-second deadline, cancellation and no-retry behavior. No live status route,
+API grant, native transport or feature activation is installed. Focused
+synthetic request/transport checks pass. Fresh disposable checks passed before
+dispatch and across completion, including SQL-to-transport correlation and
+committed deletion denial; both owned databases were disposed.
+
+The current `check-scan-status` source rejects reserved initial recovery
+requests with503 before legacy repair, including mixed or bulk entries. This is
+a source guard, not a deployment claim. The separately prepared
+`initialRecovery.ts` coordinator is not imported by the route; it uses the
+existing bounded private readers and encoder with cancellation and a five-second
+deadline. The prepared `readInitialRecoveryHttp` bounds raw bodies using the
+exact `X-Merian-Initial-Recovery` values `admission-v1` or `completion-v1`. It
+checks actual and declared byte lengths before fatal UTF-8/JSON parsing, then
+requires body/header phase agreement before private reads. The five-second
+interval includes collection and acquisition; cancellation releases the stream
+without waiting for cancellation acknowledgement. Failures return only
+generic503, and responses are marked no-store. This helper remains unimported.
+Current source also rejects any such header before ordinary parsing. Serving
+still requires reviewed private RPC access; ordinary request limits remain
+unchanged.
+
+The prepared completion status response projects the existing validated
+acquisition into the closed `completion-status-response-schema-v1.json` fields:
+exact admission/reference/provenance/receipt/projection/result canonical strings
+and result/provenance digests, with version1 and `pending`/`found`. Pending
+requires every result field to be null. The outer canonical JSON ceiling remains
+2,541,568bytes; each inner document retains its existing individual limit. This
+is a transport projection, not a second result or History schema.
+`completionStatusResponse.ts` escapes scalar strings once and does not
+reinterpret result content. Shared pending/found/Unicode fixtures derive from
+its encoder.
+
+The native named recovery path passed16focused methods with no failures or
+skips, including byte parity, separate response bounds, transport failure fences
+and authenticated admission-through-completion pinning. It uses the existing
+authenticated dispatcher and pinned task-draining collector, with8KiB admission
+and2,541,568-byte completion caps, a five-second deadline, expected account and
+saved-operation checks. Ordinary status remains4KiB. `parseCompletionStatus` has
+a separate outer budget; ordinary IC-1 parsing, encoding and raw strings remain
+limited to1MiB. `statusAcquisition` validates all inner documents through the
+existing result/receipt owners before the existing protected owner pins
+admission then completion. No live caller/status route or result application is
+installed.
+
+The inactive native `InitialCompletionDocuments.CpmAdmission` decoder uses the
+same generated closed acknowledgement and twelve-field admission rules. It
+retains both canonical byte strings exactly, matching owner/scan, saved
+candidate/content/assignment digests, backend generation/configuration and
+ordered context facts. `CpmBinding.saved` uses the existing allocation; native
+does not possess the full assignment or infer original funding/configuration
+from current account state. Those checks remain the private authenticated
+reader's responsibility. Shared synthetic vectors cover missing/extra fields,
+foreign bindings, noncanonical bytes and limits. Source review and generator
+parity passed; all seven native document methods passed focused validation and
+independent review. This value decoder performs no request, persistence or
+authorization.
+
+This acknowledgement is distinct from the existing boolean CPM recovery reply.
+Before completion it requires the original admitted cohort; after completion it
+requires the original adopted cohort. Lost acknowledgement recovery does not
+recheck fresh eligibility, reserve funding, admit, dispatch, settle or retry.
+Missing, cancelled or contradictory state fails closed; no API execution grant,
+serving integration or native durable pinning is installed. Qualification uses
+`test_initial_cpm_completion_admission.py` on owned disposable databases before
+dispatch and across completion, with SQL replies checked by the Deno decoder.
+
+First result discovery is a distinct private boundary:
+`discover_initial_completion_v1(owner, scan, admission_canonical)` takes the
+closed saved admission, not a caller-selected result UUID or digest. Admission
+version1 explicitly identifies input schema1 or2 and includes owner, scan,
+route, submission/configuration digests, funding identity/digest/version and
+ordered-description digest/count. Its canonical UTF-8 ceiling is4KiB. This does
+not widen the existing version1 admission repository or reinterpret its older
+acknowledgements.
+
+The reader matches all admission fields against retained originals under the
+existing lifecycle locks, then resolves the original invocation and result. A
+missing result or completion returns `pending` with null identity, provenance
+and delivery. A found response carries the original reference/digest,
+independently retained invocation provenance and the existing delivery envelope.
+`completionAcquisition.ts` validates these associations; the existing
+`resultStore.ts` provides one fixed read with a five-second deadline and a
+2,541,568-byte envelope ceiling. No retry, completion, settlement or repair is
+invoked. API execution remains revoked. This resolves server-side discovery;
+authenticated native first acquisition must still match its saved operation and
+atomically pin the association before later exact replay or History import.
+Independent SQL and adapter source reviews passed. The local acquisition runner
+covers original admission tampering, discovery, unchanged retained state and
+committed deletion denial without external requests or response-body logging;
+its executed evidence remains candidate-specific.
+
 ### Inactive admitted M2 v2 proof codecs
 
 `_shared/initialAnalysis/mediaHandoffProof.ts` prepares private original-claim
@@ -19472,3 +20051,52 @@ Independent/IC-1 source review and disposable SQL/catalog/actual-role denial
 qualification are recorded in the handoff RFC and its exact shared-checkout
 evidence. This does not extend codec parity to runtime execution or stored
 issuance authority.
+
+## Website review quarantine
+
+The infrastructure release includes
+`20261108185855_quarantine_public_web_explore.sql`. Public web card, pagination,
+and detail readers exclude posts with an `open` or `in_review` post case or
+identification case, plus scans whose `is_flagged` remains true. Native Explore
+visibility and reporter-specific preferences are unchanged. The grouped review
+case is authoritative: source report rows can still say `PENDING_REVIEW` after a
+moderator dismisses the case. Clearing a case restores eligibility only if every
+other publication, moderation, media, tombstone and identity rule passes.
+Existing repeat-reporter behavior is preserved: additional evidence from the
+same reporter does not reopen a cleared case; a new independent reporter does.
+
+`get_public_web_explore_visibility(p_post_ids UUID[])` is service-only, accepts
+1–128 non-null IDs, and returns only eligible IDs through the canonical
+anonymous projection plus the website quarantine rule. It exposes no report or
+case data. The website uses `GET /api/explore/visibility?ids=…` for bounded
+rechecks and `GET /api/explore/changes?ids=…` for scoped SSE eligibility
+snapshots. Both are no-store and validate the same UUID/count bounds. Streams
+recheck those IDs every two seconds, end after 50 seconds with an explicit
+reconnect event, cancel work on disconnect, and cap active streams at 16 per
+server instance. Each database request has a three-second deadline; at most 32
+visibility queries run concurrently per server instance. Sequential polling
+rounds have a five-second total budget. This is bounded server polling delivered
+through SSE, not a database Realtime subscription or a global moderation feed.
+Deployment-level traffic/rate limits remain necessary for these public
+endpoints.
+
+Open canvas, HTML grid, About hero and post-detail pages use expiring visibility
+approval. A removal unmounts detail media and disposes canvas textures/cancels
+image requests while retaining the cell position with a decorative replacement.
+There is no stock image attributed or linked to the removed post. Pages start
+closed until checked, clear approval on stream/check failure or tab hiding, and
+recheck on return/back-forward navigation. Streams normally deliver changes in
+roughly two seconds plus request latency; six-second approval leases fail closed
+if updates stall. Sessions over 128 IDs, or unavailable SSE, use sequential
+128-ID requests every two seconds without overlapping checks. A stalled or
+failed stream is closed before polling takes over, so queued old frames cannot
+restore withdrawn content. Post details are dynamic/no-store, including
+metadata, instead of retaining the former five-minute ISR cache.
+
+This does not retract previously downloaded media, external social previews, or
+copies saved by a visitor. The web support-email report link is not database
+intake; quarantine starts when a report/flag is accepted into the existing
+review system. Backend migration application must precede the frontend release.
+A missing visibility RPC fails closed to decorative previews/unavailable detail;
+there is no legacy visibility bypass. Prepare and validate locally; no
+production migration or deployment is authorized by this implementation.

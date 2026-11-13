@@ -5,6 +5,8 @@ import SwiftData
 /// store audit, physical-absence capability, dirty poststate or mutation owner.
 /// The caller must hold the native store fence. Production dispatch stays closed.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReceivingReleaseLiveAudit {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Origin = SharedMediaNativeReleaseOrigin
@@ -258,7 +260,7 @@ enum SharedMediaNativeReceivingReleaseLiveAudit {
     }
 
     static func absentOriginal(_ target: Values.Target, profile: SharedMediaNativeAppProfile,
-                                       inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+                               inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
         let asset = target.original.assetID, id = target.acquisitionID
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.id == id }))
         guard case .released(let terminal) = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt,

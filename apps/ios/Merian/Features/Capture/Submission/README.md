@@ -1,3 +1,185 @@
+## November 9 — observation-only status source
+
+The qualification status action now uses the strict `observe-v1` transport and
+labels only literal server-row presence. It does not confirm an original result
+or invoke legacy repair. Existing exact immutable admission/completion proof is
+still required by the separate History continuation. Native integration tests
+are pending; see the
+[current end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-9--explicit-observation-only-recovery-status).
+
+## November 9 — native pending original-photo preview candidate
+
+The pending-submission view can request one indexed original-photo raster
+through the existing native receiving locks and accounting owner. The complete
+frozen original cohort is hashed and sealed before the selected image is
+downsampled to 2048 pixels; no original URL or raw bytes reach the feature. A
+fresh local scope check reuses the physical seals without decoding or hashing
+again. Closing, backgrounding, refreshing or changing account discards the image
+and drains pending reads before releasing presentation lifetime. This adds no
+preparation, retry, admission, funding, History selection or legacy-proof
+backfill.
+
+Completion279 native02 passed 46 methods/109 expanded cases, zero
+failures/skips, with 4,183 unchanged inputs. Engine independently verified
+source and runtime; the first lint failure remains retained. Legacy absence
+remains unavailable. This is local synthetic receiving/readback/presentation
+evidence; Vision quality, measured timing/memory budgets,
+physical-device/accessibility and whole-candidate acceptance remain open.
+
+## November 8 — current focused qualification
+
+Shared startup-fence borrowing passed native241: 55 methods / 118 expanded
+cases, including both durable-input/native opening orders. Bounded cold input
+cleanup and actual-exit joins passed native242: 63 methods / 127 cases, followed
+by the strengthened populated foreign-container method's four passing cases.
+Every run matched 4,157 source pins with zero failures/skips. Independent Engine
+review verified the combined evidence. Cleanup preserves foreign receipt/file
+length; the foreign fixture does not claim byte-for-byte equality.
+
+Native243 qualified exact journal progression (54 methods). Native244 qualified
+scoped library-sign-out runtime drain and complete-purge acknowledgement: 100
+methods / 129 expanded cases, followed by 18 methods / 21 cases for the reviewed
+repository-completion race fix and affected regressions. Passing runs had zero
+failures/skips; the failed compilation and the review-discovered race remain in
+the findings record with verified fixes. Independent Engine review confirmed the
+combined evidence. This is component qualification; full live SDK composition
+remains unverified.
+
+HQ241 account-deletion-stage authority, pre-stable-Auth cold startup and
+explicit later-lifetime renewal remain open. Installation stays false.
+All-media, device and cumulative acceptance remain incomplete. Earlier dated
+candidate notes below record their historical checkpoint state.
+
+## November 8 — shared startup-fence borrowing candidate
+
+The existing `SharedMediaNativeOriginalDrain` now retains the original startup
+fence for bounded local consumers and native discovery. Prepared input remains
+bound to its exact account runtime; local erasure has a separate registration
+without former-account authority. Registered consumers must join actual work
+before shutdown releases the fence. Sealing denies new work while permitting
+already-owned cleanup. The video composition injects this borrow through access,
+session and durable input; native discovery consumes the same fence and retains
+its existing profile checks. No profile or native operation grant is exposed to
+local consumers. Both-order integration and shutdown/failure tests are pending.
+Cold erasure routing and exact destructive-journal Auth handling remain open;
+installation remains false.
+
+## November 8 — focused durable-input integration verified
+
+Native239-03 passed 69 methods / 115 expanded cases, zero failures/skips, all 11
+selected suites/methods and all 4,157 source pins. Independent Engine review
+verified the four requested failure/concurrency/text regressions and the exact
+review delta. Retain the two preceding test-compilation failures. This qualifies
+the focused local integration, including real startup admission and
+optional-text initial audio/video-to-History fixtures.
+
+Combined lifetime acceptance remains blocked by HQ247: native dispatch retains
+the exclusive startup fence, while video input independently acquires it. Both
+orderings require validated borrowing at the existing App lifetime, with
+actual-consumer registration and joined shutdown. No native profile adoption,
+weakened locks or terminal-owner restart merely to switch features is permitted.
+HQ241 exact destructive-journal handling and bounded cold recovery remain open.
+The host owner now distinguishes cleaned storage, runtime-quiescent retained
+storage and blocked work; ordinary Boolean drain still requires cleaned storage.
+Audio input preparation is joined through actual cleanup even without an account
+lease. Combined native240-01/02 evidence independently qualifies this focused
+drain change: 50 unchanged passing methods plus the corrected fixture method,
+zero skips and 4,157 matching pins per run. The original fixture failure remains
+retained. Installation remains false; manual/device/cumulative acceptance is not
+claimed.
+
+## November 8 — durable current-video input integration candidate
+
+The inactive video session retains its frozen input owner before bootstrap,
+reservation or copying. It supplies the existing preparation owner and
+FileStore, plus the original exact-container startup admission injected through
+Capture access. The source/choice/text digest and durable receipt preserve one
+child; uncertain copying permits existing copied-receipt recovery only. Cleanup
+can retain unresolved storage after actual runtime exit. Focused integration
+validation and the account-journal/recovery work remain pending; ordinary
+installation remains false. See the
+[scan-to-History checkpoint](../../../../../../docs/development-guides/25-scan-to-history.md#bounded-input-ownership-implementation-checkpoint).
+
+## Fresh initial photo: first original upload
+
+In the inactive native photo path, the Capture submit caller can be given an
+explicit first-transfer configuration. A newly received local submission and
+fresh backend-bound allocation are both required. With them, Capture can send
+the first frozen original to its assigned destination once. It checks the
+current draft, account and processor permission again before sending. A later
+selection stays visible; a lost reply or a reopened submission cannot recreate
+this in-memory opportunity. Ordinary app composition does not supply it. The
+local simulator verified a single intercepted original PUT and zero PUTs after
+an intervening receive, lost receipt/allocation acknowledgement, changed draft,
+or revoked permission (including revocation just before task start).
+
+If an attempt is already recorded, inspect its
+[original role and status](../../../Core/Data/SharedMediaStorage/README.md#initial-photo-checking-progress-for-one-uploaded-role).
+Do not repeat the upload. A successful PUT does not verify the stored original,
+make another role eligible, or start identification. The upload task rejects
+background sessions; task completion alone does not establish that all temporary
+copies are gone.
+
+The measured simulator path also completed the assigned original, AI and display
+uploads for one and two photos. A positive final seal can enter the optional
+whole-roster admission configuration once. Capture checks the same draft, owner
+and permission through receipt readback and pinning. After an interruption,
+recover the original admission through the existing status owner. See the
+[cohort contract](../../../../../../docs/backend-and-data/05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+for the private request and its scope.
+
+## November 4 — native status adapter candidate
+
+The205 inactive app factory now uses the existing native owner for status
+reservation, one-way interval settlement and quiet cold retirement. Exact live
+registrations prevent overlap and successful shutdown before quiescence. Every
+attempted transition remains retained across uncertain acknowledgement; explicit
+status reads do not remint clocks or reuse consumed predecessors. The full
+presentation charge survives cold retirement until atomic completion removes the
+queue. Settled204 handoff/receipt qualification passed3methods/4cases;205 source
+review and focused9method/16case validation passed after the uncertainty fix.
+Installation remains false. See the
+[current end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#settled-status-tracking-and-initial-completion-candidate).
+
+## November 4 — explicit initial History continuation candidate
+
+The existing recovery model now has a distinct explicit “Add result to History”
+action and cancellation/drain task. Availability checking and discovery still
+perform no completion. The inactive app composition rereads the full frozen
+candidate, recovers only its saved initial result, applies it, uses the existing
+enrollment owner, and acknowledges the authoritative baseline. Applied work
+skips initial recovery/application; acknowledged work skips network and saves.
+Missing legacy associations and uncertain enrollment remain held.
+
+A targeted resume validates an explicitly selected saved candidate after
+application removes it from the pending list. The202 inactive composition adds
+separate bounded restart-discovery pages for retained initial results and
+interrupted History enrollment. Each page inspects at most128 keys and retains
+only full candidate identities; Next advances over skipped rows as well. An
+unresolved enrollment hold intentionally blocks the ordinary retained reader;
+its target is available through metadata-only enrollment discovery even when
+pending discovery is unavailable. Discovery and selection never start network
+work or completion. The203 candidate adds a separate explicit Open result action
+after acknowledgement. No package-ID-only lookup substitutes for exact
+operation/revision/content identity. The ordinary installation guard remains
+false. Source preflight and independent boundary review passed for202; its
+native202-02 passed13methods/30cases. The203 skipped-page/routing checks
+passed13methods/29cases plus the corrected XCTest route method, with independent
+evidence review. Native201-04 passed 19methods/29expanded cases with zero
+failures/skips, covering explicit continuation, owner reopen, no-write
+acknowledged replay, exact-intent recovery and close/hidden/account draining.
+Earlier compile failures remain retained. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md).
+
+The Open result action uses the existing `AppRouteCoordinator` scan route with
+an internal user-action envelope and the observation ID only. It checks the
+captured account, auth generation, exact container and library-access fences;
+the existing route coordinator also rejects stale queued envelopes. Completion
+itself never navigates. Opening reads the current saved scan without selecting
+the acknowledgement's baseline analysis or writing history state. Closing the
+recovery presentation prevents duplicate taps. This is an inactive candidate,
+not installed UI or complete functional qualification.
+
 ## October 31 — allocated submissions stay in Pending submissions
 
 The existing local discovery and exact-selection model now retain allocated and
@@ -538,17 +720,21 @@ refinement, and other Pro-only entry points open the soft paywall when
 unavailable. One photo/audio plus an optional note does not itself require Pro
 funding.
 
-Photo and video capture stage locally before scan admission. Before an audio
-recorder or staged submission can begin work, online Capture calls the
-authenticated, caller-scoped `get_my_scan_admission_preview(...)` RPC. A
-daily-allowance or Pro-access denial opens the existing root paywall immediately
-and leaves staged input untouched; An admission denial does not create a queue
-row, open Insight or invoke inference; existing staged photo/video input is
-retained. `IdentificationEvidenceAllowance` permits one ordinary photo or
-standalone audio plus an optional note, or one description alone, for Flash.
-Additional physical media, video-derived evidence, multiple descriptions, and
-refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
-preview, not a reservation.
+Physical camera and audio capture stage locally before authentication or quota
+checks so a subject is not lost while the session loads. Before a staged
+submission can begin work, online Capture calls the authenticated, caller-scoped
+`get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access denial
+opens the existing root paywall immediately and leaves staged input untouched;
+Capture does not create a queue row, open Insight, or invoke inference after
+denial. Library recovery retains the draft for review and directs an explicit
+Identify attempt to Library or Profile without opening sign-in over the camera.
+Automatic submission is revoked while recovery is pending. Draft account binding
+is checked before and after preview suspension; existing durable queue and
+exact-session funding fences remain authoritative.
+`IdentificationEvidenceAllowance` permits one ordinary photo or standalone audio
+plus an optional note, or one description alone, for Flash. Additional physical
+media, video-derived evidence, multiple descriptions, and refinement preflight
+as Pro-only. The RPC is a short-lived, read-only UX preview, not a reservation.
 
 Legacy refinement also rechecks original-observation enrollment before
 requesting this preview and after it returns, before enqueue. A protected or
@@ -799,6 +985,18 @@ selections fail before downloads; the future chooser must offer explicit
 remediation. V1/V3 sources contribute no inherited photos or descriptions. An
 empty photo selection is allowed while composing, but final preparation requires
 at least one original, edited or newly added photo.
+
+The November 4 native-baseline candidate separately offers retained AI photos
+through the existing chooser and evidence loader. It does not populate V3's
+protected manifest. `ObservationReanalysisRetainedInput` carries the exact local
+origin through staged edits, final plan freeze and the first durable child
+insert. The loader holds the existing account lease and publishes only a fully
+validated selection; failed discovery permits explicit new photos without
+borrowing parent media. See the
+[frozen refinement contract](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source).
+The app installation gate remains closed. Focused native validation passed
+34methods/43expanded cases with independent verification; full execution and
+functional qualification remain separate.
 
 `CaptureReanalysisEvidenceLoader` holds an owner lease, verifies the source and
 foreground generation around every suspension, and returns a complete staged

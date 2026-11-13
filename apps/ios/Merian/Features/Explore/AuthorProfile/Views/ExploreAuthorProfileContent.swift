@@ -28,6 +28,7 @@ struct ExploreAuthorProfileContent: View {
     @State private var profileViewModel = ExploreAuthorProfileViewModel()
     @State private var mode = Mode.profile
     @State private var isReportUserPresented = false
+    @State private var isBlockingUser = false
 
     var body: some View {
         ZStack {
@@ -83,7 +84,7 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private var navigationTitle: String {
-        guard mode == .library else { return "" }
+        guard mode == .library else { return "Profile" }
         return ExploreAuthorProfilePresentation.libraryNavigationTitle(
             route: route,
             currentUserId: currentUserId
@@ -104,18 +105,35 @@ struct ExploreAuthorProfileContent: View {
 
         if mode == .profile,
            let profile = profileViewModel.profile,
-           profile.viewerCanReport == true {
+           !isCurrentUserProfile(profile) {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button(role: .destructive) {
-                        isReportUserPresented = true
+                        Task {
+                            guard !isBlockingUser else { return }
+                            isBlockingUser = true
+                            defer { isBlockingUser = false }
+                            if await viewModel.blockAuthor(userId: profile.authorUserId) {
+                                onClose()
+                            }
+                        }
                     } label: {
-                        Label("Report user", systemImage: "flag")
+                        Label("Block user", systemImage: "person.crop.circle.badge.xmark")
+                    }
+                    .disabled(isBlockingUser || profileViewModel.isUpdatingFollow)
+
+                    if profile.viewerCanReport == true {
+                        Button(role: .destructive) {
+                            isReportUserPresented = true
+                        } label: {
+                            Label("Report user", systemImage: "flag")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Profile actions")
+                .disabled(isBlockingUser)
             }
         }
     }
@@ -161,6 +179,7 @@ struct ExploreAuthorProfileContent: View {
                     ) {
                         Task { await toggleFollow() }
                     }
+                    .disabled(isBlockingUser)
                 }
 
                 UserStats(speciesCount: profile.speciesCount, streak: profile.currentStreak)

@@ -7,6 +7,7 @@ struct CaptureAudioStatusAccess {
     struct Opened {
         let isCurrent: @MainActor () -> Bool
         let page: (ObservationAudioSavedStatus.Cursor?, Int, @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationAudioSavedStatus.Page
+        var validate: @MainActor () throws -> Void = {}
     }
     let open: (UUID, UUID, ModelContainer) throws -> Opened
 
@@ -37,6 +38,9 @@ struct CaptureAudioStatusAccess {
                 try Task.checkCancellation()
                 guard current(), presentationIsCurrent() else { throw ObservationHistoryError.accountChanged }
                 return page
+            }, validate: {
+                try reader.validateParentScope(ownerID: ownerID, observationID: observationID,
+                    container: container, isCurrent: current)
             })
         })
     }

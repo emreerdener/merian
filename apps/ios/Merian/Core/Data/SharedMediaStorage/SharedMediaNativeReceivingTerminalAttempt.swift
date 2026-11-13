@@ -4,6 +4,8 @@ import SwiftData
 /// One frozen metadata attempt. Never reconstructed by a historical terminal
 /// reader; uncertainty permits only exact saved-before/saved-after comparison.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeReceivingTerminalAttempt {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     let before: Values.Progress

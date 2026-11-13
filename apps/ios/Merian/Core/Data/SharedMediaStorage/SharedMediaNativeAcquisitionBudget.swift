@@ -66,19 +66,19 @@ enum SharedMediaNativeAcquisitionBudget {
     }
 
     static func evaluatePairFilePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                         proof: SharedMediaNativeAppPairPoststate) throws -> Snapshot {
+                                          proof: SharedMediaNativeAppPairPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairFilePoststate(in: context, inventory: inventory, proof: proof)
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairFileProof: proof)
     }
 
     static func evaluatePairRetirementPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                               proof: SharedMediaNativeAppPairRetirementPoststate) throws -> Snapshot {
+                                                proof: SharedMediaNativeAppPairRetirementPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.derivePairRetirementPoststate(in: context, inventory: inventory, proof: proof)
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, pairRetirementProof: proof)
     }
 
     static func evaluateIntentPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                       proof: SharedMediaNativeAppIntentPoststate) throws -> Snapshot {
+                                        proof: SharedMediaNativeAppIntentPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveIntentPoststate(in: context, inventory: inventory, proof: proof)
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, intentProof: proof)
     }
@@ -96,13 +96,13 @@ enum SharedMediaNativeAcquisitionBudget {
     }
 
     static func evaluateOriginalPoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                         proof: SharedMediaNativeAppOriginalPoststate) throws -> Snapshot {
+                                          proof: SharedMediaNativeAppOriginalPoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveOriginalPoststate(in: context, inventory: inventory, proof: proof)
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, originalProof: proof)
     }
 
     static func evaluateOriginalReleasePoststate(context: ModelContext, inventory: SharedMediaInventoryRecord,
-                                         proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Snapshot {
+                                                 proof: SharedMediaNativeAppOriginalReleasePoststate) throws -> Snapshot {
         let graph = try SharedMediaPendingGraph.deriveOriginalReleasePoststate(in: context, inventory: inventory, proof: proof)
         return try evaluate(context: context, inventory: inventory, graph: graph, format: .appV2, allocationPeers: proof.allocationPeers, originalReleaseProof: proof)
     }
@@ -185,6 +185,7 @@ enum SharedMediaNativeAcquisitionBudget {
             if case .staged(let value) = clean?[id] { staged = value } else { staged = nil }
             let input: PackageInput; var allocation = allocationPeers?[id]
             if case .allocating(let snapshot) = clean?[id] { allocation = try .init(snapshot, context: context) }
+            if case .initial(let snapshot) = clean?[id] { allocation = try .init(snapshot, context: context) }
             if let allocation {
                 input = .init(consumerBytes: allocation.consumerBytes,
                     intent: .init(row: allocation.row, slot: .received(allocation.prepared, allocation.received, allocation.transaction), states: [], recoveryPresentationData: allocation.recoveryPresentationData),
@@ -195,18 +196,7 @@ enum SharedMediaNativeAcquisitionBudget {
                 var receivingBytes: Int64 = 0
                 if let consumer = try SharedMediaConsumerLookup.one(context, packageID: id) {
                     guard let format else { throw SharedMediaStorageFailure.closed }
-                    if let intentProof { receivingBytes = try intentProof.receivingBytes(consumer, context: context, inventory: inventory) }
-                    else if let stagingProof { receivingBytes = try stagingProof.receivingBytes(consumer) }
-                    else if let pendingCleanupProof { receivingBytes = try pendingCleanupProof.receivingBytes(consumer) }
-                    else if let originalProof { receivingBytes = try originalProof.receivingBytes(consumer) }
-                    else if let originalReleaseProof { receivingBytes = try originalReleaseProof.receivingBytes(consumer) }
-                    else if let pairRetirementProof { receivingBytes = try pairRetirementProof.receivingBytes(consumer) }
-                    else if let pairFileProof { receivingBytes = try pairFileProof.receivingBytes(consumer) }
-                    else if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) }
-                    else if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) }
-                    else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) }
-                    else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) }
-                    else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
+                    if let intentProof { receivingBytes = try intentProof.receivingBytes(consumer, context: context, inventory: inventory) } else if let stagingProof { receivingBytes = try stagingProof.receivingBytes(consumer) } else if let pendingCleanupProof { receivingBytes = try pendingCleanupProof.receivingBytes(consumer) } else if let originalProof { receivingBytes = try originalProof.receivingBytes(consumer) } else if let originalReleaseProof { receivingBytes = try originalReleaseProof.receivingBytes(consumer) } else if let pairRetirementProof { receivingBytes = try pairRetirementProof.receivingBytes(consumer) } else if let pairFileProof { receivingBytes = try pairFileProof.receivingBytes(consumer) } else if let pairClosureProof { receivingBytes = try pairClosureProof.receivingBytes(consumer) } else if let pairPlanProof { receivingBytes = try pairPlanProof.receivingBytes(consumer) } else if let preparationProof { receivingBytes = try preparationProof.receivingBytes(consumer) } else if let metadataProof { receivingBytes = try metadataProof.receivingBytes(consumer) } else if let acquisitionProof { receivingBytes = try acquisitionProof.receivingBytes(consumer) } else {
                         _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: checkpoint)
                         receivingBytes = Int64(consumer.cohortData.count)
                     }
@@ -311,21 +301,8 @@ enum SharedMediaNativeAcquisitionBudget {
         let originalIdentity: SharedMediaNativeOriginalLiability.Snapshot?
         if format == .appV2 {
             let proof: SharedMediaNativeOriginalLiabilityPoststate.Proof?
-            if let metadataProof { proof = .metadata(metadataProof) }
-            else if let acquisitionProof { proof = .acquisition(acquisitionProof) }
-            else if let preparationProof { proof = .preparation(preparationProof) }
-            else if let pairPlanProof { proof = .pairPlan(pairPlanProof) }
-            else if let pairClosureProof { proof = .pairClosure(pairClosureProof) }
-            else if let pairFileProof { proof = .pairFile(pairFileProof) }
-            else if let pairRetirementProof { proof = .pairRetirement(pairRetirementProof) }
-            else if let intentProof { proof = .intent(intentProof) }
-            else if let stagingProof { proof = .staging(stagingProof) }
-            else if let pendingCleanupProof { proof = .pendingCleanup(pendingCleanupProof) }
-            else if let originalProof { proof = .original(originalProof) }
-            else if let originalReleaseProof { proof = .originalRelease(originalReleaseProof) }
-            else { proof = nil }
-            if let terminalLiability { originalIdentity = terminalLiability }
-            else if let proof {
+            if let metadataProof { proof = .metadata(metadataProof) } else if let acquisitionProof { proof = .acquisition(acquisitionProof) } else if let preparationProof { proof = .preparation(preparationProof) } else if let pairPlanProof { proof = .pairPlan(pairPlanProof) } else if let pairClosureProof { proof = .pairClosure(pairClosureProof) } else if let pairFileProof { proof = .pairFile(pairFileProof) } else if let pairRetirementProof { proof = .pairRetirement(pairRetirementProof) } else if let intentProof { proof = .intent(intentProof) } else if let stagingProof { proof = .staging(stagingProof) } else if let pendingCleanupProof { proof = .pendingCleanup(pendingCleanupProof) } else if let originalProof { proof = .original(originalProof) } else if let originalReleaseProof { proof = .originalRelease(originalReleaseProof) } else { proof = nil }
+            if let terminalLiability { originalIdentity = terminalLiability } else if let proof {
                 originalIdentity = try SharedMediaNativeOriginalLiabilityPoststate.read(context: context, inventory: inventory, proof: proof)
             } else {
                 originalIdentity = try SharedMediaNativeOriginalLiability.read(context: context, inventoryID: inventory.id, checkpoint: checkpoint)
@@ -345,7 +322,7 @@ enum SharedMediaNativeAcquisitionBudget {
     private struct PackageInput {
         let consumerBytes: Int64
         let intent: SharedMediaNativeReceivingPhaseGraph.Witness?
-        var allocation: SharedMediaNativePhotoAllocationPeer? = nil
+        var allocation: SharedMediaNativePhotoAllocationPeer?
     }
 
     private struct PackageBreakdown {
@@ -482,9 +459,10 @@ enum SharedMediaNativeAcquisitionBudget {
                 preparedBytes = Int64(result.count)
             }
         }
-        let allocationCharge = try input.allocation?.allocation.storageCharge ?? 0
+        let allocationCharge = try PhotoPreparationPolicy.add([input.allocation?.allocation.storageCharge ?? 0,
+            input.allocation?.initialPin?.chargedBytes ?? 0])
         let allocationCurrent = try input.allocation.map {
-            try PhotoPreparationPolicy.add([Int64($0.allocation.encoded().count), 64])
+            try PhotoPreparationPolicy.add([Int64($0.allocation.encoded().count), 64, $0.initialPin?.currentBytes ?? 0])
         } ?? 0
         let bytes = try PhotoPreparationPolicy.add([baseBytes, preparedBytes, receivingHeadroom, allocationCharge])
         guard bytes <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.capacity }

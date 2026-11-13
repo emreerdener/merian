@@ -4,6 +4,8 @@ import SwiftData
 /// Independently derived raw deletion/update seal for one held pair removal.
 /// Construct while clean; no insertion, original mutation or unrelated write fits.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeReleasePairRemovalPoststate {
     private typealias Raw = SharedMediaNativeReleasePairRaw
     private struct Row {
@@ -93,7 +95,7 @@ struct SharedMediaNativeReleasePairRemovalPoststate {
         }
     }
     private mutating func update<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields, _ changes: Raw.Fields) throws {
         let row = try SharedMediaNativePairPlanGraph.one(context, query), before = try fields(row)
         guard Set(changes.keys).isSubset(of: Set(before.keys)) else { throw SharedMediaStorageFailure.conflict }
         var after = before; after.merge(changes) { _, next in next }
@@ -101,7 +103,7 @@ struct SharedMediaNativeReleasePairRemovalPoststate {
             read: reader(query, fields), deletedFields: { try fields(row) }))
     }
     private mutating func remove<T: PersistentModel>(_ context: ModelContext, _ query: FetchDescriptor<T>,
-            _ fields: @escaping (T) throws -> Raw.Fields) throws {
+                                                     _ fields: @escaping (T) throws -> Raw.Fields) throws {
         let row = try SharedMediaNativePairPlanGraph.one(context, query)
         rows.append(.init(before: (row.persistentModelID, try fields(row)), after: nil,
             read: reader(query, fields), deletedFields: { try fields(row) }))

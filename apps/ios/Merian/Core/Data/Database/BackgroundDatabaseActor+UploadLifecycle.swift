@@ -323,7 +323,7 @@ extension BackgroundDatabaseActor {
     }
 
     private func reconcileOrphanedUploadingScansLocked(activeScanIds: Set<String>,
-        candidateScanIds: Set<String>, observedThrough: Date) -> Bool {
+                                                       candidateScanIds: Set<String>, observedThrough: Date) -> Bool {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw = ScanQueueState.pending.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(

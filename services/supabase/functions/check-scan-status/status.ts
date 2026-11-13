@@ -45,3 +45,15 @@ export function hasRequiredVideoMedia(
   return videoUrlCount >= requiredVideoCount &&
     Math.max(manifestVideoCount, assetVideoCount) >= requiredVideoCount;
 }
+/** Reserved initial-recovery requests must never enter legacy repair while the
+ * authenticated branch is uninstalled, including mixed or bulk requests. */
+export function hasInitialRecoveryRequest(
+  body: Record<string, unknown>,
+): boolean {
+  if (Object.hasOwn(body, "initial_recovery")) return true;
+  return Array.isArray(body.scans) &&
+    body.scans.some((entry) =>
+      entry !== null && typeof entry === "object" &&
+      Object.hasOwn(entry, "initial_recovery")
+    );
+}

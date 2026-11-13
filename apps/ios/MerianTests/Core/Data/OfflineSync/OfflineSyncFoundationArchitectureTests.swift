@@ -365,6 +365,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+VideoReservation.swift",
         "Services/ObservationVideoUploadOwner.swift",
         "Services/OfflineQueueManager+VideoUpload.swift",
+        "Services/OfflineQueueManager+VideoSubmission.swift",
         "Services/OfflineQueueManager+SourceReservation.swift",
         "Services/ObservationAudioExecutionOwner.swift",
         "Services/ObservationVideoExecutionOwner.swift",
@@ -394,6 +395,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Persistence/ModelContext+OfflineJobs.swift",
         "Persistence/SharedMediaLegacyQueueAccess.swift",
         "Persistence/OfflineQueueDurableAuthorityReader.swift",
+        "Persistence/OfflineQueueDurableAuthorityReader+Observation.swift",
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/BackgroundInferencePolicy.swift",
@@ -441,6 +443,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/OfflineQueueManager+VideoReservation.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationVideoUploadOwner.swift": ["import Foundation"],
         "Services/OfflineQueueManager+VideoUpload.swift": ["import Foundation", "import SwiftData"],
+        "Services/OfflineQueueManager+VideoSubmission.swift": ["import Foundation", "import SwiftData"],
         "Services/OfflineQueueManager+SourceReservation.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAudioExecutionOwner.swift": ["import Foundation"],
         "Services/ObservationVideoExecutionOwner.swift": ["import Foundation"],
@@ -487,6 +490,7 @@ struct OfflineSyncFoundationArchitectureTests {
             "import Foundation",
             "import SwiftData"
         ],
+        "Persistence/OfflineQueueDurableAuthorityReader+Observation.swift": ["import Foundation", "import SwiftData"],
         "Persistence/OfflineQueueDurableAuthorityReader.swift": [
             "import Foundation",
             "import SwiftData"

@@ -24,7 +24,6 @@ extension PhotoPreparationLockedFiles {
         return data
     }
 
-
     static func validateImage(_ data: Data, maximumBytes: Int64) throws -> String {
         guard !data.isEmpty, data.count <= maximumBytes,
               let source = CGImageSourceCreateWithData(data as CFData,

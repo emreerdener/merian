@@ -214,9 +214,12 @@ struct ReanalysisStatusViewModelTests {
         var reads = 0, calls = 0
         var reply: CheckedContinuation<Bool, Never>?
         let model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in reads += 1; return .init(items: [row], next: nil) },
-            validate: {}, isCurrent: { true }, close: {}, recoverOutcome: { requested in
-                #expect(requested == row); calls += 1
-                return await withCheckedContinuation { reply = $0 }
+            validate: {}, isCurrent: { true }, close: {}, recovery: { requested in
+                #expect(requested == row)
+                return .init(isCurrent: { true }, reserve: { nil }, check: {
+                    calls += 1
+                    return await withCheckedContinuation { reply = $0 }
+                })
             }))
         await model.load()
         #expect(calls == 0 && reads == 1)
@@ -225,7 +228,7 @@ struct ReanalysisStatusViewModelTests {
         model.checkOutcome(row); #expect(calls == 1)
         reply?.resume(returning: false)
         while model.isBusy { await Task.yield() }
-        #expect(model.message?.contains("no new analysis") == true && reads == 1)
+        #expect(model.recovery?.state == .needsAttention && reads == 1)
         reply = nil; model.checkOutcome(row)
         while reply == nil { await Task.yield() }
         model.close(); reply?.resume(returning: true)
@@ -240,10 +243,12 @@ struct ReanalysisStatusViewModelTests {
         var model: ReanalysisStatusViewModel!
         model = ReanalysisStatusViewModel(dependencies: .init(page: { _ in
             reads += 1; return .init(items: completed ? [] : [row], next: nil)
-        }, validate: {}, isCurrent: { true }, close: {}, recoverOutcome: { _ in
-            lookups += 1; completed = true
-            model.refreshForLibraryChange()
-            throw Failure.saved
+        }, validate: {}, isCurrent: { true }, close: {}, recovery: { _ in
+            .init(isCurrent: { true }, reserve: { nil }, check: {
+                lookups += 1; completed = true
+                model.refreshForLibraryChange()
+                throw Failure.saved
+            })
         }))
         await model.load(); model.checkOutcome(row)
         while reads < 2 || model.isBusy { await Task.yield() }

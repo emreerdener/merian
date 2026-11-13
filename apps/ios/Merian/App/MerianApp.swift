@@ -109,6 +109,7 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
+        MerianEnvironment.requireHistoryQualificationConfiguration()
         // Test-mode Keychain reads use synthetic storage and cannot establish
         // whether a production recovery proof is absent.
         if !TestExecutionCoordinator.isRunningTests {
@@ -254,6 +255,10 @@ struct MerianApp: App {
                     #if DEBUG
                     .modifier(SavedAudioChooserUITestPresentation())
                     .modifier(AudioReanalysisSheetUITestPresentation())
+                    .modifier(QueuedObservationUITestPresentation())
+                    .modifier(NativeRecoveryUITestPresentation())
+                    .modifier(ReanalysisRecoveryUITestPresentation())
+                    .modifier(InitialMediaHistoryUITestPresentation())
                     #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
@@ -444,11 +449,12 @@ struct MerianApp: App {
         isAccountDeletionRecoveryPending = true
         guard let modelContext = container?.mainContext else { return false }
         let completed = await diContainer.supabaseManager
-            .resumePendingAccountDeletionLocalCleanup {
+            .resumePendingAccountDeletionLocalCleanup { scope in
                 await diContainer.scanRepository.purgeAllData(
                     modelContext: modelContext,
                     resetDerivedState:
-                        diContainer.privateScanMapStore.resetSensitiveState
+                        diContainer.privateScanMapStore.resetSensitiveState,
+                    validateAuthorization: { scope.permitsLibraryPurge(in: modelContext.container) }
                 )
             }
         isAccountDeletionRecoveryPending =

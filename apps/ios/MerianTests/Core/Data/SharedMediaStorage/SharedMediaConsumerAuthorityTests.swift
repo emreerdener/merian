@@ -39,6 +39,21 @@ struct SharedMediaConsumerAuthorityTests {
         }
     }
 
+    @Test func retainedInitialAuthorityIsScanOnlyAndNeverLegacy() throws {
+        let id = UUID()
+        #expect(try SharedMediaConsumerAuthority.classify(raw: "sharedDirectNativeInitialV1", consumerID: id,
+            record: .scan) == .nativeInitial(id))
+        for kind in [SharedMediaConsumerAuthority.RecordKind.queue, .analysis] {
+            #expect(throws: SharedMediaStorageFailure.conflict) {
+                try SharedMediaConsumerAuthority.classify(raw: "sharedDirectNativeInitialV1", consumerID: id, record: kind)
+            }
+        }
+        #expect(throws: SharedMediaStorageFailure.conflict) {
+            try SharedMediaConsumerAuthority.classify(raw: "sharedDirectNativeInitialV1", consumerID: nil, record: .scan)
+        }
+        #expect(try SharedMediaConsumerAuthority.classify(raw: "legacy", consumerID: nil, record: .scan) == .legacy)
+    }
+
     @Test func ordinaryAndReanalysisExecutionRemainDistinct() throws {
         let generation = UUID()
         #expect(try SharedMediaConsumerExecution.classify(raw: "ordinaryV1", generation: generation) == .ordinary(generation))

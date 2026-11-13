@@ -6,7 +6,7 @@ import Foundation
 /// review; immutable evidence and the separately acknowledged authority do.
 struct ObservationAnalysisReviewTicket: Equatable {
     let resultVersion: Int
-    var supportsPhotoPublicationFormat: Bool { resultVersion != 4 }
+    var supportsPhotoPublicationFormat: Bool { (1...3).contains(resultVersion) }
     let ownerID: UUID
     let observationID: UUID
     let analysisID: UUID
@@ -30,8 +30,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
 
     init(entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context,
          observationID: UUID) throws {
-        // Review transports use reader 10; other media actions retain their own format gates.
-        guard [1, 2, 3, 4].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
+        // Review transports use reader 11; other media actions retain their own format gates.
+        guard [1, 2, 3, 4, 5].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
               context.revision > 0, reviewRevision >= 0, reviewRevision <= context.revision else {
             throw ObservationHistoryError.unavailable
         }
@@ -45,6 +45,15 @@ struct ObservationAnalysisReviewTicket: Equatable {
             guard decoded.version == 4, decoded.audio != nil, decoded.audio == entry.result.audio,
                   decoded.analysisID == entry.result.analysisID, decoded.completedAt == entry.result.completedAt,
                   entry.result.photos.isEmpty, entry.result.importedAt == nil else { throw ObservationHistoryError.invalidSnapshot }
+        }
+        if entry.result.version == 5 {
+            let decoded = try ObservationHistoryPage.snapshot(entry.result.bytes, observationID: observationID.uuidString.lowercased(),
+                ordinal: ObservationHistoryPage.integer(envelope?["ordinal"]))
+            guard decoded.version == 5, decoded.video != nil, decoded.video == entry.result.video,
+                  decoded.analysisID == entry.result.analysisID, decoded.completedAt == entry.result.completedAt,
+                  entry.result.photos.isEmpty, entry.result.audio == nil, entry.result.importedAt == nil else {
+                throw ObservationHistoryError.invalidSnapshot
+            }
         }
         resultVersion = entry.result.version
         let biological = (result["is_biological_subject"] as? NSNumber).map {

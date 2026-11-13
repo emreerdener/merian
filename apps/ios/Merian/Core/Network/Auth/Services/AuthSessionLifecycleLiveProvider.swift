@@ -85,6 +85,30 @@ final class AuthSessionLifecycleLiveProvider {
     private let currentStateOperation: CurrentStateOperation
     private let replayCoordinator = AuthLifecycleReplayCoordinator()
     private var listenerTask: Task<Void, Never>?
+#if DEBUG
+    private var initialTestEpoch = UUID()
+    private var initialCompletionToken = UUID()
+    static weak var liveProviderForUITesting: AuthSessionLifecycleLiveProvider?
+    private var initialSignedOutCompletionForTesting: (@MainActor () -> Bool)?
+
+    private func invalidateInitialCompletionForTesting() {
+        initialCompletionToken = UUID()
+        initialSignedOutCompletionForTesting = nil
+    }
+
+    /// Observes the real handler exit; never cancels or replaces the Auth stream.
+    func waitForInitialSignedOutForTesting(timeout: Duration = .seconds(15)) async throws -> Bool {
+        let epoch = initialTestEpoch
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            try Task.checkCancellation()
+            guard initialTestEpoch == epoch else { return false }
+            if let current = initialSignedOutCompletionForTesting { return current() }
+            guard ContinuousClock.now < deadline else { return false }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+#endif
 
     init(
         startListening: @escaping StartListeningOperation,
@@ -101,16 +125,46 @@ final class AuthSessionLifecycleLiveProvider {
     func start(dependencies: AuthSessionLifecycleLiveDependencies) {
         listenerTask?.cancel()
         replayCoordinator.cancel()
+#if DEBUG
+        initialTestEpoch = UUID()
+        invalidateInitialCompletionForTesting()
+        let initialEpoch = initialTestEpoch
+#endif
         listenerTask = startListeningOperation { [weak self] state in
+#if DEBUG
+            self?.invalidateInitialCompletionForTesting()
+            let completionToken = self?.initialCompletionToken
+#endif
             guard let operation = self?.makeOperation(
                 for: state,
                 dependencies: dependencies
             ) else { return }
+#if DEBUG
+            let initialSignedOut = state.origin == .initialRestoration && state.user == nil
+                && !state.isExpired && !dependencies.hasActiveTransition()
+                && !dependencies.accountDeletionCleanupPending()
+#endif
             await operation.run()
+#if DEBUG
+            if initialSignedOut, !Task.isCancelled, self?.initialTestEpoch == initialEpoch,
+               self?.initialCompletionToken == completionToken,
+               !dependencies.accountDeletionCleanupPending(),
+               operation.dependencies.state.isCurrentLifecycleSession(nil, operation.event.authGeneration) {
+                self?.initialSignedOutCompletionForTesting = { [weak self] in
+                    self?.initialCompletionToken == completionToken && self?.initialTestEpoch == initialEpoch
+                        && !dependencies.hasActiveTransition() && !dependencies.accountDeletionCleanupPending()
+                        && dependencies.reconciliationContextIsCurrent(operation.event.authGeneration)
+                        && operation.dependencies.state.isCurrentLifecycleSession(nil, operation.event.authGeneration)
+                }
+            }
+#endif
         }
     }
 
     func authTransitionWillBegin() {
+#if DEBUG
+        invalidateInitialCompletionForTesting()
+#endif
         replayCoordinator.authTransitionWillBegin()
     }
 
@@ -120,6 +174,9 @@ final class AuthSessionLifecycleLiveProvider {
         force: Bool = false,
         dependencies: AuthSessionLifecycleLiveDependencies
     ) -> Bool {
+#if DEBUG
+        invalidateInitialCompletionForTesting()
+#endif
         let snapshot = currentStateOperation()
         guard let lifecycleDependencies =
             dependencies.makeLifecycleDependencies(snapshot.user) else {
@@ -154,6 +211,10 @@ final class AuthSessionLifecycleLiveProvider {
         listenerTask?.cancel()
         listenerTask = nil
         replayCoordinator.cancel()
+#if DEBUG
+        initialTestEpoch = UUID()
+        invalidateInitialCompletionForTesting()
+#endif
     }
 
     private func makeOperation(

@@ -1,3 +1,304 @@
+## November 9 — explicit observation-only status protocol
+
+The source candidate adds an authenticated `observe-v1` branch to
+`check-scan-status`. It uses `X-Merian-Initial-Recovery: observe-v1` and a
+closed body containing only `initial_recovery`, with version1, phase`observe`
+and nested `original.owner_id`/`original.scan_id`. The owner must match
+authenticated Auth; the nested scan is a canonical UUID. Legacy
+top-level`scan_id`,`scans` and `recovery_scan` are rejected. Their absence also
+makes legacy handlers that predate reserved-marker guards fail required-field
+validation before repair. Unknown/mismatched phases never fall through to the
+legacy route.
+
+The branch performs only two owner-scoped SELECTs: scan row ID and ingestion-job
+status. `row_exists` is literal row presence and may include a retained or
+tombstoned row. The reads are separate snapshots, not completion or execution
+proof. The closed response echoes version/phase/owner/scan and includes
+`row_exists`, nullable`job_status` and`original_result: "unavailable"`. Neither
+row presence nor a`complete` job grants original-result import, History
+selection, retry, replacement, funding settlement or provider dispatch. Missing,
+failed, unknown or refused observations keep the exact request held.
+
+Actual request bytes are capped at1024 and response bytes at4096. The branch's
+five-second budget begins after shared authentication and includes body
+collection and reads; it is not an end-to-end authenticated-handler latency
+claim. Caller cancellation discards late reads and prevents a subsequent query.
+Responses are no-store and failures reveal only a fixed unavailable code. The
+shared wire fixture is
+`services/supabase/functions/check-scan-status/fixtures/observation-v1.json`.
+
+This is source preparation, not deployed or installed qualification. The
+isolated backend candidate passed 4,384 Edge tests (1,164 steps), zero failures
+or skips, against an owned 515-migration replay; all 125 deployable entrypoints
+typechecked, and whole-tree lint/format checks passed. The initial run against
+an older local fallback catalog failed and remains retained. Native transport/UI
+adoption and its affected gates remain pending. Existing legacy routes are
+unchanged. IC-1 admission/completion serving remains disabled: this
+observational branch does not waive S0, create a result sidecar, backfill legacy
+proof or provide any original-completion authority.
+
+# Scan Ingestion Reliability and Recovery Contract
+
+**Last reviewed:** 2026-08-09\
+**Scope:** Capture, foreground analysis, offline queue replay, durable scan
+persistence, Field Chat readiness, Explore publication, and owned-media repair\
+**Repository status:** Core runtime remediation committed as
+`a21155a3299598e81be0ec322ce339adbff62ff1`; the joined presentation-identity,
+offline-handoff, response-validation, and bounded-backlog follow-up is committed
+on `main` as `cc664a20d6212299966b4579f733e612ed836514`. The exact-identity
+fixture and fail-closed result-gate follow-up is committed on `main` as
+`21df28d6be1d20b27a1a31bd5812689b5a3c8fa5` without relaxing those runtime
+fences. The exact Swift Testing display-name validator follow-up is committed on
+`main` as `bdf84b52e146c3777240c83937025adf2aaf1150`. The joined runtime,
+deterministic queued-audio UI gate, upload-claim durability, and Field Chat
+row-binding remediation is committed through
+`0aa170fa07a22c8f75afaf3a63080bc448cc96c9`. Hosted iOS Runs 97 and 153 exposed
+one project-level type-inference error in that commit before tests or archive
+validation could execute. The explicit `Set<String>` compiler repair, equivalent
+offline task-snapshot typing, and remaining automatic-inference Low Data Mode
+entry-race fix are committed and pushed on `main` as
+`f292dc4849e29c54587b6ee77f27b74a3971e878`. The later microphone-permission
+refactor and formatted evidence update are committed on `main` through
+`631e123e8e7777a7cda914275eb0e123b80adfef`. The stale test-contract correction
+is committed on `main` as `8642a8c6dabf7f61b17d4f0801a093ec6a62473d`. The
+timer-free Debug fixture handshake is committed on `main` as
+`399482b649363c820b59fee1967bf94e35a5c0e7`. Hosted Build/Test Run 101 passed the
+complete 1,241-test unit target, every protected critical scan-flow case, and
+the exact-SHA Release archive on that commit. Its queued-audio UI smoke proved
+the queued presentation and decoded playback through the explicit badge tap,
+then failed only because the late completed-record transaction used a different
+`ModelContext` from the already-open sheet and depended on an asynchronous event
+merge. The context-bound handoff is committed on `main` as
+`838533e98589f4fca89643e966864a7d59adca05`. Hosted Build/Test Run 102 did not
+execute the queued UI smoke because one independent Explore replay-cancellation
+unit test failed before its mock transport observed a first request. The bounded
+monotonic rendezvous replacement is committed on `main` as
+`4f68e68913fca6276458cd093ad167c9bc7d5d9e`. Hosted Build/Test Run 103 on that
+exact SHA passed all 1,241 unit tests, every critical scan-flow regression, and
+the current-SHA Release archive, then reproduced the queued UI failure at
+completed-record takeover. Local result-bundle diagnostics proved direct
+promotion can complete the Northern Cardinal handoff while retaining decoded
+audio, but exposed that same-ID task identity left Field Chat and Share hidden.
+The child-before-parent promotion, persisted-completion precedence, monotonic
+toolbar/Field Notes identity, and first badge-bounds correction are committed on
+`main` as `2ca985f6079c41c45c6a6e78d382c8283eb0db3b`. Hosted Build/Test Run 104
+compiled both test bundles, passed all 1,243 unit tests and all 73 protected
+cases, and passed its exact-SHA Release archive, then proved visual clipping had
+not constrained the badge's transformed accessibility geometry. The
+geometry-free Canvas/opacity revision is committed on `main` as
+`6ed0f557b3222890aca55e4c383b2c110ffc8269`. Hosted Build/Test Run 105 passed all
+1,243 unit tests, every protected critical case, and its exact-SHA Release
+archive, then proved that re-composing the native scanning control with
+`.accessibilityElement(children: .ignore)` prevented the caller's identifier
+from resolving through `app.buttons`. Commit
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1` retains the geometry-free
+implementation and explicit label but preserves the native Button accessibility
+node. Production queue timing, retry fences, cancellation behavior, and Supabase
+runtime behavior are unchanged\
+**Production status:** Requires the ordered deployment and retained evidence in
+the
+[Supabase deployment runbook](./06-supabase-deployment-runbook.md#scan-owner-row-durability-and-recovery-rollout)
+
+The iOS presentation-specific failure and closure evidence are retained in the
+[queued Insight same-ID handoff incident](../incidents/2026-07-queued-insight-same-id-handoff-regression.md).
+
+The later foreground-connectivity presentation addendum is remediated in the
+current working tree. Its ownership split, scoped inline transport policy,
+placeholder classification, protected regressions, and remaining exact-SHA and
+physical-device closure gates are tracked separately in the
+[live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
+### Reanalysis history preparation — October 2, 2026
+
+The
+[private history foundation](./04-database-schema.md#prepared-observation-analysis-history)
+does not change current Identify admission, job identity, same-UUID replay,
+provider dispatch or funding settlement. No live result producer or enrollment
+path writes that history. The future observation/analysis/retry identity split,
+durable completion including evidence references, append-only reanalysis and
+first-result selection rules remain specified in the
+[RFC](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md).
+Provider executions continue to be accounted for at dispatch. Under the existing
+[funding contract](./18-complimentary-pro-scans.md), complimentary credit is
+consumed only after durable completion; proven terminal failure releases the
+hold, while ambiguous outcomes retain it. The new selection outbox does not
+settle funding or award Field Trip credit.
+
+The October 3 private description-only lifecycle now freezes input before
+provider dispatch, records one invocation, preserves ambiguous holds, and
+commits result/settlement/receipt atomically behind closed gates. It checks
+parent deletion before replay and erases child intents on deletion, leaving
+ownerless retired-generation markers. The legacy scan/job recovery paths below
+must not be used for child analyses. See the
+[child lifecycle contract](05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+The separate V2 path now binds ready private still photos to the same funded
+completion boundary and pins them through ambiguous recovery. Protocol-7 native
+history readers remain incompatible and receive no mixed page. Authenticated
+provider orchestration and bounded saved-outcome recovery now exist behind a
+separate false gate. Ambiguous provider execution, normal native
+delivery/presentation, enrollment and audio/video binding remain activation
+work. See the
+[child worker contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+Private selection alone does not change Explore publication or save immutable
+Field Chat context before execution. These are
+[activation prerequisites](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold),
+not capabilities supplied by the existing ingestion path below.
+
+This is the normative joined contract for the app's most important user journey:
+
+> A user submits one observation, receives one durable analysis for its stable
+> scan UUID, can reopen that analysis, can use Field Chat, and can deliberately
+> publish the same owned observation to Explore without losing local or cloud
+> media during retries.
+
+The detailed wire shapes remain in [API Contracts](./05-api-contracts.md), the
+client scheduler remains in
+[Offline Sync Pipeline](./01-offline-sync-pipeline.md), and the July 28 failure
+analysis remains in the
+[incident report](../incidents/2026-07-inline-scan-staging-manifest-regression.md).
+This document binds those parts together and defines which outcomes callers may
+treat as success.
+
+## November 8 — current focused qualification
+
+Shared startup-fence borrowing passed native241: 55 methods / 118 expanded
+cases, including both durable-input/native opening orders. Bounded cold input
+cleanup and actual-exit joins passed native242: 63 methods / 127 cases, followed
+by the strengthened populated foreign-container method's four passing cases.
+Every run matched 4,157 source pins with zero failures/skips. Independent Engine
+review verified the combined evidence. Cleanup preserves foreign receipt/file
+length; the foreign fixture does not claim byte-for-byte equality.
+
+Native243 qualified exact journal progression (54 methods). Native244 qualified
+scoped library-sign-out runtime drain and complete-purge acknowledgement: 100
+methods / 129 expanded cases, followed by 18 methods / 21 cases for the reviewed
+repository-completion race fix and affected regressions. Passing runs had zero
+failures/skips; the failed compilation and the review-discovered race remain in
+the findings record with verified fixes. Independent Engine review confirmed the
+combined evidence. This is component qualification; full live SDK composition
+remains unverified.
+
+HQ241 account-deletion-stage authority, pre-stable-Auth cold startup and
+explicit later-lifetime renewal remain open. Installation stays false.
+All-media, device and cumulative acceptance remain incomplete. Earlier dated
+candidate notes below record their historical checkpoint state.
+
+## November 8 — bounded cold input recovery candidate
+
+`ObservationReanalysisErasureOwner` now uses the original App startup lifetime
+through a separate local cleanup registration. It visits only the control
+ledger's four referenced input receipts and never reconstructs missing authority
+or depends on the former account/source. Existing slot locks hold live inputs.
+The owner retains direct cleanup tasks; lifetime shutdown and whole-library
+suspension join actual exit. App composition denies new cleanup during Auth
+transition or pending destructive cleanup. Empty ownership stays inert.
+
+This candidate awaits focused tests and independent review. Native241 already
+qualified the shared fence borrowing prerequisite (55 methods / 118 cases, 4,157
+matching pins). Exact destructive-journal continuation and explicit
+startup-lifetime renewal after Auth remain open, including startup recovery
+preceding stable Auth. Installation stays false; no real-app acceptance is
+claimed.
+
+## November 8 — shared startup-fence borrowing candidate
+
+The existing `SharedMediaNativeOriginalDrain` now retains the original startup
+fence for bounded local consumers and native discovery. Prepared input remains
+bound to its exact account runtime; local erasure has a separate registration
+without former-account authority. Registered consumers must join actual work
+before shutdown releases the fence. Sealing denies new work while permitting
+already-owned cleanup. The video composition injects this borrow through access,
+session and durable input; native discovery consumes the same fence and retains
+its existing profile checks. No profile or native operation grant is exposed to
+local consumers. Both-order integration and shutdown/failure tests are pending.
+Cold erasure routing and exact destructive-journal Auth handling remain open;
+installation remains false.
+
+## November 8 — focused durable-input integration verified
+
+Native239-03 passed 69 methods / 115 expanded cases, zero failures/skips, all 11
+selected suites/methods and all 4,157 source pins. Independent Engine review
+verified the four requested failure/concurrency/text regressions and the exact
+review delta. Retain the two preceding test-compilation failures. This qualifies
+the focused local integration, including real startup admission and
+optional-text initial audio/video-to-History fixtures.
+
+Combined lifetime acceptance remains blocked by HQ247: native dispatch retains
+the exclusive startup fence, while video input independently acquires it. Both
+orderings require validated borrowing at the existing App lifetime, with
+actual-consumer registration and joined shutdown. No native profile adoption,
+weakened locks or terminal-owner restart merely to switch features is permitted.
+HQ241 exact destructive-journal handling and bounded cold recovery remain open.
+The host owner now distinguishes cleaned storage, runtime-quiescent retained
+storage and blocked work; ordinary Boolean drain still requires cleaned storage.
+Audio input preparation is joined through actual cleanup even without an account
+lease. Combined native240-01/02 evidence independently qualifies this focused
+drain change: 50 unchanged passing methods plus the corrected fixture method,
+zero skips and 4,157 matching pins per run. The original fixture failure remains
+retained. Installation remains false; manual/device/cumulative acceptance is not
+claimed.
+
+## November 8 — bounded reanalysis input ownership candidate
+
+The inactive input metadata layer uses one control row with four stable slots
+and separate completed replay receipts. Native237-02 passed 26 methods / 41
+expanded cases; this qualifies metadata behavior and selected architecture
+checks only. Native238-06 independently qualified the physical input component
+correction (51 methods / 64 expanded cases, zero failures/skips; all 4,157 pins
+matched). Whole-library integration, restart and resource qualification remain
+open. Existing startup/account fences and journal-backed row-first purge remain
+required; missing metadata never authorizes physical adoption or recopy. The
+inactive app/session candidate now retains an exact input plan before copying,
+uses the original startup admission and held store fence, and enters the
+existing preparation owner before bootstrap/reservation/copy. Retry after an
+attempted copy requires its exact copied receipt; it cannot recopy uncertain
+work. Cleanup releases runtime descriptors only after actual consumer exit while
+retaining unresolved durable ownership. These integration changes await focused
+validation; account-transition journal authority and cold recovery remain open.
+See the
+[end-to-end checkpoint](../development-guides/25-scan-to-history.md#bounded-input-ownership-implementation-checkpoint)
+for owners, evidence limits and remaining work. Ordinary installation remains
+false; no deployment or activation is authorized.
+
+## November 4 — inactive native status and settled completion integration
+
+The current205 candidate supersedes the earlier DEBUG-only status-factory
+restriction below. Ordinary app composition now supplies status access behind
+the unchanged false installation guard. Repository-minted account/writer/lock
+authority owns all transitions; DEBUG fault/disposable adapters remain guarded.
+No deployment, activation or provider execution follows from this source change.
+
+The existing native owner tracks exact live intervals and attempted transitions
+for its writer epoch. Publication registers before any suspension; settlement
+quiesces only its exact token after the model irreversibly freezes visible time.
+Final-validation failure quiesces an undelivered interval. Shutdown cannot
+succeed while a live registration remains. Cold full-charge retirement requires
+no live interval at the final synchronous save boundary, preserves charged time
+and the 512-byte liability, and consumes one reserved presentation/inventory
+advance. Only the original live reservation can refund unused time. Cold or
+uncertain bytes never recreate that authority.
+
+Exact attempt retention prevents a missing successor from reminting a
+reservation and prevents renewal from reusing a consumed predecessor. Explicit
+status reads can continue without an interval under the normal identity/account
+fences. Settled state, including exhausted checking time, can pass initial
+completion; active reservations cannot. V2 application receipts commit exact
+optional presentation presence/digest/count before queue deletion and preserve
+it through History acknowledgement; canonical V1 receipts remain readable and
+nil-only.
+
+The settled204 join passed3methods/4cases and independent verification. Engine
+identified then independently verified the205 uncertainty-retention correction;
+focused runtime validation passed9methods/16cases. The206 registry bound and
+verified application/replay cleanup passed two methods/three cases. The207
+private lock-boundary repair passed source review and seven-method/nine-case
+runtime checks with independent scoped verification. These are inactive local
+candidates, not full RUX/device/functional qualification. Follow the
+[end-to-end entry point](../development-guides/25-scan-to-history.md) for
+current implementation, owners, evidence and remaining journey boundaries. The
+dated November2 material below preserves its original decisions and validation
+scope.
+
 ## November 2 — recovery presentation account-drain integration candidate
 
 The existing `SharedMediaNativeOriginalDrain` now admits one recovery
@@ -228,6 +529,49 @@ request or production qualification is authorized or claimed. The prior 17-case
 settlement evidence remains separate. Further reservation and monotonic visible
 ownership, reanalysis persistence and the exact native result consumer remain
 pending; no full-journey or Release qualification is claimed.
+
+## November 7 — read-only app inspection checkpoint candidate
+
+`SharedMediaNativeStorageRepository.inspectApp` now supplies the same restricted
+database-read checkpoint used by allocation audits. Every nested check still
+validates cancellation, the current grant, exact repository owner/profile/epoch,
+clean main context, live admission, held/named database and authority-root
+identities, and a fresh database header. The complete graph traversal is
+unchanged; there is no cache or revision-only reuse.
+
+The original full header brackets pending inspection, every page and page
+suspension/callback, and final return. Page contexts are released before
+awaiting. No media/control access or mutation authority uses the restricted
+checkpoint. Other `runApp` callers omit the new optional callback and retain
+full validation. The transient photo/control replacement distinction below also
+applies here; persistent replacement must fail at the next full boundary, while
+store identity loss must fail at a nested read.
+
+Completion236 passed compilation and the focused runtime gate: 26 methods / 72
+expanded cases, all nine required selectors, zero failures/skips. Both the
+existing allocation and direct inspection 13-case fault matrices passed, along
+with the affected scoped, bootstrap and architecture regressions. Independent
+review verified the source, raw test tree, traces and baseline applicability.
+All native/build/test inputs matched; one unrelated public-web document changed
+among 4,026 total pins. The whole-input assertion failure is retained, and this
+evidence does not establish whole-candidate or activation clearance.
+
+In matching single Debug simulator samples, the unchanged terminal-history
+workload's cold open decreased from 196.746 to 43.794 seconds; its whole method
+changed from 413.974 to 230.190 seconds. Instrumented read-checkpoint time
+changed from 166.462 to 18.805 seconds. The traced count changed from 21,854 to
+21,837: eight page-entry/post-await pairs and the final boundary now execute
+through `fullBoundaryCheck` outside that trace. These 17 checks still run; the
+counter is not a count of all validation calls. The distinct allocation
+diagnostic reached sender entry in 3.471 seconds, compared with its 4.241-second
+baseline.
+
+These observations qualify the bounded local optimization checkpoint, not
+universal speedups or installed responsiveness. HQ-232 still requires
+production-like Release/device responsiveness before final functional
+acceptance. The retained completion236 packet contains commands, hashes, raw
+traces, comparison, source-drift failure and independent verification; the
+managed simulator cache was retained.
 
 ## October 31 — bounded database-read checkpoints for photo status audits
 
@@ -1040,8 +1384,10 @@ acceptance remain outstanding before later milestones.
 `InitialPhotoAllocationTransport.performTransfer` is the injected sender for the
 existing retained photo owner. It posts the exact saved request to the fixed
 `initial-photo-transfer` route, with exact-account admission and owner
-validation after authentication and again after response. Fresh issue accepts
-only V11; legacy V9 remains readable but cannot use this adapter for issuance.
+validation after authentication and again after response. The first issue
+accepts V11. For each following assigned role, V14 requires the freshly
+confirmed predecessor and its one-use authenticated exchange. A recovered V14
+has only the original status path. Legacy V9 remains readable for recovery.
 Status is a separate action and cannot sign, execute, renew clocks or release
 retained bytes. No ordinary app registration or serving backend endpoint is
 installed.
@@ -1254,16 +1600,24 @@ policy catalog and no-retry rules. The
 maps the implementation and executable tests. No SQL, native or generated DTO
 changes are part of this increment.
 
-Focused tests currently pass 17 tests / 24 steps, including all photo roles,
-verified-session ownership, exact concrete RPC calls, malformed/oversized input,
-configuration removal, lost acknowledgement, snapshot mutation and late
-cancellation. These use synthetic profiles and intercepted requests with network
-denied; those focused tests do not prove real SQL execution or provider
-behavior. Independent source review found no concrete blockers. The complete
-function suite passed **4,123 tests / 772 steps** against a new disposable local
-database, with no failures, ignored tests or connection skips. All 502 unchanged
-migrations replayed; the instance and its temporary workdir were removed. Prior
-unchanged catalog evidence is retained, not relabeled as newly executed.
+The subsequent
+[cohort verification contract](05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+adds a separate v3 request from a freshly sealed V17 roster. Its scoped local
+server run passed 22 tests and 51 steps across transfer and admission, with
+storage and RPC requests intercepted. The first analysis execution and its
+History result have separate qualification.
+
+At the October 30 checkpoint, 17 focused tests / 24 steps passed, including all
+photo roles, verified-session ownership, exact concrete RPC calls,
+malformed/oversized input, configuration removal, lost acknowledgement, snapshot
+mutation and late cancellation. These use synthetic profiles and intercepted
+requests with network denied; those focused tests do not prove real SQL
+execution or provider behavior. Independent source review found no concrete
+blockers. The complete function suite passed **4,123 tests / 772 steps** against
+a new disposable local database, with no failures, ignored tests or connection
+skips. All 502 unchanged migrations replayed; the instance and its temporary
+workdir were removed. Prior unchanged catalog evidence is retained, not
+relabeled as newly executed.
 
 The complete tooling gate passed (138 TypeScript sources, 63 standard test
 files, two DTO suites, one evaluation suite and 21 shell suites); recursive
@@ -1620,6 +1974,12 @@ prior file-lifetime evidence keeps its original scope. No deployment,
 activation, device installation or hosted operation is authorized.
 
 ## October 30 — sealed-file upload lifetime candidate (unqualified)
+
+This checkpoint describes the original file handoff. The
+[current Capture-to-History guide](../development-guides/25-scan-to-history.md)
+tracks the subsequent private ticket, fresh Capture caller, durable PUT-start
+and exact per-role progress. Neither a local PUT response nor a closed server
+attempt releases the transfer reservation.
 
 The inactive native file handoff uses the existing sealed source, AI or display
 file through `SharedMediaNativeOriginalIO.uploadTransfer`. Its URL stays inside

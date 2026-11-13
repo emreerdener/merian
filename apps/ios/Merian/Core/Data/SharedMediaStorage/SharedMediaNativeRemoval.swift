@@ -54,8 +54,7 @@ final class SharedMediaNativeRemoval {
                   try context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.id == id })) == 0 else { throw SharedMediaStorageFailure.stale }
         }
         let expectedMembers: Data
-        if request.liveCount == 1 { expectedMembers = request.membershipBytes }
-        else {
+        if request.liveCount == 1 { expectedMembers = request.membershipBytes } else {
             let lease = try Self.one(context, FetchDescriptor<SharedMediaLeaseRecord>(predicate: #Predicate { $0.allocationID == assetID }))
             let survivors = try context.fetchCount(FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == packageID && $0.assetID == assetID }))
             expectedMembers = try SharedMediaNativeLifecycleMembership.removing(request.membershipBytes, referenceID: id,

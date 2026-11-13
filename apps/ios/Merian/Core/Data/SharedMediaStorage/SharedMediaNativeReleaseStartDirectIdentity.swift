@@ -6,6 +6,8 @@ import SwiftData
 /// Additional references/pairs may name a shared physical original, but cannot
 /// reuse any selected logical identity. No mutation or authority is granted.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReleaseStartDirectIdentity {
     static func check(_ snapshot: SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot, context c: ModelContext) throws {
         guard !c.hasChanges else { throw SharedMediaStorageFailure.conflict }
@@ -43,7 +45,9 @@ enum SharedMediaNativeReleaseStartDirectIdentity {
                 $0.id == id || $0.sourceID == id || $0.assetID == id || $0.referenceID == id || $0.leaseID == id || $0.sourceHoldID == id
             }, sortBy: [SortDescriptor(\.id)])) { _ in false }
             try allowed(c, FetchDescriptor<SharedMediaReceivingIntentRecord>(predicate: #Predicate { $0.id == id || $0.operationID == id }, sortBy: [SortDescriptor(\.id)])) { $0.persistentModelID == slot.persistentModelID }
-            let aliases = [id.uuidString.lowercased(), id.uuidString.uppercased()]
+            let lower = id.uuidString.lowercased(), upper = id.uuidString.uppercased()
+            let lowerJob = "scan-ingestion:" + lower, upperJob = "scan-ingestion:" + upper
+            let aliases = [lower, upper]
             let jobs = aliases.map { "scan-ingestion:" + $0 }
             try allowed(c, FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
                 $0.id == id || $0.packageID == id || $0.retirementID == id || $0.inferenceGeneration == id
@@ -53,10 +57,10 @@ enum SharedMediaNativeReleaseStartDirectIdentity {
             }, sortBy: [SortDescriptor(\.id)])) { $0.persistentModelID == held.consumer.persistentModelID }
             try allowed(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { aliases.contains($0.id) || $0.sharedMediaConsumerID == id }, sortBy: [SortDescriptor(\.id)])) { $0.persistentModelID == held.queue.persistentModelID }
             try allowed(c, FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
-                jobs.contains($0.id) || ($0.subjectId != nil && aliases.contains($0.subjectId!))
+                jobs.contains($0.id) || $0.subjectId == lower || $0.subjectId == upper
             }, sortBy: [SortDescriptor(\.id)])) { $0.persistentModelID == held.job.persistentModelID }
             try allowed(c, FetchDescriptor<OfflineQueueEvent>(predicate: #Predicate {
-                aliases.contains($0.id) || ($0.scanId != nil && aliases.contains($0.scanId!)) || ($0.jobId != nil && jobs.contains($0.jobId!))
+                aliases.contains($0.id) || $0.scanId == lower || $0.scanId == upper || $0.jobId == lowerJob || $0.jobId == upperJob
             }, sortBy: [SortDescriptor(\.id)])) { $0.persistentModelID == held.event.persistentModelID }
             try allowed(c, FetchDescriptor<LocalScanRecord>(predicate: #Predicate { aliases.contains($0.id) || $0.sharedMediaConsumerID == id }, sortBy: [SortDescriptor(\.id)])) { _ in false }
             try allowed(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {

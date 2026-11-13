@@ -219,7 +219,7 @@ extension ObservationHistorySyncTests {
     }
     func audioPage(_ snapshot: [String: Any]) throws -> Data {
         var page = try fixture()
-        page["items"] = [["ordinal": 1, "snapshot": try #require(String(bytes: bytes(snapshot), encoding: .utf8))]]
+        page["items"] = [["ordinal": 1, "snapshot": (try #require(String(bytes: bytes(snapshot), encoding: .utf8))) as String]]
         return try bytes(page)
     }
     @Test func audioResultRetainsExactBytesWithSeparateReference() throws {
@@ -321,7 +321,7 @@ extension ObservationHistorySyncTests {
         var response = try #require(JSONSerialization.jsonObject(with: fixture.support.nativeResponse(revision: 10)) as? [String: Any])
         var item = try #require(response["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
         snapshot["analysis_id"] = fixture.target.uuidString.lowercased(); snapshot["ordinal"] = 2
-        item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); response["analysis"] = item
+        item["snapshot"] = (try #require(String(bytes: bytes(snapshot), encoding: .utf8))) as String; response["analysis"] = item
         response["selected_analysis_id"] = fixture.support.support.analysisID
         var cloud = client(fetch: { _ in Data() })
         cloud.fetchState = { _ in try bytes(response) }
@@ -343,7 +343,7 @@ extension ObservationHistorySyncTests {
         var item = try #require(state["analysis"] as? [String: Any]), snapshot = try audioSnapshot()
         let target = "00000000-0000-4000-8000-000000000071"
         snapshot["analysis_id"] = target
-        item["snapshot"] = try #require(String(bytes: bytes(snapshot), encoding: .utf8)); state["analysis"] = item
+        item["snapshot"] = (try #require(String(bytes: bytes(snapshot), encoding: .utf8))) as String; state["analysis"] = item
         let decoded = try ObservationHistoryState.decode(bytes(state), request: .init(observation_id: observation, analysis_id: target), ownerID: owner)
         #expect(decoded.result.audio != nil)
         #expect(decoded.result.analysisID.uuidString.lowercased() == target)

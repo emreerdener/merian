@@ -31,18 +31,21 @@ struct CaptureAudioStatusAccessTests {
 
     @Test(arguments: ["owner", "generation", "session", "container", "presentation"])
     func scopeLossAfterOpenWithholdsPage(_ change: String) async throws {
+        let container = MainActorTestValue(true)
+        let generation = MainActorTestValue(UInt64(1))
+        let session = MainActorTestValue(true)
         let seed = try fixture.seed(action: .submit); defer { try? FileManager.default.removeItem(at: seed.root) }
         _ = try fixture.phase(seed)
-        var currentOwner = seed.source.ownerID, generation: UInt64 = 1, session = true, container = true, reads = 0
+        var currentOwner = seed.source.ownerID, reads = 0
         let access = CaptureAudioStatusAccess.prepared(account: fixture.fixture.account(), owner: .init(),
             reader: .init(read: { _, _, _ in reads += 1; throw MerianError.invalidResponse }), currentOwner: { currentOwner },
-            generation: { generation }, sessionIsCurrent: { _ in session }, containerIsCurrent: { _ in container })
+            generation: { generation.value }, sessionIsCurrent: { _ in session.value }, containerIsCurrent: { _ in container.value })
         let opened = try access.open(seed.source.ownerID, seed.source.observationID, seed.container)
         switch change {
         case "owner": currentOwner = UUID()
-        case "generation": generation += 1
-        case "session": session = false
-        case "container": container = false
+        case "generation": generation.value += 1
+        case "session": session.value = false
+        case "container": container.value = false
         default: break
         }
         await #expect(throws: (any Error).self) { try await opened.page(nil, 20, { change != "presentation" }) }

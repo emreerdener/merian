@@ -62,7 +62,7 @@ final class PinnedNetworkTransport: @unchecked Sendable {
 
     /// Keep the concrete certificate delegate private to the pinned session owner.
     static func handleServerTrustChallenge(_ session: URLSession, challenge: URLAuthenticationChallenge,
-                                          completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+                                           completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         MerianTLSDelegate().urlSession(session, didReceive: challenge, completionHandler: completionHandler)
     }
 
@@ -147,14 +147,20 @@ final class PinnedNetworkTransport: @unchecked Sendable {
     }
 
     /// Ticket/status replies drain their actual task before account ownership ends.
-    func initialPhotoTransferData(for request: URLRequest) async throws -> (Data, URLResponse) {
+    func initialPhotoTransferData(for request: URLRequest, phase: InitialPhotoAllocationTransport.TransferPhase = .role) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: InitialPhotoUploadTicket.maximumBytes)
-            .joinedResponse(using: activeSession, request: request, timeout: 5)
+            .joinedResponse(using: activeSession, request: request, timeout: phase.timeout)
     }
 
     /// The native status observation keeps its lease until the bounded task drains.
     func nativeReceivedStatusData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: NativeReceivedStatusTransport.maximumBytes)
+            .joinedResponse(using: activeSession, request: request, timeout: 5)
+    }
+
+    /// Separate named recovery caps; retain account ownership through task drain.
+    func nativeInitialRecoveryData(for request: URLRequest, phase: NativeReceivedStatusTransport.RecoveryPhase) async throws -> (Data, URLResponse) {
+        try await PinnedBoundedJSONDataTask(maximumBytes: phase.maximumResponseBytes)
             .joinedResponse(using: activeSession, request: request, timeout: 5)
     }
 
@@ -204,7 +210,45 @@ final class PinnedNetworkTransport: @unchecked Sendable {
 
     /// Inactive CPM transport prerequisite. The media owner must retain this
     /// handle and join its local termination before releasing a file or lease.
-    func photoUploadTask() -> PinnedPhotoUploadTask { .init(session: activeSession) }
+    func photoUploadTask() -> PinnedPhotoUploadTask { makeOwnedPhotoTask(beforeResume: nil) }
+
+    #if DEBUG
+    func measuredPhotoUploadTask(beforeResume: @escaping @Sendable () -> Void) -> PinnedPhotoUploadTask {
+        precondition(TestExecutionCoordinator.isRunningTests)
+        return makeOwnedPhotoTask(beforeResume: beforeResume)
+    }
+    #endif
+
+    private func makeOwnedPhotoTask(beforeResume: (@Sendable () -> Void)?) -> PinnedPhotoUploadTask {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpShouldSetCookies = false
+        config.httpCookieStorage = nil
+        config.urlCache = nil
+        config.urlCredentialStorage = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForResource = 300
+        var measuredReceiver = false
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningTests, let injected = withSessionLock({ storedOverridingSession?.configuration }) {
+            config.protocolClasses = injected.protocolClasses
+            if let scope = injected.httpAdditionalHeaders?["X-Merian-Test-Scope"] as? String, UUID(uuidString: scope) != nil {
+                config.httpAdditionalHeaders = ["X-Merian-Test-Scope": scope]
+                #if targetEnvironment(simulator) && arch(arm64)
+                let env = ProcessInfo.processInfo.environment
+                if let classes = config.protocolClasses, classes.count == 1, let receiver = classes.first {
+                    measuredReceiver = NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"
+                        && Bundle(for: receiver).bundleURL.pathExtension == "xctest"
+                        && env["SIMULATOR_RUNTIME_VERSION"] == "26.5"
+                        && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "23F77"
+                        && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone18,1"
+                }
+                #endif
+            }
+        }
+        #endif
+        return PinnedPhotoUploadTask(owned: config, measuredReceiver: measuredReceiver, beforeResume: beforeResume)
+    }
 
     private var activeSession: URLSession {
         withSessionLock {
@@ -324,6 +368,7 @@ final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
         var started = false, callerFinished = false, terminated = false
         var continuation: CheckedContinuation<Reply, Error>?
         var task: URLSessionUploadTask?
+        var ownedSession: URLSession?
         var response: HTTPURLResponse?
         var receivedBytes = 0
         var waiters: [CheckedContinuation<Void, Never>] = []
@@ -334,61 +379,113 @@ final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
         let result: Result<Reply, Error>
     }
     private let state = OSAllocatedUnfairLock(initialState: State())
-    private let session: URLSession
+    private let borrowedSession: URLSession?
+    private let ownedConfiguration: URLSessionConfiguration?
+    private let measuredReceiver: Bool
     private let tlsDelegate = MerianTLSDelegate()
+    private let sessionEnd: PhotoUploadSessionEnd?
     private static let deadlineQueue = DispatchQueue(label: "com.merian.photo-upload-deadline")
     private static let responseLimit = 4096
     #if DEBUG
     private let completionPause: (@Sendable () -> Void)?
     private let beforeResume: (@Sendable () -> Void)?
     init(session: URLSession, completionPause: (@Sendable () -> Void)? = nil, beforeResume: (@Sendable () -> Void)? = nil) {
-        self.session = session; self.completionPause = completionPause; self.beforeResume = beforeResume; super.init()
+        borrowedSession = session; ownedConfiguration = nil; sessionEnd = nil; measuredReceiver = false; self.completionPause = completionPause; self.beforeResume = beforeResume; super.init()
     }
-    #else
-    init(session: URLSession) { self.session = session; super.init() }
     #endif
+    fileprivate init(owned configuration: URLSessionConfiguration, measuredReceiver: Bool, beforeResume: (@Sendable () -> Void)?) {
+        let end = PhotoUploadSessionEnd()
+        sessionEnd = end
+        ownedConfiguration = configuration
+        self.measuredReceiver = measuredReceiver
+        borrowedSession = nil
+        #if DEBUG
+        completionPause = nil
+        self.beforeResume = beforeResume
+        #endif
+        super.init()
+    }
+    deinit {
+        if let sessionEnd, !sessionEnd.acknowledged {
+            state.withLock { $0.ownedSession }?.invalidateAndCancel()
+        }
+    }
+    #if DEBUG
+    var hasCreatedOwnedSessionForTesting: Bool { state.withLock { $0.ownedSession != nil } }
+    #endif
+    var acknowledgedOwnedSessionEnd: Bool { sessionEnd?.acknowledged == true }
+    var hasPurgedMeasuredTransfer: Bool { measuredReceiver && acknowledgedOwnedSessionEnd }
+    func requireOwnedSessionEndIfPresent() throws {
+        if let sessionEnd, !sessionEnd.acknowledged { throw URLError(.cannotCloseFile) }
+    }
 
-    func response(for request: URLRequest, fromFile file: URL, timeout: TimeInterval, expiresAtMilliseconds: Int64? = nil) async throws -> HTTPURLResponse {
+    @MainActor func response(for request: URLRequest, fromFile file: URL, timeout: TimeInterval, expiresAtMilliseconds: Int64? = nil,
+                             validateStart: (@MainActor @Sendable () throws -> Void)? = nil) async throws -> HTTPURLResponse {
         guard state.withLock({ value in
             guard !value.started else { return false }; value.started = true; return true
         }) else { throw URLError(.badURL) }
         defer { resolveNoTask() }
         guard timeout.isFinite, timeout > 0, timeout <= 300 else { throw URLError(.timedOut) }
+        // A background file upload may create a system staging copy and outlive
+        // this process. The native photo owner has no such transfer authority.
+        guard borrowedSession?.configuration.identifier == nil else { throw URLError(.unsupportedURL) }
         guard file.isFileURL, request.httpMethod == "PUT", request.httpBody == nil, request.httpBodyStream == nil,
               let url = request.url, url.scheme?.lowercased() == "https", url.host != nil,
               url.user == nil, url.password == nil, url.fragment == nil else { throw URLError(.badURL) }
+        try Task.checkCancellation()
+        let session: URLSession
+        if let ownedConfiguration, let sessionEnd {
+            session = URLSession(configuration: ownedConfiguration, delegate: sessionEnd, delegateQueue: nil)
+            state.withLock { $0.ownedSession = session }
+        } else if let borrowedSession {
+            session = borrowedSession
+        } else { throw URLError(.unknown) }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 // Task creation/registration is atomic with cancellation. Even
                 // a cancelled suspended task remains retained until its callback.
-                var deadline = DispatchTime.now() + timeout
-                var rejection: any Error = CancellationError()
-                let task = state.withLock { value -> URLSessionUploadTask? in
-                    guard !value.callerFinished else { return nil }
-                    if let expiresAtMilliseconds {
-                        let observedAt = DispatchTime.now()
-                        let remaining = Double(expiresAtMilliseconds) / 1000 - Date().timeIntervalSince1970
-                        guard remaining.isFinite, remaining > 0 else { rejection = URLError(.timedOut); return nil }
-                        deadline = min(deadline, observedAt + remaining)
+                let initialDeadline = DispatchTime.now() + timeout
+                let task: URLSessionUploadTask
+                let deadline: DispatchTime
+                do {
+                    (task, deadline) = try state.withLock { value in
+                        guard !value.callerFinished else { throw CancellationError() }
+                        var deadline = initialDeadline
+                        if let expiresAtMilliseconds {
+                            let observedAt = DispatchTime.now()
+                            let remaining = Double(expiresAtMilliseconds) / 1000 - Date().timeIntervalSince1970
+                            guard remaining.isFinite, remaining > 0 else { throw URLError(.timedOut) }
+                            deadline = min(deadline, observedAt + remaining)
+                        }
+                        let task = session.uploadTask(with: request, fromFile: file)
+                        task.delegate = self; value.task = task; value.continuation = continuation
+                        return (task, deadline)
                     }
-                    let task = session.uploadTask(with: request, fromFile: file)
-                    task.delegate = self; value.task = task; value.continuation = continuation
-                    return task
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
                 }
-                guard let task else { continuation.resume(throwing: rejection); return }
                 Self.deadlineQueue.asyncAfter(deadline: deadline) { [weak self] in
                     self?.finish(error: URLError(.timedOut))
                 }
                 #if DEBUG
                 beforeResume?()
                 #endif
+                // The caller and its consent/selection owners are MainActor-isolated.
+                // No suspension between this last authorization and resume.
+                do {
+                    try Task.checkCancellation(); try validateStart?()
+                } catch { finish(error: error); return }
                 guard DispatchTime.now() < deadline,
                       expiresAtMilliseconds.map({ Double($0) / 1000 > Date().timeIntervalSince1970 }) ?? true else {
                     // The suspended task is retained until its cancellation callback.
                     finish(error: URLError(.timedOut)); return
                 }
-                task.resume()
+                state.withLock { value in
+                    guard !value.callerFinished else { return }
+                    task.resume()
+                }
             }
         } onCancel: { self.finish(error: CancellationError()) }
     }
@@ -401,6 +498,9 @@ final class PinnedPhotoUploadTask: NSObject, URLSessionDataDelegate, Sendable {
                 if value.terminated { return true }; value.waiters.append(continuation); return false
             }
             if done { continuation.resume() }
+        }
+        if let sessionEnd, let session = state.withLock({ $0.ownedSession }) {
+            await sessionEnd.finish(session)
         }
     }
     private func resolveNoTask() {

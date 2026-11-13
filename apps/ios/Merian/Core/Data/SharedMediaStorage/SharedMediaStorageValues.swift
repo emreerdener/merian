@@ -58,7 +58,7 @@ struct SharedMediaPhotoShareRequest: Codable, Sendable {
     let nonce: UUID
 
     init(source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID,
-                     snapshot: SharedMediaStorageSnapshot) {
+         snapshot: SharedMediaStorageSnapshot) {
         self.source = source; self.packageID = packageID; self.draftGeneration = draftGeneration
         inventoryGeneration = snapshot.generation; expectedRevision = snapshot.revision; nonce = UUID()
     }
@@ -94,7 +94,6 @@ struct SharedMediaPhotoRetirementIdentity: Codable, Equatable, Sendable {
         return result
     }
 }
-
 
 enum SharedMediaPhotoReferenceState: Sendable {
     case absent, live(PhotoPreparationFile), retiring(SharedMediaPhotoRetirement)

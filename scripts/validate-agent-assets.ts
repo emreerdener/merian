@@ -10,6 +10,7 @@ const projectSkills = [
   "merian-identification-evaluation",
   "merian-incident-response",
   "merian-ios",
+  "merian-notion",
   "merian-release",
   "merian-supabase",
   "merian-swiftdata-migrations",

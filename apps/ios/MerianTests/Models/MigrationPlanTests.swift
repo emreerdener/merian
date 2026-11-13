@@ -2555,42 +2555,131 @@ struct MigrationPlanTests {
         }
     }
 
-    @Test func allForwardPlansPreserveAllocationAndAppendPresentationStorageStage() throws {
+    @Test(arguments: [false, true])
+    func v68MigrationPreservesOriginalBytesWithoutServerAuthority(_ fullPlan: Bool) throws {
+        let url = migrationStoreURL(named: fullPlan ? "v68-initial-binding-full" : "v68-initial-binding-recent")
+        let ids = (0..<3).map { _ in UUID().uuidString.lowercased() }
+        let owner = UUID(), parent = UUID(), source = UUID(), binding = UUID()
+        let stamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let opaque = Data([0, 128, 255, 1]), package = UUID()
+        let requestBytes = "{ \"synthetic_request\" : [1, 2, 3] }"
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV68.self)
+            let container = try makeModelContainer(for: schema,
+                configurations: [ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)])
+            let context = ModelContext(container); context.autosaveEnabled = false
+            for index in ids.indices {
+                let queue = MerianSchemaV68.OfflineQueuedScan(id: ids[index], timestamp: stamp)
+                queue.recoveryPresentationData = opaque
+                queue.queueAttemptCount = index; queue.queueNeedsAttention = true; queue.scanStateRaw = index
+                queue.queueLastErrorCode = "synthetic_hold"; queue.queueNextRetryAt = stamp
+                queue.fieldNotes = "Synthetic immutable notes"
+                queue.inferenceImagePaths = ["synthetic/original.jpg"]
+                if index == 1 {
+                    queue.workKindRaw = "reanalysis"; queue.parentObservationID = parent.uuidString.lowercased()
+                    queue.sourceAnalysisID = source.uuidString.lowercased(); queue.reanalysisOwnerAccountID = owner.uuidString.lowercased()
+                }
+                if index == 2 { queue.mediaAuthorityRaw = "sharedNativeV1"; queue.sharedMediaConsumerID = binding }
+                context.insert(queue)
+                let job = MerianSchemaV68.OfflineJobRecord(id: "synthetic-" + ids[index],
+                    kind: index == 1 ? .observationReanalysisSync : .scanIngestion,
+                    subjectId: ids[index], status: .needsAttention, metadataJSON: requestBytes)
+                job.attemptCount = index; context.insert(job)
+            }
+            let receiving = MerianSchemaV68.SharedMediaReceivingIntentRecord(packageID: package,
+                inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: owner, draftGeneration: UUID(),
+                operationID: UUID(), preparedData: opaque, preparedSHA256: String(repeating: "a", count: 64))
+            receiving.resultData = opaque; receiving.releaseStartData = opaque; receiving.allocationData = opaque
+            receiving.resultSHA256 = "synthetic-result"; receiving.releaseStartSHA256 = "synthetic-release"
+            receiving.allocationSHA256 = "synthetic-allocation"; receiving.revision = 9
+            context.insert(receiving); try context.save()
+        }
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .recentSource(.v68))
+        for migrate in [true, false] {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+            let container: ModelContainer
+            if migrate && fullPlan {
+                container = try makeModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [configuration])
+            } else if migrate {
+                container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV68MigrationPlan.self, configurations: [configuration])
+            } else { container = try makeModelContainer(for: schema, configurations: [configuration]) }
+            let context = ModelContext(container); context.autosaveEnabled = false
+            let queues = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            #expect(queues.count == 3)
+            for index in ids.indices {
+                let queue = try #require(queues.first { $0.id == ids[index] })
+                #expect(queue.recoveryPresentationData == opaque && queue.timestamp == stamp)
+                #expect(queue.queueAttemptCount == index && queue.queueNeedsAttention && queue.scanStateRaw == index)
+                #expect(queue.queueLastErrorCode == "synthetic_hold" && queue.queueNextRetryAt == stamp)
+                #expect(queue.fieldNotes == "Synthetic immutable notes" && queue.inferenceImagePaths == ["synthetic/original.jpg"])
+                #expect(queue.workKindRaw == (index == 1 ? "reanalysis" : "ordinary"))
+                #expect(queue.parentObservationID == (index == 1 ? parent.uuidString.lowercased() : nil))
+                #expect(queue.sourceAnalysisID == (index == 1 ? source.uuidString.lowercased() : nil))
+                #expect(queue.reanalysisOwnerAccountID == (index == 1 ? owner.uuidString.lowercased() : nil))
+                #expect(queue.sharedMediaConsumerID == (index == 2 ? binding : nil))
+            }
+            let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>())
+            #expect(jobs.count == 3)
+            for index in ids.indices {
+                let job = try #require(jobs.first { $0.subjectId == ids[index] })
+                #expect(job.metadataJSON == requestBytes && job.attemptCount == index)
+                #expect(job.statusRaw == OfflineJobStatus.needsAttention.rawValue)
+            }
+            let row = try #require(try context.fetch(FetchDescriptor<SharedMediaReceivingIntentRecord>()).first)
+            #expect(row.id == package && row.revision == 9)
+            #expect(row.initialAdmissionData == nil && row.initialAdmissionSHA256 == nil)
+            #expect(row.initialCompletionData == nil && row.initialCompletionSHA256 == nil)
+            #expect(row.preparedData == opaque && row.resultData == opaque && row.releaseStartData == opaque && row.allocationData == opaque)
+            #expect(row.resultSHA256 == "synthetic-result" && row.releaseStartSHA256 == "synthetic-release" && row.allocationSHA256 == "synthetic-allocation")
+            #expect(!context.hasChanges)
+            #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+                currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .currentStore)
+        }
+    }
+
+    @Test func allForwardPlansPreserveAllocationAndAppendInitialBindingStorageStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self, MerianRecentV62MigrationPlan.self, MerianRecentV63MigrationPlan.self, MerianRecentV64MigrationPlan.self, MerianRecentV65MigrationPlan.self, MerianRecentV66MigrationPlan.self, MerianRecentV67MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self, MerianRecentV58MigrationPlan.self, MerianRecentV59MigrationPlan.self, MerianRecentV60MigrationPlan.self, MerianRecentV61MigrationPlan.self, MerianRecentV62MigrationPlan.self, MerianRecentV63MigrationPlan.self, MerianRecentV64MigrationPlan.self, MerianRecentV65MigrationPlan.self, MerianRecentV66MigrationPlan.self, MerianRecentV67MigrationPlan.self, MerianRecentV68MigrationPlan.self]
         for plan in plans {
             if let first = plan.schemas.first?.versionIdentifier.major, first < 66 {
-                switch plan.stages[plan.stages.count - 3] {
+                switch plan.stages[plan.stages.count - 4] {
                 case let .lightweight(fromVersion, toVersion):
                     #expect(fromVersion.versionIdentifier.major == 65 && toVersion.versionIdentifier.major == 66)
                 default: Issue.record("Historical V65 to V66 release stage changed.")
                 }
             }
-            #expect(plan.schemas.last?.versionIdentifier.major == 68)
+            #expect(plan.schemas.last?.versionIdentifier.major == 69)
             if let first = plan.schemas.first?.versionIdentifier.major, first <= 66 {
-                switch plan.stages[plan.stages.count - 2] {
+                switch plan.stages[plan.stages.count - 3] {
                 case let .lightweight(fromVersion, toVersion):
                     #expect(fromVersion.versionIdentifier.major == 66 && toVersion.versionIdentifier.major == 67)
                 default: Issue.record("Historical allocation stage changed.")
                 }
             }
+            if let first = plan.schemas.first?.versionIdentifier.major, first <= 67 {
+                switch plan.stages[plan.stages.count - 2] {
+                case let .lightweight(fromVersion, toVersion):
+                    #expect(fromVersion.versionIdentifier.major == 67 && toVersion.versionIdentifier.major == 68)
+                default: Issue.record("Historical presentation stage changed.")
+                }
+            }
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 67)
-                #expect(toVersion.versionIdentifier.major == 68)
-            default:
-                Issue.record("Presentation storage requires additive V67 to V68.")
+                #expect(fromVersion.versionIdentifier.major == 68 && toVersion.versionIdentifier.major == 69)
+            default: Issue.record("Initial binding storage requires additive V68 to V69.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 17)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 16)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 18)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 17)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -2617,7 +2706,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 68)
+        #expect(CurrentSchema.versionIdentifier.major == 69)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -3078,10 +3167,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 19)
+        #expect(stages.count == 20)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -3107,8 +3196,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 18)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 19)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -3125,8 +3214,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 18)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 19)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

@@ -16,9 +16,20 @@ enum SharedMediaNativeReceivingIntentGraph {
         let releaseStartSHA256: String?
         let allocationData: Data?
         let allocationSHA256: String?
+        let initialAdmissionData: Data?, initialCompletionData: Data?
+        let initialAdmissionSHA256: String?, initialCompletionSHA256: String?
+
+        /// Future original facts cannot enter any pre-V69 receiving owner.
+        func requireNoInitialAnalysis() throws {
+            guard initialAdmissionData == nil, initialAdmissionSHA256 == nil,
+                  initialCompletionData == nil, initialCompletionSHA256 == nil else {
+                throw SharedMediaStorageFailure.closed
+            }
+        }
 
         /// A remote allocation liability cannot enter local release or receiving.
         func requireNoAllocation() throws {
+            try requireNoInitialAnalysis()
             guard allocationData == nil, allocationSHA256 == nil else {
                 throw SharedMediaStorageFailure.closed
             }
@@ -27,9 +38,39 @@ enum SharedMediaNativeReceivingIntentGraph {
         /// The V66 storage foundation grants no sidecar-aware mutation or read.
         /// Keep raw projection/equality complete for a future dedicated owner.
         func requireNoReleaseStart() throws {
+            try requireNoInitialAnalysis()
             guard releaseStartData == nil, releaseStartSHA256 == nil else {
                 throw SharedMediaStorageFailure.closed
             }
+        }
+
+        /// Exact admission-only successor. Explicit assignment makes additions
+        /// to this raw projection require a deliberate copy decision.
+        init(admitting admission: InitialCompletionDocuments.CpmAdmission, from row: Self) {
+            id = row.id; inventoryID = row.inventoryID; inventoryGeneration = row.inventoryGeneration
+            ownerID = row.ownerID; draftGeneration = row.draftGeneration; operationID = row.operationID
+            cursor = row.cursor; phase = row.phase; preparedSHA256 = row.preparedSHA256
+            version = row.version; revision = row.revision; preparedData = row.preparedData
+            resultData = row.resultData; resultSHA256 = row.resultSHA256
+            releaseStartData = row.releaseStartData; releaseStartSHA256 = row.releaseStartSHA256
+            allocationData = row.allocationData; allocationSHA256 = row.allocationSHA256
+            initialAdmissionData = admission.acknowledgement
+            initialAdmissionSHA256 = SharedMediaAcquisitionEncoding.digest(admission.acknowledgement)
+            initialCompletionData = row.initialCompletionData; initialCompletionSHA256 = row.initialCompletionSHA256
+        }
+
+        /// Completion consumes only its reserved sidecar; all original fields stay exact.
+        init(completing completion: InitialCompletionDocuments.CpmRecoveryRecord, from row: Self) {
+            id = row.id; inventoryID = row.inventoryID; inventoryGeneration = row.inventoryGeneration
+            ownerID = row.ownerID; draftGeneration = row.draftGeneration; operationID = row.operationID
+            cursor = row.cursor; phase = row.phase; preparedSHA256 = row.preparedSHA256
+            version = row.version; revision = row.revision; preparedData = row.preparedData
+            resultData = row.resultData; resultSHA256 = row.resultSHA256
+            releaseStartData = row.releaseStartData; releaseStartSHA256 = row.releaseStartSHA256
+            allocationData = row.allocationData; allocationSHA256 = row.allocationSHA256
+            initialAdmissionData = row.initialAdmissionData
+            initialAdmissionSHA256 = row.initialAdmissionSHA256
+            initialCompletionData = completion.bytes; initialCompletionSHA256 = SharedMediaAcquisitionEncoding.digest(completion.bytes)
         }
 
         init(_ row: SharedMediaReceivingIntentRecord) {
@@ -40,6 +81,8 @@ enum SharedMediaNativeReceivingIntentGraph {
             resultData = row.resultData; resultSHA256 = row.resultSHA256
             releaseStartData = row.releaseStartData; releaseStartSHA256 = row.releaseStartSHA256
             allocationData = row.allocationData; allocationSHA256 = row.allocationSHA256
+            initialAdmissionData = row.initialAdmissionData; initialAdmissionSHA256 = row.initialAdmissionSHA256
+            initialCompletionData = row.initialCompletionData; initialCompletionSHA256 = row.initialCompletionSHA256
         }
     }
     struct Witness: Sendable {

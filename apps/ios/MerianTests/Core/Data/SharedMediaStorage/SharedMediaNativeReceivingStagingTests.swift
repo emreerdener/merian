@@ -192,7 +192,7 @@ struct SharedMediaNativeReceivingStagingTests {
             ])
             #expect(reopened !== h.container)
         }
-        let owner = try await SharedMediaNativeOriginalOwner.appDispatch(
+        let owner = try SharedMediaNativeOriginalOwner.appDispatch(
             account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: drain ?? .init())
         _ = try await owner.openApp(container: reopened, parent: h.parent, inventoryID: h.inventoryID)
         return owner

@@ -13,7 +13,6 @@ struct ObservationEvidenceUpload: Sendable {
         let contentType: String
         let byteCount: Int
         let sha256: String
-        enum CodingKeys: String, CodingKey { case kind, media_id, content_type, byte_count, sha256 }
         func encode(to encoder: Encoder) throws {
             var values = encoder.container(keyedBy: CodingKeys.self)
             try values.encode("image", forKey: .kind)
@@ -73,6 +72,10 @@ struct ObservationEvidenceUpload: Sendable {
         try Task.checkCancellation()
         return Prepared(observationID: observationID, analysisID: analysisID, body: body, references: references)
     }
+}
+
+extension ObservationEvidenceUpload.Reference {
+    private enum CodingKeys: String, CodingKey { case kind, media_id, content_type, byte_count, sha256 }
 }
 
 struct ObservationEvidenceUploadReceipt: Equatable, Sendable {

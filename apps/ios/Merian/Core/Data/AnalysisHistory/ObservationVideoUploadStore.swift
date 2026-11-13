@@ -76,7 +76,7 @@ enum ObservationVideoUploadStore {
                 return .init(work: saved, metadata: text, containerID: ObjectIdentifier(container))
             }
             guard text == reserved.metadata else { throw Persistence.IntegrityError.conflict }
-            let encoded = String(decoding: try work.storedData(), as: UTF8.self)
+            guard let encoded = String(bytes: try work.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
             job.metadataJSON = encoded
             return .init(work: work, metadata: encoded, containerID: ObjectIdentifier(container))
         }
@@ -94,6 +94,8 @@ enum ObservationVideoUploadStore {
             }
     }
 
+    // The private lookup returns the validated queue row, job and exact metadata together.
+    // swiftlint:disable:next large_tuple
     private static func pair(proof: ObservationVideoPreparation.Verified, context: ModelContext) throws -> (OfflineQueuedScan, OfflineJobRecord, String) {
         try proof.validate(context: context)
         try Persistence.requireNoResultCollision(proof.preparation.identity, context: context)

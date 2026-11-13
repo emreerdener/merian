@@ -86,6 +86,18 @@ checks refuse observed replacement, but POSIX unlink cannot atomically compare
 an inode and remove it. Complete common-writer lifetime fencing and allocation
 accounting remain open; this boundary does not supply them.
 
+Prepared video reanalysis additionally uses `snapshotVideoFile` for a nonempty,
+size-bounded independent copy of an explicitly chosen flat Documents attachment.
+It never adopts or removes that source. The process-local token binds the copy's
+file and temporary-root identities; consumers validate it before and after
+processing, and cleanup refuses replacement files. Cancellation or source
+mutation discards only the partial copy. This is not historical-original proof
+or account authority. `ObservationReanalysisLocalVideoInput` separately freezes
+the owner-bound current descriptor, source result and ordered text, checks them
+around copying, and preserves one child identity across held preparation
+retries. The composition remains uninstalled; durable child cleanup retains its
+receipt owners.
+
 Only the private store owners can retire their references and erase their media.
 See [photo preparation](PhotoPreparation/README.md) and the disk-backed
 [FileIO tests](../../../MerianTests/Core/Data/FileIOActorTests.swift), including
@@ -121,18 +133,23 @@ Accepted account deletion and library-clearing sign-out await
 `ScanRepository.purgeAllData`, which resets derived state and delegates to
 `ScanLibraryPurgeService`. Under the existing Auth transition/recovery barrier,
 the service suspends and drains local reanalysis receipt cleanup, deletes every
-model in `CurrentSchema`, then awaits erasure of the entire private
-`ReanalysisQueue` namespace. The file owner takes the exclusive Documents root
-lock shared by writers, recovery and child cleanup, and removes orphaned files
-without following symlinks or touching other Documents content. A failed file
-erasure retains the account cleanup barrier; preferences, runtime reset and
-recovery-marker retirement do not advance. Retry repeats the idempotent purge.
-Only after database and file erasure succeed does verified
-`Core/Preferences/AccountScopedPreferences` cleanup run, followed by the
-injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps row
-erasure exhaustive; purge tests cover file failure and ordering. This does not
-replace the SQLite store file or authorize broad erasure of other unreferenced
-media.
+supported library row after checking media liabilities, then awaits erasure of
+the private `ReanalysisQueue` and `ReanalysisInputs` namespaces. The file owner
+takes the exclusive Documents root lock shared by writers, recovery and child
+cleanup, and removes orphaned files without following symlinks or touching other
+Documents content. A failed file erasure retains the account cleanup barrier;
+preferences, runtime reset and recovery-marker retirement do not advance. Retry
+repeats the idempotent purge. Only after database and file erasure succeed does
+verified `Core/Preferences/AccountScopedPreferences` cleanup run, followed by
+the injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps
+row erasure exhaustive; purge tests cover file failure and ordering. This does
+not replace the SQLite store file or authorize broad erasure of other
+unreferenced media. Scoped sign-out additionally revalidates its exact journal
+authority around cleanup suspension and at the repository completion boundary,
+before derived-state/restoration reset. The Auth composition acknowledges
+terminal held hosts only after that complete success. See the
+[guest transition contract](../../../../../docs/backend-and-data/21-guest-library-transitions.md)
+and `ScanRepositoryPurgeTests` for the scope-loss/retry regression.
 
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
@@ -227,9 +244,13 @@ keeps the original. Only then does `ScanRepository.eradicateScan` commit local
 deletion and the cloud-deletion outbox. It returns an optional task covering its
 post-commit file cleanup and immediate cloud attempt; callers may ignore that
 handle without delaying local deletion, while tests await it before restoring
-their shared queue context. A nil handle means the local deletion commit failed.
-The task is not proof of remote deletion: failed cloud work remains durably
-queued. See the
+their shared queue context. A nil handle means local deletion was held or its
+commit failed. Native shared media authority, malformed authority, or any
+surviving shared consumer link holds legacy scan deletion and non-biological
+cleanup before outbox or file cleanup. The deletion presentation completes only
+after a successful local commit or an already-absent scan. Native-owned
+retirement remains a separate required owner. The task is not proof of remote
+deletion: failed cloud work remains durably queued. See the
 [deletion contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#1-transactional-destruction-scanrepositoryeradicatescan).
 
 An exact `409 legacy_observation_delete_requires_upgrade` now places cloud work
@@ -696,6 +717,52 @@ remain actor-isolated in `BackgroundDatabaseActor+ScanRecordSupport.swift`;
 complete model construction is centralized in the stateless
 `LocalScanRecordFactory`.
 
+The prepared `makeInitialRecord` entry point reads the frozen private
+`InitialRetainedResult` contract and constructs only an unsaved, unowned record.
+It preserves top-level reasoning and original candidate/pet JSON for the
+existing V3 saved-display comparison. Candidate display decoding accepts
+original server keys and older domain cache keys without rewriting either stored
+form. Domain provenance is projected to JSON numbers before applying its
+existing 2 KiB storage limit; overflow rejects the projection instead of
+silently losing the primary identification. Original canonical result/provenance
+bytes stay intact. The inactive internal receiving application owner now binds
+original completion/capture facts, checks capacity and atomically replaces
+pending queue ownership with retained scan ownership. Its runtime qualification
+and subsequent enrollment remain open; the factory is not a persistence or
+replay authority.
+
+Its bounded historical application baseline uses the existing display allowlist
+and explicit remaining scan scalars, preserving date bits, submitted-context
+order and note bytes. It rejects already selected/enrolled scans and grants no
+permission to restore a later edited display. The result-evidence UUID only
+namespaces this local encoding; it never becomes an enrolled or selected
+analysis identity. The baseline does not inspect relationship arrays or prove
+related-row absence. The future typed atomic owner must prove absence through
+bounded scoped queries immediately before its transaction. The inactive
+application descriptor now privately constructs the scan from scalar inputs; it
+accepts no detached caller model that could carry hidden media relationships.
+Its exact mutation-set proof passed the focused native197 fixture test. The live
+owner must keep the context private and stage, validate and save synchronously
+without an intervening callback or await.
+
+The retained initial-photo reader is a separate path through
+`SharedMediaNativeOriginalOwner.readRetainedAppPhotos`. It joins the saved
+consumer/scan and original receiving evidence, uses historical membership only,
+and returns bounded AI or display bytes under existing account and file seals.
+It never restores the pending quartet or supplies a generic file path. Legacy
+scan deletion holds this ownership before cleanup. The inactive application
+entry uses the existing account/receiving locks and review/deletion transaction,
+with no exposed context or model between staging and save. Exact successor
+readback handles lost acknowledgements; replay never restores later display or
+selection. Native198 qualified this internal path with2methods/4cases. Actual
+SQLite-save faults, process crashes and user-interface routing remain open. The
+inactive History acknowledgement now joins the authoritative enrollment baseline
+with the original receipt, preserving media and later selections. The corrected
+retained-capacity boundary received independent review; native200-04 passed
+2methods/5cases for this integrated join and interruption fences. Earlier failed
+runs remain retained; app routing and cumulative qualification remain open. See
+the [shared-media contract](SharedMediaStorage/README.md).
+
 `CapturedMediaPersistenceService` preserves canonical timeline order and
 standalone-audio source identity. Its live dependencies delegate audio/video
 adoption to `FileIOActor`; deterministic tests inject closures and never touch
@@ -962,8 +1029,8 @@ persistence.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
-  diagnostics, quarantine, and rescue. Fresh and V68 stores open as current;
-  known V42...V67 sources use finite, source-isolated plans; only unknown older
+  diagnostics, quarantine, and rescue. Fresh and V69 stores open as current;
+  known V42...V68 sources use finite, source-isolated plans; only unknown older
   stores use the full historical plan.
 - The current automatic App Group location is a shipped-store compatibility
   constraint, not an extension data-sharing contract. Extensions never open the
@@ -974,13 +1041,13 @@ persistence.
   `MerianRecentV50MigrationPlan` for the original frozen graph or
   `MerianReleasedActiveV50MigrationPlan` for the processed release's
   `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
-  account-partition stage and the shared lightweight tail through V68; unknown
+  account-partition stage and the shared lightweight tail through V69; unknown
   V50 signatures are preserved through rescue instead of guessed. Released V49
-  stores prepend V49→V50. V67 stores use only the immediate V67→V68 stage;
-  V51...V66 retain their source-isolated forward stages. The full historical
-  plan remains linear through V42→V49→V50→V51 and onward to V68; V43...V48 use
+  stores prepend V49→V50. V68 stores use only the immediate V68→V69 stage;
+  V51...V67 retain their source-isolated forward stages. The full historical
+  plan remains linear through V42→V49→V50→V51 and onward to V69; V43...V48 use
   their source-isolated plans. The duplicate-checksum retry ladder is ordered
-  current store, V67 through V51, both V50 graphs, then V49 down through V42.
+  current store, V68 through V51, both V50 graphs, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

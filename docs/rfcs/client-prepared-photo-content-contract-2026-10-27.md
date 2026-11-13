@@ -1368,7 +1368,13 @@ normalization distinctions and NUL survive JSON escaping. An empty contexts
 array emits `[]`; it cannot turn this into a text-only request. The section
 describes observation-wide supporting descriptions and conveys no photo
 association or interleaved chronology. Actual provider serialization and prompt
-policy must bind this version and be tested before dispatch.
+policy must bind this version and be tested before dispatch. The private
+[original request preparer](../../services/supabase/functions/_shared/initialAnalysis/cpmPhotoExecutionRequest.ts)
+now exercises this order with the English Gemini vision profile and an
+intercepted SDK sender. The two-photo disposable `--request-journey` also
+exercised the private SQL dispatch, usage, result, terminal re-verification and
+completion owners with six distinct role files. Actual provider execution,
+installed executable binding and other profiles require separate qualification.
 
 Client language, location and inference overrides are explicitly absent in this
 version. Never fill them from mutable UI, parent records, account/session
@@ -1468,6 +1474,14 @@ capacity. Restart must reconstruct unresolved transfer/cleanup liability; no
 saved reservation authorizes automatic reupload. The current native owner has no
 qualified original-upload capability, and mixed-owner allocator acceptance
 remains open under the native ownership agreement.
+
+For the implemented inactive caller, see the
+[fresh Capture upload](../../apps/ios/Merian/Features/Capture/Submission/README.md#fresh-initial-photo-first-original-upload)
+and
+[one-role progress](../../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md#initial-photo-checking-progress-for-one-uploaded-role)
+contracts. Exact role observation keeps the entire transfer allowance charged.
+Refusing background sessions and joining the foreground task do not substitute
+for the maximum-size disk, memory and cleanup evidence required here.
 
 ### Required acceptance before consumption
 

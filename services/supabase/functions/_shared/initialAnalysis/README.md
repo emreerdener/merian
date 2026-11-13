@@ -1,4 +1,57 @@
+## November 9 — prepared original recovery service reads
+
+The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
+candidate exposes two service-only wrappers for the existing locked immutable
+readers: `discover_initial_completion_v1` and
+`read_initial_cpm_saved_admission_v1`. Each checks the service caller inside a
+postgres-owned SECURITY DEFINER function with an empty search path and a
+five-second statement-timeout configuration. The existing abortable transport
+deadline remains required; this catalog setting alone does not qualify server
+execution or lock-wait duration. Exact signatures are registered in the existing
+privileged-routine allowlist. Anonymous/authenticated callers and direct
+internal access remain denied.
+
+The wrappers delegate original owner/admission/dispatch/funding and
+cancellation/deletion validation without copying those rules or adding writes.
+The saved-admission response includes private assignment context for server
+validation; it must never be relayed as the native acknowledgement. The local
+status route now composes these readers through the existing
+`initialRecovery.ts` owner. Full S0 admission, media/execution/settlement and
+old-writer quiescence prerequisites remain. Ordinary legacy absence cannot gain
+an immutable result through these reads.
+
+Local validation passed: full 516-migration replay, 190 catalog files with
+10,384 executed assertions and two existing declared skips, strict
+public/internal SQL lint, and four owned recovery journeys with 341 checks.
+Independent review verified the permission-test correction, source applicability
+and owned cleanup. The migration remains unpublished and unapplied to hosted
+environments. These synthetic SQL journeys do not qualify the HTTP route,
+concurrent deletion/merge, server timeout or native integration;
+initial-recovery acceptance remains open.
+
+The composed local HTTP recovery owner additionally passed four SQL-response
+bridge journeys (341 checks), the full Edge suite (4,390 tests/1,170 steps),
+whole-tree lint and 125 deployable entrypoint checks. Focused native wire tests
+passed four methods/17 cases in the integrated app checkout. The tooling
+components passed across retained split execution: the original monolithic run
+failed because the sandbox denied synthetic hidden-input terminal access; the
+unchanged fake-provider PTY test and remaining shell tests then passed with
+terminal permission. Independent review verified these scoped results and
+cleanup. Durable original recovery-to-History, actual audio/video queued UI
+restart and broader S0/RUX/cumulative acceptance remain open.
+
 ## Private verification-to-admission coordinator
+
+The private [CPM photo request preparer](cpmPhotoExecutionRequest.ts) consumes
+the saved allocation, original admission acknowledgement, a trusted server
+profile and the supplied AI-role bytes. It has no installed profile. It binds
+the supplied bytes to the original account, scan, backend and assignment. It
+carries the funding identity from the original receipt to the SQL dispatch
+owner. It uses the existing Gemini serializer for the qualified fixture
+combination (English, vision compatibility). A lost receipt is handled by the
+original recovery owner. See the
+[scan guide](../../../../../docs/development-guides/25-scan-to-history.md) for
+the distinction between prepared input and permission to send.
 
 `cpmPhotoAdmission.ts` owns recovery-first sequencing, one committed fresh
 start, one verification and one admission attempt, then receipt-only
@@ -657,6 +710,23 @@ resetting its disposable catalog following source-allocation contention. Neither
 suite targets a hosted database. Failed schedules remain qualification failures
 until a corrected exact candidate passes.
 
+Raw invocation inserts meet dispatch authority before the preparation row
+barrier once their permanent operation fence commits. The contention fixture
+requires that exact dispatch denial after allocation and cancellation, then
+independently checks the preparation helper's denial for the same identity, the
+permanent blocked source barrier and absence of any invocation row. In-flight
+allocation and stale-snapshot probes retain their exact scope-busy and isolation
+errors. No production trigger is disabled or reordered.
+
+The C1 terminal qualification fixtures commit the existing synthetic dispatch
+owner before cancellation, retaining the exact selected scan and original
+invocation. Cancellation must preserve committed funding, clear only the
+specified private invocation correlations, and associate one unknown accounting
+event with the original invocation identity and provenance. Rollback snapshots
+include usage events. Unknown-lifecycle recovery stays synthetic; the impossible
+authorized-without-invocation state is a denial probe. These fixtures do not
+execute a provider or activate the backend.
+
 ## Inactive handoff metadata and budget validators
 
 `handoff-profile-schema-v1.json` and `handoffProfile.ts` validate closed
@@ -1193,6 +1263,16 @@ installed signer. The trusted attestation dependency must verify saved artifacts
 and the executing adapter; synthetic tests do not provide installed artifact
 qualification.
 
+The current private receipt composite has 22 columns after the CPM storage
+migration. `mediaHandoffRows.ts` requires the exact column set, literal
+`admission_variant = server_prepared_v3`, and SQL-null values for all five
+CPM-only columns before extracting the unchanged twelve canonical proof texts.
+Missing/unknown discriminants, CPM admissions, nonnull CPM fields and extra
+columns fail closed in both state and I/O decoding. Historical proof bytes stay
+unchanged; this is compatibility with the current private SQL storage shape, not
+a new public response or authority for CPM through the legacy handoff.
+`mediaHandoffRows_test.ts` covers all three decoder entry paths.
+
 `services/supabase/scripts/initial_media_handoff_bridge.ts` is a local-only
 qualification bridge to the current checkout's owned disposable replay. Each of
 its nine fixed methods uses a separate READ COMMITTED transaction, fixed 5s
@@ -1213,3 +1293,1111 @@ commit identity. This is shared-checkout synthetic qualification, not installed
 signer/backend, structural media or device qualification. The observed 4,781 ms
 video/audio transfer against 5 seconds is not robust tail headroom. Every
 provider/execution/activation barrier remains closed.
+
+### S0 accounting composition draft
+
+`dispatchAccounting.ts` is an uncommitted integration draft consuming the shared
+AI accounting port. No route installs it and its fixed SQL dispatch/report
+producers are not implemented. It exposes only one `invoke` attempt, retaining
+no public generic quota lease: a failed, held, cancelled or uncertain dispatch
+cannot retry, refund or call the provider. Ordinary accounting remains
+unchanged. After a fresh grant is positively received, invocation proceeds
+without another foreground-cancellation check. The one-attempt guard is local to
+this instance; safe reconstruction requires permanent SQL dispatch uniqueness
+and replay without a fresh grant. Foreground cancellation does not cancel
+required usage reporting; reporting has its own five-second deadline and failure
+cannot discard a valid original outcome. Result validation/storage and
+completion still belong to the remaining integrated chain. Successful invocation
+returns the original invocation identity alongside its unchanged outcome so the
+durable result writer can bind them; that identity is not another execution
+capability.
+
+The private transport sends exactly the reviewed fixed operation arguments for
+`authorize_initial_analysis_dispatch` and `report_initial_analysis_usage`.
+Canonical expected binding is bounded to 2048 bytes, supplied execution evidence
+to64 KiB, and each streamed response to8192 bytes within five seconds. It uses
+one fetch, no redirects, credentials omitted and no-store. Its evidence check is
+structural/canonical only: trusted upstream preparation must bind the exact
+original verified buffers and execution, and the future SQL compositor must
+validate the complete witness. A digest or injected dependency is not media or
+execution authority.
+
+The executable private reply decoders are colocated with the transport:
+
+- Dispatch requires exactly `version = 1`, original `owner_id`, `scan_id`,
+  `submission_digest`, `admission_receipt_id`, `admission_receipt_digest`,
+  `outcome` and `invocation_id`. Only `fresh` plus a valid original invocation
+  UUID grants this local call; `held` requires a null invocation and grants
+  nothing. Replay/status documents cannot become a fresh acknowledgement.
+- Usage requires exactly `version = 1`, original `owner_id`, `scan_id`,
+  `submission_digest`, `invocation_id` and a valid `event_id`. No provider
+  output is transmitted as usage; original native usage facts retain their
+  existing normalization. Unknown execution uses the canonical empty usage
+  object.
+
+These private draft contracts have no Swift/web/admin consumer or generated
+Identify DTO change. The SQL producers, phase-specific guards, immutable result
+capture, adoption and completion remain required in the same integration before
+any callable grant or activation. The
+[S0 contract](../../../../../docs/rfcs/initial-dispatch-fence-interface-2026-10-13.md)
+owns that boundary. Focused transport tests use synthetic replies and deny
+network access; they do not establish database authority or functional
+acceptance.
+
+### S0 immutable result capture draft
+
+`resultEvidence.ts` consumes the original dispatch invocation and the route's
+validated Identify data before completion entitlement or media promotion. It
+requires a draft outcome plus the existing success-envelope semantic validation;
+raw provider drafts, refusal and unqualified primary-identification profiles
+cannot become durable results. Original provenance must equal the prepared
+execution, and original bounded usage facts survive a failed usage report.
+Capture copies canonical result/provenance/reference strings synchronously
+before hashing awaits, so later caller edits cannot change the submission.
+
+`resultEncoding.ts` traverses the frozen private `resultSchemaV1.ts` definition
+with strict unknown-key rejection; it makes no live public parser calls. Only
+schema-declared fractional numbers become expanded decimal strings; integer
+fields, omission, explicit null, text and array order retain their meanings.
+Writes and every recovery decode reject negative zero, non-finite values,
+alternate decimal spellings and finite values that change on an IEEE round trip.
+Getters, toJSON hooks and sparse arrays are rejected. Public Identify numeric
+DTOs remain unchanged. `resultSemanticsV1.ts` preserves the original
+primary-result rules and constants. Its result type is inferred from the frozen
+definition, not asserted to be a future public DTO. Delivery must use an
+explicit compatibility adapter if the public shape diverges. The existing
+tooling gate discovers `initial_result_v1_contract_test.ts`: structural
+comparison and a full source fingerprint cover the dependency-free public
+parser's transitive helpers and constants. Any drift requires an explicit
+compatibility decision, including harmless additions; it must never
+automatically regenerate or loosen retained v1 rules. Frozen saved evidence and
+semantic/scalar vectors cover recovery independently of current capture. The SQL
+validator must consume the same frozen rules; that producer and SQL parity
+remain required before installation.
+
+The result and separate provenance digests use the reviewed version-one domains
+with one actual LF byte. Recovery checks the original reference, independently
+retained original provenance, both hashes and the frozen v1 semantic contract,
+then returns deeply frozen data. Result/provenance canonical byte limits are1
+MiB/ 64 KiB; PostgreSQL JSONB-text limits and whole-result resource
+qualification are still pending. Digest possession does not authorize recovery
+or execution.
+
+`persistInitialResult` permits one write attempt per call followed by exact
+read-back, including after a lost acknowledgement. The read request includes the
+original result evidence ID and expected result digest. Missing, mismatched or
+unreadable evidence stays held without promotion or another provider call. Only
+capture-created values enter this writer; that brand is process-local and is not
+durable authority. A second call can attempt an identical write, so fixed SQL
+identity/immutability guards and restart recovery remain mandatory.
+`resultStore.ts` supplies a fixed private transport for the two reviewed record
+and read RPCs. It snapshots the original reference and independently retained
+provenance at construction, and snapshots evidence before validation/hash
+awaits. The write path requires the original lease; restart recovery can
+construct a read-only store without it. Only a correlated explicit `absent`
+reply with null evidence becomes absence. Malformed, oversized, mismatched,
+timed-out and failed responses remain unavailable, never a new execution grant.
+
+Each write/read has a five-second total budget including validation; requests
+and read envelopes are capped at 2,232,320 bytes and write acknowledgements at
+8192 bytes. The envelope cap accommodates escaped canonical result/provenance
+strings; the inner limits remain 1 MiB and 64 KiB. Responses stream under these
+limits, late bodies are cancelled, redirects are rejected and no automatic retry
+occurs. The fixed RPC argument/reply decoders remain private draft transport
+contracts. The uncommitted S0 candidate now implements private SQL record/read
+producers; no public RPC wrapper/grant or live route imports these owners. See
+the result integration status below for its scoped validation and remaining
+acceptance.
+
+The focused tests include the composed dispatch → usage-report failure →
+immutable capture → lost result-write acknowledgement → exact read-back path
+with one provider invocation. These are synthetic Edge boundary checks, not
+PostgreSQL, hosted, native delivery or full user-journey qualification. The
+remaining integrated chain must consume this evidence before adoption and atomic
+completion; these files are not a standalone release.
+
+### S0 SQL structural consumption draft
+
+`20261103074331_consume_initial_analysis.sql` begins the same uncommitted
+integration with frozen private invoker helpers. `initial_result_v1_sql.ts`
+emits the SQL schema directly from the frozen Edge v1 definition; the existing
+contract test checks exact migration-block parity. The fixed data/provenance
+parser checks canonical spelling, canonical and JSONB-text byte limits, closed
+structure, decimal syntax/ranges, UTF-16 string lengths and embedded provenance
+agreement. It now also applies frozen primary semantics, exact provider usage
+shapes, closed result-wrapper identities and actual-LF result/provenance digest
+checks. All API execution is revoked. No result writer, dispatch authority,
+witness recognition or grant is added by this draft section.
+
+The maintained `initial_result_v1_contract.sql` covers structural/canonical
+vectors, primary/usage/digest cases and helper privilege boundaries on a
+disposable database. Syntactically valid supplied identities and hashes are not
+original authority: the consuming writer must compare them and the provenance
+with retained locked invocation/admission facts, then consume its exact
+transaction witness before inserting a result. Those steps remain unfinished.
+The structural matcher alone is not result acceptance; it must remain behind the
+canonical parser's aggregate depth/node limits. Deno retains exact IEEE
+round-trip validation. Keep this migration with the complete integrated chain;
+it is not a standalone release or callable intermediate milestone.
+
+### S0 consuming witness images draft
+
+The same migration now fixes dispatch/report/result statement groups and a
+private row-image normalizer for their six touched relations. The catalog names
+statement order and row-count modes only: exact expected images, original
+charge-link count and trigger/FK effects still belong to the unfinished
+compositor. The private staging mechanics described below do not establish those
+original facts. Completion deliberately has no catalog until its actual writers
+and projection are integrated. No existing writer or guard recognizes these
+helpers, and API execution is revoked.
+
+Witness comparisons use an exact secret-redacted row projection. Only the quota
+row's `lease_token` is replaced with `lease_sha256`, using canonical lowercase
+UUID text, UTF-8 and SHA256. SQL NULL means no row; a JSON null lease stays a
+null digest, never an empty/placeholder hash. Every other field is retained;
+exact column allowlists reject missing/new schema fields. Expected-image and
+OLD/NEW verification must share this normalizer. The digest is correlation only,
+never a lease credential or execution authority. The maintained
+`initial_consuming_images.sql` tests these boundaries and the inactive catalog.
+
+### S0 transaction witness mechanics draft
+
+The same migration adds API-inaccessible `initial_consuming_staging` and an
+unattached member-trigger adapter for dispatch/result mechanics. Expectations
+are immutable, exact redacted row images grouped by the fixed statement catalog.
+The private representation is bounded to 8 MiB and 256 rows per group; these are
+implementation bounds awaiting integrated resource qualification, not new media
+limits. Each BEFORE row records a unique pending index; queued AFTER events must
+consume the corresponding exact image once. Statement completion requires all
+expected rows and no unmatched pending rows, including zero-row groups.
+
+Immediate deletion requires a sealed witness. Deferred entry/deletion checks
+reject leftovers and validate the captured terminal deletion image. A
+denial-only transaction advisory latch prevents recreation after successful
+removal. Complete subtransaction rollback removes its latch, stage and SQL
+effects together; no external work runs inside the transaction. Constraints
+already immediate reject entry, and caught statement failures cannot retain
+partial progress.
+
+This isolated mechanics draft originally withheld report/completion authority:
+`ON CONFLICT DO NOTHING` can execute BEFORE INSERT without AFTER INSERT. The
+integrated owners below now model attempted images, validate actual conflict
+winners and require original identity/fence and terminal assertions. Neither the
+stage nor its advisory latch supplies original authority. See
+[report integration](#s0-original-report-integration) and
+[completion integration](#original-completion-preparation-private-inactive) for
+the current implementation and remaining qualification.
+
+`initial_consuming_stage.sql` isolates legacy user triggers in a rollback-only
+disposable fixture while retaining foreign keys. It exercises result-stage
+lifetime, both-row pairing, multi-row original-link deletion, missing/suppressed
+members, savepoint rollback, immediate constraints and actual API-role denials.
+Its dispatch fixture stops after the link group and rolls back; it does not
+qualify a real dispatch, admission, accounting, completion or native journey.
+
+### S0 accounting candidate preparation
+
+`internal.complete_identification_usage` remains the accounting writer. Its
+private `prepare_identification_usage_event` helper returns all 26 event fields,
+including the six previously implicit defaults, after the original invocation
+lock and existing-event early return. Validation, metadata and pricing semantics
+are preserved. The helper is volatile and API-inaccessible; it reads pricing but
+performs no writes or owner/receipt/invocation lookup. A future report witness
+must reuse this once-prepared row rather than reprice or regenerate defaults.
+The insert retains `ON CONFLICT DO NOTHING` and links the actual existing
+winner.
+
+The maintained `identification_invocation_accounting.sql` rollback fixture adds
+full attempted/effective row observation, invocation-only linkage, invalid-input
+zero-write replay and an existing unknown winner with BEFORE but no AFTER
+insert. These checks do not instrument pricing-call count or establish
+concurrent winner behavior; those remain required in the report integration. No
+report stage, initial invocation creation, grant or production route is opened
+by extraction. The
+[dispatch RFC](../../../../../docs/rfcs/initial-dispatch-fence-interface-2026-10-13.md)
+owns the integration contract.
+
+### S0 original report integration
+
+The subsequent draft now supports report witness mechanics and installs
+report-only observers on usage INSERT and invocation UPDATE. The earlier
+unattached/report-denied descriptions above are historical for this operation;
+dispatch and result remain unattached. A one-time candidate attachment preserves
+original identity; AFTER STATEMENT locks and binds the actual source-key winner.
+Inserted rows require exact BEFORE/AFTER equality. Zero AFTER rows explicitly
+mean existing-winner resolution, including suppression when a different-ID
+winner already exists; they do not prove ON CONFLICT. Missing winners or missing
+AFTER for the candidate itself fail. Exact event/link checks repeat on terminal
+deletion and under trusted-owner deferred validation.
+
+API-revoked `internal.report_initial_analysis_usage` supplies the fixed original
+producer: existing outer scope, retained admission/submission proof and digest,
+sorted original invocation/alias validation, original lease and provider
+snapshot, then the existing writer. Its exact replay skips new usage parsing and
+witness creation. The shared pure `identification_usage_matches_invocation`
+validator checks saved attribution for both reporting and accounted cancellation
+without repricing. No public RPC or service execution grant is installed;
+initial creation and provider execution remain denied.
+
+`identification_invocation_accounting.sql` now instruments the real pricing
+estimator through an OID-preserving rollback delegate, and covers exact
+candidate, existing winner, zero-write replay, suppression, missing observations
+and terminal damage. The append-only guard remains active in its own denial
+case; deliberate terminal-fault cases bypass only that guard and roll back.
+Original failures are retained in HQ100. The existing invocation-erasure runner
+adds `--report-witness existing`, `inserted-commit` and `producer`: existing
+observes peer-PID blocking for event rollback/commit and both erasure orders;
+erasure blockers roll back, so this does not prove late reporting after
+committed deletion. Inserted-commit avoids repeating schedules. Producer covers
+original identities, canonical usage, 26 malformed attribution winner/replay
+cases, unchanged funding, API denial and actual-role deferred commit. Fixtures
+retain a guarded admission but inject invocation/dispatch state; they do not
+qualify dispatch provenance or initial end-to-end execution. The same
+owned-database, cron, manifest and evidence rules apply; no additional runtime
+or production permission is introduced.
+
+### S0 original invocation classification draft
+
+The invocation owner now has a nullable original admission-receipt association
+and an immutable `is_initial_analysis` flag, without a foreign key or new
+row-first accounting lookup. A migration preflight rejects detectable existing
+invocation/initial-operation-fence overlaps before assigning ordinary defaults.
+It cannot classify already-anonymized historical rows and is not a complete
+historical audit. The row-image allowlist includes both new columns.
+
+Initial invocation creation remains denied. Classified rows permit the existing
+row-local accounting event update and exact scan/account erasure or explicit C1
+retirement. That transition clears owner, scan, reservation, lease digest and
+original receipt association together, preserving classification, event and all
+other accounting fields. It requires original owner/receipt locks, irreversible
+operation fence, and either a scan-deletion tombstone or the current C1 writing
+witness. Independent deferred checks using captured original identity require
+complete private erasure and, for C1, the exact terminal proof and cleanup.
+Missing receipt or partial clearing fails closed. The provider barrier
+recognizes the same validated transition. Direct row-update backstops use
+NOWAIT/try-lock; outer erasure prelocks receipt, sorted reservations and
+invocations before the existing media-member lock tail.
+
+Five-minute unknown accounting remains unchanged and row-local. Thirty-day
+pruning and direct deletion use the same complete retired-row predicate. A
+missing receipt alone never qualifies. Existing-tombstone owner deletion also
+enters retirement even when the ordinary erasure callback does not run again.
+
+`initial_invocation_retention.sql` checks the inactive boundary and actual
+unknown accounting; `identification_invocation_accounting.sql` covers ordinary
+behavior. The maintained bounded erasure runner reuses the existing guarded
+admission fixture and exact local replay owner:
+
+```bash
+python3 services/supabase/scripts/test_initial_invocation_erasure.py \
+  --container "$DISPOSABLE_CONTAINER" \
+  --evidence-dir "$EVIDENCE_DIRECTORY" \
+  --replay-manifest "$EXACT_REPLAY_MANIFEST"
+```
+
+Each run requires a fresh owned local database with every current migration;
+dispose it afterward, including on failure. It commits a synthetic photo
+admission, then injects only the still-unavailable initial invocation before
+exercising real scan/raw-owner erasure in a new transaction. The current179
+assertions retain the original30 erasure/account cases and add accounted
+capture, atomic stage entry, ledger/funding freezes and
+invocation/lifecycle-witness mechanics. They cover original identity,
+existing-tombstone fallback, receipt mismatch/absence, partial clearing, event
+preservation, deferred private-root proof, immediate-constraint denial,
+invocation-only discovery and exact rollback. Generic cancellation remains held;
+positive-unused C1 and selected actual public account composition retain their
+real guards. Fixture corruption is explicitly isolated. Mechanical witness cases
+separately isolate only the original retirement/provider row barriers inside
+rollback; every new witness/member check remains enabled. A separate
+real-retirement case retains all production guards. The integrated public-C1
+cases also retain those guards and force deferred validation after cleanup;
+original initial dispatch remains injected. The local lifecycle switch is
+disabled before fixture commit.
+
+`--complimentary` selects a real held complimentary credit through guarded
+admission. The default uses quota funding; an additional assertion verifies the
+requested original funding state before cancellation. Both use the same exact
+funding-image checks. Six private-result cases inject only future producer
+prestate, then restore the named storage/provider barriers before public C1.
+They check exact result capture and erasure for pending/dispatched execution and
+completed usage, exact rollback after suppressed deletion or terminal failure,
+and denial after a completion already exists. These synthetic containers do not
+qualify result production, semantic validation, terminal delivery, or the
+opposing concurrent completion schedule.
+
+`--c1-races-only` runs the funding and media-profile assertions and controlled
+C1/accounting schedules without repeating the rollback assertions. After C1
+commits, those schedules also exercise the actual thirty-day reconciler prune on
+the old synthetic invocation without a permanent scan tombstone. They compare
+the exact surviving usage event, cancellation receipt, lifecycle and funding,
+verify saved cancellation replay, and require a post-prune accounting report to
+reject the missing invocation without changing its original usage event. This
+exercises the manual reconciler owner, not automatic cron timing.
+
+`--public-c1-only` selects 31 assertions covering guarded funding/media-profile
+admission, the integrated public cancellation cases and exact rollback. It skips
+the mechanical witness suites and concurrency schedules. `--media-vector`
+selects one of the existing guarded admission fixtures: 1 vision photo with
+description, 2 multimodal photo, 3 audio, 4 photo/audio, 5 video frames, or 6
+video/audio. The original receipt's input profile must match the selected
+fixture. These are synthetic SQL media contracts, not bytes/provider/native
+qualification or CPM photo admission; a run qualifies only its recorded vector
+and funding variant.
+
+`--cpm-photo --public-c1-only` instead reuses the existing committed CPM photo
+fixture and its 140 setup assertions, then runs the 31 integrated C1 assertions.
+It verifies the requested funding mode and original three-attempt media cohort.
+Successful cancellation may change only the original attempts' retirement bits;
+capacity reservations and write closures remain exact, and private role mappings
+must disappear. Failed calls restore those retained records in the full
+snapshot. This is SQL qualification of the client-prepared-photo contract, not a
+native app run, actual storage deletion, or successful
+dispatch/result/completion. The standalone committed-CPM runner uses the same
+extracted setup owner.
+
+`--cpm-photo --c1-races-only` uses that same guarded setup with two
+funding/profile assertions and the controlled C1/accounting schedules. It
+commits cancellation, checks late reporting and manual pruning, and compares the
+original CPM capacity, closure and retired-attempt images after commit and again
+after pruning. The 31 rollback assertions are not repeated in this mode. Each
+run records its own funding mode; neither option qualifies all
+account/cohort/concurrency combinations.
+
+`--cpm-photo --account-erasure` reuses the same 140-check admission setup, then
+injects the original classified invocation and calls the real service-role
+`apply_user_tombstone` owner. It checks rollback against all internal tables,
+users and usage events; commits deletion; and verifies retained liability and
+invocation identity in a fresh session. Classified work requires a completed
+ownerless permanent scan tombstone and no C1 receipt at both user-delete
+witnesses. Funding stays exact until account deletion; permanent CPM capacity
+may unlink its owner, attempts retire, and closures remain unchanged. The
+original invocation retains every field except the five retirement fields and
+its newly assigned accounting event. The captured event allows only the existing
+anonymization changes, including removal of identifying metadata keys. By
+default this mode covers pending/unknown accounting for its recorded funding
+variant. Adding `--account-reported` first records synthetic successful usage
+through the existing accounting owner. It then preserves the original event ID
+and every event field except the documented anonymization changes, including a
+fresh-session comparison. This verifies already-recorded usage preservation, not
+provider execution or successful analysis completion. Neither variant runs the
+31 C1 cases, account races, public scientific retention, actual blob deletion or
+all media/cohort combinations.
+
+`--size-preflight` selects two guarded funding/profile assertions and focused
+structural size checks, skipping the full erasure suite and race schedules. It
+supports media_sources or `--cpm-photo`. Disposable, rollback-scoped padding on
+preparation intent and receipt exercises their duplicated representation without
+weakening production byte limits. An aggregation tripwire proves rejection
+occurs before constructing private arrays; the actual public call must roll
+accounting back. A near-limit accepted case uses escaped control and multibyte
+text; CPM additionally proves its retained contribution can push an
+otherwise-fitting composite over the limit. This is near-boundary structural
+qualification, not valid producer-content coverage, exact one-byte endpoints,
+independent null/empty enumeration, or peak-memory/runtime qualification.
+
+`--resource-case five_small|five_declared_max --media-vector 6` selects two
+funding/profile assertions and fresh-backend observations of capture with
+rollback, actual service-role accounted C1 with immediate-check rollback,
+deferred commit, and saved replay on another new backend. Admission, invocation
+injection and correctness projections run elsewhere. The observer verifies the
+container backend PID, namespace and process start identity before and after
+each operation. It records database call/transaction duration, client wall time,
+before/after memory-context totals and Linux `VmRSS`/`VmHWM`. The high-water
+mark is process-lifetime RSS, including shared mappings and startup; it is not
+an allocator or container peak, and subtracting its baseline does not establish
+an incremental peak. The ten-second statement deadline is a harness limit, not a
+resource acceptance threshold. No admission budget or business limit changes.
+The declared-max case reaches five-source media byte declarations, with small
+supporting text and no actual blob IO. Neither mode qualifies the maximum
+combined private/CPM/result state, production budgets, deployment capacity or
+installed behavior. Existing resource fixture generators have one shared owner
+in `initial_atomic_admission_resource.py`; the older refundable C1 resource
+suite retains its separate synthetic budget and historical failures.
+
+`--cpm-photo --resource-case cpm_photo` uses the same four isolated operations
+with the existing guarded committed CPM photo fixture. The separate observer
+requires its one capacity row, three attempts and three closures, records
+canonical candidate/input byte sizes, compares exact original retained images
+after both rollbacks and expected retired images after commit/replay. The
+140-check setup and original funding variant remain explicit. Legacy resource
+modes verify an empty CPM cohort through the same observer. These observations
+include retained CPM copies but do not establish maximum combined policy state,
+maximum supporting text, result production, actual media IO or a production
+memory/latency budget. All correctness projections and scalar size queries stay
+outside measured backends; no admission budget or business limit is widened.
+
+The runner also observes exact blockers in two controlled schedules: the actual
+reconciler holds the invocation before erasure (including rejection of reverse
+owner acquisition), and erasure commits before an original late report reuses
+its accounting event. It checks rollback preservation, retained-row pruning and
+fresh-session event uniqueness. The later race phase commits synthetic
+retirement. Only this disposable's accounting cron is suspended after saving its
+prior state; the runner rejects an in-flight execution without cancelling it and
+restores the prior active state even on failure. These schedules qualify manual
+accounting/scan erasure, not the scheduler, public account deletion or C1.
+
+Generic cancellation holds with `55000 initial_analysis_cancellation_incomplete`
+when a classified invocation matches the scan or the locked admission's original
+reservation. This check precedes saved cancellation replay and private erasure.
+The positive-unused refundable C1 proof remains unchanged. Explicit cancellation
+with known execution now uses the complete non-refunding witness variant in the
+draft public composer.
+
+The draft's `capture_initial_accounted_cancellation_prestate` validates original
+receipt/lease/assignment and captures the unchanged producer's exact event and
+funding. `begin_initial_cancellation_stage` requires exactly one returned/stored
+server-derived stage; failure rolls reconciliation back. Accounted stages have
+no refund clock or quota/credit witness. The public composer retires the exact
+original invocation, completes lifecycle/media/private/receipt witnesses and
+consumes all eight terminal proof rows. Premature completion remains denied.
+
+`initial_cancellation_invocation_witness` now records a server-derived exact
+five-field correlation retirement and frozen event. Mandatory BEFORE statement,
+row and AFTER statement guards enforce pending→writing→observed→complete and
+independently recheck the invocation, event, reservation, provider attempt,
+actual links/counters, complimentary hold and owner epoch. Direct phase writes,
+zero/extra/no-op statements, wrong images and unrelated-trigger attacks gain no
+usable retirement authority. Trigger depth supplements exact facts; it is not a
+capability. Accounted funding mutations are denied at statement level, even with
+zero rows. Witness RLS/API denial and actual terminal seal are installed;
+terminal proof/cleanup membership is installed. The256KiB witness bound is a
+rejection limit, not measured resource qualification. The accounted capture now
+measures the complete 64 MiB representation before constructing private,
+registry or CPM aggregates. It counts every duplicated private component and
+JSON framing; the same private component mapping and CPM row normalization serve
+measurement and construction. The private-image owner also includes framing in
+its own unchanged 64 MiB bound. Constructed images must exactly match their
+estimated serialized sizes. These checks do not qualify peak memory or execution
+time: earlier receipt validation, per-row serialization, retained copies and
+terminal proofs still need resource measurement.
+
+The private deferred `require_initial_invocation_erasure` trigger runs as its
+trusted owner with an empty search path, retaining all exact retirement and
+survivor checks. Direct execution remains revoked from public/API roles. The
+public composer's definer privileges do not survive its return; a deferrable
+trigger must therefore retain its own private read authority through a real
+service-role commit. The retention SQL test checks owner, definer mode, search
+path and ACL. Focused C1, classified scan erasure and classified account erasure
+checks now force immediate validation under `service_role` and separately keep
+checks deferred through commit under that role. Earlier fixtures that reset the
+role before forcing checks do not establish this transaction-completion claim.
+
+The shared lifecycle owners now recognize both settlement variants. Before a
+known-execution lifecycle mutation, the exact invocation witness must be
+complete, its retired invocation and usage event must match captured images, and
+original receipt/funding must remain unchanged. No quota/credit witnesses are
+permitted. Known pending work becomes `cancelled_unknown`; dispatch-authorized
+work becomes `cancelled_dispatched`. Unused work retains its genuine refund
+proof and `cancelled_pre_dispatch` transition. The phase helper is only a
+predicate, not authority. Lifecycle event derivation uses immutable
+variant/prestate so deferred stage-INSERT evidence still works after live
+witnesses are cleaned up.
+
+Four rollback-only lifecycle positives cover pending/dispatched state with
+unknown/completed accounting, alongside negative mutation and incomplete-chain
+checks. The actual unused public cancellation additionally forces deferred
+constraints after stage and lifecycle-witness cleanup. The initial live-phase
+check in event derivation broke that case; the failed run, correction and
+independent verification are retained. The subsequent integrated cases exercise
+complete accounted cancellation through the public owner.
+
+Shared source/destination retirement, private-root erasure and receipt owners
+now accept the accounted variant through the same exact witness order. The last
+receipt-dependent accounting check occurs before submission deletion; subsequent
+checks validate the captured invocation/event identities and actual surviving
+funding. Frozen accounting images include the retired invocation, unchanged
+usage event and actual quota links for accounted work. Submission then intent
+cascades must observe every captured deletion before the matching unknown or
+already-authorized receipt can be written. Unused receipt/refund behavior stays
+covered by the actual public cancellation regression.
+
+The focused suite adds five mechanical positive cases (four lifecycle/accounting
+combinations and zero-write media reentry), eighteen negative/hold cases and
+exact rollback. They reach both root deletions and the matching observed receipt
+with the new guards enabled. Initial dispatch/retirement authority is still
+isolated for these earlier rollback-only cases. The subsequent integrated public
+cases use all retirement guards, complete terminal cleanup and independent
+captured proofs. These cases do not qualify frozen-result deletion, all
+media/funding variants or the complete transaction/concurrency graph.
+
+Terminal capture rejects mixed refund/invocation witness families before
+aggregation. Accounted cleanup has exactly eight rows; unused keeps its existing
+maximum of sixteen. The same64/128MiB bounds apply. Invocation cleanup follows
+credit and precedes lifecycle, retaining existing relative order. Captured stage
+INSERT/DELETE, terminal DELETE and invocation retirement checks independently
+validate final state after live witnesses disappear. No checker relies on
+another checker firing first. The real public cases exercise both deferred
+orders, suppressed cleanup, late rollback, altered captured evidence and
+seal-protected mutation denial. Initial invocation INSERT remains unavailable.
+
+Use `--c1-races` to select the changed public-cancellation/accounting schedules
+instead of the older scan-erasure schedules; it is mutually exclusive with
+`--assertions-only`. Reconciler-first observes the exact invocation blocker,
+rejects reverse owner acquisition with NOWAIT and preserves identity on
+rollback. C1-first commits cancellation while an original late report waits and
+then reuses the existing event. An independent observer connection checks
+funding and saved-receipt replay in a new transaction. It is an existing
+connection, not a newly opened one. These race connections use trusted database
+sessions with service claims; the separate integrated assertions exercise
+`SET ROLE
+service_role`. This qualifies the selected pending/unknown race, not
+all media, funding, account deletion, scheduler or the full concurrency graph.
+
+Permanent account deletion uses existing scan-tombstone retirement for
+classified pre-row identities before the original receipt disappears. Its sorted
+owner/advisory scope includes invocation-only identities, validates scan/owner
+associations and rejects original-reservation aliasing. Existing tombstones
+explicitly enter the retirement/cleanup fallback. Ordinary work keeps generic
+cancellation; retained public observations keep scientific detachment. This
+branch introduces no refund, credit release or explicit C1 transaction seal.
+Missing original receipt denies the whole account transaction.
+
+The focused fixture exercises actual public account success, existing
+tombstones, reservation-alias denial and later malformed identity failure after
+an observed earlier retirement, followed by full captured-image rollback. One
+family-rank AI scientific-retention case composes with that retirement. A quota
+mutation tripwire allows only owner anonymization or deletion of unchanged
+funding; counter images stay equal. Event checks use the surviving invocation's
+`event_id`, because account anonymization deliberately clears event `source_id`.
+The pre-call event count includes any scientific fixture backfill. Dispatch is
+still injected; these cases do not qualify all account/scientific variants,
+complimentary funding or the complete concurrency graph.
+
+Use `--assertions-only` to check this changed boundary on a fresh exact replay
+without repeating unchanged contention schedules. The runner records that scope;
+it never counts skipped schedules as executed.
+
+Before enabling initial creation, complete frozen-result/all-media/funding C1
+qualification, remaining public account variants, affected catalog and
+whole-graph checks. Producer-derived witnesses, report-conflict handling,
+completion and native delivery remain pending. No hosted or installed journey is
+qualified by these bounded SQL checks.
+
+The classification preflight now requires read committed and acquires a SHARE
+lock on operation fences followed by ACCESS EXCLUSIVE NOWAIT on invocations
+before its check, holding both through column/guard installation. This closes
+the original snapshot race with concurrent fence or invocation creation. Lock
+timeout remains unchanged and aborts the migration atomically; source inspection
+or rollback checks alone do not qualify the lock ordering.
+
+Independent review also found the initial-admission reader order: it can read
+invocations before inserting an operation fence. Waiting for that reader while
+holding the fence lock would form a cycle. The second lock therefore uses
+NOWAIT; contention rolls back the whole migration, allowing the reader/writer to
+finish. A later migration attempt must restart the entire transaction. Ordinary
+lock-timeout protection remains in place for the first lock.
+
+The draft's schema installation uses one outer `DO`/dynamic statement, with
+session timeout SET/RESET outside it. This preserves the classification locks
+through guard installation when fresh replay executes statements individually,
+as well as on normal migration apply. A fresh pinned-CLI replay exposed SQLSTATE
+25P01 in the earlier top-level LOCK form despite successful incremental apply;
+the failure and correction remain recorded. No top-level transaction control or
+weaker lock acquisition was added.
+
+### S0 original result integration (November 3)
+
+The uncommitted consuming migration adds private
+`record_initial_analysis_result` and `read_initial_analysis_result` producers on
+the existing immutable result owner. Report and result share
+`lock_initial_dispatched_original`; recovery has no supplied lease but derives
+the unique invocation through retained original
+owner/scan/admission/funding/provider proof. All API execution remains revoked.
+The public transport names remain unavailable and no production route is
+composed. Earlier result fixtures inject dispatch; the private original dispatch
+runner below now exercises guarded admission and the actual dispatch writer.
+
+A result write binds the stable evidence UUID, exact canonical content/digest,
+input/configuration/funding identities and original provenance. Frozen schema
+validation precedes schema-directed conversion of fractional-number strings for
+exact JSONB equality against numeric invocation provenance; other strings,
+integers, nulls, omissions and array order remain unchanged. This SQL comparison
+does not replace Edge IEEE round-trip validation. Stored encoded content and
+hashes remain unchanged. A valid late result does not require successful
+accounting, reprice an unknown event or authorize another inference.
+
+Bound result stages consume one exact INSERT through paired statement/row
+observers. Entry validates the original candidate, both business guards require
+the bound active statement, and immediate/deferred terminal checks require the
+exact surviving row and original proof. Unbound mechanics fixtures cannot pass
+either production guard. Exact replay compares all six stored columns and writes
+nothing. Read recovery returns validated original evidence or explicit null
+absence; it cannot create evidence or execution authority.
+
+The focused local runner's `--report-witness result` mode reuses guarded
+admission, injects dispatch only, and exercises result/recovery, conflicts,
+unknown accounting, direct/unbound writes, suppressed/mutated rows and actual
+service-role deferred commit. Local injected-photo checks cover both orders of
+result/scan-tombstone erasure and a blocked read after committed erasure.
+Whole-result resources, all-media account/C1 ordering and the combined user
+journey remain required. Completion/adoption must preserve or deliberately adapt
+retained admission roots and `dispatch_authorized`, which currently identify
+original authority; this is not a fresh lease-eligibility check. Current
+receipts and remaining work live in the History continuation packet, not a
+deployment claim.
+
+### Private original dispatch integration (November 3, inactive)
+
+The uncommitted consuming migration extends the existing transaction stage with
+redacted original prestate and one prepared invocation. The private
+`commit_initial_analysis_dispatch` composes the existing invocation writer,
+quota core and lifecycle owner. It adds no permanent dispatch table, public
+wrapper, API grant or execution route.
+
+Entry locks the original owner/scan scope, validates the retained live admission
+and original lease, and captures exact ordered quota links, referenced counter
+images and retained-root fingerprints. The invocation writer prepares its ID,
+start time and native price once. The quota core attaches complete expected
+images using its one sampled clock before any business mutation. Paired
+statement/row observers then consume quota commit, original link deletion,
+invocation insertion and the exact pending-to-authorized lifecycle transition.
+Immediate and deferred checks require those exact terminal images, unchanged
+counters and retained roots, and no replacement links. Successful stage removal
+retains the transaction's stage-reuse denial latch. An unchanged SQL no-op is
+not another dispatch grant; a later changed terminal image must fail commit.
+
+Fresh dispatch requires original reserved funding, a pending lifecycle and no
+invocation matching either scan or reservation. A committed replay cannot issue
+another fresh grant. Report/result and C1 retain separate witnesses. Saved
+configuration validation, the actual installed executable and consumption of the
+same verified media buffers remain mandatory uninstalled executor boundaries;
+caller digests or a SQL success cannot stand in for them.
+
+`services/supabase/scripts/test_initial_dispatch.py` requires a fresh owned
+replay receipt and uses `fixtures/initial_dispatch.sql` only in that disposable
+database. It exercises actual service-role dispatch, API privilege denials,
+wrong original identity/provenance, suppression and mutation faults, deferred
+terminal checks and committed replay. Its guarded CPM fixture supports absent or
+complimentary funding; executed variants and failures are recorded separately.
+Its `--media-vector` and `--journey` variants exercise guarded legacy photo,
+audio and video admission plus actual private dispatch, synthetic immutable
+result, original accounting, replay/read and C1. The separate
+`test_initial_dispatch_races.py` verifies both committed dispatch/C1 orders.
+This does not qualify provider execution, adoption, completion or the integrated
+app journey. The History continuation packet owns exact executed variants,
+current evidence and remaining checks.
+
+### Completion event vocabulary (inactive)
+
+The private `initial_completion_event_catalog_v1` in the consuming migration
+names the fixed row/statement events for legacy/CPM media, absent/consumed/paid
+release funding, and absent/new/existing species association. It returns only
+closed metadata (maximum64 events) and has no API execution grants. The current
+consuming stage binds original completion preparation and settlement, and the
+private legacy producer below consumes the complete event sequence. Unfinished
+commit is rejected. This metadata vocabulary alone cannot authorize a write.
+
+Completion requires interleaved events because scan triggers invoke the existing
+species-count owner, whose data-modifying CTEs interleave owner and count row
+observations. Its conflict-suppressed INSERT has an attempted BEFORE row but no
+committed AFTER row. The integrated observer verifies its exact locked winner;
+that narrow exception cannot excuse suppressed scan, adoption, settlement or
+completion writes. The isolated ordering probe and metadata/privilege catalog
+checks do not qualify the real completion triggers or terminal assertions.
+`services/supabase/tests/initial_completion_events.sql` preserves this boundary.
+
+### Original completion preparation (private, inactive)
+
+`internal.prepare_initial_completion_v1` reuses the retained-result reader's
+original identity and deletion/cancellation checks, locks the original funding
+and retained media cohort, and derives a scan projection from immutable input
+and result evidence. CPM additionally revalidates its original role, positive
+closure and retained-capacity proof. The result includes bounded existing root
+fingerprints and a redacted owner image for the pending completion stage; it
+writes no scan, settlement, adoption receipt or completion and has no API grant.
+`begin_initial_completion_stage_v1` binds that preparation to the existing
+transaction stage. Its guard recomputes original facts, rejects altered
+projections/roots and stale clocks, and preserves the once-prepared completion
+time. The transaction latch remains shared with dispatch/report/result. The
+existing settlement owner now attaches its once-sampled credit prefix and
+observes the exact hold/owner statements and rows. Prefix replacement, repeat
+settlement, extra statements, row suppression and mutation are denied. Stage
+sealing/removal requires the full scan/completion suffix and its terminal
+assertions; a partial settlement rolls back at commit. Legacy settlement first
+requires the existing terminal transfer proof. CPM settlement remains denied
+until its original adoption payload is prepared and bound; a verifier build
+digest is not that proof. The prefix constructor enforces this prerequisite
+during independent stage-guard recomputation too, so direct attachment cannot
+bypass the settlement caller.
+
+Taxonomy uses the exact existing dictionary identity. Private CPM projection
+keeps absent capture telemetry null and labels its once-sampled server timestamp
+as completion time. Legacy capture fields retain their saved values; timestamp
+conversion runs in UTC. Scientific/review initial fields and the original
+invocation accounting marker are explicit. Missing or null life-stage and
+reproductive-condition values remain null: the discarded audio-subject side
+channel cannot be reconstructed from a species name. Any intended normalization
+must happen before the executor freezes its result.
+
+`services/supabase/scripts/test_initial_completion_preparation.py` exercises
+real private dispatch and synthetic retained results before this read-only
+projection. It checks API denial, unchanged original state and
+absent/new/existing dictionary association. Its temporary scan-shaped table
+checks column constraints without claiming production scan-trigger execution. It
+also runs original legacy SQL handoff owners with synthetic byte attestations,
+checks rollback-only funding prefixes and exact event faults, and denies both
+ordinary and direct CPM prefix attachment before adoption proof. These checks do
+not exercise physical blob IO. Its `--journey-only` mode additionally executes
+the private legacy completion producer, actual scan/species events, committed
+settlement, exact replay and later review. CPM adoption, completed-scan/account
+erasure qualification, preferred-goal progress and completion-backed native
+delivery remain pending.
+
+`prepare_initial_completion_legacy_media_v1` independently prepares the private
+legacy media references after reusing original result/account locks and the
+terminal transfer assertion. It follows the immutable owner timeline, excluding
+video frames and companion audio as separate owners. Photo/audio references use
+the mapped prepared object when present, otherwise the mapped source. Video uses
+its original mapped raw source and the first original frame as its optional
+poster. Exact content type, byte count, hash and transfer receipt digest remain
+bound; no URL is retained. The projection is bounded to64KiB in canonical and
+JSONB forms. CPM is denied by this legacy-only preparer.
+
+This function writes no stage, settlement, scan, adoption or completion, grants
+no ticket, and has no API execution grant. Its shared terminal-media image
+constructor can also run after the original funding prefix, without repeating
+fresh held-credit preparation. Protected delivery owners remain pending. The
+focused runner's `--media-only` mode checks this read-only boundary without
+repeating funding prefix tests; mixed-media fixtures freeze a reversed owner
+order before admission to distinguish owner order from source/inference order.
+
+The private stage now accepts a one-way request to prepare its completion suffix
+after the exact original funding events. The guard constructs the suffix itself;
+callers cannot supply its projection or entitlement. It checks unchanged
+original roots, result, admission, invocation and quota, then samples the
+existing entitlement resolver once. That historical snapshot remains fixed if
+rollout changes later. The suffix binds exact media/descriptions and the
+original plan, settlement, timestamp, privacy and species association. Its tail
+images preserve absolute event ordinals and distinguish an attempted species
+INSERT from the locked conflict winner. Preparation alone does not authorize a
+completed scan. The integrated observer consumes the exact fixed statement and
+row sequence, checks the actual species winner and permits sealing/removal only
+after immediate terminal assertions. A deferred check repeats those assertions
+after stage removal. Original invocation, quota and accounting event
+identity/digest remain unchanged.
+
+`complete_initial_analysis_legacy_v1` privately composes original preparation,
+settlement, exact scan insertion and immutable completion projection storage.
+Exact replay takes original account/deletion locks and returns the saved
+receipt/projection without settling again or overwriting later scan changes.
+Completed scans use their immutable result/completion association to skip
+obsolete ingestion backups in the existing copy and legacy review owners; role,
+owner, enrollment, review-revision and scientific guards still apply. The
+existing scan-deletion request owner samples completed classification under its
+owner/scan locks before tombstone cleanup; completed scans skip legacy
+failed-job settlement because their original funding already settled. Its
+tombstone and cleanup owners remain unchanged. A locked same-owner pending
+tombstone remains sufficient for deletion-request replay after cleanup erases
+the completion association; ownership and history refusal still precede that
+branch. Local committed request/retry/erasure checks and independent fix
+verification cover this SQL boundary; physical cleanup remains separate. There
+is no API execution grant or activation. The local `--race-order` suite covers
+one committed completion/C1 order per fresh fixture; it does not qualify device
+behavior or physical media. Independent integration review and the remaining
+all-media/erasure/schema gates are required before acceptance.
+
+The local runner's `--report-after` mode commits completion before the original
+usage report and verifies that completion invents no usage event. The later
+report retains the original invocation identity; exact completion replay still
+preserves later notes and legacy Reject/Undo. Its optional `--account-erase`
+checks the existing account-tombstone owner after that journey: rollback,
+committed private completion erasure, retained invocation and anonymized
+original event, fresh-session checks and denied completion replay. These
+selected SQL checks do not qualify account races, funding transitions before
+cascade deletion, physical cleanup or native account behavior.
+
+The focused `--primary-review` fixture selects synthetic primary-schema
+provenance before admission and retains its first result through the existing
+result writer. It exercises the existing verified-species confirmation and clear
+owner, exact retry, stale-revision denial and completion replay preserving both
+later states. This covers the non-null-primary SQL review branch without
+rewriting an admitted configuration or retained result. It does not attest
+compiled configuration, perform a taxonomy lookup or qualify provider execution.
+
+The receipt's `funding_binding_version` is the retained funding snapshot codec
+version (currently1), not admission `binding_version`3/4. Its
+`finalized_media_binding_digest` is the original terminal transfer digest. The
+completion projection digest uses SHA-256 over UTF-8
+`merian.initial-analysis.completion-projection.v1`, LF, then the existing IC-1
+canonical encoding. Both canonical and JSONB size limits remain64KiB for the
+projection and16KiB for the receipt. The runner checks cross-language digest
+agreement and changed-settlement rejection; complete executable-schema/shared
+boundary vectors remain required before completion acceptance.
+
+`completion-schema-v1.json` now describes the closed private receipt and
+projection shapes; `completionContract.ts` snapshots and checks the paired
+documents before a consumer receives their canonical originals. It validates
+cross-document identities and digests, settlement consistency, media variants
+and order, UTC calendar timestamps without losing microseconds, and both
+canonical and JSONB byte ceilings. This is a prepared decoder, not an API or
+authorization check. The private server adapter below binds the saved original
+request; authenticated native delivery still needs its existing account and
+operation fences. The inactive native `InitialCompletionDocuments` consumer now
+uses the generated schema and a strict IC-1 canonical codec.
+`generate_initial_completion_contract.ts` owns its generated schema and shared
+synthetic fixtures; `initial_completion_contract_test.ts` detects drift. The
+next native retained-result validator uses
+`initial_completion_result_vectors.ts` as its synthetic parity source. It checks
+each expected verdict with the frozen `decodeInitialResult` owner, including
+original invocation/provenance, domain digests, strict decimal strings, exact
+Unicode bytes, required fields and omission versus null. The new vectors pass
+Deno validation and are emitted to the native fixture. The inactive
+`InitialRetainedResult` candidate consumes them and the generated frozen
+`InitialRetainedResultSchema`; all37 vectors passed in the nine-method native
+suite and independent parity verification. Ordinary public-result Codable
+decoding is not a substitute for this private retained-result contract.
+`test_initial_completion_contract.py` checks those fixtures against the existing
+SQL schema matcher, canonical bytes, digest and JSONB limits in an owned local
+disposable replay. Shared parity passed7Deno tests/89steps and31SQL
+vectors/157checks; selected native compilation/tests passed19methods with no
+skips. Native delivery and available History import remain unfinished. The local
+`test_initial_completion_documents.py` reuses guarded original journeys to check
+SQL output in memory; it never writes completion bodies to evidence logs.
+
+`read_initial_completion_v1` now prepares private delivery under the existing
+original-result owner/deletion locks. It returns immutable canonical completion
+and retained result evidence, or explicit absence, without invoking completion,
+settlement, media verification or AI execution. No HTTP/RPC permission or native
+caller is installed. Local CPM/photo/audio/video reader checks and Engine source
+review passed. These cover committed deletion-request denial, not physical
+erasure or concurrent read/delete orders.
+
+`completionDelivery.ts` binds the reply to independently saved original
+reference, result digest, provenance and admission/input fields. The existing
+`resultStore.ts` exposes `readCompletion` only when those binding fields were
+supplied at construction, using one fixed request, five-second deadline and
+2,398,208-byte envelope cap. Explicit absence never authorizes execution. Lost
+responses, invalid data and cancellation never retry or finalize.
+`test_initial_completion_delivery.py` and
+`validate_initial_completion_delivery.ts` exercise actual local SQL output
+through this transport in memory, with expected facts copied independently from
+admission/submission/invocation. The bridge has no network permission and emits
+only pass/fail. Local CPM/photo/audio/video bridge checks passed and Engine
+independently verified their source applicability and disposal. CPM covers both
+absence and found; the three legacy media cases cover found.
+
+Original CPM admission acknowledgement is prepared separately in
+`cpmCompletionAdmission.ts` and its closed schema. The private
+`read_initial_cpm_completion_admission_v1` reader matches saved candidate,
+assignment and backend binding, retaining exact original admission and receipt
+facts before dispatch and after adoption. It grants no execution authority and
+leaves the older boolean recovery contract unchanged. The local
+`test_initial_cpm_completion_admission.py` runner crosses actual SQL replies
+through the decoder before dispatch and around completion; it retains no reply
+bodies. The shared native generator now derives the twelve admission fields from
+the backend validator and includes acknowledgement schema/byte vectors. The
+inactive native decoder passed focused validation and independent review;
+authenticated serving and native durable pinning remain open. See the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md) for
+bounds, original context correlation and denial behavior.
+
+The inactive `completionStatusRequest.ts` decoder prepares closed admission and
+completion status requests, bound to an already authenticated owner and exact
+saved scan. Admission matches the eight native `CpmBinding` facts, not a full
+server assignment. The new private `read_initial_cpm_saved_admission_v1`
+resolves that retained assignment under lifecycle locks and reuses the exact
+admission reader. `resultStore.ts` validates the private context and returns
+only the existing acknowledgement; no assignment escapes to the client-facing
+value. Unknown/mixed requests, absent or contradictory state and cancelled reads
+never fall through to legacy repair or execution. Request/response limits and
+inactive serving status are owned by the API contract above. Focused synthetic
+transport checks and disposable SQL-to-transport qualification pass before
+dispatch and across completion, including committed deletion denial. The new
+decoder suite is listed in both explicit shared-helper CI lists.
+
+First acquisition uses `discover_initial_completion_v1` and
+`completionAcquisition.ts` through the existing `resultStore.ts` transport. The
+closed 4KiB saved admission explicitly supports input schema1/2 without changing
+the older admission repository. The locked reader discovers original result and
+invocation facts; absent result/completion returns null `pending`, never
+execution authority. Found delivery is correlated with the saved admission and
+original invocation provenance before returning a result association. The fixed
+request retains the five-second deadline and has a separate 2,541,568-byte cap.
+It accepts no caller-selected result. Source reviews passed; no API grant,
+native first-trust/pinning or consumer is installed.
+`test_initial_completion_acquisition.py` and
+`validate_initial_completion_acquisition.ts` reuse guarded all-media delivery
+journeys, independently supplied admission and expected original identities,
+field-tampering checks, unchanged-state snapshots and committed deletion denial.
+The additional legacy-photo before-result case uses an actual original dispatch
+without manufacturing a result or completion. Bridges run without network
+permission and log pass/fail only. See the
+[canonical completion contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-original-completion-document-decoder-inactive)
+for the distinction between first discovery and pinned replay.
+
+### CPM terminal retention preparation (inactive)
+
+The private `initial_cpm_photo_retention_policies` catalog binds one exact
+original write policy to a distinct terminal build, qualification-evidence
+digest and reviewed revision. It installs no policy. Payloads are immutable;
+eligibility can only move to revoked. The build must cover terminal reader and
+inspector code, dependencies, fixed configuration and compatibility with the
+saved backend reader/marker protocol. A verifier hash or revision alone does not
+qualify retention.
+
+`prepare_initial_cpm_retention_v1` reconstructs original admission/result and
+source/AI/display identities under the existing completion locks. It checks live
+positive closures, ownership, cancellation/deletion/retirement fences and
+current retention/write/backend eligibility. The caller releases the transaction
+before I/O. `cpmPhotoRetention.ts` reopens all saved objects through the
+existing bounded byte reader and shared image inspectors, with terminal-only
+current-state checks; it does not relax pre-admission authorization. One
+reusable buffer is cleared on exit. The proof contains the complete original
+roster and both `verification_started_at_ms` and `verified_at_ms`.
+
+The entire verification interval is bounded by150seconds (six existing20second
+reads plus at most30seconds of control/inspection), age at adoption by30seconds,
+and clock skew by1second. An immutable policy may narrow those ceilings. These
+limits are not measured deployment qualification. SQL samples adoption time and
+checks the interval after reconstructing the original bindings.
+`prepare_initial_cpm_adoption_candidate_v1` only returns a candidate; it neither
+stores an ownership receipt nor grants settlement. The private
+`complete_initial_analysis_cpm_v1` now binds that candidate to the original
+completion stage before settlement. The existing ordered `media.adopt` event
+requires the exact transfer row and checks freshness again after settlement; any
+failure rolls back funding and all completion writes. The same transaction
+inserts the scan and immutable completion receipt/projection. The pre-adoption
+cohort assertion remains strict; a separate post-adoption assertion requires the
+exact retained source/AI/display cohort and transfer binding. No API grant or
+installed policy enables this path. Protected display delivery and native import
+remain pending.
+
+Expired write capabilities are never renewed. A previously admitted, positively
+closed cohort may be reverified while still live; retirement or marker claims
+deny verification. Revocation denies new adoption and must not rewrite eventual
+committed recovery or obstruct authorized erasure. Completed replay validates
+historical bindings without fresh bytes or current policy eligibility. Adopted
+originals and their preparation intent are protected from ordinary retirement;
+only the existing scan/account erasure fence permits retirement and transfer
+removal. Legacy v3 copy/retire behavior remains separate.
+
+The focused disposable `test_initial_cpm_retention.py` covers the reader, policy
+immutability/revocation, binding/interval rejection and unchanged original
+state. It does not qualify contention orders, expired-capability schedules,
+physical retention, adoption, hosted installation or native delivery.
+`test_initial_cpm_completion.py` exercises actual settlement/adoption, exact
+replay, atomic faults, policy revocation, peer preservation and adoption-event
+expiry. `test_initial_cpm_adoption_erasure.py` adds existing scan/account
+erasure owners. `test_initial_cpm_adoption_races.py` exercises both
+completion/C1 orders; `test_initial_cpm_adoption_account_races.py` holds a
+synthetic proof across the transaction boundary and exercises both
+account-erasure orders. Completion-first account erasure retains the existing
+ownerless scientific tombstone; account-first leaves no public scan. Both erase
+private completion authority and retain the original retired-media liability and
+anonymized accounting. `test_initial_cpm_completion_replay.py` checks a waiting
+proofless replay against the first committed completion, including unchanged
+settlement and retained-media images. Pre-adoption scan deletion must return
+`not_found` because no scan exists yet; marker workers cannot claim live
+originals. Retirement-first qualification therefore uses the actual
+C1/account-erasure owners, followed by separate post-adoption scan deletion and
+marker cleanup checks. These checks are under qualification; their presence
+alone is not passing evidence. Resource measurements and full affected-surface
+gates remain required.
+
+### Completion-backed description bytes (inactive)
+
+`completionDescriptions.ts` implements the pure byte handoff for the planned
+completion-backed available History representation. It retains the original
+schema1 ordered string array or schema2 CPM base64 contexts and their existing
+domain-separated digest. It is not an endpoint, owner check, SQL completion
+writer, native decoder or execution grant. Existing History unavailable records
+and installed readers are unchanged.
+
+Pages contain at most24,576 decoded bytes within a65,536-byte wire envelope.
+Offsets refer to bytes and may split a UTF-8 scalar; only the completed item is
+decoded. A terminal page has `next_byte_offset:null`; other pages advance by
+exactly their decoded length. Empty CPM items have one empty terminal page. The
+collector rejects gaps, repetitions, changed totals/identities, invalid UTF-8
+and alternate base64, then reconstructs the entire original ordered canonical
+representation and validates its original digest before yielding reusable text.
+BOM, NUL, whitespace and normalization distinctions remain exact. Any page
+failure poisons the collector. A page alone proves neither a completed set nor
+authorization. The future transport must recheck account, scan, analysis and
+deletion fences for every page.
+
+The
+[completion/History contract](../../../../../docs/rfcs/initial-completion-history-interface-2026-10-11.md)
+tracks the coordinated SQL/Edge/native handoff. Paged delivery avoids expanding
+near-limit legacy input into a larger History result or widening existing
+limits. `completionDescriptions_test.ts` covers those bounds, original domains,
+Unicode, empty sets/items, incomplete collections, tampering and forward
+progress. Actual available-History delivery remains unimplemented and
+unqualified.
+
+### Compiled-v1 source preparation (inactive)
+
+The private S0 executor must resolve the saved asset catalog before dispatch.
+`services/supabase/scripts/initial_configuration_build.ts` checks a trusted Deno
+parser/resolver graph against that one catalog and the exact staged source
+bytes, including its import map and frozen lock. It rejects extra runtime source
+paths, dynamic imports, missing modules, changed SDK roots, changed transitive
+edges and source drift. The current graph has 58 local runtime files and two
+erased TypeScript-only contracts outside the archive. Its three npm roots reach
+51 packages; 14 additional package records in Deno's output belong to unused
+configuration entries and are reported separately, not qualified as execution.
+The normalized synthetic-path graph fixture retains no developer paths. Tests
+run in the existing isolated source-archive lane and read the pinned Git
+archive, not live AI source. The checker also reads the import map from verified
+staged bytes. This inactive preparation does not freeze unrelated AI
+development. Run
+`bash services/supabase/scripts/build_initial_source_archive_test.sh` for the
+archive and compiled-source checks together.
+
+This source inventory does **not** attest a bundled/deployed artifact or grant
+execution. Actual artifact module/dependency bytes, bundling/runtime settings,
+runtime environment restrictions, exact saved execution snapshot comparison and
+same-buffer media consumption still need integration before installing the
+compiled-v1 binding. The existing production factory remains the only provider
+composition; downloaded archive code is never executed and a missing saved
+configuration has no current-default fallback. The focused source checker is
+preparatory tooling, not a replacement for that mandatory installation gate.
+
+`initial_configuration_artifact.ts` inventories actual ESZIP2.3 bytes without
+loading any bundled code. It validates framing, checksums where present, exact
+nonoverlapping source/map ranges, redirect targets and npm reference indices,
+and hashes every emitted body, including opaque VFS and runtime metadata. Array
+inspection keeps a32 MiB allocation ceiling. Stream inspection consumes at most
+1 MiB chunks and2 MiB headers under the offline compiler's64 MiB output
+envelope; it closes its reader on success, rejection or cancellation. These are
+tooling bounds, not changes to media or installed-worker limits, and are not
+measured RSS guarantees. It supports only the pinned compiler's
+no-checksum/SHA256 v2.3 forms; unknown encodings fail closed.
+
+An offline build of the six archived roots with the already cached immutable
+compiler image produced40,847,823 decoded bytes, retained as7,574,971 gzip bytes
+within the existing32 MiB retention bound. The original uncompressed retention
+attempt failed at that bound and is preserved. Incremental hashing and
+compressed retention resolved that tooling allocation problem without raising
+compiler memory, temporary storage or retained-file ceilings. Its59 JavaScript
+frames contain58 archived files plus the inspection entrypoint; all58 source-map
+content declarations match the archived source hashes. The compiler additionally
+embeds all65 locked npm packages and six npm roots, including unused import-map
+entries. They are accounted for separately from the51-package runtime source
+graph:65 archives passed the frozen lock's SHA512 checks, and1,633 published
+files plus1,283 identified empty Deno warning markers match all2,916 VFS bodies.
+The byte multiset does not independently establish VFS path mapping.
+
+A subsequent offline build froze the verified source/package paths,
+configuration, lock and resolver metadata into an immutable local image before
+compilation. It used the pinned compiler with no host mounts or network. The
+emitted artifact is40,847,831 bytes, retained as7,572,492 gzip bytes; the byte
+inspector and compiler producer agree on its hash. All58 source declarations and
+all2,916 VFS bodies match the frozen inputs. The compiler is explicitly trusted
+to produce the mapping and emitted code; source-map declarations and matching
+body hashes are supporting checks, not independent semantic proof. The failed
+build-frontend preparation and earlier retention failure remain recorded.
+
+These are inspection bundles, not installed routes, deployment identities or
+execution authority. The existing deployment owner must inspect and upload the
+same retained bytes without rebuilding, then bind the installed runtime to that
+artifact. Full saved-snapshot comparison and same verified media-buffer
+consumption remain required before dispatch. The local frozen-input image is
+retained as a pending build product; it grants no release permission.
+
+The inactive `completionStatusResponse.ts` encoder and generated closed status
+schema project existing validated acquisition facts into bounded canonical
+scalar fields for native transport. Inner receipt, projection and result bytes
+remain unchanged; pending has only null result fields. Three shared fixtures
+cover pending, found and exact Unicode. Focused Deno/generator parity passed;
+focused native byte/limit/transport/pin checks passed with independent runtime
+verification. Live status-route integration remains open.

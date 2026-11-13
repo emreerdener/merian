@@ -375,6 +375,23 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertNil(viewModel.pendingCaptureGoalDestination)
     }
 
+    func testNativeScanRouteMountsLoaderBeforeChangingEngine() async throws {
+        let context = try makeModelContext(), previous = OfflineQueueManager.shared.modelContext
+        OfflineQueueManager.shared.modelContext = context
+        defer { OfflineQueueManager.shared.modelContext = previous }
+        let record = LocalScanRecord(speciesId: "native-route", scientificName: "Danaus plexippus", commonName: "Monarch Butterfly")
+        record.mediaAuthorityRaw = "sharedDirectNativeInitialV1"; record.sharedMediaConsumerID = UUID()
+        context.insert(record); try context.save()
+        let di = AppDIContainer.preview, generation = di.inferenceEngine.scanPresentationGeneration
+        let viewModel = CaptureWorkspaceViewModel(diContainer: di, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        deliverRoute(.scan(scanId: record.id), source: .internalUserAction, to: viewModel)
+        try await waitUntil { viewModel.activeSheet == .insight }
+        XCTAssertEqual(viewModel.activePresentation?.localScanID, record.id)
+        XCTAssertEqual(di.inferenceEngine.scanPresentationGeneration, generation)
+        viewModel.dismissActivePresentation()
+        XCTAssertNil(viewModel.activePresentation)
+    }
+
     func testScanRouteOverridesGenericLaunchExplore() async throws {
         let modelContext = try makeModelContext()
         let previousModelContext = OfflineQueueManager.shared.modelContext
@@ -386,6 +403,9 @@ extension CaptureWorkspaceViewModelRefinementTests {
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly"
         )
+        let laterSelection = UUID().uuidString.lowercased()
+        record.selectedAnalysisID = laterSelection
+        record.observationStateRevision = 8
         modelContext.insert(record)
         try modelContext.save()
 
@@ -398,11 +418,13 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
         deliverRoute(
             .scan(scanId: record.id),
-            source: .deepLink,
+            source: .internalUserAction,
             to: viewModel
         )
         try await waitUntil { viewModel.activeSheet == .insight }
 
+        XCTAssertEqual(record.selectedAnalysisID, laterSelection)
+        XCTAssertEqual(record.observationStateRevision, 8)
         XCTAssertNil(viewModel.pendingExplorePostId)
         XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
     }

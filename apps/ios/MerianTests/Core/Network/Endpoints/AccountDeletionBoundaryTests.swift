@@ -197,11 +197,7 @@ struct AccountDeletionBoundaryTests {
         let recoveryCoordinator = try networkSource(
             "Auth/Coordinators/AccountDeletionRecoveryCoordinator.swift"
         )
-        let immediateDeletion = try section(
-            beginningWith: "    func deleteCurrentAccount(",
-            endingBefore: "\n    private func clearCapability(",
-            in: coordinator
-        )
+        let immediateDeletion = try method("func deleteCurrentAccount(", in: coordinator)
         let versionTwoRecovery = try section(
             beginningWith:
                 "    private func resumeCapabilityBackedV2(",
@@ -236,6 +232,14 @@ struct AccountDeletionBoundaryTests {
             #expect(!workflow.contains(".ownsTransition(transition)"))
         }
 
+        for recovery in [versionTwoRecovery, legacyRecovery] {
+            try expectOrder(["let contextIsCurrent =", "dependencies.validateLibrary(nil)",
+                             "currentSessionMatchesTransition(transition)", "localState.state() == recoveryState",
+                             "matchesExisting(", "receipt = try await"], in: recovery)
+        }
+        #expect(immediateDeletion.contains("verifyPreparationContext: {\n                            dependencies.validateLibrary(nil)"))
+        #expect(immediateDeletion.contains("verifyCommitContext: {\n                            dependencies.validateLibrary(nil)"))
+
         try expectOrder(
             [
                 "verifyPreparationContext:",
@@ -254,9 +258,9 @@ struct AccountDeletionBoundaryTests {
         try expectOrder(
             [
                 "receipt = try await recoverDeletion(",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "return await performAcceptedCleanup(",
                 "acknowledgeRecovery:"
             ],
@@ -266,11 +270,11 @@ struct AccountDeletionBoundaryTests {
             [
                 "receipt = try await requestDeletion(",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "receipt = try await recoverDeletion(capability, false)",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "return await performAcceptedCleanup(",
                 "acknowledgeRecovery:"
             ],

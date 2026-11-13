@@ -2,7 +2,9 @@
 
 The dedicated 240-second measurement observer is intentionally separate from
 short actor sessions. Wall times include fixture/transport/projection overhead;
-memory samples are before/after context totals, never peak RSS.
+legacy memory samples are before/after context totals, never peak RSS.
+The separate accounted observer records fresh-backend Linux lifetime RSS
+high-water, explicitly not allocator/container peak or acceptance evidence.
 """
 import copy
 import datetime
@@ -17,6 +19,226 @@ import time
 import uuid
 from initial_atomic_admission_sessions import BASE, RELATIONS, PROJECTION
 from initial_atomic_admission_test_support import ROOT
+
+
+def accounted_resource_cases(qualification, owner):
+    """Fresh-backend observations, not a production resource acceptance gate.
+
+    Fixture/projection work stays in an independent observer. Each measured
+    backend performs one operation only; capture rolls back before public C1
+    runs on the restored fixture. Linux lifetime RSS high-water includes shared
+    mappings and startup, and is never subtracted or called allocator peak.
+    """
+    from initial_atomic_admission_sessions import Session
+    from initial_invocation_erasure_races import C1_FINAL, C1_FUNDING, C1_CPM_RETENTION, C1_CPM_CHECK
+    if str(uuid.UUID(owner)) != owner:
+        raise ValueError('canonical synthetic owner required')
+    scan = '00000000-0000-4000-8000-000000000401'
+    record = qualification.record
+    record['accounted_resource_method'] = {
+        'rss': 'Linux process-lifetime VmHWM and current VmRSS; includes shared mappings/startup; not allocator or container peak, no incremental-peak subtraction.',
+        'contexts': 'PostgreSQL total_bytes snapshots before/after; not peak. Final RSS high-water includes the context query instrumentation.',
+        'cpm_scope': 'Existing guarded admitted photo cohort; exact retained capacity/attempt/closure images checked outside measurements.' if record.get('admission_variant') == 'cpm_photo' else 'Empty cohort; no retained CPM liability measured.',
+        'time': 'clock_timestamp call duration; transaction envelope includes setup, measurement overhead, deferred checks and commit/rollback; separate client wall time.',
+        'statement_timeout_ms': 10000,
+        'acceptance_thresholds_established': False,
+        'production_resource_qualified': False,
+    }
+    measurements = record.setdefault('accounted_resource_measurements', [])
+
+    def process_sample(session):
+        pid = session.pid
+        if type(pid) is not int or pid <= 0:
+            raise ValueError('correlated backend PID required')
+        result = subprocess.run(['docker', 'exec', record['container'], 'cat',
+            f'/proc/{pid}/stat', f'/proc/{pid}/status'], capture_output=True, text=True, timeout=5)
+        if result.returncode:
+            raise RuntimeError('backend process sample unavailable')
+        lines = result.stdout.splitlines()
+        match = re.fullmatch(r'(\d+) \(([^)]+)\) (.*)', lines[0])
+        if not match or int(match[1]) != pid:
+            raise RuntimeError('backend namespace identity mismatch')
+        fields = match[3].split()
+        parent_pid = int(fields[1])
+        executables = []
+        # The pinned image's readlink accepts one operand, unlike GNU readlink.
+        for identity in (pid, parent_pid):
+            executable = subprocess.run(['docker', 'exec', '--user', 'postgres', record['container'],
+                'readlink', f'/proc/{identity}/exe'], capture_output=True, text=True, timeout=5)
+            lines_read = executable.stdout.splitlines()
+            if executable.returncode or len(lines_read) != 1:
+                raise RuntimeError('backend executable unavailable')
+            executables.append(lines_read[0])
+        # Wrapped PostgreSQL has a truncated kernel comm. Verify its executable
+        # against the parent postmaster, rather than trusting the process title.
+        if (executables[0] != executables[1]
+                or executables[0].rsplit('/', 1)[-1] not in ('postgres', '.postgres-wrapped')):
+            raise RuntimeError('backend executable identity mismatch')
+        values = {}
+        for key in ('Pid', 'NSpid', 'VmRSS', 'VmHWM'):
+            matches = [line.split(':', 1)[1].strip() for line in lines[1:] if line.startswith(key + ':')]
+            if len(matches) != 1:
+                raise RuntimeError('missing backend process metric')
+            values[key] = matches[0]
+        if values['Pid'] != str(pid) or values['NSpid'].split()[-1] != str(pid):
+            raise RuntimeError('backend PID namespace mismatch')
+        sample = {'backend_pid': pid, 'start_ticks': int(fields[19]), 'parent_pid': parent_pid,
+                  'executable_basename': executables[0].rsplit('/', 1)[-1]}
+        for key in ('VmRSS', 'VmHWM'):
+            value = re.fullmatch(r'(\d+) kB', values[key])
+            if not value:
+                raise RuntimeError('invalid backend memory unit')
+            sample[key + '_bytes'] = int(value[1]) * 1024
+        if sample['VmHWM_bytes'] < sample['VmRSS_bytes']:
+            raise RuntimeError('inconsistent backend memory sample')
+        return sample
+
+    def measure(label, operation, *, commit=False, public=False, immediate=False):
+        session = Session(qualification, 'resource_' + label)
+        entry = {'case': label, 'passed': False}
+        measurements.append(entry)
+        try:
+            session.run('resource_deadline', "SET statement_timeout='10s';")
+            before = session.run('context_before', 'SELECT sum(total_bytes) FROM pg_backend_memory_contexts;')
+            entry['context_before_bytes'] = int(before[-1])
+            entry['process_before'] = process_sample(session)
+            role = 'SET LOCAL ROLE service_role;' if public else ''
+            sql = "SELECT clock_timestamp()::TEXT AS started \\gset resource_\n" + BASE
+            sql += role + "DO $$ DECLARE started TIMESTAMPTZ; elapsed NUMERIC; BEGIN "
+            sql += 'started:=clock_timestamp();' + operation
+            sql += "elapsed:=extract(epoch FROM clock_timestamp()-started)*1000;"
+            sql += "RAISE NOTICE 'RESOURCE_CALL_MS:%',elapsed; END $$;"
+            if immediate:
+                sql += 'SET CONSTRAINTS ALL IMMEDIATE;'
+            sql += 'COMMIT;' if commit else 'ROLLBACK;'
+            sql += "SELECT 'RESOURCE_END:'||jsonb_build_object('transaction_ms',extract(epoch FROM clock_timestamp()-:'resource_started'::TIMESTAMPTZ)*1000,'context_after_bytes',(SELECT sum(total_bytes) FROM pg_backend_memory_contexts))::TEXT;"
+            stamp = time.monotonic()
+            try:
+                output = session.run(label, sql)
+            finally:
+                entry['client_wall_seconds'] = round(time.monotonic() - stamp, 6)
+            entry['process_after'] = process_sample(session)
+            if any(entry['process_before'][key] != entry['process_after'][key] for key in ('backend_pid', 'start_ticks', 'parent_pid', 'executable_basename')):
+                raise RuntimeError('backend process changed during measurement')
+            calls = [re.search(r'RESOURCE_CALL_MS:([0-9.]+)$', line) for line in output]
+            calls = [match for match in calls if match]
+            ends = [json.loads(line.split(':', 1)[1]) for line in output if line.startswith('RESOURCE_END:')]
+            if len(calls) != 1 or len(ends) != 1 or set(ends[0]) != {'transaction_ms', 'context_after_bytes'}:
+                raise RuntimeError('missing operation resource metrics')
+            entry.update(ends[0], call_ms=float(calls[0][1]))
+            if entry['transaction_ms'] < entry['call_ms'] or entry['context_after_bytes'] <= 0:
+                raise RuntimeError('inconsistent resource interval')
+            entry['passed'] = True
+        except Exception as error:
+            entry['error_category'] = type(error).__name__
+            raise
+        finally:
+            try:
+                qualification.save()
+            finally:
+                session.close()
+
+    observer = Session(qualification, 'resource_correctness_observer')
+    try:
+        observer.run('retain_funding_outside_measurement', 'CREATE TEMP TABLE c1_funding_before AS ' + C1_FUNDING + ';')
+        observer.run('retain_cpm_outside_measurement', 'CREATE TEMP TABLE c1_cpm_expected AS ' + C1_CPM_RETENTION.replace('__RETIRED__', 'TRUE') + ';')
+        observer.run('retain_original_cpm_outside_measurement', 'CREATE TEMP TABLE c1_cpm_original AS ' + C1_CPM_RETENTION.replace('__RETIRED__', 'FALSE') + ';')
+        metric_rows = observer.run('fixture_metrics_outside_measurement', """SELECT jsonb_build_object(
+ 'candidate_bytes',octet_length(candidate),'input_bytes',octet_length(input),
+ 'cpm_capacity_count',(SELECT count(*) FROM internal.initial_cpm_photo_capacity_reservations WHERE scan_id=r.scan_id),
+ 'cpm_attempt_count',(SELECT count(*) FROM internal.initial_cpm_photo_write_attempts WHERE scan_id=r.scan_id),
+ 'cpm_closure_count',(SELECT count(*) FROM internal.initial_cpm_photo_write_closures c JOIN internal.initial_cpm_photo_write_attempts a USING(attempt_id) WHERE a.scan_id=r.scan_id))::TEXT
+ FROM internal.initial_preparation_admission_receipts r WHERE scan_id='""" + scan + "';")
+        if len(metric_rows) != 1:
+            raise RuntimeError('one original fixture metric row required')
+        metrics = json.loads(metric_rows[0])
+        if (set(metrics) != {'candidate_bytes', 'input_bytes', 'cpm_capacity_count', 'cpm_attempt_count', 'cpm_closure_count'}
+                or any(type(value) is not int or value < 0 for value in metrics.values())
+                or min(metrics['candidate_bytes'], metrics['input_bytes']) <= 0):
+            raise RuntimeError('invalid fixture metric shape')
+        expected = (1, 3, 3) if record.get('admission_variant') == 'cpm_photo' else (0, 0, 0)
+        if tuple(metrics[key] for key in ('cpm_capacity_count', 'cpm_attempt_count', 'cpm_closure_count')) != expected:
+            raise RuntimeError('unexpected original retained CPM cohort')
+        record['accounted_resource_fixture_metrics'] = metrics
+        qualification.save()
+        cpm_rollback = 'DO $$ BEGIN IF (' + C1_CPM_RETENTION.replace('__RETIRED__', 'FALSE') + ") IS DISTINCT FROM (SELECT image FROM c1_cpm_original) THEN RAISE EXCEPTION USING ERRCODE='ZX727';END IF;END $$;"
+
+        # The source manifest and input metrics bind this immutable fixture;
+        # no capture/preflight is run in the public operation's backend.
+        measure('capture_rollback', f"PERFORM internal.capture_initial_accounted_cancellation_prestate('{owner}','{scan}');")
+        observer.run('capture_rolled_back', "DO $$ BEGIN IF EXISTS(SELECT 1 FROM public.ai_usage_events) OR (SELECT count(*) FROM internal.identification_invocations WHERE event_id IS NULL AND scan_id='" + scan + "')<>1 OR (SELECT count(*) FROM internal.initial_preparation_admission_receipts)<>1 THEN RAISE EXCEPTION USING ERRCODE='ZX723';END IF;END $$;")
+        observer.run('capture_restores_original_cpm', cpm_rollback)
+        operation = f"IF public.cancel_initial_analysis('{owner}','{scan}')->>'dispatch' IS DISTINCT FROM 'dispatch_outcome_unknown' THEN RAISE EXCEPTION USING ERRCODE='ZX724';END IF;"
+        measure('public_cancel_immediate_rollback', operation, public=True, immediate=True)
+        observer.run('public_cancel_rolled_back', "DO $$ BEGIN IF EXISTS(SELECT 1 FROM public.ai_usage_events) OR EXISTS(SELECT 1 FROM internal.initial_analysis_cancellations) OR (SELECT count(*) FROM internal.identification_invocations WHERE event_id IS NULL AND scan_id='" + scan + "')<>1 OR (SELECT count(*) FROM internal.initial_preparation_admission_receipts)<>1 THEN RAISE EXCEPTION USING ERRCODE='ZX726';END IF;END $$;")
+        observer.run('public_cancel_restores_original_cpm', cpm_rollback)
+        measure('public_cancel_deferred_commit', operation, commit=True, public=True)
+        check = C1_FINAL + C1_CPM_CHECK + 'DO $$ BEGIN IF (' + C1_FUNDING + ") IS DISTINCT FROM (SELECT image FROM c1_funding_before) THEN RAISE EXCEPTION USING ERRCODE='ZX725';END IF;END $$;"
+        observer.run('committed_result_outside_measurement', check)
+        measure('public_replay_commit', operation, commit=True, public=True)
+        observer.run('replay_result_outside_measurement', check)
+        record['checks'].append({'case': 'accounted_resource_observations_and_correctness', 'passed': True})
+    finally:
+        observer.close()
+        qualification.save()
+
+
+def cohort(frames=3, large=False):
+    data = json.loads((ROOT / 'services/supabase/functions/_shared/initialAnalysis/fixtures/media-lifecycle-v2.json').read_text())
+    c = copy.deepcopy(next((v['candidate'] for v in data['valid'] if v['name'] == 'video audio')))
+    (frame, audio, video) = c['source_plan']['sources']
+    images = []
+    for i in range(frames):
+        f = copy.deepcopy(frame)
+        f.update(input_index=i, frame_index=i, source_byte_count=5242880 // frames + (i < 5242880 % frames) if large else 68)
+        images.append(f)
+    audio['source_byte_count'] = 2700000 if large else 32044
+    video['source_byte_count'] = 12582912 if large else 24
+    c['source_plan']['sources'] = images + [audio, video]
+    c['source_plan']['owner_timeline'] = [{'kind': 'media', 'index': frames + 1}]
+    c['source_plan']['capture'].update(declared_video_frame_count=frames, video_inference_frame_count=frames)
+    return c
+
+def projected(c):
+    plan = copy.deepcopy(c['source_plan'])
+    media = []
+    for source in plan.pop('sources'):
+        item = copy.deepcopy(source)
+        item.pop('prepared_output')
+        item.update(content_type=source['source_content_type'], byte_count=32 if source['kind'] == 'audio' else source['source_byte_count'], sha256='7' * 64 if source['kind'] == 'audio' else source['source_sha256'])
+        media.append(item)
+    plan['media'] = media
+    return plan
+
+def padded(escaped):
+
+    def with_units(units):
+        c = cohort()
+        values = []
+        symbol = chr(128998) if escaped == 'non_bmp' else '\x01' if escaped else 'a'
+        while units:
+            take = min(units, 10000 if escaped else 65000)
+            values.append('x' + symbol * take + 'x')
+            units -= take
+        c['source_plan']['ordered_descriptions'] = values
+        c['source_plan']['owner_timeline'] = [{'kind': 'media', 'index': 4}] + [{'kind': 'description', 'index': i} for i in range(len(values))]
+        return c
+    (low, high) = (0, 1048576)
+    while low < high:
+        mid = (low + high + 1) // 2
+        if len(canonical(projected(with_units(mid))).encode()) <= 1048576:
+            low = mid
+        else:
+            high = mid - 1
+    c = with_units(low)
+    remaining = 1048576 - len(canonical(projected(c)).encode())
+    c['source_plan']['ordered_descriptions'][-1] += 'a' * remaining
+    assert len(canonical(projected(c)).encode()) == 1048576 and len(canonical(c).encode()) <= 1048576
+    return c
+
+def canonical(c):
+    return json.dumps(c, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+
 
 
 def resource_cases(qualification):
@@ -179,62 +401,6 @@ def resource_cases(qualification):
             record.setdefault('failed_measurements', []).append({'case': label, 'wall_seconds': round(time.monotonic() - stamp, 6)})
             save()
             raise
-
-    def cohort(frames=3, large=False):
-        data = json.loads((root / 'services/supabase/functions/_shared/initialAnalysis/fixtures/media-lifecycle-v2.json').read_text())
-        c = copy.deepcopy(next((v['candidate'] for v in data['valid'] if v['name'] == 'video audio')))
-        (frame, audio, video) = c['source_plan']['sources']
-        images = []
-        for i in range(frames):
-            f = copy.deepcopy(frame)
-            f.update(input_index=i, frame_index=i, source_byte_count=5242880 // frames + (i < 5242880 % frames) if large else 68)
-            images.append(f)
-        audio['source_byte_count'] = 2700000 if large else 32044
-        video['source_byte_count'] = 12582912 if large else 24
-        c['source_plan']['sources'] = images + [audio, video]
-        c['source_plan']['owner_timeline'] = [{'kind': 'media', 'index': frames + 1}]
-        c['source_plan']['capture'].update(declared_video_frame_count=frames, video_inference_frame_count=frames)
-        return c
-
-    def projected(c):
-        plan = copy.deepcopy(c['source_plan'])
-        media = []
-        for source in plan.pop('sources'):
-            item = copy.deepcopy(source)
-            item.pop('prepared_output')
-            item.update(content_type=source['source_content_type'], byte_count=32 if source['kind'] == 'audio' else source['source_byte_count'], sha256='7' * 64 if source['kind'] == 'audio' else source['source_sha256'])
-            media.append(item)
-        plan['media'] = media
-        return plan
-
-    def padded(escaped):
-
-        def with_units(units):
-            c = cohort()
-            values = []
-            symbol = chr(128998) if escaped == 'non_bmp' else '\x01' if escaped else 'a'
-            while units:
-                take = min(units, 10000 if escaped else 65000)
-                values.append('x' + symbol * take + 'x')
-                units -= take
-            c['source_plan']['ordered_descriptions'] = values
-            c['source_plan']['owner_timeline'] = [{'kind': 'media', 'index': 4}] + [{'kind': 'description', 'index': i} for i in range(len(values))]
-            return c
-        (low, high) = (0, 1048576)
-        while low < high:
-            mid = (low + high + 1) // 2
-            if len(canonical(projected(with_units(mid))).encode()) <= 1048576:
-                low = mid
-            else:
-                high = mid - 1
-        c = with_units(low)
-        remaining = 1048576 - len(canonical(projected(c)).encode())
-        c['source_plan']['ordered_descriptions'][-1] += 'a' * remaining
-        assert len(canonical(projected(c)).encode()) == 1048576 and len(canonical(c).encode()) <= 1048576
-        return c
-
-    def canonical(c):
-        return json.dumps(c, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
 
     def replace_vector(c):
         value = canonical(c)

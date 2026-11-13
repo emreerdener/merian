@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+import OSLog
+#endif
 
 /// One displayed review ticket. No task, idle lease or timer owns admission.
 @MainActor @Observable
@@ -149,10 +152,16 @@ final class IdentificationHistoryReviewModel {
     }
     func refresh() {
         guard current() else { return }
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+        var readStage = "pending"
+#endif
         do {
             let pending = try access.pending()
             if observedOperation == nil, pending?.analysisID == ticket.analysisID { observedOperation = pending?.operationID }
             let operation = request?.operationID ?? observedOperation
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+            readStage = "status"
+#endif
             status = try operation.flatMap { try access.status(ticket, $0) }
             blocked = pending != nil || request != nil
             undoOperation = nil
@@ -174,12 +183,25 @@ final class IdentificationHistoryReviewModel {
                 message = "Another review for this scan is pending. Resolve it before making another change."
             }
             if !blocked {
+                message = nil
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+                readStage = "undo"
+#endif
                 if canStartReview() { undoOperation = try access.undo(ticket) ?? rejectionUndo?.operationID } else {
                     blocked = true
                     message = "This identification changed. Open it again before making a new review."
                 }
             }
         } catch {
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+            // Local-only diagnostics: closed stage/category values, never a
+            // ticket, account, request, payload or error description.
+            let category = error is CancellationError ? "cancelled"
+                : (error as? ObservationHistoryError).map { String(describing: $0) }
+                    ?? String(reflecting: type(of: error))
+            Logger(subsystem: "app.merian.Merian", category: "HistoryLocalDiagnostics")
+                .notice("review-read stage=\(readStage, privacy: .public) category=\(category, privacy: .public) cancelled=\(Task.isCancelled, privacy: .public)")
+#endif
             blocked = true; undoOperation = nil
             if !canRetrySave { message = "Review status is unavailable. Refresh this preview before making a change." }
         }

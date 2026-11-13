@@ -82,6 +82,17 @@ final class ObservationAudioExecutionOwner {
         return .started
     }
 
+    /// Captures only this exact admitted task. The receipt can await actual
+    /// lease exit, but cannot start work, cancel it, or attest a result.
+    struct ExitReceipt {
+        fileprivate let task: Task<Void, Never>
+        func wait() async { await task.value }
+    }
+    func captureActualExit(_ key: Key) -> ExitReceipt? {
+        guard let entry, entry.key == key else { return nil }
+        return ExitReceipt(task: entry.task)
+    }
+
     /// Connectivity cancellation stops new dispatch, but does not discard a known same-scope answer.
     func cancel() { entry?.cancelled = true; entry?.task.cancel() }
 

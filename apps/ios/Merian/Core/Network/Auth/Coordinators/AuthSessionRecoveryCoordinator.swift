@@ -6,11 +6,11 @@ import Foundation
 @MainActor
 struct AuthSessionRecoveryCoordinator {
     private let dependencies: AuthSessionRecoveryDependencies
-
-    init(dependencies: AuthSessionRecoveryDependencies) {
+    private let preservePrimaryData: Bool
+    init(dependencies: AuthSessionRecoveryDependencies, preservePrimaryData: Bool = false) {
         self.dependencies = dependencies
+        self.preservePrimaryData = MerianEnvironment.isHistoryQualificationBuild || preservePrimaryData
     }
-
     /// Refreshes the stable active session after a rejected authenticated
     /// request. This path owns and finishes its recovery transition.
     func refreshActiveSessionForRetry() async -> Bool {
@@ -21,7 +21,6 @@ struct AuthSessionRecoveryCoordinator {
         defer { dependencies.transition.finish(transition) }
         return await refreshActiveSession(ownedBy: transition)
     }
-
     /// Refreshes a request whose existing caller already owns the active Auth
     /// transition, without relinking purchase or author state.
     func refreshExpectedSessionForAuthenticatedRequest(
@@ -63,7 +62,6 @@ struct AuthSessionRecoveryCoordinator {
             return false
         }
     }
-
     /// Replaces a broken anonymous identity and restores purchase and
     /// entitlement readiness before request replay is allowed.
     func resetGhostSessionForRetry() async -> Bool {
@@ -128,20 +126,18 @@ struct AuthSessionRecoveryCoordinator {
             return false
         }
     }
-
     /// Begins and owns terminal local cleanup after an unrecoverable Auth
     /// failure.
     @discardableResult
     func clearLocalSessionAfterAuthFailure() async
         -> AuthSessionLocalClearOutcome {
-        guard !Task.isCancelled,
+        guard !preservePrimaryData, !Task.isCancelled,
               let transition = dependencies.transition.beginRecovery() else {
             return .rejected
         }
         defer { dependencies.transition.finish(transition) }
         return await clearLocalSessionAfterAuthFailure(ownedBy: transition)
     }
-
     /// Performs cleanup for a caller that already owns the active transition.
     /// Once SDK sign-out begins, the coordinator invokes every local and
     /// purchase-identity cleanup step even if cancellation arrives.
@@ -150,7 +146,7 @@ struct AuthSessionRecoveryCoordinator {
         ownedBy transition: AuthTransitionToken,
         entryPolicy: AuthSessionRecoveryEntryPolicy = .requireActiveCaller
     ) async -> AuthSessionLocalClearOutcome {
-        guard entryPolicy.permitsEntry(isCancelled: Task.isCancelled),
+        guard !preservePrimaryData, entryPolicy.permitsEntry(isCancelled: Task.isCancelled),
               dependencies.transition.owns(transition) else {
             return .rejected
         }

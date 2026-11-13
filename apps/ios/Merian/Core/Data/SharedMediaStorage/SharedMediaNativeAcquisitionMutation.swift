@@ -13,11 +13,29 @@ final class SharedMediaNativeAcquisitionMutation {
     private let request: SharedMediaAcquisitionIntent
     private enum Authority {
         case qualification(SharedMediaNativeMutationAuthority), app(SharedMediaNativeAppAcquisitionWitness)
-        var binding: SharedMediaNativeBinding { switch self { case .qualification(let value): value.binding; case .app(let value): value.authority.binding } }
-        var ownerID: UUID { switch self { case .qualification(let value): value.ownerID; case .app(let value): value.authority.profile.ownerID } }
-        var writerEpoch: UUID { switch self { case .qualification(let value): value.writerEpoch; case .app(let value): value.authority.writerEpoch } }
+        var binding: SharedMediaNativeBinding {
+            switch self {
+            case .qualification(let value): value.binding
+            case .app(let value): value.authority.binding
+            }
+        }
+        var ownerID: UUID {
+            switch self {
+            case .qualification(let value): value.ownerID
+            case .app(let value): value.authority.profile.ownerID
+            }
+        }
+        var writerEpoch: UUID {
+            switch self {
+            case .qualification(let value): value.writerEpoch
+            case .app(let value): value.authority.writerEpoch
+            }
+        }
         @MainActor func validate(_ container: ModelContainer) throws {
-            switch self { case .qualification(let value): try value.validate(); case .app(let value): try value.validate(container) }
+            switch self {
+            case .qualification(let value): try value.validate()
+            case .app(let value): try value.validate(container)
+            }
         }
     }
     private let authority: Authority
@@ -120,8 +138,7 @@ final class SharedMediaNativeAcquisitionMutation {
         reservation = true; transition = "reserve"
         guard inventory.revision == request.expectedInventoryRevision else { throw SharedMediaStorageFailure.stale }
         try requireFreshIDs()
-        if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory, allowSavedOriginalRetirements: true) }
-        else {
+        if isApp { try SharedMediaNativePreparationGraph.requireIdleFiles(context, scopedInventory: inventory, allowSavedOriginalRetirements: true) } else {
             guard try context.fetchCount(FetchDescriptor<PhotoPreparationLease>()) == 0,
                   try context.fetchCount(FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.cleanupStateRaw != "ready" })) == 0 else { throw PhotoPreparationFailure.cleanupPending }
         }
@@ -430,8 +447,7 @@ final class SharedMediaNativeAcquisitionMutation {
         case "reserve":
             inserted = [named("receipt", operation), named("allocation", asset), named("lease", operation), named("work", operation)]
             if before.packageRevision == nil { inserted.insert(named("package", package)) } else { updated.insert(named("package", package)) }
-            if before.membershipRevision == nil { if final { inserted.insert(named("member", package)) } }
-            else if final { updated.insert(named("member", package)) }
+            if before.membershipRevision == nil { if final { inserted.insert(named("member", package)) } } else if final { updated.insert(named("member", package)) }
         case "complete":
             inserted = [named("asset", asset), named("reference", reference), named("edge", reference), named("count", asset)]
             updated.formUnion([named("receipt", operation), named("allocation", asset), named("lease", operation), named("package", package)])

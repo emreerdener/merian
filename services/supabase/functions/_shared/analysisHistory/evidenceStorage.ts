@@ -7,6 +7,19 @@ import {
   type EvidenceStorage,
 } from "./evidence.ts";
 
+// No legacy aliases: even an empty old setting makes installation ambiguous.
+export function hasLegacyHistoryStorageConfiguration(
+  env: (name: string) => string | undefined,
+): boolean {
+  return [
+    "R2_HISTORY_BUCKET_NAME",
+    "R2_HISTORY_READ_ACCESS_KEY_ID",
+    "R2_HISTORY_READ_SECRET_ACCESS_KEY",
+    "R2_HISTORY_WRITE_ACCESS_KEY_ID",
+    "R2_HISTORY_WRITE_SECRET_ACCESS_KEY",
+  ].some((name) => env(name) !== undefined);
+}
+
 // A namespace in the public scan bucket is not private storage. The new bucket
 // must additionally pass the deployment audit for public endpoints and policies.
 export function getHistoryEvidenceConfig(
@@ -14,20 +27,27 @@ export function getHistoryEvidenceConfig(
   env: (name: string) => string | undefined = (name) => Deno.env.get(name),
 ): R2Config {
   const account = env("R2_ACCOUNT_ID") ?? "";
-  const bucket = env("R2_HISTORY_BUCKET_NAME") ?? "";
+  const bucket = env("R2_SCANS_PRIVATE_BUCKET_NAME") ?? "";
   const publicBucket = env("R2_BUCKET_NAME") ?? "";
-  const prefix = access === "read" ? "R2_HISTORY_READ" : "R2_HISTORY_WRITE";
+  const prefix = access === "read"
+    ? "R2_SCANS_PRIVATE_READ"
+    : "R2_SCANS_PRIVATE_WRITE";
   const key = env(`${prefix}_ACCESS_KEY_ID`);
   const secret = env(`${prefix}_SECRET_ACCESS_KEY`);
   if (
+    hasLegacyHistoryStorageConfiguration(env) ||
     !/^[0-9a-f]{32}$/.test(account) ||
     !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket) || !publicBucket ||
     bucket === publicBucket || !key || !secret
   ) {
     throw new Error("history_evidence_storage_unavailable");
   }
+  const s3Client = getS3Client(key, secret);
+  // Durable owners reconcile/retry the original operation. SDK backoff is not
+  // abortable and must not outlive this private storage request's deadline.
+  s3Client.retries = 0;
   return {
-    s3Client: getS3Client(key, secret),
+    s3Client,
     bucketName: bucket,
     endpoint: `https://${account}.r2.cloudflarestorage.com`,
   };
@@ -55,10 +75,13 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     }`;
     signal?.throwIfAborted();
     const init: RequestInit = { method, headers, body: body?.slice(), signal };
+    const request = r2RequestWithDeadline(url, init);
     if (this.transport) {
-      return await this.transport(r2RequestWithDeadline(url, init), config);
+      return await this.transport(request, config);
     }
-    return await config.s3Client.fetch(r2RequestWithDeadline(url, init));
+    // aws4fetch does not copy Request.signal while signing. Supply it in init
+    // so both the request deadline and caller cancellation reach native fetch.
+    return await config.s3Client.fetch(request, { signal: request.signal });
   }
 
   async writeOnce(

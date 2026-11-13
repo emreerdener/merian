@@ -3,6 +3,21 @@ import Testing
 
 @Suite("Test execution coordinator")
 struct TestExecutionCoordinatorTests {
+    @Test func unitTestDetectionExcludesUIProcessesEvenWithXCTestLoaded() {
+        for loaded in [false, true] {
+            #expect(!TestExecutionCoordinator.isRunningUnitTests(
+                environment: ["UITesting": "true", "XCTestConfigurationFilePath": ""],
+                isXCTestRuntimeLoaded: loaded
+            ))
+            #expect(TestExecutionCoordinator.isRunningUnitTests(
+                environment: ["XCTestConfigurationFilePath": ""], isXCTestRuntimeLoaded: loaded
+            ))
+            #expect(TestExecutionCoordinator.isRunningUnitTests(
+                environment: [:], isXCTestRuntimeLoaded: loaded
+            ) == loaded)
+        }
+    }
+
     @Test func uiTestDetectionRequiresTheExplicitTrueValue() {
         #expect(TestExecutionCoordinator.isRunningUITests(environment: [
             "UITesting": "true"

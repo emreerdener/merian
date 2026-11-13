@@ -63,6 +63,9 @@ struct IdentificationHistoryReviewModelTests {
         let fixture = try Fixture(), model = fixture.model()
         fixture.failSave = true; model.submit(.reject)
         let request = model.request
+        let retryMessage = model.message
+        model.refresh()
+        #expect(model.request == request && model.message == retryMessage && retryMessage?.contains("Retry saving") == true)
         fixture.failRead = true; model.refresh(); model.submit(.reject)
         #expect(model.request == request && fixture.saved.count == 1 && !model.canSubmit)
         fixture.current = false; model.retrySave()

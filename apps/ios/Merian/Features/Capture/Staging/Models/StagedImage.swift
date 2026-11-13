@@ -8,10 +8,12 @@ struct StagedImage {
         case added
         case original(analysisID: UUID, photo: ObservationHistoryPhotoReference)
         case editedOriginal(analysisID: UUID, photo: ObservationHistoryPhotoReference)
+        case retained(ObservationReanalysisRetainedInput.Photo, edited: Bool)
 
         var edited: Self {
             switch self {
             case .added: return .added
+            case let .retained(photo, _): return .retained(photo, edited: true)
             case let .original(analysisID, photo), let .editedOriginal(analysisID, photo):
                 return .editedOriginal(analysisID: analysisID, photo: photo)
             }

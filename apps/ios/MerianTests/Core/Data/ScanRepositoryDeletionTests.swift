@@ -17,6 +17,32 @@ extension ScanRepositoryTests {
         #expect(try context.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
     }
 
+    @Test func nativeScanDeletionStopsBeforeQueueOrCleanupMutation() throws {
+        let context = try ScanRepositoryTestSupport.makeContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        record.mediaAuthorityRaw = "sharedDirectNativeInitialV1"; record.sharedMediaConsumerID = UUID()
+        context.insert(record); try context.save()
+        let held = ScanRepository.shared.eradicateScan(record: record, modelContext: context, allowsMutation: { true })
+        #expect(held == nil)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        #expect(!context.hasChanges)
+    }
+
+    @Test func staleLegacyRecordCannotDeleteSavedNativeScan() throws {
+        let context = try ScanRepositoryTestSupport.makeContext()
+        let stale = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        let current = LocalScanRecord(id: stale.id, speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        current.mediaAuthorityRaw = "sharedDirectNativeInitialV1"; current.sharedMediaConsumerID = UUID()
+        context.insert(current); try context.save()
+        #expect(ScanRepository.shared.eradicateScan(record: stale, modelContext: context, allowsMutation: { true }) == nil)
+        let fresh = ModelContext(context.container)
+        #expect(try fresh.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+        #expect(try fresh.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     @Test func testEradicateScanQueuesPendingCloudDeletionAndRemovesRecord() async throws {
         let ctx = try ScanRepositoryTestSupport.makeContext()
         let record = LocalScanRecord(

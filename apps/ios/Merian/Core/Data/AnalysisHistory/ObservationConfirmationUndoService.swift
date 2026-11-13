@@ -8,7 +8,7 @@ struct ObservationConfirmationUndoService {
 
     func prepare(ticket: ObservationAnalysisReviewTicket, container: ModelContainer,
                  isCurrent: @escaping @MainActor () -> Bool) async throws -> ObservationConfirmationUndoEligibility.Resolution {
-        @MainActor @Sendable func validate() throws -> ObservationConfirmationUndoEligibility? {
+        let validate: @MainActor @Sendable () throws -> ObservationConfirmationUndoEligibility? = {
             guard !Task.isCancelled, isCurrent() else { throw ObservationHistoryError.accountChanged }
             return try ConfirmedSpeciesReviewPersistence.transaction {
                 let context = ModelContext(container)

@@ -1,5 +1,6 @@
 import Foundation
 @testable import Merian
+import os
 import SwiftData
 import Testing
 
@@ -90,6 +91,45 @@ struct CaptureAudioReanalysisHostTests {
         #expect(host.present())
     }
 
+    @Test func accountDrainJoinsCallerFilePreparationWithoutAnAccountLease() async throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let owner = CaptureAudioReanalysisHostOwner(), manager = NSObject()
+        try owner.armAccountLifetime(manager: manager)
+        let target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
+            analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
+        let host = try owner.open(target: target, container: seed.container) {
+            CaptureAudioReanalysisHost(opened: .init(session: session, isCurrent: { true }, submit: { _ in
+                Issue.record("Input preparation cannot submit"); return .unavailable
+            }))
+        }
+        let entered = ImageFocusEngineTests.Signal(), release = ImageFocusEngineTests.Signal()
+        let output = seed.root.appendingPathComponent("prepared"), bytes = seed.bytes
+        let createdFile = OSAllocatedUnfairLock<URL?>(initialState: nil)
+        let preparer = CaptureAudioInputPreparer(directory: output, transcode: { _, directory in
+            let file = directory.appendingPathComponent("output.wav"); try bytes.write(to: file)
+            createdFile.withLock { $0 = file }
+            await entered.open(); await release.wait()
+            return file
+        })
+        #expect(host.present()); host.prepareInput(from: seed.root.appendingPathComponent("input.wav"), using: preparer)
+        await entered.wait()
+        var finished = false
+        let draining = Task { @MainActor in
+            let result = await owner.drainAccountLifetimeDisposition(manager: manager)
+            finished = true
+            return result
+        }
+        while host.isCurrent { await Task.yield() }
+        #expect(!finished && host.isPreparingInput && !host.isRuntimeQuiescent)
+        let pendingFile = try #require(createdFile.withLock { $0 })
+        #expect(try Data(contentsOf: pendingFile) == bytes)
+        await release.open()
+        #expect(await draining.value == .cleaned)
+        #expect(finished && host.isRuntimeQuiescent && host.preparedInput == nil && !host.present())
+        #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+    }
+
     @Test(arguments: [false, true])
     func ambiguousBindingReopensSameCandidateAndRequest(committed: Bool) async throws {
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
@@ -160,17 +200,18 @@ struct CaptureAudioReanalysisHostTests {
     }
 
     @Test func preparedAccessScopeLossClearsCandidateWithoutLegacyFallback() throws {
+        let current = MainActorTestValue(true)
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
-        var current = true
+
         let access = CaptureAudioReanalysisAccess.prepared(account: fixture.fixture.account(), ownership: .init(),
             configuration: .init(authorize: { _, _ in Issue.record("Unexpected authorization"); throw MerianError.invalidResponse },
                 start: { _, _, _, _ in Issue.record("Unexpected execution"); return .started }),
-            currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in current },
+            currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in current.value },
             containerIsCurrent: { $0 === seed.container }, documents: { seed.root })
         let opened = try access.open(.init(observationID: seed.source.observationID, analysisID: seed.source.analysisID,
             ownerID: seed.source.ownerID), seed.container, UUID())
         let host = CaptureAudioReanalysisHost(opened: opened)
-        #expect(host.present()); current = false; host.submit([.audio(seed.bytes)])
+        #expect(host.present()); current.value = false; host.submit([.audio(seed.bytes)])
         #expect(!host.isPresented && !host.isCurrent && host.analysisID == nil)
         #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
     }

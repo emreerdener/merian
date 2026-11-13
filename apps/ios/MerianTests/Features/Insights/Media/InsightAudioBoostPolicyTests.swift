@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftData
 import Testing
 
@@ -62,6 +63,45 @@ struct InsightAudioBoostPolicyTests {
     }
 
     @MainActor
+    @Test("Opening live audio analysis refreshes generation-bound media controls")
+    func foregroundAppearanceRefreshesMediaControls() async {
+        let engine = InferenceEngine()
+        engine.activeScanId = "analyzing-audio"
+        engine.isProcessing = true
+        engine.activeMedia = ActiveScanMedia(items: [.audio("analysis.wav")])
+        // Capture passes the engine at initialization, before onAppear resets
+        // the sheet. No record or queue handoff will force a carousel refresh.
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        let firstGeneration = viewModel.scanBoundActionGeneration
+        let oldBinding = viewModel.audioBoostBinding(
+            expectedScanId: "analyzing-audio",
+            expectedGeneration: firstGeneration
+        )
+
+        await confirmation("The rendered carousel observes its retired action target") { changed in
+            withObservationTracking {
+                _ = viewModel.persistentScanId
+                _ = viewModel.scanBoundActionGeneration
+            } onChange: { changed() }
+            viewModel.reset()
+            viewModel.beginPresentationSession()
+        }
+
+        viewModel.toggleAudioBoostFromMedia(
+            expectedScanId: "analyzing-audio", expectedGeneration: firstGeneration
+        )
+        #expect(!oldBinding.wrappedValue)
+        #expect(!viewModel.state.isAudioBoostEnabled)
+
+        viewModel.toggleAudioBoostFromMedia(
+            expectedScanId: "analyzing-audio",
+            expectedGeneration: viewModel.scanBoundActionGeneration
+        )
+        #expect(viewModel.state.isAudioBoostEnabled)
+        #expect(viewModel.state.audioBoostActionToken != nil)
+    }
+
+    @MainActor
     @Test("Queued boost rejects callbacks from an older presentation, including A to B to A")
     func queuedBoostFencesStaleCallbacks() {
         let first = queuedAudio(id: "audio-a")
@@ -120,10 +160,10 @@ struct InsightAudioBoostPolicyTests {
             scientificName: "Strix varia",
             commonName: "Barred Owl"
         )
-        record.capturedMediaJSON = try #require(String(
+        record.capturedMediaJSON = (try #require(String(
             data: JSONEncoder().encode([SerializedMediaItem.audio("analysis.wav")]),
             encoding: .utf8
-        ))
+        ))) as String
         context.insert(record)
         try context.save()
         let engine = InferenceEngine()

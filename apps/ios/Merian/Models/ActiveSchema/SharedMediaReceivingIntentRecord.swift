@@ -27,6 +27,12 @@ final class SharedMediaReceivingIntentRecord {
     /// Durable allocation state belongs to the receiving owner; dormant until qualified.
     var allocationData: Data?
     var allocationSHA256: String?
+    /// V69 original server facts; nil migration defaults confer no authority.
+    /// Existing owners reject any populated or partial pair until integration.
+    var initialAdmissionData: Data?
+    var initialAdmissionSHA256: String?
+    var initialCompletionData: Data?
+    var initialCompletionSHA256: String?
 
     init(packageID: UUID, inventoryID: UUID, inventoryGeneration: UUID,
          ownerID: UUID, draftGeneration: UUID, operationID: UUID,
@@ -49,5 +55,9 @@ final class SharedMediaReceivingIntentRecord {
         releaseStartSHA256 = nil
         allocationData = nil
         allocationSHA256 = nil
+        initialAdmissionData = nil
+        initialAdmissionSHA256 = nil
+        initialCompletionData = nil
+        initialCompletionSHA256 = nil
     }
 }

@@ -118,8 +118,7 @@ final class PhotoOriginalPreparationOwner {
                 try await checkAccount(lease)
                 return try await repository.commit(intent, file: written)
             } catch {
-                do { try await repository.markUncertain(packageID: intent.packageID) }
-                catch { await markPauseFailed() }
+                do { try await repository.markUncertain(packageID: intent.packageID) } catch { await markPauseFailed() }
                 throw error
             }
         }
@@ -146,8 +145,7 @@ final class PhotoOriginalPreparationOwner {
                 try await checkAccount(lease)
                 return try await repository.commit(intent, file: written)
             } catch {
-                do { try await repository.markUncertain(packageID: intent.packageID) }
-                catch { await markPauseFailed() }
+                do { try await repository.markUncertain(packageID: intent.packageID) } catch { await markPauseFailed() }
                 throw error
             }
         }
@@ -186,8 +184,7 @@ final class PhotoOriginalPreparationOwner {
                     try await checkAccount(lease)
                     _ = try await repository.commit(intent, file: written)
                 } catch {
-                    do { try await repository.markUncertain(packageID: intent.packageID) }
-                    catch { await markPauseFailed() }
+                    do { try await repository.markUncertain(packageID: intent.packageID) } catch { await markPauseFailed() }
                     throw error
                 }
             }
@@ -275,8 +272,7 @@ final class PhotoOriginalPreparationOwner {
             try await repository.reconcileClosedWriters()
             let known = try await repository.filesToRecover()
             for file in known {
-                do { try files.verify(file) }
-                catch PhotoPreparationFailure.missingMedia { try await repository.markMissing(assetID: file.assetID) }
+                do { try files.verify(file) } catch PhotoPreparationFailure.missingMedia { try await repository.markMissing(assetID: file.assetID) }
             }
             try await checkAccount(lease)
             return try await repository.recovery(ownerID: account.ownerID)

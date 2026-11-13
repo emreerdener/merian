@@ -13,6 +13,42 @@ struct CaptureAudioSavedRequestsModelTests {
         while model.isBusy { await Task.yield() }
     }
 
+    @Test(arguments: ["open", "close", "background", "account", "missing"])
+    func previewFreezesSelectionAndRejectsLatePrivateBytes(_ departure: String) async throws {
+        let saved = row()
+        var current = true, opens: [OfflineQueueWork.Reanalysis] = []
+        var waiter: CheckedContinuation<Void, Never>?, finished = false
+        let model = CaptureAudioSavedRequestsModel(status: .init(isCurrent: { current }, page: { _, _, _ in
+            .init(items: [saved], next: nil, omittedCount: 0)
+        }), openResume: { identity in
+            opens.append(identity)
+            return .init(resume: { _ in Issue.record("Preview resumed execution"); return .unavailable }, preview: { _ in
+                await withCheckedContinuation { waiter = $0 }
+                defer { finished = true }
+                if departure == "missing" { throw CocoaError(.fileNoSuchFile) }
+                return .init(bytes: makeInferenceTestPCM16WAVData(), validate: {})
+            })
+        }, isPresented: { true })
+        model.start(); await idle(model)
+        model.previewSelected(); #expect(opens.isEmpty)
+        model.select(saved); model.previewSelected()
+        #expect(opens == [saved.identity])
+        while waiter == nil { await Task.yield() }
+        if departure == "close" { model.close() }
+        if departure == "background" { model.setVisible(false) }
+        if departure == "account" { current = false }
+        waiter?.resume()
+        while !finished { await Task.yield() }
+        await idle(model)
+        if departure == "open" {
+            #expect(model.preview?.isReady == true && model.preview?.isPlaying == false)
+            let preview = try #require(model.preview)
+            model.closePreview()
+            #expect(preview.isClosed && model.preview == nil)
+        } else { #expect(model.preview == nil) }
+        if departure == "missing" { #expect(model.message?.contains("unavailable") == true) }
+    }
+
     @Test func onlyExplicitSelectionAndFinalTapOpenExactOriginalBeforeTask() async {
         let first = row(), second = row(.admissionPending)
         var opens: [OfflineQueueWork.Reanalysis] = [], resumes = 0
@@ -65,7 +101,7 @@ struct CaptureAudioSavedRequestsModelTests {
     }
 
     @Test func lateResumeCannotReopenClosedPresentation() async {
-        let saved = row()
+        let saved = row(.boundIdle)
         var continuation: CheckedContinuation<Void, Never>?, settled = false
         let model = CaptureAudioSavedRequestsModel(status: .init(isCurrent: { true }, page: { _, _, _ in
             .init(items: [saved], next: nil, omittedCount: 0)
@@ -116,7 +152,8 @@ struct CaptureAudioSavedRequestsModelTests {
             currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in true }, preparationOwner: .init(),
             enrollmentOwner: .init(), containerIsCurrent: { $0 === seed.container }, submitted: { _ in Issue.record("Photo admission") }, cleanup: {},
             audio: .init(authorize: { _, _ in Issue.record("Consumed recovery authorized inference"); throw MerianError.invalidResponse },
-                start: { key, _, _, _ in starts += 1; #expect(key.snapshot == consumed.snapshot); return .unavailable }),
+                start: { _, _, _, _ in Issue.record("Consumed check used broad resume"); return .unavailable },
+                recover: { key, _, _, _ in starts += 1; #expect(key.snapshot == consumed.snapshot); return false }),
             audioStatusOwner: .init(), documents: { seed.root })
         let model = try bundle.openSavedAudioRequests(ownerID: seed.source.ownerID, observationID: seed.source.observationID,
             container: seed.container, isPresented: { true })

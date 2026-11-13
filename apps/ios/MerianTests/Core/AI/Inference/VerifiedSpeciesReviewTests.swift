@@ -136,7 +136,12 @@ struct VerifiedSpeciesReviewTests {
         let context = try ScanRepositoryTestSupport.makeContext()
         let actor = HistoricalDatabaseActor(modelContainer: context.container)
         func saved() throws -> LocalScanRecord {
-            try #require(ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+            let rows = try ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>())
+            guard let record = rows.first else {
+                Issue.record("Expected a reconciled scan")
+                throw MerianError.invalidResponse
+            }
+            return record
         }
         #expect(try await actor.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(VerifiedReviewFixtures.review()))]) == 1)
         #expect(try saved().verifiedConfirmedSpeciesIdentity?.scientificName == "Examplea testus")

@@ -9,7 +9,7 @@ struct SelectedAnalysisReviewHostTests {
         let review: IdentificationHistoryReviewModelTests.Fixture
         let container: ModelContainer
         let host = SelectedAnalysisReviewHost()
-        var presentation = true, fresh = true, opens = 0, closes = 0
+        var presentation = true, fresh = true, opens = 0, closes = 0, reads = 0
         init(ticket: ObservationAnalysisReviewTicket? = nil) throws {
             review = try .init(ticket: ticket)
             container = try InsightSheetTestSupport.createIsolatedContext().container
@@ -20,19 +20,106 @@ struct SelectedAnalysisReviewHostTests {
                 ownerID: ticket.ownerID.uuidString, analysisID: ticket.analysisID.uuidString,
                 revision: ticket.observationRevision)), generation: generation, container: ObjectIdentifier(container))
         }
-        func bind(_ generation: UInt64 = 1) throws {
-            host.bind(try key(generation), access: .init(open: { _, _ in
+        var adapter: SelectedAnalysisReviewAccess {
+            .init(open: { _, _ in
                 self.opens += 1
-                return .init(ticket: self.review.ticket, access: self.review.access,
+                var access = self.review.access
+                let pending = access.pending
+                access.pending = { self.reads += 1; return try pending() }
+                return .init(ticket: self.review.ticket, access: access,
                     isScopeCurrent: { self.review.current }, matchesDisplayedTicket: { self.fresh },
                     close: { self.closes += 1 })
-            }), container: container, isCurrent: { self.presentation })
+            })
+        }
+        func bind(_ generation: UInt64 = 1) throws {
+            host.bind(try key(generation), access: adapter, container: container, isCurrent: { self.presentation })
         }
         func finish(_ outcome: ObservationAnalysisReviewReceipt.Outcome) throws {
             let operation = try #require(host.model?.request?.operationID)
             review.pending = nil
             review.receipt = .init(operationID: operation, analysisID: review.ticket.analysisID, phase: .complete(outcome))
         }
+    }
+
+    @Test func cancelledPresentationCanBindAndRefreshRealPreparedSession() async throws {
+        let support = SelectedAnalysisReviewTests()
+        let (container, ticket) = try await support.fixture.seed()
+        let key = SelectedAnalysisReviewHost.Key(baseline: try support.baseline(ticket), generation: 1,
+            container: ObjectIdentifier(container))
+        let control = SelectedAnalysisReviewHost(), host = SelectedAnalysisReviewHost()
+        var wakes = 0
+        let adapter = support.access(wake: { wakes += 1 })
+        defer { control.close(); host.close() }
+        let caller = Task { @MainActor in
+            #expect(Task.isCancelled)
+            control.bind(key, access: support.access(), container: container, isCurrent: { true })
+            #expect(control.model?.canSubmit != true && control.message != nil)
+            await host.requestBind(key, access: adapter, container: container, isCurrent: { true })?.value
+            #expect(host.model?.canSubmit == true && host.message == nil)
+            // The raw read must still reject cancelled callers. The owned
+            // refresh recovers presentation without staging or rearming work.
+            host.model?.refresh()
+            #expect(host.model?.canSubmit == false && host.model?.message != nil)
+            await host.requestRefresh { _ in Issue.record("No receipt was applied") }?.value
+            #expect(host.model?.canSubmit == true && host.message == nil)
+        }
+        caller.cancel()
+        await caller.value
+        #expect(wakes == 1)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
+    @Test(arguments: ["close", "replace", "presentation", "account"])
+    func queuedBindingCannotOutliveItsPresentation(_ change: String) async throws {
+        let f = try Fixture()
+        let first = f.host.requestBind(try f.key(), access: f.adapter, container: f.container, isCurrent: { f.presentation })
+        var replacement: Task<Void, Never>?
+        switch change {
+        case "close": f.host.close()
+        case "replace":
+            replacement = f.host.requestBind(try f.key(2), access: f.adapter, container: f.container, isCurrent: { f.presentation })
+        case "presentation": f.presentation = false
+        default: f.review.current = false
+        }
+        await first?.value; await replacement?.value
+        #expect(f.opens == ((change == "replace" || change == "account") ? 1 : 0))
+        #expect(f.host.model?.canSubmit == (change == "replace" ? true : nil))
+        #expect(f.review.wakes == (change == "replace" ? 1 : 0) && f.review.saved.isEmpty)
+        f.host.close()
+    }
+
+    @Test(arguments: ["close", "replace", "invalidate", "account"])
+    func queuedRefreshCannotReadOrApplyAStaleScope(_ change: String) async throws {
+        let f = try Fixture(); try f.bind()
+        let queued = f.host.requestRefresh { _ in Issue.record("Stale delivery must not reach parent") }
+        switch change {
+        case "close": f.host.close()
+        case "replace": try f.bind(2)
+        case "invalidate": f.host.invalidateScope()
+        default: f.review.current = false
+        }
+        let reads = f.reads
+        await queued?.value
+        #expect(f.reads == reads && f.review.saved.isEmpty)
+        #expect(f.host.model?.canSubmit == (change == "replace" ? true : nil))
+        f.host.close()
+    }
+
+    @Test func repeatedDeliveryCoalescesAndAppliesReceiptOnlyOnce() async throws {
+        let f = try Fixture(); try f.bind()
+        var applied = 0
+        let reads = f.reads
+        let first = f.host.requestRefresh { _ in applied += 1 }
+        let duplicate = f.host.requestRefresh { _ in applied += 1 }
+        await first?.value; await duplicate?.value
+        #expect(f.reads == reads + 1 && applied == 0 && f.review.wakes == 1)
+        f.host.submit(.reject, token: try #require(f.host.token))
+        try f.finish(.applied(observationRevision: 11, reviewRevision: 1))
+        let receipt = f.host.requestRefresh { _ in applied += 1 }
+        let repeated = f.host.requestRefresh { _ in applied += 1 }
+        await receipt?.value; await repeated?.value
+        #expect(applied == 1 && f.host.model == nil && f.review.saved.count == 1)
+        #expect(f.review.wakes == 2)
     }
 
     @Test func rerenderAndMissingReceiptPreserveUncertainRequestForExactRetry() throws {
@@ -44,6 +131,8 @@ struct SelectedAnalysisReviewHostTests {
         #expect(f.review.wakes == 2)
         let request = try #require(f.host.model?.request)
         try f.bind()
+        #expect(f.host.requestBind(try f.key(), access: f.adapter, container: f.container, isCurrent: { f.presentation }) == nil)
+        #expect(f.host.model?.request == request && f.host.token == token)
         f.host.refresh { _ in Issue.record("An uncertain save cannot refresh the parent") }
         #expect(f.opens == 1 && f.host.model?.request == request && f.review.wakes == 2)
         f.review.failSave = false

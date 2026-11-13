@@ -77,7 +77,7 @@ type Snapshot = {
   }[];
 };
 
-function context(
+export function snapshotCpmPhotoVerificationContext(
   value: unknown,
   saved?: Pick<Snapshot, "profile_digest" | "verifier_build_digest">,
 ): CpmPhotoVerificationContext {
@@ -134,7 +134,9 @@ export async function cpmPhotoVerificationCatalog(
   if (!Array.isArray(values) || values.length > 16) {
     throw initialMediaUnavailable();
   }
-  const copied = values.map((value) => context(value));
+  const copied = values.map((value) =>
+    snapshotCpmPhotoVerificationContext(value)
+  );
   const entries = new Map<string, CpmPhotoVerificationContext>();
   const builds = new Map<string, string>();
   const profiles = new Map<string, string>();
@@ -198,6 +200,63 @@ export async function cpmPhotoVerificationCatalog(
   });
 }
 
+/** Shared exact structural checks for admission and terminal re-verification.
+ * This checks bytes only; callers retain separate authorization/clock owners. */
+export function inspectCpmPhotoBytes(
+  bytes: Uint8Array,
+  contentType: string,
+  dimensions: Dimensions,
+  signal: AbortSignal,
+): void {
+  if (contentType === "image/png") {
+    inspectPngContainer(bytes, {
+      ...dimensions,
+      maximumBytes: bytes.byteLength,
+    }, (type) => {
+      checkInitialDeadline(signal);
+      // Still-image increment only. Animation needs its own
+      // qualified interpretation; opaque metadata is preserved.
+      if (["acTL", "fcTL", "fdAT"].includes(type)) {
+        throw initialMediaUnavailable();
+      }
+    });
+  } else if (
+    contentType === "image/webp"
+  ) {
+    inspectWebpContainer(
+      bytes,
+      {
+        ...dimensions,
+        maximumBytes: bytes.byteLength,
+      },
+      "private_still",
+      () => checkInitialDeadline(signal),
+    );
+  } else if (
+    contentType === "image/heic" ||
+    contentType === "image/heif"
+  ) {
+    inspectHeifContainer(
+      bytes,
+      contentType,
+      { ...dimensions, maximumBytes: bytes.byteLength },
+      () => checkInitialDeadline(signal),
+    );
+  } else if (contentType === "image/jpeg") {
+    inspectJpegContainer(
+      bytes,
+      () => {
+        // Private source/derivative metadata is preserved, not decoded,
+        // sanitized or claimed safe for publication by this verifier.
+        checkInitialDeadline(signal);
+      },
+      { ...dimensions, maximumBytes: bytes.byteLength },
+    );
+  } else {
+    throw initialMediaUnavailable();
+  }
+}
+
 /** The only entrypoint joins actual storage reads and image structure checks to
  * the existing coordinator. Its private verify callback receives only the
  * coordinator-validated fresh committed start, never arbitrary caller proof. */
@@ -235,7 +294,7 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
         const current = () =>
           initialAbortable(signal, () => deps.requireCurrent(start, signal));
         await current();
-        const policy = context(
+        const policy = snapshotCpmPhotoVerificationContext(
           await initialAbortable(signal, () => deps.load(start, signal)),
           saved,
         );
@@ -292,51 +351,12 @@ export function verifyAndAdmitInitialCpmPhotoMedia(
                 finish() {
                   checkInitialDeadline(signal);
                   if (offset !== size) throw initialMediaUnavailable();
-                  if (role.declaration.declared_content_type === "image/png") {
-                    inspectPngContainer(scratch.subarray(0, size), {
-                      ...policy.dimensions[role.role],
-                      maximumBytes: size,
-                    }, (type) => {
-                      checkInitialDeadline(signal);
-                      // Still-image increment only. Animation needs its own
-                      // qualified interpretation; opaque metadata is preserved.
-                      if (["acTL", "fcTL", "fdAT"].includes(type)) {
-                        throw initialMediaUnavailable();
-                      }
-                    });
-                  } else if (
-                    role.declaration.declared_content_type === "image/webp"
-                  ) {
-                    inspectWebpContainer(
-                      scratch.subarray(0, size),
-                      {
-                        ...policy.dimensions[role.role],
-                        maximumBytes: size,
-                      },
-                      "private_still",
-                      () => checkInitialDeadline(signal),
-                    );
-                  } else if (
-                    role.declaration.declared_content_type === "image/heic" ||
-                    role.declaration.declared_content_type === "image/heif"
-                  ) {
-                    inspectHeifContainer(
-                      scratch.subarray(0, size),
-                      role.declaration.declared_content_type,
-                      { ...policy.dimensions[role.role], maximumBytes: size },
-                      () => checkInitialDeadline(signal),
-                    );
-                  } else {
-                    inspectJpegContainer(
-                      scratch.subarray(0, size),
-                      () => {
-                        // Private source/derivative metadata is preserved, not decoded,
-                        // sanitized or claimed safe for publication by this verifier.
-                        checkInitialDeadline(signal);
-                      },
-                      { ...policy.dimensions[role.role], maximumBytes: size },
-                    );
-                  }
+                  inspectCpmPhotoBytes(
+                    scratch.subarray(0, size),
+                    role.declaration.declared_content_type,
+                    policy.dimensions[role.role],
+                    signal,
+                  );
                   checkInitialDeadline(signal);
                   inspected = true;
                 },

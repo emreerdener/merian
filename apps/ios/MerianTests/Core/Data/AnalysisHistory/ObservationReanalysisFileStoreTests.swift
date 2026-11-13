@@ -19,6 +19,29 @@ struct ObservationReanalysisFileStoreTests {
         return url
     }
 
+    @Test func repeatedDirectoryProofsUseFreshCursorsOnTheHeldDirectory() async throws {
+        let root = try directory(), moved = root.appendingPathExtension("held")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: moved)
+        }
+        for name in ["0", "1", "2", "3"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: false)
+        }
+        let descriptor = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        #expect(descriptor >= 0)
+        defer { close(descriptor) }
+        let store = ObservationReanalysisFileStore(documents: root)
+        #expect(try await store.names(in: descriptor) == ["0", "1", "2", "3"])
+        #expect(try await store.names(in: descriptor) == ["0", "1", "2", "3"])
+        try Data([1]).write(to: root.appendingPathComponent("unexpected"))
+        #expect(try await store.names(in: descriptor) == ["0", "1", "2", "3", "unexpected"])
+        try FileManager.default.moveItem(at: root, to: moved)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        try Data([2]).write(to: root.appendingPathComponent("replacement"))
+        #expect(try await store.names(in: descriptor) == ["0", "1", "2", "3", "unexpected"])
+    }
+
     @Test func uploadReadPreservesOrderedBytesAndHoldsLocksThroughFinalValidation() async throws {
         let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
         let bytes = try ObservationReanalysisProducerTests().image()

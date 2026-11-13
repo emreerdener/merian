@@ -19,8 +19,8 @@ enum SharedMediaNativeConsumerGraph {
     /// Explicit read-only sibling. Generic and dirty readers retain their
     /// nil-sidecar fence; only the privately minted exact origin may enter here.
     static func validateStagedReceived(_ consumer: SharedMediaConsumerRecord,
-                                      origin: SharedMediaNativeStagedReleaseOrigin, context: ModelContext,
-                                      checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                                       origin: SharedMediaNativeStagedReleaseOrigin, context: ModelContext,
+                                       checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         try origin.requireCurrent(context: context)
         let result = try facts(consumer, context: context, format: .appV2, stagedOrigin: origin, checkpoint: checkpoint)
         try origin.requireCurrent(context: context)
@@ -28,35 +28,48 @@ enum SharedMediaNativeConsumerGraph {
     }
 
     static func validateAllocatedReceived(_ consumer: SharedMediaConsumerRecord,
-                                         allocation: SharedMediaNativePhotoAllocationSnapshot,
-                                         context: ModelContext,
-                                         checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                                          allocation: SharedMediaNativePhotoAllocationSnapshot,
+                                          context: ModelContext,
+                                          checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         try allocation.requireCurrent(context: context)
         let result = try facts(consumer, context: context, format: .appV2, allocation: allocation, checkpoint: checkpoint)
         try allocation.requireCurrent(context: context)
         return result
     }
 
+    /// Only the separately validated retained witness can admit this envelope.
+    /// Generic V1/V2 readers and receiving write proofs remain closed.
+    static func validateAppliedInitial(_ consumer: SharedMediaConsumerRecord,
+                                       applied: SharedMediaNativePhotoAllocationSnapshot.Applied,
+                                       context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        try applied.requireCurrent(context: context)
+        let result = try facts(consumer, context: context, format: .appV2, applied: applied, checkpoint: checkpoint)
+        try applied.requireCurrent(context: context)
+        return result
+    }
+
     static func validateIntentPoststate(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                                       inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppIntentPoststate) throws -> SharedMediaNativeConsumerCohort {
+                                        inventory: SharedMediaInventoryRecord, proof: SharedMediaNativeAppIntentPoststate) throws -> SharedMediaNativeConsumerCohort {
         try proof.validate(context: context, inventory: inventory)
         return try facts(consumer, context: context, format: .appV2, intentProof: proof)
     }
 
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, allocation: SharedMediaNativePhotoAllocationSnapshot? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, allocation: SharedMediaNativePhotoAllocationSnapshot? = nil, applied: SharedMediaNativePhotoAllocationSnapshot.Applied? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         guard !context.hasChanges || intentProof != nil else { throw SharedMediaStorageFailure.conflict }
-        let value = try SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
+        let value = try applied?.cohort.original ?? SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
+        let contract = applied?.cohort.format.rawValue ?? value.format.rawValue
+        let digest = try applied?.cohort.digest() ?? value.digest()
         let commit = try SharedMediaNativeFreezeCommit.decode(value.freeze.bytes)
         let cohort = try SharedMediaNativeFrozenCohort.decode(commit.cohort.bytes)
         // P2 remains a held queue with an exact durable result link. Typed
         // promotion/release is separately qualified; no other lifecycle here.
-        guard value.format == .receiving || consumer.kindRaw == "queue",
+        guard value.format == .receiving || consumer.kindRaw == "queue" || applied != nil,
               consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
               consumer.originQueueID == value.originQueueID, consumer.observationID == value.observationID,
               consumer.executionKindRaw == value.executionKind, consumer.inferenceGeneration == value.inferenceGeneration,
-              consumer.contractVersion == value.format.rawValue, consumer.digestVersion == 1,
-              consumer.cohortSHA256 == (try value.digest()), consumer.lifecycleRaw == "active",
+              consumer.contractVersion == contract, consumer.digestVersion == 1,
+              consumer.cohortSHA256 == digest, consumer.lifecycleRaw == "active",
               consumer.retirementID == nil, consumer.revision >= 0,
               consumer.inventoryID == commit.inventoryID, consumer.inventoryGeneration == commit.inventoryGeneration,
               consumer.ownerID == cohort.ownerID, consumer.packageID == cohort.packageID,
@@ -82,7 +95,12 @@ enum SharedMediaNativeConsumerGraph {
               package.accountingTierRaw == (consumer.kindRaw == "queue" ? "pending" : "retained"),
               case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
               envelope.frozen == value.freeze else { throw SharedMediaStorageFailure.conflict }
-        if let allocation {
+        if let applied {
+            guard intentProof == nil, stagedOrigin == nil, allocation == nil, consumer.kindRaw == "localScan", consumer.revision == applied.cohort.consumerRevision else {
+                throw SharedMediaStorageFailure.closed
+            }
+            try applied.requireConsumerLink(consumer, context: context)
+        } else if let allocation {
             guard intentProof == nil, stagedOrigin == nil else { throw SharedMediaStorageFailure.closed }
             try allocation.requireConsumerLink(consumer, value: value, context: context)
         } else if let stagedOrigin {
@@ -108,15 +126,14 @@ enum SharedMediaNativeConsumerGraph {
         // Their complete reverse audit stays on a clean fresh view under the same
         // fence; never relax the original-accounting clean-context contract.
         let originalContext: ModelContext
-        if intentProof != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false }
-        else { originalContext = context }
+        if intentProof != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false } else { originalContext = context }
         try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory,
             context: context, originalContext: originalContext, checkpoint: checkpoint)
         try SharedMediaMembership.requireMetadataBudget(context: package.supportingContextData,
             membership: liveMembership, cohort: consumer.cohortData)
         guard try PhotoPreparationPolicy.add([package.allocatedByteCount, Int64(package.supportingContextData.count),
             Int64(liveMembership.count), Int64(consumer.cohortData.count)]) <= PhotoPreparationPolicy.package,
-              (!context.hasChanges || intentProof != nil) else { throw SharedMediaStorageFailure.capacity }
+              !context.hasChanges || intentProof != nil else { throw SharedMediaStorageFailure.capacity }
         return value
     }
 

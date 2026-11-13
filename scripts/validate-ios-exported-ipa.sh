@@ -151,6 +151,7 @@ root_info_entry="$(awk 'NR == 1 { print }' "$root_info_entries")"
 
 main_info="$validation_tmp_dir/main-Info.plist"
 extract_plist "$root_info_entry" "$main_info"
+python3 "$script_dir/validate-ios-history-release.py" "$main_info"
 
 root_privacy_entries="$validation_tmp_dir/root-privacy-entries.txt"
 awk '$0 ~ "^Payload/[^/]+[.]app/PrivacyInfo[.]xcprivacy$" { print }' \

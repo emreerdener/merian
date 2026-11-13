@@ -17,6 +17,63 @@ struct SharedMediaNativeRecoveryPresentationOwnerTests {
         return try SharedMediaNativePairPlanGraph.one(c, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == id }))
     }
 
+    @Test func liveIntervalBlocksRetirementAndOldCallbacksCannotClearNewInterval() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(await owner.discoverAppReceivedCandidates().first)
+        let first = try #require(await owner.prepareAppRecoveryInterval(candidate))
+        await #expect(throws: (any Error).self) { _ = try await owner.prepareAppRecoveryInterval(candidate) }
+        let settled = try await first.settle(elapsed: .milliseconds(1))
+        #expect(settled.acknowledged)
+        let next = try #require(await owner.prepareAppRecoveryInterval(candidate))
+        await #expect(throws: (any Error).self) { _ = try await first.settle(elapsed: .zero) }
+        await #expect(throws: (any Error).self) { _ = try await owner.prepareAppRecoveryInterval(candidate) }
+        let final = try await next.settle(elapsed: .seconds(30))
+        #expect(final.acknowledged && final.presentation.chargedMilliseconds == 30_000)
+        #expect(try queue(p, h.context()).recoveryPresentationData == final.presentation.encoded())
+        #expect(try await owner.prepareAppRecoveryInterval(candidate) == nil)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test func shutdownCannotForgetAnUnquiescedInterval() async throws {
+        let (_, owner, _) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(await owner.discoverAppReceivedCandidates().first)
+        let interval = try #require(await owner.prepareAppRecoveryInterval(candidate))
+        #expect(await owner.invalidateAndAwaitForAccountTransition() == false)
+        // Even denied persistence first consumes/quiesces the one-way interval.
+        await #expect(throws: (any Error).self) { _ = try await interval.settle(elapsed: .zero) }
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["cold", "afterSave", "readback"])
+    func coldRetirementKeepsFullChargeAndRejectsStaleRefund(_ fault: String) async throws {
+        let (h, original, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(await original.discoverAppReceivedCandidates().first)
+        // Disposable adapter returns an accounting attempt, never an app clock.
+        let abandoned = try await original.reserveAppRecoveryPresentationForTesting(candidate)
+        let owner: SharedMediaNativeOriginalOwner
+        if fault == "cold" {
+            #expect(await original.invalidateAndAwaitForAccountTransition())
+            owner = try await SharedMediaNativeReceivingStagingTests().reopen(h)
+        } else { owner = original }
+        let before = try inventory(h, h.context()).revision
+        try owner.setMetadataFault { boundary in
+            if (fault == "afterSave" && boundary == .afterSave) || (fault == "readback" && boundary == .beforeReadback) {
+                throw SharedMediaStorageFailure.unavailable
+            }
+        }
+        #expect(try await owner.prepareAppRecoveryInterval(candidate) == nil)
+        try owner.setMetadataFault(nil)
+        let bytes = try #require(queue(p, h.context()).recoveryPresentationData)
+        let saved = try AnalysisRecoveryPresentation.decode(bytes, identity: abandoned.presentation.identity)
+        #expect(saved.activeReservationID == nil && saved.chargedMilliseconds == 30_000 && saved.revision == 2)
+        #expect(try inventory(h, h.context()).revision == before + 1)
+        #expect(try AnalysisRecoveryPresentation.storageLiability(bytes, identity: saved.identity).chargedBytes == 512)
+        await #expect(throws: (any Error).self) { _ = try await owner.settleAppRecoveryPresentationForTesting(abandoned, elapsed: .zero) }
+        #expect(try await owner.prepareAppRecoveryInterval(candidate) == nil)
+        #expect(try inventory(h, h.context()).revision == before + 1)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
     @Test(arguments: [false, true])
     func firstReserveIsDurableAndCannotBeRepeated(allocated: Bool) async throws {
         let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()

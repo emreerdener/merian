@@ -20,8 +20,7 @@ struct SharedMediaNativeAppProfile: Codable, Equatable, Sendable {
         }
 
         init(bindingFields: [String]) throws {
-            if bindingFields.count == 7 { self = .absolutePathsV1 }
-            else if bindingFields.count == 8, bindingFields[7] == Self.physicalRootsV1.rawValue {
+            if bindingFields.count == 7 { self = .absolutePathsV1 } else if bindingFields.count == 8, bindingFields[7] == Self.physicalRootsV1.rawValue {
                 self = .physicalRootsV1
             } else { throw SharedMediaStorageFailure.conflict }
         }
@@ -90,12 +89,17 @@ struct SharedMediaNativeAppProfile: Codable, Equatable, Sendable {
             guard result.count <= 512 else { throw SharedMediaStorageFailure.invalid }; return result
         }
     }
-    var rootIdentity: String { get throws { String(decoding: try binding, as: UTF8.self) } }
+    var rootIdentity: String {
+        get throws {
+            guard let value = String(bytes: try binding, encoding: .utf8) else { throw SharedMediaStorageFailure.invalid }
+            return value
+        }
+    }
 
     /// Current paths locate the fixed child roots. Journal identities, markers
     /// and held/named descriptor checks remain necessary around this digest.
     @MainActor static func rootBinding(format: PhysicalBindingFormat, authority: String,
-                                      sources: [String: URL]) throws -> String {
+                                       sources: [String: URL]) throws -> String {
         if format == .absolutePathsV1 {
             return try SharedMediaStorageLookup.binding(authority: authority, sources: sources)
         }

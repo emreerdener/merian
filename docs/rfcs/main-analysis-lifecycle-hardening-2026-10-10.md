@@ -5,6 +5,17 @@ engine, schema, funding, deployment, or activation change is made by this RFC.
 
 ## Current scope amendment — October 12, 2026
 
+> October 18, 2026 (Chicago) planning addendum: the approved
+> [unresolved-analysis recovery/replacement plan](unresolved-analysis-recovery-and-replacement-2026-10-18.md)
+> adds RUX-1–RUX-6 to the relevant native integration acceptance for both
+> initial analysis and reanalysis. REP-1–REP-8 remain a separate gated follow-up
+> after current acceptance, defaulting after already-approved deletion/export
+> and redesign. History is the sole writer; this chat reviews lifecycle,
+> accounting, retention and race safety at checkpoints. Do not interrupt the
+> current build or implement replacement under existing recovery APIs. Existing
+> permanent execution fences remain until a coordinated contract amendment is
+> implemented and qualified. This adds no release permission.
+
 The user confirmed that new initial identifications and reanalysis require
 physical image/audio/video evidence, with optional supporting descriptions, and
 video reanalysis is in current scope. The amended

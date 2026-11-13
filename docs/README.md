@@ -55,6 +55,9 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
+- [Current 1.1.0 release checklist](../.artifacts/identification-history-release-checklist.md)
+  consolidates remaining functional acceptance and distribution checks, with
+  scoped evidence and explicit blockers. Historical checkpoints are preserved.
 - [Identification-history integrated review plan](./rfcs/identification-history-integrated-review-plan-2026-10-07.md)
   defines the final cross-surface review, evidence ledger and completion
   criteria. The
@@ -119,6 +122,12 @@ production submission or public release.
 
 ## Planned work
 
+- [Unresolved analysis: recovery and replacement](./rfcs/unresolved-analysis-recovery-and-replacement-2026-10-18.md)
+  records approved planning: bounded recovery UX belongs to current native
+  integration acceptance; explicit replacement remains a separate gated
+  follow-up after the existing deletion/export and redesign sequence.
+  Implementation and qualification remain open; release controls are unchanged.
+
 - [Reversible reanalysis and identification history](./rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
   defines the agreed stable-observation model, full analysis history, revisioned
   restoration, funding and deletion boundaries, and staged acceptance gates. The
@@ -160,6 +169,13 @@ production submission or public release.
 
 ### Incidents
 
+- **[Private evidence dispatch correlation](./incidents/2026-11-private-evidence-dispatch-correlation.md)**
+  records the timestamp defect, crash-safe correlation and retained
+  original-slot recovery boundary.
+- **[Private evidence request cancellation](./incidents/2026-11-private-evidence-request-cancellation.md)**
+  — Signing dropped cancellation and SDK backoff escaped the request deadline;
+  deployed private-storage correction; actual-byte/device verification pending.
+
 - **[Beta OpenAI consent gate](./incidents/2026-09-beta-openai-consent-gate.md)**
   — Corrects the residual OpenAI permission block and Settings controls during
   beta; preserves receipt history and owned explicit retry, and records the
@@ -192,6 +208,9 @@ production submission or public release.
 - **[`/incidents/README.md`](./incidents/README.md)** — Incident authority,
   privacy, status, naming, and maintenance rules, plus the canonical new-record
   template.
+- **[OAuth library restoration](./incidents/2026-11-oauth-library-restoration.md)**
+  records the already-linked identity scheduling defect and distinguishes the
+  source correction from pending simulator/data recovery verification.
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
   — Bounded pre-queue admission fallback, required first-failure **Queued for
   later** behavior, the durable-owner versus local-presentation ownership
@@ -680,6 +699,11 @@ production submission or public release.
 
 ### Features & Hardware
 
+- **[Capture tools and review plan](./product/capture-review-plan.md)** —
+  Proposed consolidated capture/review journey, supporting-details session,
+  shared draft toolbar, media editors, and implementation dependency handoff.
+  Not a shipped behavior or qualification claim.
+
 - **[Staged capture review and shared Describe](./features-and-hardware/29-staged-capture-review.md)**
   — Current capture lifecycle: default review, opt-in Auto-submit, separate
   media/note budgets, the single Describe editor, protected discard, readiness,
@@ -818,6 +842,14 @@ production submission or public release.
   clustering, private Insight routing, exact-coordinate privacy boundaries,
   sensitive-reset and stale-completion fencing, accessibility, verification, and
   candidate release status.
+- **[Initial analysis and reanalysis lifecycle hardening](./rfcs/main-analysis-lifecycle-hardening-2026-10-10.md)**
+  — Proposed end-to-end reliability audit of both paths, four implementation
+  slices, permanent execution and cleanup fences, and future scan-token
+  integration boundaries.
+- **[Trace a scan from Capture to History](./development-guides/25-scan-to-history.md)**
+  — Contributor entry point for media ownership, durable submission, admission,
+  dispatch, immutable results, completion, history/reanalysis and interruption
+  recovery, including current inactive boundaries and qualification commands.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

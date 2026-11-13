@@ -17,6 +17,7 @@ struct ModelsIntegrationArchitectureTests {
                 || source.relativePath == "Models/Schema/SchemaV62ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV63ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV64ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV68ScanSnapshots.swift"
             let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
             if consentFixture {
                 // The sole synthetic enrollment seed is excluded from Release;
@@ -184,8 +185,11 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV68.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV68"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV69.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV69"))
+        let aliases = try source(at: "apps/ios/Merian/Models/Aliases.swift")
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV69"))
+        #expect(registry.contains("migrateV68toV69"))
         #expect(registry.contains("migrateV61toV62"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
@@ -196,13 +200,39 @@ struct ModelsIntegrationArchitectureTests {
         for entry in sources {
             let code = codeLines(in: entry.contents)
             let audioSheetFixture = entry.relativePath == "App/UITesting/UITestSeedCoordinator+AudioReanalysisSheet.swift"
-            if audioSheetFixture {
+            let queuedObservationFixture = entry.relativePath == "App/UITesting/UITestSeedCoordinator+QueuedObservation.swift"
+            let nativeRecoveryFixture = entry.relativePath == "App/UITesting/UITestSeedCoordinator+NativeRecovery.swift"
+            if ["App/UITesting/ReanalysisRecoveryUIFixture.swift", "App/UITesting/ReanalysisRecoveryUISeed.swift",
+                "App/UITesting/ReanalysisRecoveryUITestPresentation.swift"].contains(entry.relativePath) {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n") && entry.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("guard UITestSeedCoordinator.reanalysisRecoveryRestartEnabled"))
+            }
+            if ["App/UITesting/ReanalysisRecoveryUIResult.swift", "App/UITesting/ReanalysisRecoveryUIHistory.swift"].contains(entry.relativePath) {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n") && entry.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("guard UITestSeedCoordinator.reanalysisRecoveryRestartEnabled"))
+                #expect(code.contains("UITestSeedCoordinator.reanalysisRecoverySuccessEnabled else"))
+            }
+            if entry.relativePath.hasPrefix("App/UITesting/InitialMediaHistoryUI") {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n") && entry.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("guard UITestSeedCoordinator.initialMediaHistoryEnabled"))
+            }
+            if entry.relativePath == "App/UITesting/NativeRecoveryUIHistoryFixture.swift" {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n") && entry.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("guard UITestSeedCoordinator.nativeRecoveryHistoryEnabled"))
+            }
+            if entry.relativePath == "App/UITesting/NativeRecoveryUITestPresentation.swift" {
+                #expect(entry.contents.hasPrefix("#if DEBUG\n") && entry.contents.hasSuffix("#endif\n"))
+                #expect(code.contains("guard UITestSeedCoordinator.nativeRecoveryEnabled, fixture == nil"))
+            }
+            if audioSheetFixture || queuedObservationFixture || nativeRecoveryFixture {
                 #expect(entry.contents.hasPrefix("#if DEBUG\n"))
                 #expect(entry.contents.hasSuffix("#endif\n"))
                 let directives = code.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { $0.hasPrefix("#if") || $0.hasPrefix("#else") || $0.hasPrefix("#endif") }
                 #expect(directives == ["#if DEBUG", "#endif"])
-                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedAudioReanalysisSheet\")"))
+                let flag = audioSheetFixture ? "-seedAudioReanalysisSheet" :
+                    (queuedObservationFixture ? "-seedQueuedObservationRestart" : "-seedNativePhotoRecoveryRestart")
+                #expect(code.contains("isEnabled && ProcessInfo.processInfo.arguments.contains(\"\(flag)\")"))
                 #expect(!code.contains("PreparedHistoryReanalysisComposition.prepared"))
                 #expect(!code.contains(".appInstallation"))
             }
@@ -222,10 +252,10 @@ struct ModelsIntegrationArchitectureTests {
             }
         }
         let composition = try source(at: "apps/ios/Merian/App/Composition/PreparedHistoryReanalysisComposition.swift")
-        #expect(composition.contains("static let isAppInstallationQualified = false"))
+        #expect(composition.contains("#if MERIAN_HISTORY_NORMAL_OAUTH\n    static let isAppInstallationQualified = MerianEnvironment.historyNormalOAuthConfigurationIsValid\n    #elseif MERIAN_HISTORY_QUALIFICATION\n    static let isAppInstallationQualified = MerianEnvironment.isHistoryQualificationBuild\n        && MerianEnvironment.historyQualificationScope != nil\n    #else\n    static let isAppInstallationQualified = false\n    #endif"))
         #expect(composition.contains("guard isAppInstallationQualified else { return nil }\n        return make()"))
         let app = try source(at: "apps/ios/Merian/App/MerianApp.swift")
-        #expect(app.contains("#if DEBUG\n                    .modifier(SavedAudioChooserUITestPresentation())\n                    .modifier(AudioReanalysisSheetUITestPresentation())\n                    #endif"))
+        #expect(app.contains("#if DEBUG\n                    .modifier(SavedAudioChooserUITestPresentation())\n                    .modifier(AudioReanalysisSheetUITestPresentation())\n                    .modifier(QueuedObservationUITestPresentation())\n                    .modifier(NativeRecoveryUITestPresentation())\n                    .modifier(ReanalysisRecoveryUITestPresentation())\n                    .modifier(InitialMediaHistoryUITestPresentation())\n                    #endif"))
         #expect(app.contains("preparedHistoryReanalysis = .appInstallation {\n            .prepared(in: dependencies)"))
         #expect(app.contains("reanalysisAccess: preparedHistoryReanalysis?.capture"))
         #expect(app.contains(".environment(\\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)"))

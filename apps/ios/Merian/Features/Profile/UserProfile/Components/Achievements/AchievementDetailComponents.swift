@@ -78,76 +78,69 @@ struct AchievementContributionRow: View {
     let onTap: () -> Void
 
     var body: some View {
+        ScanPreviewCard(
+            onOpen: onTap,
+            media: { imageButton },
+            header: { details },
+            actions: { EmptyView() }
+        )
+    }
+
+    private var imageButton: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                ScanThumbnail(
-                    isOnline: offlineQueueManager.isOnline,
-                    imagePath: contribution.imagePath,
-                    fallbackImageUrl: contribution.fallbackImageUrl,
-                    audioPath: contribution.audioPath,
-                    maxDimension: 240,
-                    placeholderStyle: contribution.placeholderStyle
-                )
-                .frame(width: 68, height: 68)
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(contribution.commonName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
-
-                    Text(contribution.scientificName)
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .italic()
-
-                    Text(contribution.reasonText)
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.primary.opacity(0.7))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(Color(uiColor: .tertiarySystemFill))
-                        )
-
-                    Text(metadataText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            ScanThumbnail(
+                isOnline: offlineQueueManager.isOnline,
+                imagePath: contribution.imagePath,
+                fallbackImageUrl: contribution.fallbackImageUrl,
+                audioPath: contribution.audioPath,
+                maxDimension: 1_000,
+                aspectRatio: 4.0 / 3.0,
+                placeholderStyle: contribution.placeholderStyle
             )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(
-            "AchievementContribution_\(contribution.scanID)"
-        )
+        .accessibilityIdentifier("AchievementContribution_\(contribution.scanID)")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Opens this qualifying scan in the insight sheet.")
     }
 
-    private var metadataText: String {
-        var segments = [
-            contribution.timestamp.formatted(
-                date: .abbreviated,
-                time: .shortened
-            )
-        ]
-        if let locationName = visibleLocationName {
-            segments.append(locationName)
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(contribution.commonName)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            Text(contribution.scientificName)
+                .font(.subheadline)
+                .italic()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Text(metadataText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(contribution.reasonText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.primary.opacity(0.7))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                )
         }
-        return segments.joined(separator: " • ")
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var metadataText: String {
+        let date = contribution.timestamp.formatted(date: .abbreviated, time: .omitted)
+        return [visibleLocationName, date].compactMap { $0 }.joined(separator: " • ")
     }
 
     private var accessibilityLabel: String {

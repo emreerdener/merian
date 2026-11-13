@@ -26,7 +26,7 @@ struct ObservationAudioHistoryJourneyTests {
         value["owner_id"] = owner.uuidString.lowercased()
         value["state_revision"] = revision; value["selected_analysis_id"] = selected.uuidString.lowercased()
         var item = try #require(value["analysis"] as? [String: Any])
-        item["snapshot"] = try #require(String(bytes: snapshot, encoding: .utf8)); item["review_revision"] = review
+        item["snapshot"] = (try #require(String(bytes: snapshot, encoding: .utf8))) as String; item["review_revision"] = review
         if let rejection {
             var authority = try #require(item["review_snapshot"] as? [String: Any])
             authority["ai_identification_review"] = ["version": 1, "revision": cleared ? 2 : 1, "state": cleared ? "clear" : "ai_rejected",

@@ -10,7 +10,7 @@ struct SelectedAnalysisReviewAccess {
     static func prepared(cloud: ObservationHistoryCloudClient,
                          session: @escaping (String, ModelContainer) throws -> IdentificationHistorySession) -> Self {
         .init(open: { baseline, container in
-            let scope = try session(baseline.observationID.uuidString, container)
+            let scope = try session(baseline.observationID.uuidString.lowercased(), container)
             do {
                 try scope.check()
                 guard let access = scope.dependencies.review else { throw ObservationHistoryError.unavailable }

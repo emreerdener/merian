@@ -1,6 +1,8 @@
 import { assert, assertEquals } from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
+import { evidenceDispatchFixture } from "./observationEvidenceDispatchFixture.ts";
+
 const databaseUrl = Deno.env.get("SUPABASE_DB_TEST_URL");
 const audio =
   "SELECT public.reserve_owned_observation_audio_evidence_cohort($1,$2,$3,$4,46,repeat('a',64)) AS receipt";
@@ -54,11 +56,15 @@ for (
         media = crypto.randomUUID();
       const otherOwner = crypto.randomUUID(),
         otherObservation = crypto.randomUUID();
+      let dispatchFixture:
+        | Awaited<ReturnType<typeof evidenceDispatchFixture>>
+        | undefined;
       let gates:
         | { media: boolean; audio: boolean; erasure: boolean }
         | undefined;
       try {
         for (const client of clients) await client.connect();
+        dispatchFixture = await evidenceDispatchFixture(observer);
         const source = await Deno.readTextFile(
           new URL(
             "../../tests/observation_analysis_append.sql",
@@ -141,7 +147,8 @@ for (
           await first.queryArray("SET LOCAL ROLE service_role");
           if (scenario === "expiry before replay") {
             const result = await first.queryObject<{ count: number }>(
-              "SELECT public.retire_expired_observation_evidence() AS count",
+              "SELECT public.retire_expired_observation_evidence_for_dispatch($1) AS count",
+              [dispatchFixture.dispatch],
             );
             assertEquals(result.rows[0].count, 1);
           } else {saved = (await first.queryObject<{ receipt: unknown }>(
@@ -223,6 +230,7 @@ for (
             [object.object_id],
           );
         }
+        await dispatchFixture?.restore();
         await Promise.all(clients.map((client) => client.end()));
       }
     },

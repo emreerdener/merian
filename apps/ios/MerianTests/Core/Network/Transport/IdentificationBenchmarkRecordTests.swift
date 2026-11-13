@@ -181,13 +181,14 @@ struct IdentificationBenchmarkRecordTests {
     @Test func fixedProfileBindsFinalBodyAndChecksLiveOwnership() async throws {
         let body = try fixedAudioMeasurementTestBody()
         let telemetry = DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry()
-        var current = true
-        let context = try #require(IdentificationMeasurementContext.fixedAudio(
+        let current = MainActorTestValue(true)
+        let optionalContext = IdentificationMeasurementContext.fixedAudio(
             body: body, telemetry: telemetry,
-            validateAttempt: { if !current { throw CancellationError() } }
-        ))
+            validateAttempt: { if !current.value { throw CancellationError() } }
+        )
+        let context = try #require(optionalContext)
         #expect(context.isCurrent())
-        current = false
+        current.value = false
         #expect(!context.isCurrent())
         #expect(IdentificationMeasurementContext.fixedAudio(body: body, telemetry: telemetry, validateAttempt: nil) == nil)
         var ordinary = telemetry

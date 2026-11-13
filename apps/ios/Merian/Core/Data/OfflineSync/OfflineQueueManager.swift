@@ -113,7 +113,14 @@ import SwiftData
     @ObservationIgnored var syncGeneration: UUID?
     var identificationReviewSyncGeneration: UUID?
     var identificationReviewSyncTask: Task<Void, Never>?
-    @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
+    @ObservationIgnored private(set) var reanalysisErasureOwner = ObservationReanalysisErasureOwner()
+    func renewReanalysisErasureOwner(_ expected: ObservationReanalysisErasureOwner,
+                                     configure: (ObservationReanalysisErasureOwner) throws -> Void) throws {
+        guard reanalysisErasureOwner === expected else { throw SharedMediaStorageFailure.closed }
+        let successor = try expected.successor()
+        try configure(successor)
+        reanalysisErasureOwner = successor
+    }
     @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
     @ObservationIgnored let historyEnrollmentOwner = ObservationHistoryEnrollmentOwner()
     @ObservationIgnored let publicationConsentPreparationOwner = ObservationPublicationPreparationOwner()

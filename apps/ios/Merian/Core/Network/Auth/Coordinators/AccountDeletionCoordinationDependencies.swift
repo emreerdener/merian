@@ -26,7 +26,7 @@ struct AccountDeletionSessionBoundary {
         AuthTransitionPhase
     ) -> Void
     let ownsTransition: @MainActor (AuthTransitionToken) -> Bool
-    let verifyExpectedSession: @MainActor (AuthTransitionToken) async throws
+    let verifyExpectedSession: @MainActor (AuthTransitionToken, AccountDeletionLocalCleanupStore.RecoveryScope) async throws
         -> Void
     let currentSessionMatchesTransition: @MainActor (
         AuthTransitionToken
@@ -42,7 +42,7 @@ struct AccountDeletionSessionBoundary {
     ) -> Bool
     let publishCachedSession: @MainActor (AuthTransitionSession) -> Void
     let performVerifiedLocalSignOut: @MainActor (
-        AuthTransitionToken
+        AuthTransitionToken, AccountDeletionLocalCleanupStore.RecoveryScope
     ) async -> Bool
 }
 
@@ -54,8 +54,18 @@ struct AccountDeletionDiagnostics {
 }
 
 struct AccountDeletionCoordinationDependencies {
+    let validateLibrary: @MainActor (AnyObject?) -> Bool
+    let acknowledgeLibraryPurge: @MainActor (AccountDeletionLocalCleanupStore.RecoveryScope) -> Bool
     let hasPendingPurchaseIdentityHandoff: @MainActor () -> Bool
     let localState: AccountDeletionLocalStateBoundary
     let session: AccountDeletionSessionBoundary
     let diagnostics: AccountDeletionDiagnostics
+
+    @MainActor func scope(
+        _ token: AuthTransitionToken, state: AccountDeletionLocalRecoveryState?,
+        proof: PreparedDeletionRecoveryCapability?, store: AccountDeletionRecoveryCapabilityStore
+    ) -> AccountDeletionLocalCleanupStore.RecoveryScope {
+        .init(expectedState: state, expectedCapability: proof, capabilityStore: store, readState: localState.state,
+              validateSession: { session.currentSessionMatchesTransition(token) }, validateLibrary: validateLibrary)
+    }
 }

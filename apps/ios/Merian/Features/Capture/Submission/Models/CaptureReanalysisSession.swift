@@ -19,7 +19,7 @@ final class CaptureReanalysisSession {
 
     /// Freeze before the first asynchronous producer call. An ambiguous result cannot mint a successor.
     /// Once frozen, editing or discarding requires explicit durable reconciliation by the caller.
-    func preparation(capture: StagedCapture, generation: UUID) throws -> ObservationReanalysisPreparationPlan {
+    func preparation(capture: StagedCapture, generation: UUID, container: ModelContainer? = nil) throws -> ObservationReanalysisPreparationPlan {
         guard !isDiscarded else { throw ObservationHistoryError.unavailable }
         guard generation == self.generation else { throw ObservationHistoryError.accountChanged }
         let snapshot = CaptureSubmissionAdmissionSnapshot(capture)
@@ -28,6 +28,7 @@ final class CaptureReanalysisSession {
             return plan
         }
         let prepared = try CaptureReanalysisPreparation.plan(source: source, capture: capture)
+        try prepared.validateRetained(container: container)
         submittedCapture = snapshot
         plan = prepared
         return prepared
@@ -41,7 +42,7 @@ final class CaptureReanalysisSession {
         guard !isPreparing else { throw ObservationHistoryError.unavailable }
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
-        let plan = try preparation(capture: capture, generation: generation)
+        let plan = try preparation(capture: capture, generation: generation, container: container)
         guard preparationAction == nil || preparationAction == action else { throw ObservationHistoryError.resultConflict }
         preparationAction = action
         isPreparing = true

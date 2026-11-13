@@ -166,8 +166,7 @@ final class SharedMediaNativeAppOriginalOperations {
             try boundary(.beforeReleaseSave); try proof.validate(context: c, inventory: rows.inventory); try requireRetirement(state)
             try files.requireNativeAbsence(state.file, retirement: state.identity, binding: binding)
             consumed = true
-            do { try c.save(); try boundary(.afterReleaseSave); try acknowledgeRelease(proof) }
-            catch { let failure = error; c.rollback(); do { try acknowledgeRelease(proof) } catch { throw failure } }
+            do { try c.save(); try boundary(.afterReleaseSave); try acknowledgeRelease(proof) } catch { let failure = error; c.rollback(); do { try acknowledgeRelease(proof) } catch { throw failure } }
             return true
         }
         return false
@@ -254,8 +253,7 @@ final class SharedMediaNativeAppOriginalOperations {
         _ = try SharedMediaNativeAcquisitionBudget.evaluateOriginalPoststate(context: c, inventory: rows.inventory, proof: proof)
         try boundary(.beforeSave); try proof.validate(context: c, inventory: rows.inventory); try before(); try seal()
         consumed = true
-        do { try c.save(); try boundary(.afterSave); try acknowledge(proof) }
-        catch { let failure = error; c.rollback(); do { try acknowledge(proof) } catch { throw failure } }
+        do { try c.save(); try boundary(.afterSave); try acknowledge(proof) } catch { let failure = error; c.rollback(); do { try acknowledge(proof) } catch { throw failure } }
     }
     private func acknowledge(_ proof: SharedMediaNativeAppOriginalPoststate) throws {
         try boundary(.beforeReadback)
@@ -287,8 +285,9 @@ final class SharedMediaNativeAppOriginalOperations {
     private func plus(_ value: Int64) throws -> Int64 { try SharedMediaStoragePolicy.add(value, 1) }
 }
 
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
 /// Only the audited app lifecycle can mint current physical-disposal authority.
-struct SharedMediaNativeAppOriginalDisposalWitness: Sendable {
+struct SharedMediaNativeAppOriginalDisposalWitness: Sendable { // swiftlint:disable:this type_name
     let state: SharedMediaNativeRetirementState
     let binding: SharedMediaNativeBinding
     fileprivate init(state: SharedMediaNativeRetirementState, binding: SharedMediaNativeBinding) { self.state = state; self.binding = binding }
@@ -310,9 +309,9 @@ struct SharedMediaNativeAppOriginalPoststate {
     private let inserts: Set<PersistentIdentifier>, updates: Set<PersistentIdentifier>, deletes: Set<PersistentIdentifier>
 
     fileprivate init(_ c: ModelContext, facts: SharedMediaNativeAppMetadataFacts, header: SharedMediaNativeAppEligibility.Header,
-         rows: Rows, request: SharedMediaNativeAppOriginalRequest, package: SharedMediaNativeAppMetadataFacts.Package,
-         member: SharedMediaNativeAppMetadataFacts.Member, retirement: SharedMediaNativeRetirementIdentity?,
-         inserts: Set<PersistentIdentifier> = [], references: Set<PersistentIdentifier> = []) throws {
+                     rows: Rows, request: SharedMediaNativeAppOriginalRequest, package: SharedMediaNativeAppMetadataFacts.Package,
+                     member: SharedMediaNativeAppMetadataFacts.Member, retirement: SharedMediaNativeRetirementIdentity?,
+                     inserts: Set<PersistentIdentifier> = [], references: Set<PersistentIdentifier> = []) throws {
         self.facts = facts; profile = facts.profile; self.header = try SharedMediaNativeAppMetadataFacts.successor(header)
         self.request = request; self.package = package; self.member = member
         contextID = ObjectIdentifier(c); inventoryID = rows.inventory.persistentModelID; self.inserts = inserts
@@ -463,6 +462,8 @@ struct SharedMediaNativeAppOriginalPoststate {
 /// Six physical/reference deletions plus the exact four accounting/receipt
 /// updates. A stripped acquisition receipt is never removal-replay authority.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppOriginalReleasePoststate {
     var allocationPeers: [UUID: SharedMediaNativePhotoAllocationPeer] { facts.allocationPeers }
     var predecessorRevision: Int64 { state.inventoryRevision }
@@ -478,7 +479,7 @@ struct SharedMediaNativeAppOriginalReleasePoststate {
     private let updates: Set<PersistentIdentifier>, deletes: Set<PersistentIdentifier>
 
     fileprivate init(_ c: ModelContext, facts: SharedMediaNativeAppMetadataFacts, header: SharedMediaNativeAppEligibility.Header,
-         rows: Rows, state: SharedMediaNativeRetirementState) throws {
+                     rows: Rows, state: SharedMediaNativeRetirementState) throws {
         self.facts = facts; profile = facts.profile; self.header = try SharedMediaNativeAppMetadataFacts.successor(header); self.state = state
         contextID = ObjectIdentifier(c); inventoryID = rows.inventory.persistentModelID
         guard let old = facts.packages[state.reference.packageID], let oldMember = facts.members[state.reference.packageID],

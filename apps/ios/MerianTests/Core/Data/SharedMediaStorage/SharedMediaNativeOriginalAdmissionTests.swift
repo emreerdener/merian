@@ -391,6 +391,10 @@ struct SharedMediaNativeOriginalAdmissionTests {
             return .init(version: 1, file: "\(file.st_dev):\(file.st_ino):\(file.st_size):\(file.st_mtimespec.tv_sec):\(file.st_mtimespec.tv_nsec):\(file.st_ctimespec.tv_sec):\(file.st_ctimespec.tv_nsec)",
                 parent: "\(parent.st_dev):\(parent.st_ino)", namespace: "\(namespace.st_dev):\(namespace.st_ino)")
         }
-        func cleanup() { try? FileManager.default.removeItem(at: base) }
+        func cleanup() {
+            for root in [authority, photo, inbox] { try? FileManager.default.removeItem(at: root) }
+            // Core Data may retain SQLite/WAL handles beyond container release.
+            // Preserve this unique database root through test-process exit.
+        }
     }
 }

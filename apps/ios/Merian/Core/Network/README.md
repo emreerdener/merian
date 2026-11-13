@@ -1,3 +1,78 @@
+## November 13 — preserve endpoint encoding during authentication
+
+`AuthenticatedTransportDispatcher.applyingValidatedAuthHeaders` preserves an
+endpoint's explicit Content-Type while applying the validated Authorization and
+apikey values. Header-less requests retain the existing JSON default. This keeps
+photo, audio and video binary frames labeled as octet-stream; it changes neither
+their bytes nor the server's strict MIME validation. Tests exercise this
+production merge helper because the existing injected-session transport skips
+live authentication. The observed photo upload415 occurred before reservation or
+provider execution. Completion411 passed79 focused native tests in nine suites,
+zero failures/skips, and the optimized simulator build. The same saved photo
+request then completed with two visible History versions and the original still
+Current. All-media and review/selection acceptance remain separate.
+
+## November 12 — separate database errors from Edge route failures
+
+`AuthenticatedRequestExecutor` applies missing-function classification only to
+`/functions/v1/` routes. PostgREST RPCs share gateway headers and normally have
+no Edge execution ID; their404 response must reach the existing RPC-specific
+error classifier without Edge route retry. Reanalysis recovery still recognizes
+only the exact `P0002` / `analysis_history_not_found` pair as absence. Missing
+RPCs, unknown errors and malformed responses cannot authorize execution. Real
+Edge missing-function retry behavior remains unchanged.
+
+Completion410 adds no database or API change. Gateway-shaped missing-child and
+missing-RPC cases supplement the existing route retry/recovery tests.
+Independent review and75 focused native tests passed, with zero skips. The same
+saved request subsequently passed recovery and reached photo upload, where the
+separate header-merge defect above returned415. The earlier test helper's
+synthetic `X-Merian-Handler: 1` header masked this route distinction.
+
+## November 5 — ordinary completion account lifetime candidate
+
+A foreground completion scope begins from the built inference request's original
+authenticated owner before dispatch and survives through local persistence and
+queue finalization. Request failure and every pipeline exit release it. Such
+scoped requests disable automatic unauthorized-session recovery: Auth recovery
+drains account work and must happen after the outer request unwinds, avoiding a
+circular wait on its own lease. Ordinary callers without the completion callback
+retain existing recovery behavior. No persisted auth/session state is added.
+Native226-02 passed four original-scope lifetime cases and both scoped/unscoped
+401 transport cases, with independent source/runtime verification. See the
+[scan journey](../../../../../docs/development-guides/25-scan-to-history.md#november-5--ordinary-completion-proof-candidate).
+
+## Inactive initial completion decoder — November 4
+
+`Inference/InitialCompletionDocuments.swift` preserves the closed original
+receipt/projection only after strict canonical bytes, shared structural rules,
+identity/settlement/media consistency, UTC calendar and digest validation.
+`InitialAnalysisCanonical` compares UTF-8 bytes without Unicode normalization.
+The generated `InitialCompletionSchema` follows the private Deno schema;
+`InitialCompletionDocumentsTests` consumes the shared synthetic fixture bundle.
+Selected native compilation/tests passed 19methods with no failures or skips;
+shared SQL parity passed 31 vectors/157 checks. Unsigned local device Release
+compilation also passed. Its 432 compiler/style warnings remain in the evidence;
+three decoder conversion warnings received independently verified, line-local
+comment-only dispositions, and scoped strict lint passed. The byte parser fixes
+Foundation loss of embedded leading FEFF, with original failure and independent
+fix verification retained. Full-app qualification remains open. This adds no
+network call, persistent model, account authority or History import. The future
+delivery owner must bind the exact saved operation and authenticated owner. See
+the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-original-completion-document-decoder-inactive).
+
+The inactive `InitialRetainedResult` candidate validates the separately retained
+full result against generated frozen `resultSchemaV1` rules, exact original
+reference/provenance, provider usage, primary-result semantics and domain
+hashes. Its generated rules never follow the live public Identify DTO
+automatically. Shared synthetic decoder vectors cover both provenance versions
+and all primary resolutions; all37 vectors passed in the nine-method native
+suite, with independent parity verification. It provides byte/schema validation
+only. The authenticated reader remains absent. The protected completion writer
+is now an inactive integration candidate; its focused runtime qualification
+remains pending.
+
 ## Allocation transport termination — October 31
 
 The existing initial-photo allocation create/status route now joins actual task
@@ -14,16 +89,24 @@ owns these boundaries. No UI caller, endpoint deployment or activation is added.
 
 The existing `InitialPhotoAllocationTransport.performTransfer` adapter sends one
 fixed issue/status POST through the authenticated dispatcher and pinned bounded
-collector. Fresh issue requires V11 and the retained owner's validation
-callback; V9 remains decoding compatibility only. The 8 KiB reply has a
-five-second response deadline; actual task termination may take longer and is
-joined before dispatcher account protection ends. Cancellation, timeout and lost
-replies retain uncertainty and never refresh or repeat issuance. The
+collector. The first issue uses V11. Later assigned roles use V14 with the
+fresh, one-use ticket continuation from the same submission. A reopened V14
+description can only support recovery. V9 remains decoding compatibility only.
+The 8 KiB reply has a five-second response deadline; actual task termination may
+take longer and is joined before dispatcher account protection ends.
+Cancellation, timeout and lost replies retain uncertainty and never refresh or
+repeat issuance. The
 [current scan contract](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--inactive-native-ticket-transport)
 owns qualification and remaining gaps. No ordinary registration, serving
 endpoint or activation is installed. Earlier dated notes below describe their
 own checkpoints; their pending ticket/PUT construction statements are superseded
 by the current inactive composition.
+
+The private `verifyCohort` transport spends a separate fresh V17 grant. Its
+35-second authenticated exchange checks the original scan, candidate, assignment
+and backend. A positive response leads to the existing original admission reader
+on `check-scan-status`. Recover a lost reply from the same operation. See the
+[cohort contract](../../../../../docs/backend-and-data/05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30).
 
 ## Current native allocation v3 candidate — October 30
 
@@ -68,13 +151,16 @@ wired.
 ## File upload task lifetime candidate — October 29
 
 `PinnedNetworkTransport.photoUploadTask()` creates a single-use file PUT owner
-on the existing pinned session. `PinnedPhotoUploadTask` keeps prompt caller
-cancellation separate from URLSession completion; a cancelled join still waits
-for completion. Response bodies are counted and discarded under a 4 KiB ceiling,
-and redirects and non-TLS authentication challenges are refused. The repaired
-upload suite passed eight methods / 19 cases; combined applicable evidence is 26
-methods / 39 cases with unchanged transport and architecture checks reused.
-Engine cleared the repair. The
+on its own foreground ephemeral session. The factory disables caches, cookie and
+credential stores. After file-task termination, the owner waits for that
+session’s invalidation callback before returning a successful upload to Capture.
+Borrowed sessions are a Debug test seam. `PinnedPhotoUploadTask` keeps prompt
+caller cancellation separate from URLSession completion; a cancelled join still
+waits for completion. Response bodies are counted and discarded under a 4 KiB
+ceiling, and redirects and non-TLS authentication challenges are refused. The
+repaired upload suite passed eight methods / 19 cases; combined applicable
+evidence is 26 methods / 39 cases with unchanged transport and architecture
+checks reused. Engine cleared the repair. The
 [scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--file-upload-task-lifetime-candidate)
 owns the exact scope and remaining integration. This does not install a CPM
 caller or prove ticket validity, physical staging bounds or remote closure.
@@ -280,6 +366,12 @@ delegates its observable projection to `AuthSessionLifecycleCoordinator`:
   and RevenueCat mutation readiness remain closed and `currentUser` remains
   unset, but the known user ID is passed to `ConsentManager` so a completed user
   stays on the launch-matched restoration root.
+
+`hasCachedSessionAwaitingRefresh` exposes this uncertainty only as a
+presentation hint, observing the Auth generation and published user. The library
+access view uses it only for generation one; it grants no library access or
+mutation permission and does not hide a later confirmed recovery. That view is
+scoped to private routes and never interrupts ordinary camera startup.
 
 The SDK's later `tokenRefreshed` event adopts the valid session through the
 normal authenticated path and re-resolves the purchase identity. A terminal
@@ -1274,6 +1366,11 @@ and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 client façade. The Auth inventory is exactly sixty-four production files; its
 source guard also caps Auth at 7,887 production lines, Purchase Identity at
 2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,695. The
+November 9 approved allowance excludes only 66 reviewed Debug-only lines from
+Auth: 61 in the lifecycle provider and five in its live factory. Exact
+whole-file SHA-256 assertions fail before subtraction after any source edit;
+renewed independent review is required before updating those hashes. Other Auth
+files receive no exclusion, and individual owner limits remain unchanged. The
 September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
 keyed foreground/listener coalescing and replacement fencing; the other limits
 and ownership checks remain unchanged. The October deletion-account resume hook
@@ -4459,6 +4556,26 @@ private consumed permit, preserves the saved V4 body and uses the fixed
 a streamed4096-byte closed state-receipt bound. Auth/account ownership remains
 held through I/O, with separate caller dispatch and known-settlement validators.
 There is no automatic retry or auth-refresh replay. A receipt grants no result
-or cleanup authority; retained queue execution and exact reader11 completed
-result binding remain pending. See the
+or cleanup authority. Retained queue execution and exact reader11 completed
+result binding are implemented and locally tested; prepared saved-child
+continuation now uses `MerianNetworkClient.videoEvidenceTransport()` through the
+same authenticated assembly. The new composition remains under native
+qualification and ordinary app installation remains disabled. See the
 [canonical transport contract](../../../../../docs/backend-and-data/05-api-contracts.md#native-video-submission-transport).
+
+The prepared native recovery methods on `NativeReceivedStatusTransport` use
+separate named admission/completion limits through the existing authenticated
+dispatcher and pinned task-draining collector. Ordinary status remains4KiB.
+`InitialCompletionDocuments.statusAcquisition` preserves canonical inner bytes
+and reuses the frozen result/document validators. The generated status response
+schema is owned by the backend completion contract. These methods are unwired
+after focused native transport, byte-parity and protected-pin checks passed;
+they grant no execution, application or History-import authority.
+
+The prepared recovery requests carry `X-Merian-Initial-Recovery` with the exact
+phase plus `-v1`; ordinary status sends no such header. This lets the prepared
+server collector select its fixed byte ceiling before parsing, then require
+body/header phase agreement. All four selected native transport methods passed
+with independent verification, including header/body agreement and ordinary
+header absence. The serving branch remains inactive; current route source
+rejects this header before legacy repair.

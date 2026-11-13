@@ -499,5 +499,4 @@ actor HistoricalDatabaseActor {
             ?? DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
     }
 
-
 }

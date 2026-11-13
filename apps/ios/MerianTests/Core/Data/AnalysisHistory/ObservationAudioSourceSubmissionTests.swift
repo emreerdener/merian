@@ -120,7 +120,7 @@ struct ObservationAudioSourceSubmissionTests {
                         let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
                         let changed = try ObservationSourceReservationWork(preparation: entry.work.preparation, request: entry.work.request,
                             state: .observed, generation: entry.work.generation + 1, reply: entry.work.reply)
-                        job.metadataJSON = try #require(String(bytes: changed.storedData(), encoding: .utf8))
+                        job.metadataJSON = (try #require(String(bytes: changed.storedData(), encoding: .utf8))) as String
                     }
                     try context.save()
                 }

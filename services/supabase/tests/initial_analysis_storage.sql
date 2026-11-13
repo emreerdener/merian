@@ -15,7 +15,11 @@ CREATE FUNCTION pg_temp.initial_result(owner_id UUID,scan_id UUID) RETURNS VOID 
  INSERT INTO internal.initial_analysis_results VALUES(scan_id,owner_id,scan_id,1,'{"synthetic":true}','{"synthetic":true}');
 $$;
 CREATE FUNCTION pg_temp.initial_receipt(owner_id UUID,scan_id UUID) RETURNS VOID LANGUAGE SQL AS $$
- INSERT INTO internal.initial_analysis_completions VALUES(scan_id,owner_id,scan_id,1,'{"synthetic":true}');
+ -- Storage-only fixture: both immutable documents are required. This does not
+ -- impersonate the private producer's receipt or completed-scan classification.
+ INSERT INTO internal.initial_analysis_completions
+ (scan_id,owner_id,result_evidence_id,receipt_version,receipt_snapshot,completion_projection_snapshot)
+ VALUES(scan_id,owner_id,scan_id,1,'{"synthetic":true}','{"synthetic":true}');
 $$;
 CREATE FUNCTION pg_temp.initial_scan(owner_id UUID,scan_id UUID,enrolled BOOLEAN DEFAULT FALSE) RETURNS VOID LANGUAGE PLPGSQL AS $$
 BEGIN
@@ -58,6 +62,7 @@ SELECT extensions.is((SELECT ordered_descriptions FROM internal.initial_analysis
 SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_submissions SET route='identify'$$,'22023','initial_analysis_storage_immutable','route cannot change');
 SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_results SET result_snapshot='{}'$$,'22023','initial_analysis_storage_immutable','result cannot change');
 SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_completions SET receipt_snapshot='{}'$$,'22023','initial_analysis_storage_immutable','receipt cannot change');
+SELECT extensions.throws_ok($$UPDATE internal.initial_analysis_completions SET completion_projection_snapshot='{}'$$,'22023','initial_analysis_storage_immutable','completion projection cannot change');
 SELECT extensions.throws_ok($$DELETE FROM internal.initial_analysis_submissions$$,'22023','initial_analysis_storage_immutable','live evidence cannot disappear without fence');
 SELECT extensions.throws_ok($$DELETE FROM internal.initial_analysis_results$$,'22023','initial_analysis_storage_immutable','live result cannot disappear');
 SELECT extensions.throws_ok($$DELETE FROM internal.initial_analysis_completions$$,'22023','initial_analysis_storage_immutable','live receipt cannot disappear');

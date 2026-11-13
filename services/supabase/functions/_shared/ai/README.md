@@ -511,6 +511,16 @@ before dispatch. See the
 This accounting is independent of optional telemetry and never invokes a model
 again.
 
+The in-progress S0 integration adds a trusted `IdentificationAccountingPort` to
+this same owner. Ordinary callers still use the existing invocation RPCs by
+default. Only a positively received fresh invocation identity allows execution;
+held, malformed or ambiguous acknowledgements do not. Reporting remains awaited
+and best effort, so a reporting failure preserves the original provider outcome
+without another call. The port is a server composition dependency, not request
+input or installed initial-dispatch authority. The complete private chain and
+its database guards remain required by the
+[S0 contract](../../../../../docs/rfcs/initial-dispatch-fence-interface-2026-10-13.md).
+
 Content adds `ai_task`, provider/binding/prompt/schema references, nullable user
 policy version, context kind, returned model, native duration, and outcome to
 existing helper analytics and `ai_usage_events.metadata`. These fields contain

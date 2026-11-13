@@ -112,11 +112,12 @@ completion/cancellation so staged controls cannot flash beneath the full-screen
 cover.
 
 The shared image cropper has left/right 90-degree rotation controls that
-preserve zoom and rotate the selected area. Confirmed quarter-turns, scale, and
-offset remain on the original image for reopening; cancellation leaves the
-previous confirmed values intact. Inference and display crops both use the
-original image and the same confirmed geometry, never the preceding display
-crop. See
+preserve zoom and rotate the selected area. Its action reads **Crop and submit**
+for a required gallery crop with automatic submission still armed; manual crops
+retain **Confirm crop**. Confirmed quarter-turns, scale, and offset remain on
+the original image for reopening; cancellation leaves the previous confirmed
+values intact. Inference and display crops both use the original image and the
+same confirmed geometry, never the preceding display crop. See
 [bounded crop processing](../../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md#bridging-ram-leaks-imagecropprocessor--localimageloader).
 
 Every media replacement must retain its original `addedAt` value. Submission and
@@ -152,7 +153,7 @@ path, and 600-line production-file guard. Paired Shell and Submission suites
 cover admission/presentation fences and timeline/projection contracts.
 
 The presentation suite also checks exact whole-node wrap boundaries and the
-shared baseline/expanded clearance policy. UI checks cover compact 48 pt
+shared baseline/expanded clearance policy. UI checks cover compact 52 pt
 circular submission buttons at standard and accessibility XXXL, note editing and
 keyboard dismissal, and wrapped historical evidence with capture-control
 clearance in Record and Scan. The
@@ -172,18 +173,24 @@ with 8 pt gaps; when the compact row does not fit, media wraps above the
 always-visible Identify and confirmed Discard actions. Native glass respects
 Expedition, thermal, and accessibility reductions. The tray follows app
 appearance across capture modes. Identify uses the same accent blue as Share,
-and the neutral discard control uses a contrasting semibold red icon.
-`CaptureStagingNodeSurface` gives populated nodes opaque primary system
-backgrounds (white in light appearance) and solid borders. Empty media and note
-slots use transparent backgrounds and matching dashed borders, revealing the
-tray's existing glass or reduced-effect surface. The empty note uses a plain
-`bubble.left` outline without interior lines or a plus badge; a populated note
-uses the filled symbol. Analyze matches Identify with a 48 pt blue circle and
-white up arrow. Both retain their Identify/Analyze accessibility labels,
-submission hints, and Large Content Viewer labels. The submit button gets a
-separate once-per-install tooltip above its own trailing edge when physical
-capacity is full and submission is ready. It waits for the note tooltip, lasts
-four seconds, and says “Submit to identify” or “Submit to analyze.” See the
+and the neutral discard control uses a contrasting semibold red icon. Both
+action buttons use 52 pt diameters and 24 pt semibold icons. The tray shares the
+main navigation bar's bottom anchor without additional bottom padding; expanded
+content grows upward from that anchor. `CaptureStagingNodeSurface` gives
+populated nodes opaque primary system backgrounds (white in light appearance)
+and solid borders. Empty media and note slots use transparent backgrounds and
+matching dashed borders, revealing the tray's existing glass or reduced-effect
+surface. The empty note uses a plain `bubble.left` outline without interior
+lines or a plus badge; a populated note uses the filled symbol. Empty add-media
+plus icons, including the Pro upgrade placeholder, and note icons use the same
+adaptive primary color: white in dark appearance and dark in light appearance.
+The dashed borders remain subdued. Analyze matches Identify with a 52 pt blue
+circle and white up arrow. Both retain their Identify/Analyze accessibility
+labels, submission hints, and Large Content Viewer labels. The submit button
+gets a separate once-per-install tooltip above its own trailing edge when
+physical capacity is full and submission is ready. It waits for the note
+tooltip, lasts four seconds, and says “Submit to identify” or “Submit to
+analyze.” See the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Reanalysis keeps historical descriptions alongside its existing primary-media

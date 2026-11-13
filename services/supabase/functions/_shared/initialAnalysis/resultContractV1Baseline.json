@@ -1,0 +1,4 @@
+{
+  "public_source_sha256": "6a765e0286101721d9b0f995cf471320a299ac91342af68e1d2d7261a938a4c2",
+  "decision": "Initial v1 snapshot, 2026-11-03. A source change requires an explicit compatibility decision; never regenerate stored v1 rules automatically."
+}

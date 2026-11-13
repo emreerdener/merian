@@ -50,8 +50,7 @@ final class SharedMediaDerivativeLedger {
               try fetch(PhotoPreparationLease.self, 96).allSatisfy({ $0.packageID != package.id }) else { throw SharedMediaStorageFailure.stale }
         let previous = pairs.filter { $0.request.original.referenceID == request.original.referenceID }
         guard previous.count <= 1, previous.first?.request.id == request.previousPairID else { throw SharedMediaStorageFailure.stale }
-        if let previous = previous.first { _ = try retire(previous.request, inspections: old) }
-        else { guard old.isEmpty else { throw SharedMediaStorageFailure.conflict } }
+        if let previous = previous.first { _ = try retire(previous.request, inspections: old) } else { guard old.isEmpty else { throw SharedMediaStorageFailure.conflict } }
         let original = request.original
         let row = SharedMediaDerivativePairRecord(id: request.id, nonce: request.nonce, inventoryID: inventory.id,
             inventoryGeneration: inventory.generation, expectedInventoryRevision: request.expectedInventoryRevision,
@@ -256,7 +255,7 @@ final class SharedMediaDerivativeLedger {
                   request.ordinal == original.ordinal, ["planned", "writing", "ready", "retiring"].contains(pair.phase),
                   pair.work.count == 2 else { throw SharedMediaStorageFailure.conflict }
             if ["planned", "writing"].contains(pair.phase) {
-                guard row.publishedRevision == nil, (package.phaseRaw == "needsAttention" || (purging && package.phaseRaw == "purging")),
+                guard row.publishedRevision == nil, package.phaseRaw == "needsAttention" || (purging && package.phaseRaw == "purging"),
                       package.revision == (try plus(request.expectedPackageRevision, 1)) else { throw SharedMediaStorageFailure.conflict }
             }
             if pair.phase == "ready" {

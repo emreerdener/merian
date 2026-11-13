@@ -1,0 +1,78 @@
+name: Private Evidence Erasure Health Monitor
+
+on:
+  schedule:
+    # Observation only; GitHub scheduling may be delayed. DB cron owns draining.
+    - cron: "7-57/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observation-evidence-erasure-health-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    # Inactive until a separately approved deployment and monitoring activation.
+    if: ${{ github.ref == 'refs/heads/main' && vars.EVIDENCE_ERASURE_MONITOR_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: Production
+    env:
+      PROJECT_ID: qlarqavoqhkuwzmevrmf
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+      - name: Load Supabase server API key
+        id: service-role
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+          resolved_keys_json="$(
+            deno run --quiet --frozen \
+              --config services/supabase/functions/deno.json \
+              --allow-env=SUPABASE_ACCESS_TOKEN \
+              --allow-net=api.supabase.com \
+              services/supabase/scripts/resolve_project_api_keys.ts \
+              --project-ref "$PROJECT_ID"
+          )"
+          server_api_key="$(jq -er '.server_api_key' <<< "$resolved_keys_json")"
+          unset resolved_keys_json
+          test -n "$server_api_key" && test "$server_api_key" != null
+          echo "::add-mask::$server_api_key"
+          echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
+      - name: Read private evidence aggregate health
+        env:
+          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
+          SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
+        run: |
+          set +e
+          deno run --frozen \
+            --config services/supabase/functions/deno.json \
+            --allow-net="${PROJECT_ID}.supabase.co" \
+            --allow-env=SUPABASE_URL,SUPABASE_SERVER_API_KEY,MERIAN_SUPABASE_SERVER_API_KEY,SUPABASE_SECRET_KEYS,SUPABASE_SECRET_KEY,SUPABASE_SERVICE_ROLE_KEY \
+            services/supabase/scripts/monitor_observation_evidence_erasure.ts \
+            --fail-on=warning > "$RUNNER_TEMP/private-evidence-health.json"
+          exit_code=$?
+          set -e
+          if [ -s "$RUNNER_TEMP/private-evidence-health.json" ]; then
+            cat "$RUNNER_TEMP/private-evidence-health.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$exit_code"
+      - name: Retain aggregate health summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: private-evidence-health-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-evidence-health.json
+          if-no-files-found: warn
+          retention-days: 30

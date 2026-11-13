@@ -4,6 +4,8 @@ import SwiftData
 /// Existing V1 orchestration only. The caller supplies the repository's sealed
 /// authority; no factory, file authority or V2 conversion is available here.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeQualificationPersistence {
     static func settle(container: ModelContainer, inventoryID: UUID, grant: SharedMediaNativeSettlementGrant,
                        authority: SharedMediaNativeMutationAuthority,

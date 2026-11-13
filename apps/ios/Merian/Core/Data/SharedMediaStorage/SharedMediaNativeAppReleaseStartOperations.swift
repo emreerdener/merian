@@ -4,6 +4,8 @@ import SwiftData
 /// Inactive, dedicated start leaf under the existing audited stage workflow.
 /// It changes no media, held execution rows, accounting or provider state.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppReleaseStartOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReceivedReleaseSnapshot.StagedSnapshot
@@ -46,8 +48,7 @@ struct SharedMediaNativeAppReleaseStartOperations {
             try settlement.beginStart(admission, progress: progress) {
                 .releasing(try SharedMediaNativeReleaseStartRecovery.read(progress, container: container, header: header))
             }
-            do { try context.save(); try boundary(.afterSave) }
-            catch { context.rollback(); return try recover(progress) }
+            do { try context.save(); try boundary(.afterSave) } catch { context.rollback(); return try recover(progress) }
             return try acknowledge(progress)
         } catch { context.rollback(); throw error }
     }
@@ -61,10 +62,10 @@ struct SharedMediaNativeAppReleaseStartOperations {
         }
         try settlement.validateStart(admission, row: snapshot.origin.row)
         try SharedMediaNativeReleaseStartIdentity.direct(snapshot, witnesses: witnesses, context: context)
-        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
+        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id)
         try SharedMediaNativeReceivingCleanGraph.requireReplacementRunway(inventoryRevision: inventory.revision,
             packageID: admission.request.packageID, executionAdvances: snapshot.components.progress.remainingAdvances,
-            saveAdvances: 1, witnesses: witnesses, terminalConsumptionAdvances: terminals)
+            saveAdvances: 1, witnesses: witnesses, historical: terminals)
         try snapshot.funding.release.requireExistingFunding()
         return snapshot
     }

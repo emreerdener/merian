@@ -6,6 +6,25 @@ import Testing
 @MainActor
 @Suite("Insight media export lifecycle")
 struct InsightMediaExportLifecycleTests {
+    @Test func retainedDisplayCannotStartOriginalSaveOrShare() async {
+        var saves = 0, shares = 0
+        let dependencies = InsightShellDependencies(
+            saveMedia: { _ in saves += 1; return MediaSaveResult() },
+            prepareMediaShare: { _ in shares += 1; return MediaSharePayload(items: []) }
+        )
+        let (viewModel, engine, scanID) = makePresentedViewModel(dependencies: dependencies)
+        engine.activeMedia = ActiveScanMedia(items: [.retainedDisplayImage(id: UUID(), data: Data([1, 2]))])
+        viewModel.beginPresentationSession()
+        let generation = viewModel.scanBoundActionGeneration
+        #expect(!viewModel.hasUserMedia && !viewModel.canShareToExplore)
+        viewModel.saveUserMedia(expectedScanId: scanID, expectedGeneration: generation, inferenceEngine: engine)
+        viewModel.shareDiscovery(expectedScanId: scanID, expectedGeneration: generation, inferenceEngine: engine)
+        await viewModel.mediaSaveTask?.value
+        await viewModel.mediaShareTask?.value
+        #expect(saves == 0 && shares == 0)
+        #expect(viewModel.mediaSaveTask == nil && viewModel.mediaShareTask == nil)
+    }
+
     @Test("Share maps audio, video, and AI summary before suspension")
     func shareSnapshotsMediaAndReasoning() async throws {
         var request: DiscoveryShareRequest?

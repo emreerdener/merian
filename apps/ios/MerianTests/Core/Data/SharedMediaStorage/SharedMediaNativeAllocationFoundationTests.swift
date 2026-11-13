@@ -43,7 +43,7 @@ struct SharedMediaNativeAllocationFoundationTests {
             let reopened = try ModelContainer(for: schema, configurations: [
                 ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
             ])
-            let cold = try await SharedMediaNativeOriginalOwner.appDispatch(
+            let cold = try SharedMediaNativeOriginalOwner.appDispatch(
                 account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: store.ownerID, runtime: store.runtime), drain: .init())
             await #expect(throws: SharedMediaStorageFailure.closed) {
                 _ = try await cold.openApp(container: reopened, parent: store.parent, inventoryID: store.inventoryID)

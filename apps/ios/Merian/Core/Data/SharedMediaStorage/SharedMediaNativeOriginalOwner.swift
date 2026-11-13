@@ -10,6 +10,7 @@ final class SharedMediaNativeOriginalOwner {
     private var registration: SharedMediaNativeOriginalDrain.Registration?
     private var phase = SharedMediaNativeOriginalPhase.unopened
     private let writerEpoch = UUID()
+    private(set) lazy var recoveryPresentationLive = SharedMediaNativeRecoveryPresentationRegistry(writerEpoch: writerEpoch)
     private var pendingSettlement: SharedMediaNativeOriginalPendingSettlement?
     private let releaseStageSettlement = SharedMediaNativeReleaseStageSettlement()
     private var writerActive = false
@@ -52,7 +53,7 @@ final class SharedMediaNativeOriginalOwner {
     }
     /// All entry points retain the same grant minting and one discovery transfer.
     private func openAppProfile(container: ModelContainer, parent: URL, inventoryID: UUID,
-        discovery: SharedMediaNativeBootstrapDiscovery?, initializationOnly: Bool) async throws -> SharedMediaNativeAppOpenResult {
+                                discovery: SharedMediaNativeBootstrapDiscovery?, initializationOnly: Bool) async throws -> SharedMediaNativeAppOpenResult {
         defer { discovery?.invalidate() }
         guard phase == .unopened, openKind == .appInitialization || openKind == .appDispatch,
               let registration, drain.isCurrent(registration, container: container, discovery: discovery) else { throw SharedMediaStorageFailure.closed }
@@ -161,27 +162,18 @@ final class SharedMediaNativeOriginalOwner {
         try await appOperation(open: { try await $0.appPending(grant: $1) }, body: body)
     }
     private func appOperation<Operation, T: Sendable>(settled: Bool = true,
-        open: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> Operation,
-        body: @escaping @MainActor (Operation) async throws -> T) async throws -> T {
+                                                      open: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> Operation,
+                                                      body: @escaping @MainActor (Operation) async throws -> T) async throws -> T {
         try await withAppDispatch(settled: settled) { storage, grant in
             let operation = try await open(storage, grant)
             try grant.validate(); return try await body(operation)
         }
     }
-    func discoverAppReceivingIntent(packageID: UUID) async throws -> SharedMediaNativeReceivingIntent.Prepared? {
-        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.intent(packageID)) }, body: { $0 })
-    }
-    func discoverAppReceivingSlot(packageID: UUID) async throws -> SharedMediaNativeReceivingIntentGraph.Row? {
-        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.slot(packageID)) }, body: { $0 })
-    }
-    func discoverAppPhotoSubmission(packageID: UUID) async throws -> SharedMediaNativePhotoSubmissionState? {
-        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.submission(packageID)) }, body: { $0 })
-    }
-    func discoverAppReceivedCandidates() async throws -> [SharedMediaNativeReceivedCandidate] {
-        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: SharedMediaNativeReceivingQuery.candidates) }, body: { $0 })
+    func appReceivingQuery<Value: Sendable>(_ query: SharedMediaNativeReceivingQuery.Read<Value>) async throws -> Value {
+        try await appOperation(open: { try await $0.appReceivingRead(grant: $1, query: query) }, body: { $0 })
     }
     func checkAppReceivedStatus(_ candidate: SharedMediaNativeReceivedCandidate,
-        send: @escaping NativeReceivedStatusTransport.Send) async throws -> Bool {
+                                send: @escaping NativeReceivedStatusTransport.Send) async throws -> Bool {
         try await withAppDispatch { try await self.checkAppReceivedStatus(candidate, storage: $0, grant: $1, send: send) }
     }
     func appReceivingWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant, _ body: @escaping @MainActor (SharedMediaNativeAppReceivingOperations) async throws -> T) async throws -> T {
@@ -189,31 +181,35 @@ final class SharedMediaNativeOriginalOwner {
         return try await appOperation(open: { try lock.validate(); return try await $0.appReceiving(grant: $1, lock: lock, releaseStage: self.releaseStageSettlement) },
             body: { try lock.validate(); return try await body($0) })
     }
-    #if DEBUG
-    func reserveAppRecoveryPresentationForTesting(_ candidate: SharedMediaNativeReceivedCandidate) async throws -> SharedMediaNativeRecoveryPresentationAttempt {
-        try await withAppDispatch { try await self.reserveAppRecoveryPresentationForTesting(candidate, storage: $0, grant: $1) }
+    func executeAppRecovery(_ action: SharedMediaNativeRecoveryAction) async throws -> SharedMediaNativeRecoveryAction.Result {
+        try action.claim(self)
+        if !action.needsCandidateRead { return try await executeLockedAppRecovery(action) }
+        return try await withAppDispatch { try await self.executeAppRecovery(action, storage: $0, grant: $1) }
     }
-    func appRecoveryPresentationWorkflowForTesting<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
-        _ body: @escaping @MainActor (SharedMediaNativeAppRecoveryPresentationOperations) async throws -> T) async throws -> T {
-        try await withAppDispatch { storage, grant in try await body(storage.appRecoveryPresentationForTesting(grant: grant, lock: lock)) }
+    func performLockedAppRecovery(_ action: SharedMediaNativeRecoveryAction, lock: SharedMediaNativeReceivingLockGrant,
+                                  prepared: SharedMediaNativeReceivingIntent.Prepared) async throws -> SharedMediaNativeRecoveryAction.Result {
+        try await withAppDispatch { storage, grant in
+            try action.validateTarget(prepared, storage: storage, grant: grant)
+            return try await action.perform(storage.appRecoveryPresentation(grant: grant, lock: lock), prepared: prepared)
+        }
     }
-    #endif
     func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
-        authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
+                                        authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
     }
     /// One retained account operation also bounds overlapping status attempts.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
                           authorizeCreate: @escaping SharedMediaNativePhotoAllocationAccess.Authorize,
-                          transport: SharedMediaNativePhotoAllocationTransportAccess) async throws -> SharedMediaNativePhotoAllocation {
-        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, transport: transport) }
+                          onBoundCreateSave: @escaping @MainActor () -> Void = {},
+                          transport: NativePhotoAllocationTransportAccess) async throws -> SharedMediaNativePhotoAllocation {
+        try await withAppDispatch { try await self.allocateAppPhoto(prepared, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement, reserveRoleMapping: reserveRoleMapping, authorizeCreate: authorizeCreate, onBoundCreateSave: onBoundCreateSave, transport: transport) }
     }
     func enrichAppPhotoAllocation(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                   send: @escaping SharedMediaNativePhotoEnrichmentAccess.Send) async throws -> SharedMediaNativePhotoAllocation {
         try await withAppDispatch { try await self.enrichAppPhotoAllocation(prepared, storage: $0, grant: $1, send: send) }
     }
     func appPhotoAllocationWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
-        _ body: @escaping @MainActor (@escaping @MainActor () async throws -> SharedMediaNativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
+                                                 _ body: @escaping @MainActor (@escaping @MainActor () async throws -> NativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
         try await withAppDispatch { storage, grant in
             try await body { try await storage.appPhotoAllocation(grant: grant, lock: lock) }
         }
@@ -223,7 +219,7 @@ final class SharedMediaNativeOriginalOwner {
         releaseStageSettlement.abandonContinuation(progress)
     }
     func appReleaseStageWorkflow<T: Sendable>(lock: SharedMediaNativeReceivingLockGrant,
-        _ body: @escaping @MainActor (SharedMediaNativeAppReleaseStageOperations) async throws -> T) async throws -> T {
+                                              _ body: @escaping @MainActor (SharedMediaNativeAppReleaseStageOperations) async throws -> T) async throws -> T {
         try lock.validate()
         guard pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await withAppDispatch(settled: false, releaseStage: true) { storage, grant in
@@ -231,7 +227,7 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     private func withAppDispatch<T: Sendable>(settled: Bool = true, releaseStage: Bool = false,
-        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T) async throws -> T {
+                                              _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T) async throws -> T {
         guard openKind == .appDispatch, phase == .ready, !settled || pendingSettlement == nil, releaseStage || !releaseStageSettlement.hasPending else { throw SharedMediaStorageFailure.closed }
         return try await performOperation { [self] lease, identity in
             guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
@@ -264,7 +260,7 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     private func appAcquisition<T: Sendable>(request: SharedMediaAcquisitionIntent?,
-        _ body: @escaping @MainActor (SharedMediaNativeAppAcquisitionOperations) async throws -> T) async throws -> T {
+                                             _ body: @escaping @MainActor (SharedMediaNativeAppAcquisitionOperations) async throws -> T) async throws -> T {
         try await withAppDispatch { storage, grant in try await body(storage.appAcquisition(grant: grant, request: request)) }
     }
     private func reconcileAppSettlement() async throws -> SharedMediaAcquisitionResult? {
@@ -303,7 +299,7 @@ final class SharedMediaNativeOriginalOwner {
 
     #if DEBUG
     func setAcquisitionFault(_ fault: ((SharedMediaNativeAcquisitionBoundary) throws -> Void)?) throws {
-        guard (phase == .ready || phase == .suspended), cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
+        guard phase == .ready || phase == .suspended, cancelActive == nil, storage != nil else { throw SharedMediaStorageFailure.closed }
         debug.acquisitionFault = fault
     }
     func setAcquisitionEntryPause(_ pause: (@Sendable (SharedMediaNativeOriginalIOEntry) async -> Void)?, transferReadFault: (@Sendable (Int64) throws -> Void)? = nil) async throws {
@@ -320,7 +316,7 @@ final class SharedMediaNativeOriginalOwner {
     #endif
 
     func qualificationWorkflow<T: Sendable>(recovery: Bool = false,
-        _ body: @escaping @MainActor (SharedMediaNativeQualificationOperations) async throws -> T) async throws -> T {
+                                            _ body: @escaping @MainActor (SharedMediaNativeQualificationOperations) async throws -> T) async throws -> T {
         guard phase == .ready, pendingSettlement == nil else { throw SharedMediaStorageFailure.closed }
         return try await perform { [self] grant in
             guard let storage else { throw SharedMediaStorageFailure.closed }
@@ -446,8 +442,7 @@ final class SharedMediaNativeOriginalOwner {
         cancelActive?()
         await awaitActive?()
         do {
-            if pendingSettlement?.appTicket != nil { _ = try await reconcileAppSettlement() }
-            else { _ = try reconcileSettlement() }
+            if pendingSettlement?.appTicket != nil { _ = try await reconcileAppSettlement() } else { _ = try reconcileSettlement() }
             try await releaseStageSettlement.reconcileAfterTermination()
         } catch {
             #if DEBUG
@@ -455,7 +450,7 @@ final class SharedMediaNativeOriginalOwner {
             #endif
             return false
         }
-        guard pendingSettlement == nil, !releaseStageSettlement.hasPending else { return false }
+        guard pendingSettlement == nil, !releaseStageSettlement.hasPending, !recoveryPresentationLive.hasLiveIntervals else { return false }
         storage = nil; scopedIdentity = nil; appProfile = nil; appParent = nil
         return true
     }

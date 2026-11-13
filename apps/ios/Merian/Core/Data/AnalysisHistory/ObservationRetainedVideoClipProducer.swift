@@ -82,10 +82,20 @@ final class ObservationRetainedVideoUse: Sendable {
 /// Inert preparation boundary: never installed into legacy capture or history admission.
 /// One instance admits one transcode at a time; no source buffers escape the worker.
 actor ObservationRetainedVideoClipProducer {
+    private nonisolated let executor = RetainedVideoClipExecutor()
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        executor.asUnownedSerialExecutor()
+    }
     private var occupied = false
+    private let validateAfterRead: @Sendable () throws -> Void
+    private let didAppendSample: @Sendable () -> Void
     private let validateAfterFirstAppend: @Sendable () async throws -> Void
 
-    init(validateAfterFirstAppend: @escaping @Sendable () async throws -> Void = {}) {
+    init(validateAfterRead: @escaping @Sendable () throws -> Void = {},
+         didAppendSample: @escaping @Sendable () -> Void = {},
+         validateAfterFirstAppend: @escaping @Sendable () async throws -> Void = {}) {
+        self.validateAfterRead = validateAfterRead
+        self.didAppendSample = didAppendSample
         self.validateAfterFirstAppend = validateAfterFirstAppend
     }
 
@@ -98,7 +108,7 @@ actor ObservationRetainedVideoClipProducer {
         // Always join, including cancellation. The slot cannot reopen while a
         // prior worker still owns an encoder or an unaccepted output lease.
         let worker = Task.detached(priority: .utility) {
-            try await Self.transcode(source: source, directory: directory, validation: validation)
+            try await self.transcode(source: source, directory: directory, validation: validation)
         }
         return try await withTaskCancellationHandler {
             let result = try await worker.value
@@ -109,7 +119,7 @@ actor ObservationRetainedVideoClipProducer {
         }
     }
 
-    private nonisolated static func transcode(
+    private func transcode(
         source: URL, directory: URL, validation: @Sendable () async throws -> Void
     ) async throws -> ObservationRetainedVideoClip {
         try Task.checkCancellation()
@@ -136,7 +146,7 @@ actor ObservationRetainedVideoClipProducer {
                 throw ObservationRetainedVideoClipError.unsupportedProfile
             }
         }
-        guard supportsTransform(transform) else {
+        guard Self.supportsTransform(transform) else {
             throw ObservationRetainedVideoClipError.unsupportedProfile
         }
         try Task.checkCancellation()
@@ -204,7 +214,7 @@ actor ObservationRetainedVideoClipProducer {
         var counts = [Int](repeating: 0, count: pairs.count)
         var validated = false
         while finished.count < pairs.count {
-            try checkProgress(deadline: deadline, url: url)
+            try Self.checkProgress(deadline: deadline, url: url)
             guard writer.status == .writing else {
                 throw ObservationRetainedVideoClipError.writerFailure((writer.error as NSError?)?.code ?? 0)
             }
@@ -219,6 +229,10 @@ actor ObservationRetainedVideoClipProducer {
                         finished.insert(index)
                         return
                     }
+                    try validateAfterRead()
+                    // The synchronous decoder may return after cancellation or
+                    // the deadline. Reject that buffer before appending it.
+                    try Self.checkProgress(deadline: deadline, url: url)
                     counts[index] += 1
                     guard counts[index] <= (index == 0 ? 600 : 1024) else {
                         throw ObservationRetainedVideoClipError.oversized
@@ -226,13 +240,14 @@ actor ObservationRetainedVideoClipProducer {
                     guard pair.1.append(buffer) else {
                         throw ObservationRetainedVideoClipError.writerFailure((writer.error as NSError?)?.code ?? 0)
                     }
+                    didAppendSample()
                 }
                 progressed = true
             }
             if !validated, counts.contains(where: { $0 > 0 }) {
                 validated = true
                 try await validation()
-                try checkProgress(deadline: deadline, url: url)
+                try Self.checkProgress(deadline: deadline, url: url)
             }
             if !progressed { try await Task.sleep(for: .milliseconds(5)) }
         }
@@ -241,12 +256,12 @@ actor ObservationRetainedVideoClipProducer {
         let finalization = RetainedVideoFinalization()
         writer.finishWriting { Task { await finalization.finish() } }
         while !(await finalization.isFinished) {
-            try checkProgress(deadline: deadline, url: url)
+            try Self.checkProgress(deadline: deadline, url: url)
             try await Task.sleep(for: .milliseconds(5))
         }
         guard writer.status == .completed else { throw ObservationRetainedVideoClipError.writerFailure((writer.error as NSError?)?.code ?? 0) }
-        try checkProgress(deadline: deadline, url: url)
-        guard try currentFileSize(url) > 0 else {
+        try Self.checkProgress(deadline: deadline, url: url)
+        guard try Self.currentFileSize(url) > 0 else {
             throw ObservationRetainedVideoClipError.failed
         }
         // AVFoundation may leave sandbox scratch siblings even after completion.
@@ -285,6 +300,18 @@ actor ObservationRetainedVideoClipProducer {
         guard ContinuousClock.now < deadline else { throw ObservationRetainedVideoClipError.timedOut }
         let size = try currentFileSize(url)
         guard size <= ScanMediaPayloadPolicy.maxSavedVideoBytes else { throw ObservationRetainedVideoClipError.oversized }
+    }
+}
+
+/// Keep synchronous legacy decoder reads off the cooperative task pool. Swift
+/// jobs retain their task cancellation context; the producer still joins them.
+private final class RetainedVideoClipExecutor: SerialExecutor {
+    private let queue = DispatchQueue(label: "app.merian.retained-video", qos: .utility)
+
+    func enqueue(_ job: consuming ExecutorJob) {
+        let job = UnownedJob(job)
+        let executor = asUnownedSerialExecutor()
+        queue.async { job.runSynchronously(on: executor) }
     }
 }
 

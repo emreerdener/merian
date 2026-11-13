@@ -4,11 +4,19 @@ import Foundation
 @MainActor
 final class ObservationVideoUploadOwner {
     enum Admission { case started, coalesced, unavailable }
+    enum Route { case upload, bindReady }
     struct Key: Equatable {
         let snapshot: ObservationVideoUploadLifecycleStore.Snapshot
         let session: AuthTransitionSession
         let generation: UInt64
         let container: ObjectIdentifier
+        let route: Route
+
+        init(snapshot: ObservationVideoUploadLifecycleStore.Snapshot, session: AuthTransitionSession,
+             generation: UInt64, container: ObjectIdentifier, route: Route = .upload) {
+            self.snapshot = snapshot; self.session = session; self.generation = generation
+            self.container = container; self.route = route
+        }
     }
     struct Scope {
         fileprivate let key: Key
@@ -47,7 +55,8 @@ final class ObservationVideoUploadOwner {
                operation: @escaping @MainActor (Scope) async -> Void,
                didFinish: @escaping @MainActor () -> Void) -> Admission {
         guard drains == 0, !authInvalidationPending, !Task.isCancelled, isCurrent(), permitsDispatch(),
-              key.snapshot.work.nextMediaID != nil, key.snapshot.containerID == key.container,
+              key.route == .upload ? key.snapshot.work.nextMediaID != nil : key.snapshot.work.receipt?.state == .ready,
+              key.snapshot.containerID == key.container,
               key.session.userID == key.snapshot.work.staged.reservation.preparation.identity.ownerID else { return .unavailable }
         if let entry {
             return entry.key == key && !entry.cancelled && !entry.invalidated ? .coalesced : .unavailable

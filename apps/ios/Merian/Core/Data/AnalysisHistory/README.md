@@ -1,3 +1,284 @@
+## November 9 — V5 History action candidate
+
+Completion271 extends the existing selection and review owners to strictly
+validated V5 snapshots, including receipt-bound selection Undo. Action
+transports use reader11 with the coordinated backend migration; publication
+format support is explicitly limited to V1–V3. Video source reuse, selected chat
+and publication remain denied. Focused runtime qualification is in progress.
+Earlier V5 read-only checkpoints below describe their historical state; unsigned
+build275 predates this change. No activation or installation is implied.
+
+## November 8 — conditional composition compiled; installed qualification open
+
+Native250 qualifies the inactive `HistoryQualification` controls: 161 distinct
+methods have applicable passing evidence across the retained runs. The original
+native01 aggregate-budget failure remains recorded; native02 passed all 94
+methods / 104 expanded cases with zero failures/skips. HQ255 ancillary-service
+containment and HQ256 budget fixes were independently verified without raising
+limits. The unsigned qualification build passed for app/watch/widget/Messages
+(534.437s); all 4,163 source pins matched. Its marker is compiled, Debug is
+excluded, approval inputs are empty, and no private approval file exists.
+Independent final review accepted this bounded component. No launch,
+installation, real-app startup or cumulative acceptance is implied. Build
+warnings remain retained; full lint is not claimed.
+
+Ordinary Debug/Release and the current default qualification artifact still have
+no installed History composition. Native251 now connects the existing gate only
+to a compiled, validated qualification scope. Its 41 methods / 61 expanded cases
+passed without failures/skips; independent source review passed. The combined
+qualification branch compiled in native253 for all four unsigned products
+(551.024s, 4,163 matching pins). Native252 passed 133 methods / 337 expanded
+cases plus seven iOS27 parser checks. The documentation-only pin drift and build
+warnings remain recorded; one closure-parenthesization follow-up awaits
+refreshed compilation. See the current
+[scan-to-history boundary](../../../../../../docs/development-guides/25-scan-to-history.md#current-integration-boundary)
+for backend compatibility and remaining qualification. Existing Auth provider
+exchange remains refused until a reviewed mapping and verified server-side
+new-user refusal are available; those external operations are not authorized by
+local preparation. The device-review guide owns this configuration and its
+eventual exact operation packet. Live SDK/all-media acceptance, resources,
+cumulative review and the final user walkthrough remain open.
+
+## November 8 — current focused qualification
+
+Shared startup-fence borrowing passed native241: 55 methods / 118 expanded
+cases, including both durable-input/native opening orders. Bounded cold input
+cleanup and actual-exit joins passed native242: 63 methods / 127 cases, followed
+by the strengthened populated foreign-container method's four passing cases.
+Every run matched 4,157 source pins with zero failures/skips. Independent Engine
+review verified the combined evidence. Cleanup preserves foreign receipt/file
+length; the foreign fixture does not claim byte-for-byte equality.
+
+Native243 qualified exact journal progression (54 methods). Native244 qualified
+scoped library-sign-out runtime drain and complete-purge acknowledgement: 100
+methods / 129 expanded cases, followed by 18 methods / 21 cases for the reviewed
+repository-completion race fix and affected regressions. Passing runs had zero
+failures/skips; the failed compilation and the review-discovered race remain in
+the findings record with verified fixes. Independent Engine review confirmed the
+combined evidence. This is component qualification; full live SDK composition
+remains unverified.
+
+HQ241 account-deletion-stage authority, pre-stable-Auth cold startup and
+explicit later-lifetime renewal remain open. Installation stays false.
+All-media, device and cumulative acceptance remain incomplete. Earlier dated
+candidate notes below record their historical checkpoint state.
+
+## November 8 — bounded cold input recovery candidate
+
+`ObservationReanalysisErasureOwner` now uses the original App startup lifetime
+through a separate local cleanup registration. It visits only the control
+ledger's four referenced input receipts and never reconstructs missing authority
+or depends on the former account/source. Existing slot locks hold live inputs.
+The owner retains direct cleanup tasks; lifetime shutdown and whole-library
+suspension join actual exit. App composition denies new cleanup during Auth
+transition or pending destructive cleanup. Empty ownership stays inert.
+
+This candidate awaits focused tests and independent review. Native241 already
+qualified the shared fence borrowing prerequisite (55 methods / 118 cases, 4,157
+matching pins). Exact destructive-journal continuation and explicit
+startup-lifetime renewal after Auth remain open, including startup recovery
+preceding stable Auth. Installation stays false; no real-app acceptance is
+claimed.
+
+## November 8 — shared startup-fence borrowing candidate
+
+The existing `SharedMediaNativeOriginalDrain` now retains the original startup
+fence for bounded local consumers and native discovery. Prepared input remains
+bound to its exact account runtime; local erasure has a separate registration
+without former-account authority. Registered consumers must join actual work
+before shutdown releases the fence. Sealing denies new work while permitting
+already-owned cleanup. The video composition injects this borrow through access,
+session and durable input; native discovery consumes the same fence and retains
+its existing profile checks. No profile or native operation grant is exposed to
+local consumers. Both-order integration and shutdown/failure tests are pending.
+Cold erasure routing and exact destructive-journal Auth handling remain open;
+installation remains false.
+
+## November 8 — focused durable-input integration verified
+
+Native239-03 passed 69 methods / 115 expanded cases, zero failures/skips, all 11
+selected suites/methods and all 4,157 source pins. Independent Engine review
+verified the four requested failure/concurrency/text regressions and the exact
+review delta. Retain the two preceding test-compilation failures. This qualifies
+the focused local integration, including real startup admission and
+optional-text initial audio/video-to-History fixtures.
+
+Combined lifetime acceptance remains blocked by HQ247: native dispatch retains
+the exclusive startup fence, while video input independently acquires it. Both
+orderings require validated borrowing at the existing App lifetime, with
+actual-consumer registration and joined shutdown. No native profile adoption,
+weakened locks or terminal-owner restart merely to switch features is permitted.
+HQ241 exact destructive-journal handling and bounded cold recovery remain open.
+The host owner now distinguishes cleaned storage, runtime-quiescent retained
+storage and blocked work; ordinary Boolean drain still requires cleaned storage.
+Audio input preparation is joined through actual cleanup even without an account
+lease. Combined native240-01/02 evidence independently qualifies this focused
+drain change: 50 unchanged passing methods plus the corrected fixture method,
+zero skips and 4,157 matching pins per run. The original fixture failure remains
+retained. Installation remains false; manual/device/cumulative acceptance is not
+claimed.
+
+## November 5 — explicit current-video input candidate
+
+## November 8 — bounded input ledger candidate
+
+`ObservationReanalysisInputReceipt`, `ObservationReanalysisInputLedger` and
+`ObservationReanalysisInputPersistence` add inactive local metadata for four
+stable input slots using the existing erasure-job storage. Admission reads the
+control and its four referenced receipts; completed replay records are separate
+from active capacity. Completion releases only the exact slot-use generation in
+the same transaction. These records cannot authorize whole-child erasure.
+
+Native237-02 compiled and passed 26 methods / 41 expanded cases across metadata
+and Core architecture suites, with zero failures/skips. Source review accepted
+this metadata layer; unrelated public-web documentation drift remains in the
+whole-input check. This does not qualify physical or account integration.
+
+`ObservationReanalysisFileStore+Input` and `+InputBootstrap` now implement the
+physical component candidate: four stable slot directories, identity commit
+before copying through the existing bounded `FileIOActor`, slot locks through
+live consumption, and input-only irreversible cleanup. Explicit fresh bootstrap
+requires caller-supplied startup/store and account fences; existing namespace
+plus missing metadata is a hold. Whole-library purge removes both private
+namespaces under the existing exclusive Documents lock and outer journal.
+
+Native238-06 passed 51 methods / 64 expanded cases with independent verification
+and all 4,157 pins matched. This qualifies the affected physical components;
+app/account/restart/resource acceptance remains separate. Native05 retains
+applicable inventory and startup passes plus the reproduced cursor failure.
+
+The inactive app/session integration now retains
+`ObservationReanalysisLocalVideoInput` before bootstrap or reservation. Its
+digest binds exact source/captured-media bytes, owner/parent/source/child
+identities, chosen index/path and ordered UTF-8 text. Existing startup
+provenance and its held fence span copy/consumption;
+`ObservationReanalysisPreparationOwner` owns the copy task through actual exit.
+Attempted-copy retry is existing-only and requires a matching copied receipt.
+`releaseInputLease` relinquishes only an exact runtime token without deleting or
+releasing durable capacity. Integration runtime validation, bounded cold
+recovery and HQ241 journal-authorized account drain remain open. The ordinary
+app installation gate remains false; this is not restart or functional
+acceptance.
+
+## November 12 — first-enrollment display mapping
+
+`SavedIdentificationDisplayBaseline.captureOrdinary` is restricted to final
+first-enrollment admission with the retained same-owner completion proof checked
+before and after awaits. It preserves the local dictionary UUID separately from
+the server taxonomy UUID and compares candidates through the existing ordered
+ordinary-inference mapping. The bounded v2 local envelope binds the exact
+imported result and supports reopening after completed-job removal. Strict v1
+capture is unchanged. The original completion digest is provenance, not a
+signature or reconstructed response. See the
+[current contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-12--ordinary-display-import-recovery).
+
+## November 5 — ordinary first-enrollment proof candidate
+
+`OrdinaryInferenceCompletion` is an evidence-only original-response capsule
+retained by the existing first-save owners. Its bounded, canonical version-one
+metadata binds account, observation, generation, original result digest, the
+saved-result comparison fields and a separate pristine-review fingerprint. First
+enrollment compares it before and after awaits, matches the authenticated V3
+original, and may acknowledge only the same original selection's revision-zero
+clear. It never supplies media authority or a user action and cannot normalize
+old or already-enrolled rows. The joined optional-text audio cases and negative
+fences passed native226-02 with independent source/runtime verification. This
+closes HQ217 locally; cumulative functional acceptance remains open. See the
+[current contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-5--ordinary-completion-proof-candidate).
+
+## November 4 — native status adapter candidate
+
+The205 inactive app factory now uses the existing native owner for status
+reservation, one-way interval settlement and quiet cold retirement. Exact live
+registrations prevent overlap and successful shutdown before quiescence. Every
+attempted transition remains retained across uncertain acknowledgement; explicit
+status reads do not remint clocks or reuse consumed predecessors. The full
+presentation charge survives cold retirement until atomic completion removes the
+queue. Settled204 handoff/receipt qualification passed3methods/4cases;205 source
+review and focused9method/16case validation passed after the uncertainty fix.
+Installation remains false. See the
+[current end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#settled-status-tracking-and-initial-completion-candidate).
+
+## November 4 — bounded restart discovery candidate
+
+The202 inactive recovery composition lists retained initial handoffs through a
+closed native query and interrupted enrollments through the existing enrollment
+service's metadata-only proof path. Pages inspect at most128 keys, retain full
+candidate identities only, and bind forward cursors to the exact profile and
+inventory/bootstrap header. A page containing only skipped records still
+advances. An active enrollment intentionally blocks ordinary native retained
+reads; metadata discovery confers no media, execution or acknowledgement right.
+Selection and completion remain separate explicit actions. Source review and
+preflight passed; native202-02 passed13methods/30cases with no failures/skips.
+The positive retained result beyond a full skipped page passed native203-02 and
+independent evidence review. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md).
+
+## November 4 — same-intent native enrollment recovery candidate
+
+Before opening native media authority, the enrollment service can validate an
+exact saved candidate and its original applied-row/cohort commitments plus a
+strictly restored active enrollment intent. This metadata-only proof grants no
+media or acknowledgement access. Unknown jobs, changed/missing intent,
+completed-association contradictions and deletion remain closed. Existing native
+audits continue to reject the active hold.
+
+The existing enrollment owner/service accepts that exact proof, revalidates it
+before dispatch and final import, and never stages a replacement intent on
+recovery. Shared task authority binds account/generation/container; presentation
+cancellation affects the caller's subsequent acknowledgement, not another
+waiter. After import creates the authoritative association, ordinary native
+discovery and acknowledgement resume. Advanced server selection still requires
+separate reconciliation. Engine independently verified the201 source correction.
+Native201-04 passed 19methods/29expanded cases, including exact-intent recovery
+after lost reply and failed import, caller draining and coalesced-enrollment
+regressions. Earlier compile failures remain retained; cumulative qualification
+is still open. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md).
+
+## November 4 — legacy baseline-association recovery candidate
+
+Completed legacy imports without their original local association use the
+existing enrollment owner to read the server's immutable ordinal-one V3
+baseline. The service requires exact equality with the unique persisted local
+baseline and rechecks account, deletion, review, intent and display fences
+before an association-only save. Version-two provenance says `serverRecovery`;
+it never invents the missing intent or infers the baseline from a later
+selection. Version-one metadata remains compatible and is not rewritten.
+Recovery shares the owner's bounded slots and drain, but cannot join an
+enrollment task.
+
+Native media acknowledgement follows separately after the association is
+durable; association recovery itself consumes no native inventory revision or
+handoff allowance. Source review and static checks pass; native209
+passed28methods/40cases with no failures/skips, including synthetic
+before/after-save uncertainty and both association variants. Six local
+reader/deletion/account/merge contention schedules also passed with independent
+verification. Actual SQLite faults, process crashes and exhaustive owner-ID
+orderings remain unqualified. Installation remains false. See the
+[wire contract](../../../../../../docs/backend-and-data/05-api-contracts.md#prepared-enrollment-baseline-recovery).
+
+## November 4 — original/current pair import candidate
+
+When first enrollment returns original A but current history already selects B,
+the existing service requests one locked reader11 pair. It binds A to the saved
+receipt and exact digest, admits matching owner/observation/revision/selection,
+and rechecks the durable intent, local baseline, account and deletion fences.
+One save imports both immutable results, preserves A's original display and
+association, projects B from B's own cache, and retires the intent. Unsupported
+B projection holds. The extracted authority field writer does not relax ordinary
+state-sync or Undo guards. Native acknowledgement still uses exact A separately.
+
+Candidate210 is implemented and independently reviewed. Applicable native
+qualification covers61methods/82cases, including photo/audio/video pair imports,
+suspended fences, uncertain-save recovery and integrated acknowledgement after
+later selection. Two fixture-only methods passed a focused correction rerun;
+original failures remain recorded. Actual selector/read schedules pass in both
+orders, and corrected access checks pass on a fresh local replay. Complete media
+journeys, SQLite/crash faults, installed and cumulative acceptance remain open.
+See the
+[pair wire contract](../../../../../../docs/backend-and-data/05-api-contracts.md#prepared-originalcurrent-enrollment-pair).
+
 # Analysis history admission
 
 The shared `AnalysisRecoveryPresentation` value defines bounded, exact-operation
@@ -221,9 +502,10 @@ owns this separate default-off endpoint.
 protocol-9 adapter calls `enroll_owned_observation_history` under an exact
 account lease, decodes the bounded four-field `ObservationHistoryEnrollment`
 receipt, then fetches current selected state. A login, upload flag or receipt
-alone is never ownership or selection authority. The baseline UUID must still be
-the selected V3 result. A replay after another selection defers; it never
-restores that baseline implicitly.
+alone is never ownership or selection authority. If another selection already
+won, the
+[original/current pair](#november-4--originalcurrent-pair-import-candidate) must
+prove both the original V3 baseline and the current selection.
 
 Fresh bounded local queries before dispatch and at commit require an unenrolled
 parent, no existing result/state rows, no pending deletion, no same-ID queued
@@ -236,6 +518,18 @@ defers without acknowledging enrollment or changing the saved identification. If
 dispatch has begun, the durable hold remains. Enrollment does not overwrite
 display or review to make these comparisons pass.
 
+For a newly applied native photo, an untouched local review can have no
+acknowledged envelope even after enrollment. This made a first explicit
+selection fail with `pendingReview` in the integrated simulator journey. The
+repair candidate verifies the native application receipt and the same durable
+enrollment intent before and after the server read. Only when original A is
+still selected and both sides match the pristine review does it persist the
+server's representable revision-zero clear. A clear confirms no species and
+changes no displayed field. Legacy scans, ambiguous offline Undo and changed
+review/display remain fenced. See the
+[scan-to-History guide](../../../../../../docs/development-guides/25-scan-to-history.md#retained-initial-photo-display-candidate)
+for validation status.
+
 The immutable result, own authority cache, saved display, owner account,
 selected analysis and acknowledged revision commit atomically in a fresh
 non-autosaving context. Final cancellation/account checks roll everything back.
@@ -247,8 +541,26 @@ receipt in `OfflineJobRecord`, using the exact
 A lost response or failed admission retains the same hold across restart; an
 explicit retry must match its owner and validated receipt. Unknown metadata,
 terminal status or a changed nonce cannot reopen or acknowledge it. Successful
-admission removes the exact hold in the same save as history and selection.
-Failed saves roll back both. No autonomous retry or ordinary caller exists.
+admission removes the exact hold in the same save as history and selection. That
+save also retains the validated server baseline ID in a separate completed
+`observation-history-baseline:<lower UUID>` job owned by the same enrollment
+intent owner. Its closed, at-most-4-KiB payload binds owner, observation, intent
+nonce, baseline ID and SHA256 of the exact validated V3 transport bytes prefixed
+by `merian.observation-history.enrollment-baseline.v1\n`. This namespace does
+not satisfy the active enrollment-hold predicate, so later reanalysis/review
+remain eligible. The association is historical identity, not selection or
+execution authority. Malformed associations fail closed and cannot be replaced
+by staging; explicit deletion removes the association and retains the existing
+payload-free enrollment tombstone. Missing older associations remain missing;
+never infer a baseline from selected ID, ordinal or matching display. Their
+future recovery requires an authenticated recovery-only server boundary. Failed
+saves roll back import, association and hold removal together. Native handoff
+acknowledgement must separately compare the exact V3 digest and original result
+compatibility before consuming its reserved advance. The inactive native writer
+now performs that join; native200-04 passed2methods/5cases for integrated
+acknowledgement, preserved later selection and interruption fences. The199
+enrollment prerequisite passed26methods/28cases with independent verification.
+No autonomous retry or ordinary caller exists.
 
 `ObservationHistoryEnrollmentOwner`, retained by `OfflineQueueManager`, bounds
 explicit enrollment to four active observations. Requests for the same parent
@@ -624,6 +936,29 @@ source with no verified photos requires explicitly added evidence; mutable
 observation media must not silently become protected source evidence. Source
 capture is a prepared local boundary, not an account lease, upload permission or
 connected refinement entry point.
+
+The November 4 retained-photo candidate adds a separate, explicit local input
+path through `ObservationReanalysisRetainedInput`. It leaves V3 snapshots and
+their empty protected-photo manifest unchanged. Only the saved native baseline
+association for the exact opened analysis may supply original AI-role bytes. The
+existing native owner verifies the retained cohort and files; display bytes,
+mutable parent notes and current selection are never substitutes. Frozen native
+contexts follow the original photo order and remain editable before submission.
+
+Typed provenance binds the owner, observation, exact source snapshot, baseline
+association, native package/cohort and ordered AI role lengths/digests. It
+survives cropping and final Capture admission. The existing preparation plan
+mints new child media identities and normalizes these explicitly selected local
+inputs under its existing JPEG policy. The final source and text choices remain
+frozen in the plan and durable child manifest. Before the first child insert,
+the existing persistence transaction revalidates the native origin; after that
+transfer, exact saved retries use the child-owned bytes and digests without a
+fresh native read. Account, source, deletion and generation fences remain in
+force. Later selection changes alone neither invalidate nor retarget the opened
+historical source. Focused native validation passed34methods/43expanded cases,
+with no failures or skips and independent verification. The initial chooser race
+and compiler failure remain recorded with their verified fixes. The candidate
+remains inactive; this is not functional acceptance.
 
 Staged photographs separately track added, original and edited-original
 provenance. Cropping clears authority to reuse original bytes while retaining
@@ -1953,16 +2288,38 @@ complete-cohort durability and queue integration remain pending.
 
 ## Prepared retained video clip
 
-`ObservationRetainedVideoClipProducer` is an uninstalled native preparation
-boundary for a dedicated retained MP4. It serializes work per instance and keeps
-AVFoundation objects inside the owned worker. It encodes H.264 Main without
-frame reordering and, when present, mono 44.1 kHz AAC; it never substitutes the
-legacy playback export or deletes the input. The returned temporary lease
-removes its operation directory, including writer scratch files, when
-unaccepted. Acceptance transfers that directory with the file. The eventual
-durable preparation owner must retain that lease through derivation and persist
-the complete cohort before transfer. This producer alone does not stage, upload
-or execute V4, or derive its five frames and companion WAV.
+`ObservationRetainedVideoClipProducer` is the native preparation boundary for a
+dedicated retained MP4. It serializes work per instance and keeps AVFoundation
+objects inside its owned worker. It encodes H.264 Main without frame reordering
+and, when present, mono 44.1 kHz AAC; it never substitutes the legacy playback
+export or deletes the input. The returned temporary lease removes its operation
+directory, including writer scratch files, when unaccepted. Acceptance transfers
+that directory with the file. The eventual durable preparation owner must retain
+that lease through derivation and persist the complete cohort before transfer.
+This producer alone does not stage, upload or execute V4, or derive its five
+frames and companion WAV.
+
+The November 10 local resource candidate gives the existing producer actor a
+retained per-instance serial executor for synchronous legacy decoder reads. The
+joined Swift worker keeps cancellation context and the occupied slot until it
+actually drains. A post-read check rejects cancellation, elapsed deadline or
+output growth before append; the original async first-append validator remains
+unchanged. Default-inert synchronous read/append hooks carry no media and allow
+exact cancellation regression tests. No diagnostic suppression, codec/profile,
+size/count limit, deadline or durable ownership change is included. This
+candidate passed the producer's nine methods / eleven cases, including
+held-worker busy/drain/reuse and exact post-read cancellation before any
+successful append. The original video recovery/History/Undo UI scenario passed
+without reproducing its earlier QoS warning. Engine independently verified this
+bounded simulator result. It does not establish universal warning elimination,
+comparative latency improvement or physical-device resource acceptance. The
+original warning remains independently attributed to `copyNextSampleBuffer`
+through matching-image symbolication and disassembly in completion299; it must
+not be conflated with the older HQ-028 database-audit cost. The preserved
+completion298 1.1.0 device artifact predates this candidate. Completion299 now
+preserves the matching unsigned inactive1.1.0 phone artifact after independent
+verification. Ten watch dSYM missing-module warnings remain a separate symbol
+limitation; no physical-device or whole-candidate acceptance is inferred.
 
 ## Prepared retained-source video frames
 
@@ -2308,3 +2665,65 @@ reopen preserve exact V5 evidence, display provenance and the cleanup receipt
 while V5 action tickets and reanalysis sources remain unavailable. The runtime
 audit manifest selects this local acceptance suite; it does not enable ordinary
 access or replace device/hosted qualification.
+
+### Prepared video submission composition
+
+`ObservationVideoSubmissionService` connects existing reservation and upload
+services to their durable phase stores. A normal reserved result stages upload;
+a normal ready result validates current consent and stages execution. Phase save
+errors stop the handoff even when persistence committed before throwing. Ready
+binding is available only as a separate explicit action. The queue owns all
+retained work and account leases through
+[its existing video owners](../OfflineSync/README.md#prepared-video-submission-handoffs).
+There is no new wire format, task owner, scheduler or ordinary UI installation.
+
+### Saved video phase readers
+
+`ObservationVideoResumeStore` reconstructs only an existing exact child through
+its saved preparation, reservation, upload or execution envelope. Verification
+runs off the main actor, then compares original metadata and immutable source
+again before using the existing strict phase store. Exact synced consumed
+results use the existing settlement-only validator. The reader never claims,
+sends, repairs, cleans up or creates work. `ObservationVideoResumeReader` reuses
+the existing preparation slot and account lease through actual task exit.
+
+`ObservationVideoSavedStatus` provides bounded advisory pages using the existing
+`ObservationAudioStatusIndex` with a distinct video cursor route.
+`ObservationAudioStatusOwner.videoPage` shares its four active-read slots,
+coalescing and Auth drain across audio and video. Unsupported rows are counted
+as omissions; cancellation, account and store I/O failures propagate. Status is
+not admission or proof of absence. Source review is accepted; focused runtime
+verification remains pending. Ordinary routes remain uninstalled.
+
+### Explicit saved video continuation
+
+`CaptureVideoStatusAccess`, `CaptureVideoSavedRequestsModel` and
+`CaptureVideoSavedRequestsSheet` page existing video children through the shared
+four-slot status owner. No row is selected automatically. A final explicit tap
+opens the exact four-ID target through `CaptureVideoResumeAccess`; account,
+generation, container and presentation fences are checked before queue handoff.
+Closing the sheet cancels its waiter and clears private presentation, while the
+existing owners retain work through actual exit.
+
+`ObservationVideoResumeSubmission` recovers complete saved preparation only,
+stages initial reservation or an already-observed reserved upload, and hands
+ready uploads to explicit consent binding. Unknown reservation/upload attempts
+and unconsumed non-idle execution stay held. Consumed execution uses only the
+original outcome reader. A throwing stage save cannot return dispatch authority.
+The prepared composition exposes `openSavedVideoRequests` and uses the existing
+queue/account owners and authenticated transport; ordinary installation remains
+false. This source has independent review; native runtime qualification is
+pending. Fresh current-video hosting and cleanup ownership are described below;
+HQ-230 runtime/resource qualification remains open.
+
+### Prepared fresh-video lifetime
+
+The explicit current-video host freezes choice, optional text and one child at
+the final tap. Dismissal retains that candidate; interrupted freeze retries
+validate the original choice and exact temporary copy. The existing bounded
+audio host owner shares four slots with video and retains failed token-bound
+cleanup. AppDI arms its exact-manager lifetime on explicit opening; Auth waits
+for actual host exit and cleanup before its remaining drains. No ordinary route
+is installed. See the canonical `docs/development-guides/25-scan-to-history.md`
+section “Prepared current-video host and cleanup lifetime” for ownership, limits
+and remaining qualification.

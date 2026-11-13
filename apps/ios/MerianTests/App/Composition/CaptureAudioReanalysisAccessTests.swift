@@ -7,6 +7,40 @@ import Testing
 struct CaptureAudioReanalysisAccessTests {
     let fixture = ObservationAudioPreparationTests()
 
+    @Test(arguments: ["valid", "missing", "changed", "account", "presentation"])
+    func savedPreviewReadsOnlyVerifiedOriginalWithoutSubmission(_ condition: String) async throws {
+        let current = MainActorTestValue(true)
+        let execution = ObservationAudioExecutionStoreTests()
+        let seed = try await execution.ready(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let original = try execution.bind(seed)
+        var presentation = true, leases = 0
+        var account = fixture.fixture.account(finish: { leases -= 1 })
+        account.begin = { owner in leases += 1; return .init(id: UUID(), session: .init(userID: owner, isAnonymous: false)) }
+        let access = CaptureAudioReanalysisAccess.prepared(account: account, ownership: .init(),
+            configuration: .init(authorize: { _, _ in Issue.record("Preview requested consent"); throw MerianError.invalidResponse },
+                start: { _, _, _, _ in Issue.record("Preview dispatched analysis"); return .unavailable }),
+            currentOwner: { current.value ? seed.source.ownerID : nil }, generation: { 1 }, sessionIsCurrent: { _ in true },
+            containerIsCurrent: { $0 === seed.container }, documents: { seed.root })
+        let opened = try access.openResume(seed.preparation.identity, seed.container)
+        let read = try #require(opened.preview)
+        if condition == "missing" { try FileManager.default.removeItem(at: seed.file) }
+        if condition == "changed" { try Data(repeating: 0, count: seed.bytes.count).write(to: seed.file) }
+        if condition == "account" { current.value = false }
+        if condition == "presentation" { presentation = false }
+        if condition == "valid" {
+            let saved = try await read { presentation }
+            #expect(saved.bytes == seed.bytes)
+            try saved.validate()
+            current.value = false
+            #expect(throws: (any Error).self) { try saved.validate() }
+            current.value = true
+        } else {
+            await #expect(throws: (any Error).self) { try await read { presentation } }
+        }
+        #expect(leases == 0)
+        #expect(try ObservationAudioExecutionStore.read(seed.proof, container: seed.container, isCurrent: { true }) == original)
+    }
+
     @Test(arguments: [3, 4]) func inertCompositionOpensExactSourceWithoutIdleLeaseAndHandsOffOriginalScope(sourceVersion: Int) async throws {
         let seed = try fixture.seed(sourceVersion: sourceVersion); defer { try? FileManager.default.removeItem(at: seed.root) }
         var begins = 0, finishes = 0, authorizations = 0, starts = 0
@@ -40,21 +74,24 @@ struct CaptureAudioReanalysisAccessTests {
 
     @Test(arguments: ["owner", "generation", "session", "container", "presentation"])
     func changedScopeWithholdsSubmissionWithoutReminting(_ change: String) async throws {
+        let containerCurrent = MainActorTestValue(true)
+        let generation = MainActorTestValue(UInt64(1))
+        let sessionCurrent = MainActorTestValue(true)
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
-        var owner = seed.source.ownerID, generation: UInt64 = 1, sessionCurrent = true, containerCurrent = true, starts = 0
+        var owner = seed.source.ownerID, starts = 0
         let access = CaptureAudioReanalysisAccess.prepared(account: fixture.fixture.account(), ownership: .init(),
             configuration: .init(authorize: { _, validate in try validate(); return .init(recipient: .gemini, validate: validate) },
-                start: { _, _, _, _ in starts += 1; return .started }), currentOwner: { owner }, generation: { generation },
-            sessionIsCurrent: { _ in sessionCurrent }, containerIsCurrent: { _ in containerCurrent }, documents: { seed.root })
+                start: { _, _, _, _ in starts += 1; return .started }), currentOwner: { owner }, generation: { generation.value },
+            sessionIsCurrent: { _ in sessionCurrent.value }, containerIsCurrent: { _ in containerCurrent.value }, documents: { seed.root })
         let presentation = UUID(), target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
             analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
         let opened = try access.open(target, seed.container, presentation)
         let plan = try opened.session.freeze([.audio(seed.bytes)], generation: presentation)
         switch change {
         case "owner": owner = UUID()
-        case "generation": generation += 2
-        case "session": sessionCurrent = false
-        case "container": containerCurrent = false
+        case "generation": generation.value += 2
+        case "session": sessionCurrent.value = false
+        case "container": containerCurrent.value = false
         default: break
         }
         await #expect(throws: (any Error).self) { try await opened.submit { change != "presentation" } }

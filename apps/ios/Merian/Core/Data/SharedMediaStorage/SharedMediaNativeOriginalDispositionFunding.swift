@@ -2,6 +2,8 @@ import Foundation
 import SwiftData
 
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeOriginalDispositionFunding {
     typealias Projection = SharedMediaNativeReleaseSurvivorProjection
     typealias Liability = SharedMediaNativeOriginalLiability

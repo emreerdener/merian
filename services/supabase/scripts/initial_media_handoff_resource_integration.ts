@@ -1,7 +1,10 @@
 /** Current-profile maximum transport cohorts; local synthetic storage only.
  * Resource measurements include this in-memory fixture, not installed storage. */
 import { assert, assertEquals } from "@std/assert";
-import { createDisposableHandoffBridge } from "./initial_media_handoff_bridge.ts";
+import {
+  createDisposableHandoffBridge,
+  type LocalHandoffTrace,
+} from "./initial_media_handoff_bridge.ts";
 import {
   executeOriginalMediaHandoff,
   type HandoffBridge,
@@ -16,6 +19,7 @@ import {
 } from "../functions/_shared/initialAnalysis/transport.ts";
 
 const calls: { name: string; ms: number; acknowledged: boolean }[] = [];
+const bridgeCalls: LocalHandoffTrace[] = [];
 const io: string[] = [];
 let stage = "input";
 const peak = { rss: 0, heapUsed: 0, external: 0 };
@@ -36,7 +40,7 @@ async function main(signal: AbortSignal) {
   );
   const id = handoffIdentity(input.identity);
   stage = "setup";
-  const real = await createDisposableHandoffBridge(signal);
+  const real = await createDisposableHandoffBridge(signal, bridgeCalls);
   const original = await decodeHandoffState(
     await real.readState(id, signal),
     id,
@@ -170,7 +174,9 @@ async function main(signal: AbortSignal) {
           passed: false,
           outcome: result.outcome,
           recovered: result.recovered !== null,
+          recovered_transfer_present: result.recovered?.transfer != null,
           coordinator_ms: elapsed,
+          bridge_calls: bridgeCalls,
           sql_calls: calls,
           storage_operations: io.length,
           baseline,
@@ -209,6 +215,7 @@ async function main(signal: AbortSignal) {
         destinations: destinationURLs.length,
         unique_bytes: input.unique_bytes,
         sql_calls: calls,
+        bridge_calls: bridgeCalls,
         storage_operations: io.length,
         baseline,
         peak,
@@ -228,6 +235,7 @@ if (import.meta.main) {
         passed: false,
         error: "local_resource_qualification_failed",
         stage,
+        bridge_calls: bridgeCalls,
         sql_calls: calls,
         storage_operations: io.length,
         peak,

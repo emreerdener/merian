@@ -110,8 +110,7 @@ enum CaptureScanVideoMediaPreparer {
             try Task.checkCancellation()
         } catch {
             for url in [acceptedAudioURL, acceptedPlaybackURL].compactMap({ $0 }) {
-                do { try FileManager.default.removeItem(at: url) }
-                catch { MerianLog.hardware.error("Accepted capture rollback cleanup failed: \(error, privacy: .private)") }
+                do { try FileManager.default.removeItem(at: url) } catch { MerianLog.hardware.error("Accepted capture rollback cleanup failed: \(error, privacy: .private)") }
             }
             await audioLease?.discardReportingFailure()
             await playbackArtifact.lease?.discardReportingFailure()
@@ -232,8 +231,7 @@ enum CaptureScanVideoMediaPreparer {
             do {
                 guard let result = try await group.next() else { throw CancellationError() }
                 group.cancelAll()
-                do { try Task.checkCancellation() }
-                catch { await discard(result); throw error }
+                do { try Task.checkCancellation() } catch { await discard(result); throw error }
                 return result
             } catch {
                 group.cancelAll()

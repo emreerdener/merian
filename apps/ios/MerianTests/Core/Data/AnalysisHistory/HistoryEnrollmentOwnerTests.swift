@@ -10,6 +10,37 @@ struct HistoryEnrollmentOwnerTests {
     var observation: UUID { UUID(uuidString: fixture.support.support.observation)! }
     var account: UUID { fixture.support.support.owner }
 
+    @Test func recoveredAssociationJoinsOnlyRecoveryAndDrainsBeforeReleasingSlot() async throws {
+        let owner = ObservationHistoryEnrollmentOwner(), container = try await fixture.legacyImportedContainer(), gate = Pause()
+        defer { gate.release(); owner.cancelAll() }
+        let data = try fixture.recoveredResponse(container)
+        var cloud = fixture.service().cloud, calls = 0
+        cloud.enroll = { _ in Issue.record("Recovery joined enrollment"); throw ObservationHistoryError.unavailable }
+        cloud.recoverBaseline = { _ in calls += 1; await gate.wait(); return data }
+        let first = Task { try await owner.recoverBaseline(observation: observation, owner: account, generation: 1,
+            container: container, cloud: cloud, isCurrent: { true }) }
+        await gate.entered()
+        let joined = AsyncStream<Void>.makeStream(); defer { joined.continuation.finish() }
+        let second = Task { try await owner.recoverBaseline(observation: observation, owner: account, generation: 1,
+            container: container, cloud: cloud, isCurrent: { joined.continuation.yield(); return true }) }
+        for await _ in joined.stream { break }
+        await #expect(throws: ObservationHistoryEnrollmentOwner.Failure.busy) {
+            try await owner.enroll(observation: observation, owner: account, generation: 1,
+                container: container, cloud: cloud, isCurrent: { true })
+        }
+        let draining = AsyncStream<Void>.makeStream(); defer { draining.continuation.finish() }
+        var drained = false
+        let drain = Task { draining.continuation.yield(); await owner.cancelAndAwaitAll(); drained = true }
+        for await _ in draining.stream { break }
+        #expect(calls == 1 && owner.contains(observation) && !drained)
+        gate.release()
+        await #expect(throws: CancellationError.self) { try await first.value }
+        await #expect(throws: CancellationError.self) { try await second.value }
+        await drain.value
+        #expect(drained && !owner.contains(observation))
+        #expect(try ObservationHistoryEnrollmentIntent.baseline(observationID: observation, ownerID: account, context: ModelContext(container)) == nil)
+    }
+
     @Test func changedTapCannotJoinAnOlderCorrectionEvenWhenItLaterReturnsToOriginal() async throws {
         let owner = ObservationHistoryEnrollmentOwner(), container = try fixture.container(), gate = Pause()
         defer { gate.release(); owner.cancelAll() }
@@ -172,7 +203,7 @@ struct HistoryEnrollmentOwnerTests {
                 await withTaskCancellationHandler { await gate.wait(); return Data() }
                     onCancel: { cancelled.continuation.yield() }
             }
-            tasks.append(Task { try await owner.enroll(observation: id, owner: account, generation: 1,
+            tasks.append(Task { [cloud] in try await owner.enroll(observation: id, owner: account, generation: 1,
                 container: container, cloud: cloud, isCurrent: { true }) })
             await gate.entered()
         }

@@ -1,3 +1,20 @@
+## November 5 — ordinary original-completion evidence candidate
+
+The existing foreground/background completion writers can retain
+`OrdinaryInferenceCompletion` in the scan-ingestion job, in the same save as a
+genuinely new ordinary record. The decode boundary freezes the response digest
+and immutable comparison fields. Original authenticated account scope, funding,
+scan/generation, ordinary queue eligibility, absence and deletion are checked at
+the write boundary. Background legacy ownership adoption grants no new
+completion proof. Completed queue cleanup preserves metadata; missing or removed
+evidence remains held and is never reconstructed from the saved scan.
+
+The selected ordinary-audio, proof and replay cases passed native226-02 with
+independent verification. Cumulative functional acceptance remains open. First
+enrollment consumes this evidence through the existing History owner; ordinary
+selection and already-enrolled recovery guards remain. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-5--ordinary-completion-proof-candidate).
+
 # Offline Sync
 
 ## Native receiving cleanup protection under qualification
@@ -705,7 +722,13 @@ whole-history deletion action is enabled.
 ## Library transition inventory
 
 `Persistence/LibraryMutationInventory.swift` owns the fresh fail-closed
-inventory used after Auth closes producer admission.
+inventory used after Auth closes producer admission. A reanalysis input control
+is excluded only after bounded graph validation proves every slot quiescent.
+Completed receipts and any physical input namespace still count as
+outgoing-library presence for emptiness and ghost-session reset; lookup failures
+remain unknown. Active/unknown jobs keep their holds. The input consumer changes
+await focused runtime qualification; the app input route remains inactive. See
+the guest library transition contract linked below.
 `Services/LibraryDetailsSyncService` owns immutable owner-bound detail
 operations and receipt acknowledgment; it does not equate an empty runnable
 queue with durable synchronization. Its drain imports legacy notes before
@@ -1060,3 +1083,21 @@ recoverable separately. The service and reader11 contract are owned by
 Both connectivity paths call `cancelPreparedAnalysisDispatch` in the existing
 reanalysis extension, preserving the same ordered five-owner cancellation list.
 Auth invalidation and awaited draining remain separately explicit.
+
+### Prepared video submission handoffs
+
+`OfflineQueueManager+VideoSubmission` composes the existing reservation, upload
+and execution owners for one explicit candidate. Each next owner starts only
+after the previous lease and slot exit. `ObservationVideoSubmissionService`
+stages the next phase only after a normal durable success; a throwing save or
+unknown response stops the chain. Account/context/generation and connectivity
+are rechecked at every admission. Presentation dismissal is not queue authority.
+
+The upload owner's default `.upload` route still rejects ready snapshots. An
+explicit `.bindReady` key admits only an already-ready receipt for consent and
+execution staging without uploading again. Route participates in coalescing;
+unknown attempts cannot acquire binding authority. This does not install a UI,
+discovery loop or automatic retry. Consumed execution retains exact outcome-only
+recovery. Focused coverage is `ObservationVideoSubmissionTests`; current
+qualification is recorded in the
+[scan-to-History guide](../../../../../../docs/development-guides/25-scan-to-history.md#prepared-current-video-input-november-5).

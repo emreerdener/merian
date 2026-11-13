@@ -210,8 +210,8 @@ enum ObservationVideoSourceReservationStore {
         }
         let work = try Work(preparation: original.preparation, request: original.request, phase: phase, attemptID: original.attemptID, reply: reply, stagedData: original.stagedData)
         let unknown = try Work(preparation: original.preparation, request: original.request, phase: .unknown, attemptID: original.attemptID, stagedData: original.stagedData)
-        let expectedMetadata = String(decoding: try work.storedData(), as: UTF8.self)
-        let unknownMetadata = String(decoding: try unknown.storedData(), as: UTF8.self)
+        guard let expectedMetadata = String(bytes: try work.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+        guard let unknownMetadata = String(bytes: try unknown.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
         return try Persistence.transaction(original.preparation.identity, container: container, isCurrent: isCurrent, save: save,
             settlingVideo: settlement) { context in
                 let current = try pair(proof: proof, container: container, context: context)

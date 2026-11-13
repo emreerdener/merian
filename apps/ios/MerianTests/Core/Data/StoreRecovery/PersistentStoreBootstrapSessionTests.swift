@@ -152,6 +152,26 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
         }
     }
 
+    func testQualificationCorruptionPreservesOriginalStoreWithoutReplacement() throws {
+        let root = try temporaryRoot()
+        let store = root.appendingPathComponent("default.store")
+        let original = Data("Synthetic corrupt store".utf8)
+        try original.write(to: store)
+        let session = try fixture(root) { _ in throw StoreRecoveryTestSupport.sqliteCorruptionError() }
+        let outcome = ModelContainerBootstrapper.fixtureBootstrap(preserveExistingStore: true) { session }
+        XCTAssertEqual(outcome.startupStoreState, .safeMode)
+        XCTAssertEqual(outcome.telemetryEvent?.reason, "existing_store_preserved")
+        XCTAssertEqual(session.attempts, 1)
+        XCTAssertEqual(try Data(contentsOf: store), original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("store-quarantine").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("store-rescue").path))
+        XCTAssertNil(outcome.nativeReleaseAdmission)
+    }
+
+    func testQualificationLegacyFailurePreservesOriginalStoreWithoutRescue() throws {
+        try legacyRescueReplacement(schema: MerianSchemaV68.self, source: .v68, preserveExistingStore: true)
+    }
+
     func testQuarantineReplacementHoldsFenceAndKeepsAdmissionDenied() throws {
         let root = try temporaryRoot()
         let store = root.appendingPathComponent("default.store")
@@ -180,10 +200,14 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
         try legacyRescueReplacement(schema: MerianSchemaV65.self, source: .v65)
         try legacyRescueReplacement(schema: MerianSchemaV66.self, source: .v66)
         try legacyRescueReplacement(schema: MerianSchemaV67.self, source: .v67)
+        try legacyRescueReplacement(schema: MerianSchemaV68.self, source: .v68)
     }
 
-    private func legacyRescueReplacement(schema: any VersionedSchema.Type,
-                                        source: ModelStoreRecoveryCoordinator.RecentSourceSchema) throws {
+    private func legacyRescueReplacement(
+        schema: any VersionedSchema.Type,
+        source: ModelStoreRecoveryCoordinator.RecentSourceSchema,
+        preserveExistingStore: Bool = false
+    ) throws {
         let root = try temporaryRoot()
         let store = root.appendingPathComponent("default.store")
         try autoreleasepool {
@@ -208,7 +232,16 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
                               userInfo: [NSLocalizedDescriptionKey: "Synthetic legacy migration failure"])
             }
         }
-        let outcome = ModelContainerBootstrapper.fixtureBootstrap { session }
+        let outcome = ModelContainerBootstrapper.fixtureBootstrap(preserveExistingStore: preserveExistingStore) { session }
+        if preserveExistingStore {
+            XCTAssertEqual(attempts, [1])
+            XCTAssertEqual(outcome.startupStoreState, .safeMode)
+            XCTAssertEqual(outcome.telemetryEvent?.reason, "existing_store_preserved")
+            XCTAssertEqual(try Data(contentsOf: store), original)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("store-rescue").path))
+            XCTAssertNil(outcome.nativeReleaseAdmission)
+            return
+        }
         XCTAssertEqual(attempts, [1, 2])
         XCTAssertEqual(outcome.startupStoreState, .recovered)
         XCTAssertEqual(outcome.telemetryEvent?.reason, "legacy_store_rescued")

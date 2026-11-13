@@ -232,11 +232,12 @@ struct InsightSheetView: View {
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in
-            if !current {
-                closeSelectedNameConfirmation(); closeSelectedCandidateReview()
-                closeSelectedPublication()
-                if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
-            }
+            // A deferred replacement may already be valid when the old false
+            // observation arrives. Retire only the scope that is still invalid.
+            guard !current, !selectedReviewHost.scopeIsCurrent else { return }
+            closeSelectedNameConfirmation(); closeSelectedCandidateReview()
+            closeSelectedPublication()
+            if selectedReviewHost.model != nil { selectedReviewHost.invalidateScope() }
         }
         .onChange(of: selectedReviewHost.message) { _, message in
             if let message { viewModel.state.toastMessage = .information(message) }

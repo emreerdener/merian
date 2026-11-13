@@ -453,7 +453,7 @@ extension CandidateSwipeModal {
         ZStack {
             Color(.secondarySystemBackground)
             
-            if let data = inferenceEngine.activeMedia.liveImageData {
+            if let data = inferenceEngine.activeMedia.presentationImageData {
                 CandidateSwipeLiveThumbnail(imageData: data)
             } else if let path = inferenceEngine.activeMedia.imagePathsForUpload.first {
                 AsyncLocalImageView(

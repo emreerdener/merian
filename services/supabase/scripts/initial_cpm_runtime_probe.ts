@@ -5,6 +5,16 @@ import { fetchWithDeadline } from "../functions/_shared/outbound.ts";
 
 if (Deno.args[0] === "fixture") {
   console.log(JSON.stringify(Array.from(safeJpeg())));
+} else if (Deno.args[0] === "fixture-roster") {
+  const roster = Array.from({ length: 6 }, (_, index) => {
+    const jpeg = safeJpeg();
+    if (jpeg[2] !== 0xff || jpeg[3] !== 0xdb || jpeg[7] !== 1) {
+      throw new Error("fixture quantization table changed");
+    }
+    jpeg[7] = index + 1;
+    return Array.from(jpeg);
+  });
+  console.log(JSON.stringify(roster));
 } else {
   const input = JSON.parse(await new Response(Deno.stdin.readable).text());
   const base = new URL(input.base);

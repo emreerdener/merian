@@ -190,6 +190,16 @@ provision a schedule or enable its gate. See the
 
 ## Prepared protected evidence storage
 
+November 11 transport correction: the dedicated private read/write clients use
+zero SDK retries, leaving recovery to the original durable operation. The
+combined ten-second request/caller signal is explicitly forwarded through the
+real signer to native fetch. Injected transport fixtures alone do not cover this
+boundary. `evidence_test.ts` covers real signing for upload/erasure PUT and
+HEAD, verified GET, caller/deadline cancellation and single-dispatch 429/503
+refusal. The fix is local, not yet deployed; hashing/signing/body cloning remain
+non-preemptive. See the
+[incident](../../../../../docs/incidents/2026-11-private-evidence-request-cancellation.md).
+
 `evidence.ts` and `evidenceStorage.ts` prepare a separate private-bucket
 lifecycle. Upload/cleanup have no live endpoint, database adapter, worker
 schedule or API execution permission. The completed-photo read adapter is
@@ -331,6 +341,14 @@ selection/authority hydration is still required before enrollment can connect.
 There is no live app enrollment call site. The
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
 and RFC retain authority/public/chat/deletion activation prerequisites.
+
+The November 4 `baselineRecovery.ts` candidate supplies a separate recovery-only
+contract for completed legacy imports missing a local baseline association. Its
+new authenticated SQL reader returns exact existing V3 bytes and the native
+baseline digest under owner/deletion locks, independent of later selection. It
+has no enrollment or funding effect. Contract/static checks pass; disposable SQL
+and native association integration remain pending. See the
+[baseline recovery contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-enrollment-baseline-recovery).
 
 ## Prepared atomic state read
 
@@ -1344,7 +1362,11 @@ evidence. Result snapshot5, blank review authority, credit settlement and the
 exact receipt are atomic; initialized selection and source occupancy stay
 unchanged. Replay survives invocation retention without accounting or
 settlement. Page/state reader11 now admits snapshot5 with strict Deno/native
-parsing; older readers and all current action readers reject video histories. No
+parsing. The completion271 action-reader candidate admits reader11 only for
+explicit selection, review and confirmation/rejection Undo. Older action readers
+still reject whole video histories, and execution/retirement readers remain
+unchanged. Focused qualification is in progress; no rollout gate is enabled.
+Publication, selected chat and historical-source reuse remain closed to V5. No
 public/native caller or activation is installed. See the
 [completion contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-v4-successful-completion-preparation).
 

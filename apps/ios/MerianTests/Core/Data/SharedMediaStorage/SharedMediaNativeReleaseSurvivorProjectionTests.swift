@@ -269,16 +269,16 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         let witness = SharedMediaNativeReceivingCleanGraph.Witness.releasing(snapshot)
         #expect(try witness.remainingAdvances == baseline + 59)
         try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 59,
-            witnesses: [witness])
+            witnesses: [witness], historical: .init())
         #expect(throws: (any Error).self) {
             try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 58,
-                witnesses: [witness])
+                witnesses: [witness], historical: .init())
         }
         // Pure aggregate arithmetic; duplicate synthetic roots grant no identity
         // or admission authority. The clean reader checks uniqueness separately.
         #expect(throws: (any Error).self) {
             try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - baseline - 59,
-                witnesses: [witness, witness])
+                witnesses: [witness, witness], historical: .init())
         }
         let exhausted = try reservation.settle(current: reservation.reserved, elapsed: .seconds(30))
         snapshot.recoveryPresentationData = try exhausted.encoded()
@@ -293,7 +293,7 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             try Reader.read(packageID: f.store.packageID, inventoryID: f.store.inventoryID, context: f.store.context())
         }
         func initial(_ f: Fixture) throws -> AnalysisRecoveryPresentation {
-            try .initial(for: .init(ownerID: f.prepared.profile.ownerID,
+            .initial(for: .init(ownerID: f.prepared.profile.ownerID,
                 observationID: f.prepared.observationID, operationID: f.prepared.operationID))
         }
         var snapshot = try read(own), firstPeer = try read(peerA)
@@ -301,10 +301,10 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         firstPeer.recoveryPresentationData = try initial(peerA).reserve(id: UUID()).reserved.encoded()
         let peers: [UUID: Graph.Witness] = [peerA.store.packageID: .releasing(firstPeer), peerB.store.packageID: .releasing(secondPeer)]
         let peerAdvances = try PhotoPreparationPolicy.add([firstPeer.release.progress.remainingAdvances, 59, secondPeer.release.progress.remainingAdvances])
-        func check(_ revision: Int64, execution: Int64 = 5, save: Int64 = 1, terminals: Int64 = 3,
+        func check(_ revision: Int64, execution: Int64 = 5, save: Int64 = 1, terminals: Int64 = 3, applied: Int64 = 2,
                    map: [UUID: Graph.Witness]) throws {
             try Graph.requireReplacementRunway(inventoryRevision: revision, packageID: own.store.packageID,
-                executionAdvances: execution, saveAdvances: save, witnesses: map, terminalConsumptionAdvances: terminals)
+                executionAdvances: execution, saveAdvances: save, witnesses: map, historical: .init(consumptionAdvances: terminals, appliedHandoffAdvances: applied))
         }
         let states: [(Data?, Int64)] = [(nil, 0), (try reserved.reserved.encoded(), 59),
             (try reserved.settle(current: reserved.reserved, elapsed: .seconds(30)).encoded(), 58)]
@@ -312,8 +312,8 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             snapshot.recoveryPresentationData = bytes
             var map = peers; map[own.store.packageID] = .releasing(snapshot)
             // Exact successor boundary: own old execution is replaced, while
-            // two real peer roots and terminal consumption remain charged once.
-            let needed = 1 + 5 + presentation + peerAdvances + 3
+            // two real peers, terminal consumption and applied handoffs remain charged once.
+            let needed = 1 + 5 + presentation + peerAdvances + 3 + 2
             try check(Int64.max - needed, map: map)
             #expect(throws: (any Error).self) { try check(Int64.max - needed + 1, map: map) }
             #expect(throws: (any Error).self) { try check(Int64.max - needed, execution: 6, map: map) }
@@ -323,6 +323,7 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             #expect(throws: (any Error).self) { try check(0, execution: -1, map: map) }
             #expect(throws: (any Error).self) { try check(0, save: -1, map: map) }
             #expect(throws: (any Error).self) { try check(0, terminals: -1, map: map) }
+            #expect(throws: (any Error).self) { try check(0, applied: -1, map: map) }
         }
         #expect(throws: SharedMediaStorageFailure.stale) { try check(0, map: peers) }
         var mismatched = peers; mismatched[own.store.packageID] = .releasing(firstPeer)
@@ -346,10 +347,10 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
         let peerWitness = Graph.Witness.releasing(peerSnapshot)
         let execution = try snapshot.release.progress.remainingAdvances
         let peers = try peerWitness.remainingAdvances
-        func check(_ revision: Int64, successor: Int64, save: Int64 = 1, terminal: Int64 = 3,
+        func check(_ revision: Int64, successor: Int64, save: Int64 = 1, terminal: Int64 = 3, applied: Int64 = 2,
                    map: [UUID: Graph.Witness]) throws {
             try Graph.requirePresentationReplacementRunway(inventoryRevision: revision, packageID: own.store.packageID,
-                presentationAdvances: successor, saveAdvances: save, witnesses: map, terminalConsumptionAdvances: terminal)
+                presentationAdvances: successor, saveAdvances: save, witnesses: map, historical: .init(consumptionAdvances: terminal, appliedHandoffAdvances: applied))
         }
         // Descriptive arithmetic across separate fixture roots, not permission
         // to mutate releasing work or positive native presentation admission.
@@ -359,7 +360,7 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             snapshot.recoveryPresentationData = bytes
             let map: [UUID: Graph.Witness] = [own.store.packageID: .releasing(snapshot), peer.store.packageID: peerWitness]
             for successor in [Int64(59), 58, 0] {
-                let needed = 1 + execution + successor + peers + 3
+                let needed = 1 + execution + successor + peers + 3 + 2
                 try check(Int64.max - needed, successor: successor, map: map)
                 #expect(throws: (any Error).self) { try check(Int64.max - needed + 1, successor: successor, map: map) }
             }
@@ -387,7 +388,7 @@ struct SharedMediaNativeReleaseSurvivorProjectionTests {
             try SharedMediaNativeReceivingRows.requireRecoveryPresentation(expected, request: request, in: context)
         }
         try check(nil)
-        let initial = try AnalysisRecoveryPresentation.initial(for: .init(ownerID: f.prepared.profile.ownerID,
+        let initial = AnalysisRecoveryPresentation.initial(for: .init(ownerID: f.prepared.profile.ownerID,
             observationID: f.prepared.observationID, operationID: f.prepared.operationID))
         let first = try initial.reserve(id: UUID()).reserved.encoded()
         let second = try initial.reserve(id: UUID()).reserved.encoded()

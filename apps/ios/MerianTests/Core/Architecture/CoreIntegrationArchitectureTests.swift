@@ -49,7 +49,7 @@ struct CoreIntegrationArchitectureTests {
             .filter { $0.hasPrefix("Core/") }
             .map { String($0.dropFirst(5)) })
         #expect(oversized == trackedCoreOwners)
-        for (path, ceiling) in policy.sealedOwnerCeilings.filter { $0.key.hasPrefix("Core/") } {
+        for (path, ceiling) in policy.sealedOwnerCeilings.filter({ $0.key.hasPrefix("Core/") }) {
             let source = try #require(sources.first { "Core/" + $0.relativePath == path })
             #expect(
                 DatabaseActorTestSupport.lineCount(of: source.contents) <= ceiling,

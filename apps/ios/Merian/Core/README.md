@@ -21,6 +21,10 @@ owns UI lifetime and uncertain-save recovery.
 
 - The Core root contains only `AppDIContainer.swift`, which composes live
   dependencies, and `MerianLog.swift`, which defines logging categories.
+  `injectAppDependencies` supplies both the owning container and its individual
+  managers to SwiftUI descendants. Saved-scan detail loaders require the typed
+  container environment; injecting only managers leaves that route unable to
+  mount.
 - Each domain directory owns its local contract in a `README.md`. New code
   belongs in the narrowest domain; a generic utility is appropriate only when
   its semantics are genuinely mechanical and cross-domain.

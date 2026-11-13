@@ -1,17 +1,14 @@
 import Foundation
 
 enum SmartCollectionSuggester {
-    private static let maximumSuggestions = 6
     private static let maximumFeaturedScans = 24
     private static let minimumRecentScans = 3
     private static let minimumReviewScans = 1
     private static let minimumSharedScans = 1
-    private static let minimumTaxonomyScans = 3
     private static let minimumLocationScans = 3
     private static let minimumSpecialScans = 2
     private static let dayInterval: TimeInterval = 24 * 60 * 60
     private static let recentWindow: TimeInterval = 30 * dayInterval
-    private static let taxonomyLibraryShare = 0.2
 
     static func suggestions(
         from scans: [LocalScanRecord],
@@ -37,9 +34,8 @@ enum SmartCollectionSuggester {
         appendReviewSuggestion(to: &snapshots, scans: biologicalScans)
         appendRecentSuggestion(to: &snapshots, scans: biologicalScans, referenceDate: referenceDate)
         appendSharedSuggestion(to: &snapshots, scans: biologicalScans, sharedPostIDProvider: sharedPostIDProvider)
-        appendLocationSuggestions(to: &snapshots, scans: biologicalScans)
-        appendTaxonomySuggestions(to: &snapshots, scans: biologicalScans)
         appendSpecialSuggestions(to: &snapshots, scans: biologicalScans)
+        appendLocationSuggestions(to: &snapshots, scans: biologicalScans)
 
         return snapshots
             .filter { !activeCollectionNames.contains(normalizedCollectionName($0.title)) }
@@ -53,8 +49,6 @@ enum SmartCollectionSuggester {
                 }
                 return lhs.newestScanDate > rhs.newestScanDate
             }
-            .prefix(maximumSuggestions)
-            .map { $0 }
     }
 
     static func featuredSnapshot(
@@ -183,7 +177,6 @@ enum SmartCollectionSuggester {
                 }
                 return newestDate(in: lhs.value) > newestDate(in: rhs.value)
             }
-            .prefix(2)
 
         for (_, groupScans) in rankedGroups {
             guard let displayName = displayLocationName(from: groupScans) else { continue }
@@ -192,48 +185,9 @@ enum SmartCollectionSuggester {
                 title: displayName,
                 iconName: "mappin.and.ellipse",
                 rule: .location(normalize(displayName)),
-                rank: 3,
+                rank: 5,
                 scans: groupScans,
                 minimumCount: minimumLocationScans
-            )
-        }
-    }
-
-    private static func appendTaxonomySuggestions(
-        to snapshots: inout [SmartCollectionSnapshot],
-        scans: [LocalScanRecord]
-    ) {
-        let minimumShareCount = Int(ceil(Double(scans.count) * taxonomyLibraryShare))
-        let grouped = Dictionary(grouping: scans) { scan in
-            SearchCategoryBucket(
-                kingdom: scan.taxonomyKingdom?.lowercased() ?? "",
-                className: scan.taxonomyClass?.lowercased() ?? ""
-            )
-        }
-
-        let rankedGroups = grouped
-            .filter { bucket, groupScans in
-                bucket != .other &&
-                groupScans.count >= minimumTaxonomyScans &&
-                groupScans.count >= minimumShareCount
-            }
-            .sorted { lhs, rhs in
-                if lhs.value.count != rhs.value.count {
-                    return lhs.value.count > rhs.value.count
-                }
-                return newestDate(in: lhs.value) > newestDate(in: rhs.value)
-            }
-            .prefix(2)
-
-        for (bucket, groupScans) in rankedGroups {
-            append(
-                to: &snapshots,
-                title: bucket.displayTitle,
-                iconName: bucket.iconName,
-                rule: .taxonomy(bucket),
-                rank: 4,
-                scans: groupScans,
-                minimumCount: minimumTaxonomyScans
             )
         }
     }
@@ -247,7 +201,7 @@ enum SmartCollectionSuggester {
             title: "Invasive finds",
             iconName: "exclamationmark.triangle",
             rule: .invasive,
-            rank: 5,
+            rank: 3,
             scans: scans.filter(\.isInvasive),
             minimumCount: minimumSpecialScans
         )
@@ -257,7 +211,7 @@ enum SmartCollectionSuggester {
             title: "Potential hazards",
             iconName: "cross.case",
             rule: .hazards,
-            rank: 6,
+            rank: 4,
             scans: scans.filter { $0.hazardType.lowercased() != "none" },
             minimumCount: minimumSpecialScans
         )
@@ -399,13 +353,6 @@ enum SmartCollectionSuggester {
             return scans.filter { sharedPostIDProvider($0.id) != nil }
         case .location(let normalizedLocation):
             return scans.filter { normalizedLocationName($0.locationName) == normalizedLocation }
-        case .taxonomy(let bucket):
-            return scans.filter { scan in
-                SearchCategoryBucket(
-                    kingdom: scan.taxonomyKingdom?.lowercased() ?? "",
-                    className: scan.taxonomyClass?.lowercased() ?? ""
-                ) == bucket
-            }
         case .invasive:
             return scans.filter(\.isInvasive)
         case .hazards:
@@ -444,32 +391,6 @@ private extension Array where Element == LocalScanRecord {
                 return lhs.timestamp > rhs.timestamp
             }
             return lhs.id < rhs.id
-        }
-    }
-}
-
-private extension SearchCategoryBucket {
-    var displayTitle: String {
-        switch self {
-        case .plants: return "Plants"
-        case .fungi: return "Fungi"
-        case .insects: return "Insects"
-        case .birds: return "Birds"
-        case .mammals: return "Mammals"
-        case .reptiles: return "Reptiles"
-        case .other: return "Other finds"
-        }
-    }
-
-    var iconName: String {
-        switch self {
-        case .plants: return "leaf"
-        case .fungi: return "circle.hexagongrid"
-        case .insects: return "ladybug"
-        case .birds: return "bird"
-        case .mammals: return "pawprint"
-        case .reptiles: return "lizard"
-        case .other: return "sparkles"
         }
     }
 }

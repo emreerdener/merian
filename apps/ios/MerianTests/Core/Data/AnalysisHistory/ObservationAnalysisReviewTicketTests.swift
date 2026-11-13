@@ -8,12 +8,13 @@ struct ObservationAnalysisReviewTicketTests {
                 authorityPatch: [String: Any] = [:], revision: Int? = 0, resultPatch: [String: Any] = [:], version: Int = 3, photos: [ObservationHistoryPhotoReference] = [], omittedResultKeys: [String] = []) throws -> ObservationAnalysisReviewTicket {
         let fixture = try ObservationHistoryStateTests().fixture()
         let state = try ObservationHistoryStateTests().decode(fixture)
-        var envelope = try version == 4 ? ObservationHistorySyncTests().audioSnapshot() : #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any])
+        var envelope = try version == 5 ? ObservationHistorySyncTests().videoSnapshot() :
+            (version == 4 ? ObservationHistorySyncTests().audioSnapshot() : #require(JSONSerialization.jsonObject(with: state.result.bytes) as? [String: Any]))
         envelope["observation_id"] = state.observationID.uuidString.lowercased()
         envelope["analysis_id"] = state.result.analysisID.uuidString.lowercased()
         var result = try #require(envelope["result"] as? [String: Any])
         result["is_biological_subject"] = biological
-        if version == 4, let primary {
+        if [4, 5].contains(version), let primary {
             result["scientific_name"] = primary.scientificName ?? NSNull()
             result["common_name"] = primary.commonName ?? NSNull()
             result["identification_provenance"] = VerifiedReviewFixtures.history()["identification_provenance"]
@@ -26,7 +27,7 @@ struct ObservationAnalysisReviewTicketTests {
         var authority = try #require(JSONSerialization.jsonObject(with: state.review.data) as? [String: Any])
         authority.merge(authorityPatch) { _, new in new }
         let encoded = try JSONSerialization.data(withJSONObject: envelope)
-        let raw = try version == 4 ? ObservationHistoryPage.snapshot(encoded, observationID: state.observationID.uuidString.lowercased(), ordinal: ObservationHistoryPage.integer(envelope["ordinal"])) : ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, video: nil, analysisID: state.result.analysisID,
+        let raw = try [4, 5].contains(version) ? ObservationHistoryPage.snapshot(encoded, observationID: state.observationID.uuidString.lowercased(), ordinal: ObservationHistoryPage.integer(envelope["ordinal"])) : ObservationHistoryPage.Result(version: version, photos: photos, audio: nil, video: nil, analysisID: state.result.analysisID,
             completedAt: nil, importedAt: state.result.importedAt, bytes: encoded)
         let entry = ObservationHistoryListingService.Entry(result: raw, display: nil,
             authority: try ObservationHistoryAuthority.decode(authority), reviewRevision: revision)
@@ -34,9 +35,9 @@ struct ObservationAnalysisReviewTicketTests {
             revision: state.revision, pendingOperation: nil, undoOperation: nil), observationID: state.observationID)
     }
 
-    @Test func audioReviewUsesExactReader10TicketWithoutPhotoOrCandidatePermission() throws {
+    @Test(arguments: [4, 5]) func mediaReviewUsesExactReader11TicketWithoutPhotoOrCandidatePermission(version: Int) throws {
         let primary = try PrimaryIdentification.Snapshot(resolution: .species, scientificName: "Synthetic species", commonName: nil)
-        let saved = try ticket(primary: primary, version: 4)
+        let saved = try ticket(primary: primary, version: version)
         #expect(saved.canReject && saved.canConfirmPrimary && saved.canConfirmName)
         #expect(saved.evidencePhotoID == nil && saved.candidateChoices.isEmpty && !saved.supportsPhotoPublicationFormat)
         #expect(try saved.request(.reject, operationID: UUID()).analysisID == saved.analysisID)

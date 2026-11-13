@@ -65,7 +65,7 @@ enum SharedMediaNativeEligibility {
     }
 
     static func originalState(_ context: ModelContext, inventoryID: UUID,
-                                      storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
+                              storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
         if try context.fetchCount(FetchDescriptor<SharedMediaInventoryRecord>()) == 0 {
             return try emptyState(context, inventoryID: inventoryID, storeIdentity: storeIdentity, rootBinding: rootBinding)
         }
@@ -93,7 +93,7 @@ enum SharedMediaNativeEligibility {
     /// Full zero-state inventory is deliberate until native operations exist.
     /// Never infer bootstrap metadata from a surviving graph or root marker.
     static func emptyState(_ context: ModelContext, inventoryID: UUID,
-                                   storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
+                           storeIdentity: String, rootBinding: String) throws -> SharedMediaInventoryRecord? {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         for type in CurrentSchema.models where ObjectIdentifier(type) != ObjectIdentifier(SharedMediaInventoryRecord.self)
             && ObjectIdentifier(type) != ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self) {

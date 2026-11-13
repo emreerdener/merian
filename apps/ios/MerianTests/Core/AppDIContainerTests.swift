@@ -1,8 +1,21 @@
 @testable import Merian
+import SwiftUI
 import Testing
 
 @MainActor
 struct AppDIContainerTests {
+    @Test func testInjectedChildReceivesOwningContainer() {
+        let container = AppDIContainer.preview
+        var received: AppDIContainer?
+        let renderer = ImageRenderer(content:
+            ContainerEnvironmentProbe { received = $0 }
+                .injectAppDependencies(container: container)
+        )
+
+        #expect(renderer.uiImage != nil)
+        #expect(received === container)
+    }
+
     @Test func testSharedInstanceUnification() {
         let sharedContainerA = AppDIContainer.shared
         let sharedContainerB = AppDIContainer.shared
@@ -32,4 +45,14 @@ struct AppDIContainerTests {
         #expect(previewA.hardwareOrchestrator === HardwareOrchestrator.shared)
     }
 
+}
+
+private struct ContainerEnvironmentProbe: View {
+    @Environment(AppDIContainer.self) private var container: AppDIContainer?
+    let capture: (AppDIContainer?) -> Void
+
+    var body: some View {
+        capture(container)
+        return Text("Dependency probe")
+    }
 }

@@ -119,7 +119,7 @@ struct IdentificationPreflightTransportTests {
         fixture.client.overridingInferenceConsentCheck = {
             synced.withLock { $0 = true }
             if reason == "consent" { throw MerianError.aiConsentRequired }
-            if reason == "owner-after" { fixture.client.overridingAuthUserID = UUID() }
+            if reason == "owner-after" { await MainActor.run { fixture.client.overridingAuthUserID = UUID() } }
         }
         fixture.transport.register(path: "/get_my_identification_preflight") { wire in
             sends.withLock { $0 += 1 }

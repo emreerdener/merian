@@ -76,15 +76,41 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
             try restore(row, value); c.insert(row)
         }
         try c.save()
+        // Initial History discovery advances over inspected keys even when a
+        // complete page contains only skipped terminal/prepared rows.
+        let initialPage = try SharedMediaNativeRepositoryFacts.initialHandoffPage(h.container, profile: live.profile, cursor: nil)
+        let pageCursor = try #require(initialPage.next)
+        #expect(initialPage.candidates.isEmpty)
+        let finalPage = try SharedMediaNativeRepositoryFacts.initialHandoffPage(h.container, profile: live.profile, cursor: pageCursor)
+        #expect(finalPage.candidates.isEmpty && finalPage.next == nil)
+        let cursors: [SharedMediaNativeInitialPage.Cursor] = [
+            .init(kind: .enrollment, profile: pageCursor.profile, header: pageCursor.header, after: pageCursor.after),
+            .init(kind: .retained, profile: pageCursor.profile, header: pageCursor.header, after: "invalid"),
+            .init(kind: .retained, profile: .init(ownerID: UUID(), inventoryID: live.profile.inventoryID,
+                generation: live.profile.generation, storeIdentity: live.profile.storeIdentity,
+                physicalBinding: live.profile.physicalBinding, receiptDigest: live.profile.receiptDigest),
+                header: pageCursor.header, after: pageCursor.after)
+        ]
+        for invalid in cursors {
+            #expect(throws: (any Error).self) {
+                _ = try SharedMediaNativeRepositoryFacts.initialHandoffPage(h.container, profile: live.profile, cursor: invalid)
+            }
+        }
+        let pageInventory = try ownerTests.inventory(h, c), originalRevision = pageCursor.header.inventory.revision
+        pageInventory.revision += 1; try c.save()
+        #expect(throws: SharedMediaStorageFailure.stale) {
+            _ = try SharedMediaNativeRepositoryFacts.initialHandoffPage(h.container, profile: live.profile, cursor: pageCursor)
+        }
+        pageInventory.revision = originalRevision; try c.save()
         phase("phase 5: full terminal scan")
         var count = 0
         var selected: [SharedMediaNativeReceivingTerminal.Snapshot] = []
         var following: SharedMediaNativeReceivingTerminal.Snapshot?
-        let summary = try SharedMediaNativeTerminalScan.read(container: h.container, inventoryID: h.inventoryID) { value in
+        let summary = try SharedMediaNativeTerminalScan.read(container: h.container, inventoryID: h.inventoryID, visit: { value in
             count += 1
             if selected.count < SharedMediaStoragePolicy.pageSize { selected.append(value) }
             else { following = value }
-        }
+        })
         #expect(count == SharedMediaStoragePolicy.pageSize + 1)
         #expect(summary.consumptionAdvances == Int64(count))
         phase("phase 6: pending roots and budget")
@@ -122,7 +148,7 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
         ])
         #expect(reopened !== h.container)
         phase("cold container constructed")
-        let cold = try await SharedMediaNativeOriginalOwner.appDispatch(
+        let cold = try SharedMediaNativeOriginalOwner.appDispatch(
             account: PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: h.runtime), drain: .init())
         phase("cold dispatch constructed")
         var traceReports = 0
@@ -212,10 +238,10 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
         for _ in 0..<5 { try summary.include(1) }
         #expect(summary.bytes == 5 && summary.consumptionAdvances == 5)
         try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - 5,
-            witnesses: [], terminalConsumptionAdvances: summary.consumptionAdvances)
+            witnesses: [], historical: summary)
         #expect(throws: (any Error).self) {
             try SharedMediaNativeReceivingCleanGraph.requireAggregateRunway(inventoryRevision: Int64.max - 4,
-                witnesses: [], terminalConsumptionAdvances: summary.consumptionAdvances)
+                witnesses: [], historical: summary)
         }
         summary.bytes = Int64.max
         #expect(throws: (any Error).self) { try summary.include(1) }
@@ -319,7 +345,7 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
         #expect(ref.packageID == packageID && rows.asset.id == id)
     }
 
-    private func restore(_ row: SharedMediaReceivingIntentRecord, _ value: Values.Released) throws {
+    func restore(_ row: SharedMediaReceivingIntentRecord, _ value: Values.Released) throws {
         let p = value.plan
         row.schemaVersion = 2; row.inventoryID = p.profile.inventoryID; row.inventoryGeneration = p.profile.generation
         row.ownerID = p.profile.ownerID; row.draftGeneration = p.package.generation; row.operationID = p.operationID
@@ -329,10 +355,13 @@ struct SharedMediaNativeReceivingTerminalReaderTests {
         row.releaseStartData = nil; row.releaseStartSHA256 = nil
         row.allocationData = nil; row.allocationSHA256 = nil
     }
-    private func clone(_ source: Values.Released, preserveID: UUID? = nil) throws -> Values.Released {
+    func clone(_ source: Values.Released, preserveID: UUID? = nil, packageID: UUID? = nil) throws -> Values.Released {
         let ids = SharedMediaNativeTerminalIdentity.exclusive(source).subtracting(preserveID.map { [$0] } ?? [])
         var text = String(decoding: try source.encoded(), as: UTF8.self)
-        for id in ids { text = text.replacingOccurrences(of: id.uuidString, with: UUID().uuidString) }
+        for id in ids {
+            let replacement = id == source.plan.package.id ? (packageID ?? UUID()) : UUID()
+            text = text.replacingOccurrences(of: id.uuidString, with: replacement.uuidString)
+        }
         let raw = try JSONDecoder().decode(Values.Released.self, from: Data(text.utf8))
         // Plan hash changes after remapping; all original association IDs stay.
         return try .init(plan: raw.plan, inventoryRevision: source.inventoryRevision, outcomes: raw.outcomes)

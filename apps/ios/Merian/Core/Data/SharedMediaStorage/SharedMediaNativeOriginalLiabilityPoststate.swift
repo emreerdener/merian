@@ -4,6 +4,8 @@ import SwiftData
 /// A clean persisted baseline plus one sealed native mutation. No arbitrary
 /// dirty context can mint this measurement, and no capacity or I/O is granted.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeOriginalLiabilityPoststate {
     typealias Reader = SharedMediaNativeOriginalLiability
     @MainActor

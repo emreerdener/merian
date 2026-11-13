@@ -26,7 +26,7 @@ PRIVATE = [
     'initial_analysis_preparation_intents', 'initial_preparation_source_mapping',
     'initial_preparation_source_verifications', 'initial_preparation_execution_grants',
     'initial_preparation_output_manifests', 'initial_preparation_output_mapping',
-    'initial_preparation_outcomes',
+    'initial_preparation_outcomes', 'initial_cpm_photo_role_mapping',
 ]
 RELATIONS = ['public.users', 'public.scans', 'public.scan_ingestion_intents', 'public.scan_ingestion_jobs'] + ['internal.' + x for x in PRIVATE] + [
     'internal.initial_analysis_cancellations', 'internal.initial_analysis_lifecycle_fences',

@@ -175,6 +175,8 @@ struct CaptureNativePhotoSubmissionTests {
         let owner: SharedMediaNativeOriginalOwner
         let selection: CaptureNativePhotoSubmissionSelection
         let capture: StagedCapture
+        // Exact synthetic input supplied to acquisition; never an original-export API.
+        let sourceInputs: [Data]
     }
 
     @Test func reversedPairOrderIsNotANewSelection() async throws {
@@ -426,6 +428,6 @@ struct CaptureNativePhotoSubmissionTests {
         }
         let selection = try CaptureNativePhotoSubmissionSelection(metadata: metadata, pairs: pairs)
         if includePresentation { try selection.validate(.init(capture, selection: selection)) }
-        return .init(store: h, owner: owner, selection: selection, capture: capture)
+        return .init(store: h, owner: owner, selection: selection, capture: capture, sourceInputs: Array(repeating: bytes, count: count))
     }
 }

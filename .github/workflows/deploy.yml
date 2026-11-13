@@ -32,13 +32,67 @@ env:
     services/supabase/**
 
 jobs:
-  candidate-validation:
+  validation-reuse:
+    name: Resolve existing exact-candidate validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      reuse: ${{ steps.evidence.outputs.reuse }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+      - name: Resolve successful standalone validation
+        id: evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          deno run --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_OUTPUT,GITHUB_STEP_SUMMARY \
+            --allow-net=api.github.com --allow-read=.github/workflows/supabase-candidate-validation.yml \
+            --allow-write="$GITHUB_OUTPUT,$GITHUB_STEP_SUMMARY" \
+            services/supabase/scripts/resolve_candidate_validation_reuse.ts
+
+  fresh-candidate-validation:
     name: Validate candidate without production access
+    needs: validation-reuse
+    if: needs.validation-reuse.outputs.reuse == 'false'
     uses: ./.github/workflows/supabase-candidate-validation.yml
+
+  candidate-validation:
+    name: Enforce exact-candidate validation
+    needs: [validation-reuse, fresh-candidate-validation]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require verified reuse or complete fresh validation
+        env:
+          RESOLUTION_RESULT: ${{ needs.validation-reuse.result }}
+          REUSE: ${{ needs.validation-reuse.outputs.reuse }}
+          FRESH_RESULT: ${{ needs.fresh-candidate-validation.result }}
+        run: |
+          test "$RESOLUTION_RESULT" = success
+          if [ "$REUSE" = true ]; then
+            test "$FRESH_RESULT" = skipped
+          elif [ "$REUSE" = false ]; then
+            test "$FRESH_RESULT" = success
+          else
+            echo "Missing exact-candidate validation decision." >&2
+            exit 1
+          fi
 
   production-scope:
     name: Determine production deployment scope
     needs: candidate-validation
+    # A verified reuse skips the fresh gate; do not inherit that ancestor skip.
+    if: ${{ !cancelled() && needs.candidate-validation.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -76,7 +130,7 @@ jobs:
   production-hold:
     name: Report checked-in production release holds
     needs: [candidate-validation, production-scope]
-    if: needs.production-scope.outputs.should_deploy == 'true'
+    if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-scope.result == 'success' && needs.production-scope.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -121,7 +175,7 @@ jobs:
       group: supabase-production-deploy
       cancel-in-progress: false
     needs: [candidate-validation, production-hold]
-    if: needs.production-hold.outputs.deploy_allowed == 'true'
+    if: ${{ !cancelled() && needs.candidate-validation.result == 'success' && needs.production-hold.result == 'success' && needs.production-hold.outputs.deploy_allowed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # Automatic after candidate validation and the checked-in source hold.
@@ -492,7 +546,7 @@ jobs:
           case "$migration_mode" in
             normal) ;;
             reviewed-backfill)
-              echo "Applying the reviewed Explore report-visibility migration gap."
+              echo "Applying the digest-pinned reviewed migration gaps."
               push_args+=(--include-all)
               ;;
             *) echo "Invalid migration preflight result." >&2; exit 1 ;;
@@ -1633,6 +1687,27 @@ jobs:
                 ;;
             esac
 
+            explore_pagination_denied_response="$RUNNER_TEMP/public-web-explore-pagination-rpc-denied-${index}.json"
+            explore_pagination_denied_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                --max-filesize 1048576 \
+                -o "$explore_pagination_denied_response" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/rest/v1/rpc/get_public_web_explore_posts_page" \
+                "${public_headers[@]}" \
+                --data '{"p_max_limit":1,"p_before_shared_at":null,"p_before_post_id":null}'
+            )"
+            case "$explore_pagination_denied_status" in
+              401 | 403 | 404)
+                ;;
+              *)
+                echo "A public Supabase API credential unexpectedly executed the server-only public-web Explore projection (HTTP ${explore_pagination_denied_status})."
+                exit 1
+                ;;
+            esac
+
             explore_page_denied_response="$RUNNER_TEMP/public-web-explore-page-rpc-denied-${index}.json"
             explore_page_denied_status="$(
               curl -sS \
@@ -1762,6 +1837,24 @@ jobs:
           echo "$public_web_explore_response" | jq -e '
             type == "array"
             and length <= 1
+            and all(
+              .[];
+              (.post_id | type) == "string"
+              and (.scan_id | type) == "string"
+              and .like_count == 0
+              and .comment_count == 0
+              and .viewer_has_liked == false
+              and .is_owned_by_viewer == false
+            )
+          '
+          public_web_explore_pagination_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_public_web_explore_posts_page" \
+              '{"p_max_limit":1,"p_before_shared_at":null,"p_before_post_id":null}'
+          )"
+          echo "$public_web_explore_pagination_response" | jq -e '
+            type == "array"
+            and length <= 2
             and all(
               .[];
               (.post_id | type) == "string"

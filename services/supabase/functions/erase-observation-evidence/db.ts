@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicationAbortable } from "../_shared/analysisHistory/publicationDeadline.ts";
 
-export function evidenceErasureRepository(client: SupabaseClient) {
+export function evidenceErasureRepository(
+  client: SupabaseClient,
+  dispatch: string,
+) {
   async function rpc(
     name: string,
     args: Record<string, unknown>,
@@ -18,9 +21,17 @@ export function evidenceErasureRepository(client: SupabaseClient) {
   }
   return {
     retire: (signal: AbortSignal) =>
-      rpc("retire_expired_observation_evidence", {}, signal),
+      rpc("retire_expired_observation_evidence_for_dispatch", {
+        p_dispatch_id: dispatch,
+      }, signal),
+    retireVideo: (signal: AbortSignal) =>
+      rpc("retire_expired_observation_video_evidence_for_dispatch", {
+        p_dispatch_id: dispatch,
+      }, signal),
     claim: (signal: AbortSignal) =>
-      rpc("claim_observation_evidence_erasure", {}, signal),
+      rpc("claim_observation_evidence_erasure_for_dispatch", {
+        p_dispatch_id: dispatch,
+      }, signal),
     finish: async (
       object: string,
       token: string,

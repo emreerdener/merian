@@ -17,6 +17,66 @@ identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## Manual read-only migration inspection
+
+The separate
+[`Supabase Migration Inspection (Read Only)` workflow](../../.github/workflows/supabase-migration-inspection.yml)
+reads only `version` from `supabase_migrations.schema_migrations` in project
+`qlarqavoqhkuwzmevrmf`. It uses the existing **Production** environment secrets:
+`SUPABASE_DB_URL`, or `SUPABASE_DB_PASSWORD` with `SUPABASE_DB_POOLER_HOST` and
+optional pooler-port/database variables. No local database password or new
+secret is required. It does not invoke the Supabase CLI or create a temporary
+login role.
+
+This manual workflow runs only from `main`, checks out the dispatched SHA, and
+validates the fixed project, database, user, port and URL options before
+resolving DNS. It requires certificate-verified TLS, one connection and a
+read-only transaction with statement/lock/idle limits. A wrong target, missing
+existing credential, inaccessible migration table, invalid version or truncated
+inventory fails closed with a fixed phase and allowlisted failure category.
+Messages, unknown error codes and connection details remain suppressed.
+
+The inspector explicitly trusts the public Supabase Root 2021 CA in
+`services/supabase/scripts/certificates/supabase-prod-ca-2021.crt`, retaining
+`rejectUnauthorized: true` and the driver's normal hostname verification.
+Supabase's
+[dashboard certificate link definition](https://github.com/supabase/supabase/blob/master/apps/studio/hooks/custom-content/custom-content.json)
+resolves to the
+[production certificate](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt).
+The PEM SHA-256 is
+`700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`; the
+certificate SHA-256 fingerprint is
+`807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA`. This public
+trust anchor expires April 26, 2031; it is not a credential and is not fetched
+dynamically during inspection. Review certificate rotations against the official
+source and rerun the local TLS regression before updating the pin. That
+regression generates disposable certificates and proves trusted hostname success
+plus untrusted-CA and wrong-hostname rejection using the inspector’s TLS options
+directly in the pinned Deno runtime, without hosted access. The Postgres driver
+integration is separately source-reviewed; the regression does not establish a
+complete Postgres connection or hosted success. Do not disable TLS verification
+to make an inspection succeed; correct the connection configuration through the
+normal credential controls.
+
+After separately authorized publication and dispatch, its job summary and 14-day
+artifact contain only the project, comparison SHA, timestamp, version
+lists/counts and differences. Five-digit legacy versions are preserved. A green
+inspection means metadata was read successfully; differences remain visible and
+do not authorize migration repair, deployment, feature activation or
+account-data reads. The comparison uses the workflow's checked-out main commit.
+To assess an unpublished candidate, compare its version inventory separately
+against the sanitized remote list. Version presence does not prove SQL contents
+or deployed function compatibility.
+
+The standalone inspection publication includes the active
+`identification_history_integration_hold` in
+`services/supabase/release-holds.json`. It blocks the full Supabase production
+mutation job while permitting this read-only inspection. Keep that hold active;
+removing it requires separate backend release authorization. Do not dispatch the
+existing deployment workflow to obtain this report: it has no read-only
+inspection mode. Inspection approval does not authorize merging or deploying the
+broader History/PR116 candidate.
+
 ## Observation analysis history activation hold
 
 Function source/configuration is not excluded from the normal main-branch deploy
@@ -316,13 +376,43 @@ evidence.
 > are complete. Default-off export isolation narrows runtime scope; it does not
 > waive catalog or application evidence for objects that remain deployed.
 
-Every `main` push runs `.github/workflows/deploy.yml`, whose reusable **Supabase
-Candidate Validation** job validates the exact source SHA once without
-production access. Optional PRs still receive candidate checks and manual
-validation dispatch remains available. The normal development flow is commit,
-push to main, and wait for the exact-SHA checks; no PR or pre-push check is
-required. See the
+Every `main` push runs `.github/workflows/deploy.yml`. Its validation resolver
+first looks for the latest standalone, manually dispatched **Supabase Candidate
+Validation** run for the exact source SHA in this repository. It reuses that
+result only when the run and its latest attempt succeeded within 24 hours, all
+three expected jobs and every named validation step actually passed, and both
+same-attempt C1/handoff evidence artifacts remain available with matching GitHub
+provenance and digests. PR, fork, different-SHA, skipped, failed, stale,
+incomplete, expired and ambiguous evidence cannot qualify. A newer failed
+attempt prevents reuse of an older green result. A concurrent rerun invalidates
+the inspected attempt. Evidence inspection uses read-only GitHub access outside
+Production and never downloads or executes artifact contents.
+
+The resolver re-lists runs and rechecks the latest attempt before deciding.
+These are bounded snapshots, not an atomic scheduling lock; a run started after
+the final observation cannot be detected by that decision.
+
+An observed active same-SHA standalone run stops the deployment prerequisite
+instead of starting duplicate validation; allow that run to finish before an
+authorized retry. Missing or unverifiable evidence runs the complete existing
+reusable gate. The final candidate-validation job requires either verified reuse
+with the fresh gate skipped, or successful fresh validation; resolver failures
+and cancelled/skipped fresh gates cannot authorize production. This changes no
+release approval, current-main check, source hold, production lock, migration
+control or live smoke requirement. The first commit containing this resolver
+must itself be validated before reuse can apply. Optional PRs still receive
+candidate checks and manual validation dispatch remains available. The normal
+development flow is commit, push to main, and wait for the exact-SHA checks; no
+PR or pre-push check is required. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
+
+The production-scope, release-hold and deploy jobs explicitly use `!cancelled()`
+with successful prerequisite results and their existing output gates. This
+permits the intentional fresh-validation skip after verified reuse without
+inheriting GitHub Actions' default ancestor-skip behavior. Failed, skipped or
+cancelled prerequisite gates still prevent deployment. A successful workflow
+conclusion alone is not deployment evidence: the exact candidate's actual
+`deploy` job must complete successfully.
 
 After successful validation, a read-only production-scope job resolves the last
 successful actual `deploy` job and compares that ancestor SHA with the current
@@ -428,25 +518,46 @@ required. When upgrading the CLI, review its bundler image pin with this helper.
 
 The production push first runs `scripts/plan_database_migration_push.ts` against
 read-only migration-version metadata. Ordinary forward migrations use the normal
-push. The only reviewed backfill is
-`20260927220537_hide_reported_explore_posts.sql` when the remote tip is exactly
-`20260927230801_account_identification_invocations.sql` and no other earlier
-migration is missing. The planner verifies both checked-in SQL file names and
-SHA-256 digests before allowing `--include-all`. Remote-only versions, duplicate
-or malformed history, another gap, a later remote tip with this gap still open,
-or changed recovery SQL fail closed. An already-recovered database returns to
+push. Two digest-pinned recoveries are reviewed:
+
+- The missing `20260927220537_hide_reported_explore_posts.sql` when the remote
+  tip is exactly `20260927230801_account_identification_invocations.sql`.
+- The eight observation-history migrations from `20261002213257` through
+  `20261003063309` when the remote tip is exactly
+  `20261003063950_restore_gemini_beta_photo_identification.sql`. Successful
+  [deployment #1860](https://github.com/emreerdener/merian/actions/runs/37105971469)
+  applied that Gemini migration before the earlier history migrations merged.
+  [Deployment #1861](https://github.com/emreerdener/merian/actions/runs/37237878028)
+  passed candidate validation but rejected those unreviewed gaps. This recovery
+  changes no historical SQL and leaves the history rollout switches closed.
+
+The planner verifies every reviewed candidate SQL file name and SHA-256 digest,
+including the file corresponding to the remote tip, before allowing
+`--include-all`. Remote metadata supplies versions, not deployed SQL bytes. An
+interrupted recovery may resume only after a contiguous earliest prefix of the
+reviewed migrations was applied; the remaining gaps must be the ordered suffix.
+Every file in the approved set must still match. Remote-only versions, duplicate
+or malformed history, another gap, a later remote tip with gaps still open, or
+changed recovery SQL fail closed. An already-recovered database returns to
 normal push behavior. No migration is renamed and no history entry is repaired.
+
+Failures report a closed reason code such as `unreviewed_history_gap` or
+`reviewed_content_changed`. Unexpected connection/runtime errors remain
+`database_or_runtime_failure`; raw exception messages, causes, connection URLs,
+and credentials are never emitted. Candidate success cannot detect every
+production migration-history divergence.
 
 The workflow runs `db push --dry-run` with the selected mode before applying it,
 under the existing Production concurrency lock and exact-current-main controls.
-The missing migration patches Explore report visibility; the later migration
-adds identification invocation accounting without replacing those readers.
-`test_migration_recovery_replay.sh` proves that specific delayed order in a
-private disposable database: replay through the reviewed tip without the missing
-migration, verify the ordinary push refuses it, apply the reviewed gap, then run
-report-visibility, invocation-accounting, and privileged-routine catalog tests.
-Candidate Validation runs this regression in addition to normal chronological
-replay and the complete catalog suite.
+`test_migration_recovery_replay.sh` independently reconstructs both reviewed
+histories in private disposable databases, verifies that ordinary push refuses
+the gaps, applies the approved recovery, and checks normal mode afterward. The
+Explore scenario runs report-visibility, invocation-accounting, and privileged
+routine catalogs. The history scenario runs Gemini assignment, history, reader,
+append, evidence, funding, protected-analysis, and privileged-routine catalogs
+to prove the delayed order preserves the deployed photo policy and closed
+rollout defaults. Candidate Validation runs both regressions in addition to
+normal chronological replay and the complete catalog suite.
 
 A superseded candidate skips deployment at the source hold gate; use the newest
 validated candidate instead of retrying an older SHA. If main advances after
@@ -498,11 +609,12 @@ changed-file bullets and then append a truncation marker.
 because `set -o pipefail` would otherwise turn an expected SIGPIPE into exit 141
 before validation or deployment begins.
 
-The workflow separates validation from mutation. Steps 5–8 below run once in the
-reusable Candidate Validation job before production scope, source holds, or
-Production access. The Production job consumes that exact-SHA result and
-performs only setup, live controls, planning, mutation, and runtime
-verification. The combined pipeline retains these checks:
+The workflow separates validation from mutation. Steps 5–8 below are proven by
+the verified exact-SHA standalone run or run in the fresh reusable Candidate
+Validation job before production scope, source holds, or Production access. The
+Production job consumes that exact-SHA result and performs only setup, live
+controls, planning, mutation, and runtime verification. The combined pipeline
+retains these checks:
 
 1. Writes the workflow context summary and exercises its large-change regression
    test.
@@ -8789,3 +8901,66 @@ prepared behind the disabled App installation gate. Unknown-admission sealing
 and remaining device/hosted/privacy qualifications remain separate. A timeout or
 absent status cannot authorize a successor or refund; only exact permanent
 retirement proof can establish this admitted-only terminal outcome.
+
+## Private cleanup dispatch correlation rollout
+
+**November 12 status:** Both the UUID receipt correlation and legacy-acquisition
+fence are deployed on beta `qlarqavoqhkuwzmevrmf` at
+`c435ea80f5bace1d28b6fc383f290c264c73d3d9` by successful
+[deployment1869](https://github.com/emreerdener/merian/actions/runs/43261123588),
+reusing CI537. The original-cutoff drain observation passed independent
+verification. The separately authorized exact-slot recovery/resumption then
+completed with acknowledged commits and a new UUID-matched receipt followed by
+exact owner settlement. Cleanup is enabled; the other 51 History gates remain
+closed. Actual-byte qualification and the attended phone flow remain pending.
+Neither deployment nor this observation enables History or installs the phone
+app. Earlier local/frozen-candidate descriptions below record the prior stages;
+current execution evidence is in the History continuation/acceptance records.
+
+The
+[correlation incident](../incidents/2026-11-private-evidence-dispatch-correlation.md)
+requires the compatible `erase-observation-evidence` worker and forward
+migration `20261111200839_correlate_private_evidence_dispatch.sql`. This is a
+local successor, not part of successful cancellation deployment1866. Bind both
+to the same reviewed exact candidate before requesting deployment approval.
+
+The old scheduler receives its legacy six-counter response from the new worker.
+The new scheduler requires the matching durable UUID in a strict v2 receipt; an
+old worker response remains held unknown. Prefer worker-before-new-dispatch
+ordering. Existing held legacy slots are not backfilled or cleared by migration.
+Do not dispatch a replacement, reset the sequence, modify timestamps or use TTL
+expiry as evidence of completion. Recovery of the original held request needs
+separately reviewed exact-identity maintenance and explicit target approval.
+
+Readiness must verify both version compatibility and actual correlated worker
+progress. Function ACTIVE status or an empty historical heartbeat is
+insufficient. Preserve the original request and conservative response age during
+reconciliation. The read-only health RPC/monitor exposes no UUID and cannot
+repair the slot. No additional bucket, credential, user API or native build is
+needed for this correlation fix.
+
+### Local legacy-acquisition fence successor (not deployed)
+
+Migration `20261112003746_fence_legacy_private_cleanup_acquisition.sql` and the
+matching worker are local work in progress. They permanently deny original
+no-argument acquisition OIDs and use mandatory-UUID versioned facades. They do
+not repair the current held request. Deployment1867 remains frozen7c.
+
+Cutover preparation must retain closed producer/cleanup gates and paused
+scheduling, commit permanent old-entry denial, and then positively drain every
+pre-cutoff transaction capable of running an old body. The cutoff is sampled
+from the same server after denial commits. Include idle-in-transaction,
+background/cron/parallel backends as applicable, prepared transactions and
+unclassifiable/disabled/redacted activity. A long-lived transaction is a
+blocker; no termination is implied. Require fresh activity snapshots and full
+visibility. Retain identity privately and recheck denial definitions/grants and
+no prior claim/external-effect assumptions before activation. DDL, schema-cache
+reload, a function-level timeout and one empty activity sample are not a drain
+proof.
+
+Exact-token settlement stays callable after pause or dispatch rotation. A late
+legacy HTTP call must remain unable to acquire newly created work after
+admission opens. Same-dispatch retries are not claimed to be exactly-once. The
+operation packet, live barrier, maintenance and activation still require
+independent verification and explicit target authorization; no new deployment is
+started by this preparation.

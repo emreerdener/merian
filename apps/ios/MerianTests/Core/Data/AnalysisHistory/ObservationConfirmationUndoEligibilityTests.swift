@@ -90,7 +90,7 @@ struct ConfirmationUndoEligibilityTests {
         metadata["reconciled_at"] = now.timeIntervalSince1970
         let job = OfflineJobRecord(id: ObservationAnalysisReviewPersistence.jobID(fixture.operation, observationID: ticket.observationID),
             kind: .observationAnalysisReviewSync, subjectId: ticket.observationID.uuidString.lowercased(),
-            metadataJSON: try #require(String(bytes: JSONSerialization.data(withJSONObject: metadata), encoding: .utf8)))
+            metadataJSON: (try #require(String(bytes: JSONSerialization.data(withJSONObject: metadata), encoding: .utf8))) as String)
         job.status = .complete
         let context = ModelContext(fixture.container); context.insert(job); try context.save()
         let eligibility = try #require(try ObservationConfirmationUndoEligibility.local(ticket, context: ModelContext(fixture.container)))

@@ -1,6 +1,105 @@
+import CryptoKit
 import Foundation
 
+#if MERIAN_HISTORY_QUALIFICATION && DEBUG
+#error("HistoryQualification must exclude Debug fixtures.")
+#endif
+
 enum MerianEnvironment {
+    #if MERIAN_HISTORY_QUALIFICATION
+    static let isHistoryQualificationBuild = true
+    #else
+    static let isHistoryQualificationBuild = false
+    #endif
+
+    static var allowsAncillaryHostedIntegrations: Bool { !isHistoryQualificationBuild }
+
+    struct HistoryQualificationScope: Sendable, Equatable {
+        let approvalID: UUID
+        let host: String
+        let accountFingerprints: Set<String>
+        static let bundleID = "app.merian.Merian"
+        static let appGroup = "group.app.merian.shared"
+        static let keychainNamespace = "app.merian.shared"
+        static let authNamespace = "Merian.HistoryQualification.Auth"
+        static let operationScope = "capture-history-v1"
+
+        func permits(accountID: UUID) -> Bool {
+            accountFingerprints.contains(Self.fingerprint(accountID))
+        }
+
+        static func fingerprint(_ accountID: UUID) -> String {
+            let value = "Merian.HistoryQualification.Account/" + accountID.uuidString.lowercased()
+            return SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
+    }
+
+    enum HistoryQualificationFailure: Error, Equatable {
+        case compiledMarker, approval, target, namespace, operationScope, accounts
+    }
+
+    /// Bundled constraints are not deployment or execution authorization. The
+    /// operator must separately approve the exact artifact, target and actions.
+    static func validateHistoryQualification(info: [String: Any], bundleID: String?,
+                                             compiledMarker: Bool) throws -> HistoryQualificationScope {
+        guard compiledMarker, info["MERIAN_HISTORY_QUALIFICATION"] as? String == "1" else {
+            throw HistoryQualificationFailure.compiledMarker
+        }
+        guard let approval = info["MERIAN_HISTORY_APPROVAL_ID"] as? String,
+              let approvalID = UUID(uuidString: approval), approvalID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) else {
+            throw HistoryQualificationFailure.approval
+        }
+        guard let project = info["MERIAN_HISTORY_APPROVED_PROJECT"] as? String,
+              project.range(of: "^[a-z0-9]{20}$", options: .regularExpression) != nil,
+              let host = info["MERIAN_HISTORY_APPROVED_HOST"] as? String, host == project + ".supabase.co",
+              let rawURL = info["SUPABASE_URL"] as? String, let url = SecureTransportPolicy.httpsURL(from: rawURL),
+              url.host == host, url.port == nil, url.query == nil, url.fragment == nil,
+              url.path.isEmpty || url.path == "/" else { throw HistoryQualificationFailure.target }
+        guard bundleID == HistoryQualificationScope.bundleID,
+              info["MERIAN_APP_GROUP_IDENTIFIER"] as? String == HistoryQualificationScope.appGroup,
+              info["MERIAN_KEYCHAIN_NAMESPACE"] as? String == HistoryQualificationScope.keychainNamespace,
+              info["MERIAN_AUTH_NAMESPACE"] as? String == HistoryQualificationScope.authNamespace else {
+            throw HistoryQualificationFailure.namespace
+        }
+        guard info["MERIAN_HISTORY_OPERATION_SCOPE"] as? String == HistoryQualificationScope.operationScope else {
+            throw HistoryQualificationFailure.operationScope
+        }
+        guard let rawAccounts = info["MERIAN_HISTORY_ACCOUNT_FINGERPRINTS"] as? String else {
+            throw HistoryQualificationFailure.accounts
+        }
+        let fingerprints = rawAccounts.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        guard !fingerprints.isEmpty, Set(fingerprints).count == fingerprints.count,
+              fingerprints.allSatisfy({ $0.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil }) else {
+            throw HistoryQualificationFailure.accounts
+        }
+        return .init(approvalID: approvalID, host: host, accountFingerprints: Set(fingerprints))
+    }
+
+    static let historyQualificationScope = try? validateHistoryQualification(info: Bundle.main.infoDictionary ?? [:],
+        bundleID: Bundle.main.bundleIdentifier, compiledMarker: isHistoryQualificationBuild)
+
+    static func requireHistoryQualificationConfiguration() {
+        requireHistoryNormalOAuthConfiguration()
+        let bundled = Bundle.main.infoDictionary?["MERIAN_HISTORY_QUALIFICATION"] as? String == "1"
+        let namespaced = Bundle.main.bundleIdentifier == "app.merian.historyqualification"
+        guard (!isHistoryQualificationBuild && !bundled && !namespaced) || historyQualificationScope != nil else {
+            fatalError("History qualification configuration is missing or invalid; live clients are unavailable.")
+        }
+    }
+
+    static func permitsHistoryQualificationAccount(_ accountID: UUID) -> Bool {
+        !isHistoryQualificationBuild || historyQualificationScope?.permits(accountID: accountID) == true
+    }
+    // Existing-account mapping cannot be proven by a local account fingerprint.
+    // Keep provider signup/link/callback exchange closed until separately reviewed.
+    static func requireQualificationIdentityExchangePermission() throws {
+        guard !isHistoryQualificationBuild else { throw HistoryQualificationFailure.accounts }
+    }
+
+    static func requireQualificationDeletionPermission() throws {
+        guard !isHistoryQualificationBuild else { throw HistoryQualificationFailure.operationScope }
+    }
+
     enum ConfigurationIssue: Sendable, Equatable {
         case missingInfoDictionary
         case missingValue(String)
@@ -73,7 +172,10 @@ enum MerianEnvironment {
     private static let allowProductionSupabaseInDebugSimulatorEnvKey =
         "MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR"
 
-    static let configuration = load()
+    static let configuration: Configuration = {
+        requireHistoryQualificationConfiguration()
+        return load()
+    }()
 
     static var configurationIssues: [ConfigurationIssue] {
         configuration.issues
@@ -147,8 +249,8 @@ enum MerianEnvironment {
                 return false
             }) ? fallbackSupabaseURL : supabaseUrl,
             supabaseAnonKey: supabaseAnonKey,
-            revenueCatApiKey: revenueCatApiKey,
-            postHogApiKey: postHogApiKey,
+            revenueCatApiKey: allowsAncillaryHostedIntegrations ? revenueCatApiKey : "",
+            postHogApiKey: allowsAncillaryHostedIntegrations ? postHogApiKey : "",
             issues: issues
         )
     }

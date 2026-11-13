@@ -24,9 +24,13 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     ) private var messageShareCacheRecords: [LocalScanRecord]
 
     @State private var hasStartedEnvironmentContext = false
+    // Remain occupied through the animation, until the matching onDismiss callback.
+    @State private var rootPresentationAwaitingDismissal = false
+    @State private var featurePresentationAwaitingDismissal = false
 
     let viewModel: CaptureWorkspaceViewModel
     let coordinator: CaptureActionCoordinator
+    @Binding var isViewfinderVisible: Bool
     @Binding var captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
     let describePromptViewModel: DescribePromptViewModel
@@ -46,6 +50,27 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         eventContent(content)
+            .onChange(of: isCameraUncovered, initial: true) { _, visible in
+                isViewfinderVisible = visible
+            }
+            .onChange(of: viewModel.activePresentation, initial: true) { _, presentation in
+                if presentation != nil { rootPresentationAwaitingDismissal = true }
+            }
+            .onChange(of: isFeaturePresentationOccupied, initial: true) { _, occupied in
+                if occupied { featurePresentationAwaitingDismissal = true }
+            }
+    }
+
+    private var isCameraUncovered: Bool {
+        scenePhase == .active && captureMode == .visual
+            && viewModel.activePresentation == nil
+            && !viewModel.isRootPresentationDismissing
+            && !rootPresentationAwaitingDismissal
+            && !viewModel.isPhotoLibraryPresented
+            && !isFeaturePresentationOccupied
+            && !featurePresentationAwaitingDismissal
+            && appRouteCoordinator.inFlightRequest == nil
+            && appRouteCoordinator.nextRequestID == nil
     }
 
     private var messageShareCacheSignature: String {
@@ -95,6 +120,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 onRootPresentationDismissed: handleRootPresentationDismissed
             ))
         .onAppear {
+            isViewfinderVisible = isCameraUncovered
             #if DEBUG
             UITestSeedCoordinator.prepareStagedAudioReviewIfNeeded(
                 viewModel: viewModel
@@ -121,6 +147,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         }
         .onDisappear {
             viewModel.dismissNativeRecovery()
+            isViewfinderVisible = false
             viewModel.handleVisualCaptureInterruption()
             cameraManager.stopSession()
             audioCaptureManager.reset()
@@ -347,6 +374,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     }
 
     private func handleFeaturePresentationDismissed() {
+        featurePresentationAwaitingDismissal = isFeaturePresentationOccupied
         viewModel.handleFeaturePresentationDismissed()
         presentPendingFeedbackSurveyIfReady()
         restoreCameraAfterPresentationIfPossible()
@@ -361,6 +389,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     }
 
     private func handleRootPresentationDismissed() {
+        rootPresentationAwaitingDismissal = viewModel.activePresentation != nil
         startEnvironmentContextIfPossible()
         presentPendingFeedbackSurveyIfReady()
         restoreCameraAfterPresentationIfPossible()

@@ -46,6 +46,12 @@ unmuted `AVPlayer` video; the live closure delegates to the token-aware
 coordinator rather than configuring `AVAudioSession` itself. Feature adapters
 otherwise remain limited to source, boost, telemetry, and feedback policy.
 
+Saved-request audio can pass its verified bounded WAV bytes to the same driver.
+The data initializer creates no temporary file, does not activate playback on
+load, and retains the bytes only for the driver lifetime. The saved-request
+presentation validates the original child before playback and retires the player
+and its exact session lease on closure or scope loss.
+
 `AudioPlaybackFilePlayer` projects scalar playback state to the carousel while
 `AudioPlaybackFileDriver` confines the AVAudioPlayer, including construction,
 play/pause/stop, seeking, sampling, and disposal, to a dedicated serial
@@ -214,3 +220,22 @@ remains pending.
 `ImageFocusEngineTests` exercises blocked workers, timeout, cancellation before
 dispatch, cancelled drain waiters and multiple waiters using a DEBUG-only worker
 seam. `ImageFocusRegionResolverTests` retains the existing geometry cases.
+
+## Verified in-memory video candidate
+
+`MemoryVideoAsset` serves an already verified, bounded MP4 through a private
+custom-scheme AV asset. Its delegate runs only on the configured main queue; it
+retains at most 12 MiB and responds in at most 256 KiB chunks with checked byte
+ranges. External media references are explicitly forbidden by the AV asset
+policy. It exposes no filesystem URL or network fallback. The 12 MiB source
+limit is not a decoder/total-memory budget. Closure drops the bytes and cancels
+loading. The caller owns account and request validation, explicit playback
+admission, player detachment and the asset lifetime.
+
+Saved-video preview uses the existing `AudioPlaybackSessionController` and
+`MediaCoverVideoPlayer` layer. It has explicit Play/Stop controls, retains no
+boost derivative, and stops on background, scope loss or close. Native27803
+passes focused local tests including real-frame decoding, exact asset policy,
+byte ranges and lifecycle fences (34 methods/59 cases in six suites, zero
+skips). Audible/physical playback and decoder/total-heap qualification remain
+open.

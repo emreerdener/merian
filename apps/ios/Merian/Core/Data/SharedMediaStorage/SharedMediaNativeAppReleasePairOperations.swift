@@ -4,6 +4,8 @@ import SwiftData
 /// Inactive ordered held-pair metadata transaction. The existing owner supplies
 /// all locks and file access. There is deliberately no unlink or dispatch path.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppReleasePairOperations {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
@@ -19,15 +21,13 @@ struct SharedMediaNativeAppReleasePairOperations {
     let boundary: (SharedMediaNativeMetadataBoundary) throws -> Void
 
     func apply(_ progress: Values.Progress) async throws -> Values.Progress {
-        do { return try await perform(progress) }
-        catch { settlement.abandonContinuation(progress); throw error }
+        do { return try await perform(progress) } catch { settlement.abandonContinuation(progress); throw error }
     }
     private func perform(_ progress: Values.Progress) async throws -> Values.Progress {
         try progress.validate(); try validate()
         let admission = try settlement.pairAdmission(progress)
         let attempt: SharedMediaNativeReleasePairAttempt
-        if let frozen = try settlement.frozenPair(admission) { attempt = frozen }
-        else {
+        if let frozen = try settlement.frozenPair(admission) { attempt = frozen } else {
             let context = fresh(), inventory = try inventory(context)
             let snapshot = try predecessor(admission, context: context, inventory: inventory)
             let target = progress.targets[try progress.selectedIndex(.readyPair)]
@@ -74,8 +74,7 @@ struct SharedMediaNativeAppReleasePairOperations {
                         closure: attempt.closure, header: header))
                 }
             }
-            do { try context.save(); try boundary(.afterSave) }
-            catch { context.rollback(); return try recover(attempt) }
+            do { try context.save(); try boundary(.afterSave) } catch { context.rollback(); return try recover(attempt) }
             return try recover(attempt)
         } catch { context.rollback(); throw error }
     }
@@ -104,10 +103,10 @@ struct SharedMediaNativeAppReleasePairOperations {
             try SharedMediaNativeTerminalScan.requireAbsent([attempt.closure.retirementID], container: container, inventoryID: inventory.id)
             try SharedMediaNativeReleaseStageIdentity.direct(attempt.closure.retirementID, context: context)
             try SharedMediaNativeReleasePairFunding.check(attempt, snapshot: snapshot, funded: projection)
-            let terminals = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id).consumptionAdvances
+            let terminals = try SharedMediaNativeTerminalScan.read(container: container, inventoryID: inventory.id)
             try SharedMediaNativeReceivingCleanGraph.requireReplacementRunway(inventoryRevision: inventory.revision,
                 packageID: admission.progress.plan.package.id, executionAdvances: attempt.after.remainingAdvances,
-                saveAdvances: 1, witnesses: witnesses, terminalConsumptionAdvances: terminals)
+                saveAdvances: 1, witnesses: witnesses, historical: terminals)
         }
         return snapshot
     }

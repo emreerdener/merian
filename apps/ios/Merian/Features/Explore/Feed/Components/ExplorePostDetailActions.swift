@@ -72,7 +72,7 @@ struct ExplorePostDetailMenuButton: View {
     private var ownedPostActions: some View {
         if allowsInsightPresentation {
             Button(action: onOpenInsight) {
-                Label("View insight", systemImage: "sparkles")
+                Label("View your scan", systemImage: "sparkles.2")
             }
         }
 

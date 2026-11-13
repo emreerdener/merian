@@ -18,6 +18,45 @@ final class SelectedAnalysisReviewHost {
     private var session: SelectedAnalysisReviewSession?
     private var presentationIsCurrent: () -> Bool = { false }
     private var terminal = false
+    @ObservationIgnored private var bindTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingBind: (id: UUID, key: Key)?
+
+    /// SwiftUI callbacks may inherit a cancelled task. Presentation reads get
+    /// their own lifetime; persistence still checks cancellation and authority.
+    @discardableResult
+    func requestBind(_ key: Key, access: SelectedAnalysisReviewAccess, container: ModelContainer,
+                     isCurrent: @escaping () -> Bool) -> Task<Void, Never>? {
+        if pendingBind?.key == key { return bindTask }
+        if self.key == key, pendingBind == nil { return nil }
+        close()
+        let id = UUID()
+        pendingBind = (id, key)
+        let task = Task { @MainActor [weak self] in
+            guard let self, self.pendingBind?.id == id else { return }
+            // bind closes its predecessor; do not cancel our own read task.
+            self.bindTask = nil; self.pendingBind = nil
+            guard !Task.isCancelled, ObjectIdentifier(container) == key.container, isCurrent() else { return }
+            self.bind(key, access: access, container: container, isCurrent: isCurrent)
+        }
+        bindTask = task
+        return task
+    }
+
+    @discardableResult
+    func requestRefresh(onApplied: @escaping (Key) -> Void) -> Task<Void, Never>? {
+        if let refreshTask { return refreshTask }
+        guard !terminal, let key, let token, let model else { return nil }
+        let task = Task { @MainActor [weak self, weak model] in
+            guard let self, self.key == key, self.token == token,
+                  let model, self.model === model else { return }
+            self.refreshTask = nil
+            guard !Task.isCancelled else { return }
+            self.refresh(onApplied: onApplied)
+        }
+        refreshTask = task
+        return task
+    }
 
     var scopeIsCurrent: Bool { session.map { presentationIsCurrent() && $0.isScopeCurrent() } ?? false }
     var deliveryGeneration: UInt64 { session?.access.generation() ?? 0 }
@@ -136,6 +175,8 @@ final class SelectedAnalysisReviewHost {
         message = nil
     }
     private func retireScope() {
+        bindTask?.cancel(); bindTask = nil; pendingBind = nil
+        refreshTask?.cancel(); refreshTask = nil
         model?.close(); model = nil
         session?.close(); session = nil
         token = nil

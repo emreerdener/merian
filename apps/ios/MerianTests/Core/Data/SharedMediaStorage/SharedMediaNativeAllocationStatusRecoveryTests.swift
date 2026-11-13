@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct NativeAllocationStatusRecoveryTests {
     typealias Access = SharedMediaNativePhotoAllocationAccess
-    typealias Transport = SharedMediaNativePhotoAllocationTransportAccess
+    typealias Transport = NativePhotoAllocationTransportAccess
     typealias Store = SharedMediaNativeAppMetadataTests.Store
     typealias Prepared = SharedMediaNativeReceivingIntent.Prepared
     typealias Allocation = SharedMediaNativePhotoAllocation
@@ -210,6 +210,15 @@ struct NativeAllocationStatusRecoveryTests {
     }
     @Test(arguments: ["root", "restoredRoot", "control", "restoredControl", "store", "revision", "account", "liability", "receiving", "cancel", "pageRoot", "pageRevision", "finalRoot"])
     func auditReadFaultsCannotAuthorizeStatus(_ fault: String) async throws {
+        try await auditReadFault(fault, inspectionOnly: false)
+    }
+
+    @Test(arguments: ["root", "restoredRoot", "control", "restoredControl", "store", "revision", "account", "liability", "receiving", "cancel", "pageRoot", "pageRevision", "finalRoot"])
+    func appInspectionPreservesReadAndFullBoundaryFaults(_ fault: String) async throws {
+        try await auditReadFault(fault, inspectionOnly: true)
+    }
+
+    private func auditReadFault(_ fault: String, inspectionOnly: Bool) async throws {
         var f = try await fixture(6)
         let helper = NativePhotoStatusRecoveryTests(), runtime = f.store.runtime
         let session = AuthTransitionSession(userID: f.store.ownerID, isAnonymous: false)
@@ -302,7 +311,14 @@ struct NativeAllocationStatusRecoveryTests {
             let caller = access(6) { request, check, settle in
                 sends += 1; try check(); try settle(); return held(request)
             }
-            let outcome = await Task { try await caller.recover(owner: f.owner, prepared: f.prepared, validate: {}) }.result
+            let outcome = await Task {
+                if inspectionOnly {
+                    _ = try await f.owner.inspectApp()
+                    sends += 1 // A successful descriptive return; no status request or mutation.
+                } else {
+                    _ = try await caller.recover(owner: f.owner, prepared: f.prepared, validate: {})
+                }
+            }.result
             try restoreFiles()
             #expect(injected && saves == 0)
             if fault == "restoredRoot" || fault == "restoredControl" {

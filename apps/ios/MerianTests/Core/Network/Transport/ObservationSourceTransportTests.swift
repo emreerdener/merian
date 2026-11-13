@@ -208,7 +208,7 @@ struct ObservationSourceTransportTests {
         if kind == "owner" { fixture.dispatcher.overridingAuthUserID = UUID() }
         let task = Task { @MainActor in
             if kind == "cancel" { withUnsafeCurrentTask { $0?.cancel() } }
-            try await fixture.transport.reserve(candidate, ownerID: Values.owner,
+            _ = try await fixture.transport.reserve(candidate, ownerID: Values.owner,
                 validateAttempt: { if kind == "claim" { throw MerianError.invalidResponse } }, validateResponse: {})
         }
         await #expect(throws: (any Error).self) { try await task.value }

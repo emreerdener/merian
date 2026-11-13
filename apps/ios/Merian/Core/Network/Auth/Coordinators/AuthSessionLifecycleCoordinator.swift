@@ -166,7 +166,6 @@ struct AuthSessionLifecycleCoordinator {
         dependencies.state.observeConsentSession(session.userID)
         dependencies.state.schedulePublicAuthorIdentityRefresh(session)
 
-        var didLinkExternalIdentity = false
         if !dependencies.identity.isTestExecution() {
             if session.isAnonymous,
                dependencies.identity.isPurchaseIdentityHandoffPending() {
@@ -176,7 +175,7 @@ struct AuthSessionLifecycleCoordinator {
                         event.authGeneration
                     )
             } else {
-                didLinkExternalIdentity = await dependencies.identity
+                _ = await dependencies.identity
                     .ensureTelemetryLinked(session)
             }
 
@@ -187,7 +186,7 @@ struct AuthSessionLifecycleCoordinator {
                     .abandonRestoredSourceHandoffs(session)
                 if !dependencies.identity
                     .isPurchaseIdentityHandoffPending() {
-                    didLinkExternalIdentity = await dependencies.identity
+                    _ = await dependencies.identity
                         .ensureTelemetryLinked(session)
                 }
             }
@@ -209,13 +208,16 @@ struct AuthSessionLifecycleCoordinator {
             event.authGeneration
         ) else { return false }
 
-        guard !Task.isCancelled else { return false }
+        guard !Task.isCancelled,
+              await dependencies.renewMediaLifetime(session, event.authGeneration),
+              dependencies.state.isCurrentPublishedSession(session, event.authGeneration) else { return false }
         await dependencies.identity.resumeCloudDeletions(session, event.authGeneration)
         guard !Task.isCancelled, dependencies.state.isCurrentPublishedSession(
             session, event.authGeneration
         ) else { return false }
 
-        if didLinkExternalIdentity {
+        if !dependencies.identity.isTestExecution(),
+           !dependencies.identity.isPurchaseIdentityHandoffPending() {
             dependencies.identity.scheduleHistoricalSync(
                 session,
                 event.authGeneration

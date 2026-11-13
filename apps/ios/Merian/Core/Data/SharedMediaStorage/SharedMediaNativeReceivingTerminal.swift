@@ -130,9 +130,9 @@ enum SharedMediaNativeReceivingTerminal {
     /// Keep this call graph below TerminalScan/Budget/ScopedAudit: LiveAudit and
     /// the ordinary row reader are pure leaves and must never call those roots.
     private static func retiringSurvivor(_ target: Values.Target,
-                                        original: SharedMediaNativeOriginalAccounting.Snapshot,
-                                        inventory: SharedMediaInventoryRecord, context: ModelContext,
-                                        checkpoint: () throws -> Void) throws {
+                                         original: SharedMediaNativeOriginalAccounting.Snapshot,
+                                         inventory: SharedMediaInventoryRecord, context: ModelContext,
+                                         checkpoint: () throws -> Void) throws {
         try Task.checkCancellation(); try checkpoint()
         guard original.liveCount == 0, let retirement = original.retirement else {
             throw SharedMediaStorageFailure.conflict

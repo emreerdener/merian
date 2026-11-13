@@ -95,7 +95,6 @@ enum SharedMediaStorageLookup {
         }
     }
 
-
 }
 
 protocol SharedMediaStorageRow: PersistentModel { var id: UUID { get } }

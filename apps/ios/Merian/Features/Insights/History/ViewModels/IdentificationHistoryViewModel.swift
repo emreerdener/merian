@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import UIKit
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+import OSLog
+#endif
 
 @MainActor @Observable
 final class IdentificationHistoryViewModel {
@@ -29,6 +32,7 @@ final class IdentificationHistoryViewModel {
     private var photoGeneration = 0
     private var work: Task<Void, Never>?
     private var libraryRefreshPending = false
+    private var admissionNotificationPending = false
     private var reanalysisAction: IdentificationHistoryReanalysisAction?
     private let handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)?
     var canReanalyze: Bool { reanalysisAction != nil && handoffReanalysis != nil && !pending && !isBusy && !isClosed }
@@ -50,7 +54,7 @@ final class IdentificationHistoryViewModel {
             await self?.perform(command)
             if self?.generation == expected {
                 self?.work = nil
-                self?.refreshLibraryWhenIdle()
+                self?.finishUpdatesWhenIdle()
             }
         }
     }
@@ -58,7 +62,7 @@ final class IdentificationHistoryViewModel {
         guard !isBusy, validate() else { return }
         isBusy = true; message = nil
         let expected = generation
-        defer { if generation == expected { isBusy = false; refreshLibraryWhenIdle() } }
+        defer { if generation == expected { isBusy = false; finishUpdatesWhenIdle() } }
         do {
             switch command {
             case .newest, .older:
@@ -107,8 +111,9 @@ final class IdentificationHistoryViewModel {
             guard accepts(expected) else { return }
             if let state = try? dependencies.context() { apply(state) }
             if error is CancellationError { return }
-            if pending { message = "Change pending. Your current identification stays in place until the server acknowledges it. Retry when connected." }
-            else if error is ObservationHistoryPreviewService.AdmissionError || error is ObservationHistorySelectionIntent.Failure {
+            if pending {
+                message = "Change pending. Your current identification stays in place until the server acknowledges it. Retry when connected."
+            } else if error is ObservationHistoryPreviewService.AdmissionError || error is ObservationHistorySelectionIntent.Failure {
                 detail = nil; photo = nil; reanalysisAction = nil; undoOperation = nil
                 message = "This scan changed. Refresh history before choosing an identification."
             } else { message = "History is unavailable right now. Your saved identifications have not been removed. Try again." }
@@ -165,14 +170,39 @@ final class IdentificationHistoryViewModel {
         libraryRefreshPending = false
         start(.newest)
     }
+    private func finishUpdatesWhenIdle() {
+        notifyAdmissionWhenIdle()
+        refreshLibraryWhenIdle()
+    }
+    private func notifyAdmissionWhenIdle() {
+        guard work == nil, !isBusy, !isClosed else { return }
+        if admissionNotificationPending {
+            admissionNotificationPending = false
+            guard isSessionCurrent else { close(); return }
+            // Parent refresh reloads observable Insight/Inference state. Deliver
+            // only after this command releases its busy/task ownership, including
+            // after a failed page read. Never reenter selection acknowledgement.
+            traceSelection("before-parent-refresh")
+            didAdmit()
+            traceSelection("after-parent-refresh")
+        }
+    }
     func refreshReview() {
+        let previousRevision = acknowledgedRevision
         guard validate() else { return }
         review?.refresh()
         publication?.refreshStatus()
-        if let terminal = review?.terminalMessage {
+        let terminal = review?.terminalMessage
+        if let terminal {
             detail = nil; photo = nil; reanalysisAction = nil
             rows = []; nextBeforeOrdinal = nil; showingOlder = false
             message = terminal
+        }
+        // Validation may have invalidated the old review ticket before its
+        // terminal message can be read. Either signal needs one fresh page.
+        if previousRevision != acknowledgedRevision || terminal != nil {
+            libraryRefreshPending = true
+            finishUpdatesWhenIdle()
         }
     }
     private func loadPage(before: Int?, expected: Int) async throws {
@@ -190,10 +220,14 @@ final class IdentificationHistoryViewModel {
         nextBeforeOrdinal = page.nextBeforeOrdinal; showingOlder = before != nil
     }
     private func send(_ expected: Int) async throws {
+        traceSelection("before-send")
         let outcome = try await dependencies.sendPending()
+        traceSelection("after-send")
         guard accepts(expected) else { return }
         let state = try dependencies.context()
+        traceSelection("before-apply")
         apply(state); detail = nil; photo = nil; reanalysisAction = nil
+        traceSelection("after-apply")
         switch outcome {
         case .selected(let receipt):
             if state.undoOperation == UUID(uuidString: receipt.operation_id) {
@@ -206,11 +240,20 @@ final class IdentificationHistoryViewModel {
         }
         // Acknowledgment changed the revision. Rebuild authority-bearing rows
         // from a current bounded page; a failed read cannot undo acknowledgment.
-        do { try await loadPage(before: nil, expected: expected) }
-        catch {
+        do {
+            traceSelection("before-acknowledged-page")
+            try await loadPage(before: nil, expected: expected)
+            traceSelection("after-acknowledged-page")
+        } catch {
             guard accepts(expected) else { return }
             message = "Your change has been resolved. Refresh history to load the current entries."
         }
+    }
+    private func traceSelection(_ stage: String) {
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+        Logger(subsystem: "app.merian.Merian", category: "HistoryLocalDiagnostics")
+            .notice("selection-view stage=\(stage, privacy: .public)")
+#endif
     }
     func loadPhoto(_ media: UUID) async {
         guard validate(), let detail, detail.photoIDs.contains(media) else { return }
@@ -238,8 +281,11 @@ final class IdentificationHistoryViewModel {
     var isSessionCurrent: Bool { !isClosed && isPresented() && dependencies.isCurrent() }
     func expireUndo() async {
         guard let operation = undoOperation, let deadline = undoDeadline else { return }
-        do { try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSince(dependencies.now())))) }
-        catch { return }
+        do {
+            try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSince(dependencies.now()))))
+        } catch {
+            return
+        }
         guard undoOperation == operation else { return }
         _ = validate()
     }
@@ -248,7 +294,8 @@ final class IdentificationHistoryViewModel {
         guard let state = try? dependencies.context() else { close(); return false }
         apply(state)
         if let undoDeadline, undoDeadline <= dependencies.now() { undoOperation = nil; self.undoDeadline = nil }
-        return true
+        notifyAdmissionWhenIdle()
+        return !isClosed
     }
     private func accepts(_ expected: Int) -> Bool { generation == expected && !Task.isCancelled && validate() }
     private func apply(_ state: ObservationHistoryListingService.Context) {
@@ -263,7 +310,7 @@ final class IdentificationHistoryViewModel {
             rows = []; detail = nil; photo = nil; reanalysisAction = nil; photoGeneration += 1
             nextBeforeOrdinal = nil; showingOlder = false
             message = "This scan changed. Refresh history before choosing an identification."
-            didAdmit()
+            admissionNotificationPending = true
         }
     }
     func close() {
@@ -271,6 +318,7 @@ final class IdentificationHistoryViewModel {
         isClosed = true; generation += 1; work?.cancel(); work = nil
         rows = []; detail = nil; photo = nil; reanalysisAction = nil; selected = nil; undoOperation = nil; nextBeforeOrdinal = nil
         message = nil; isBusy = false; pending = false
+        admissionNotificationPending = false; libraryRefreshPending = false
         dependencies.close()
     }
 }

@@ -324,7 +324,8 @@ extension MerianNetworkClient {
         measurementValidator: IdentificationMeasurementContext.Validator? = nil,
         comparisonCapture: IdentificationComparisonCapture? = nil,
         validateAttempt: (@MainActor @Sendable () throws -> Void)? = nil,
-        onProviderDispatchReady: (@MainActor @Sendable () -> Void)? = nil
+        onProviderDispatchReady: (@MainActor @Sendable () -> Void)? = nil,
+        onAuthenticatedRequestReady: (@MainActor @Sendable (UUID) throws -> Void)? = nil
     ) async throws -> Data {
         let authenticatedRequest = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
@@ -342,6 +343,9 @@ extension MerianNetworkClient {
             preferredGoal: preferredGoal,
             validateAttempt: validateAttempt
         )
+        // The completion owner acquires its outer account lease from this exact
+        // serialized request, before transport can dispatch or suspend.
+        try await onAuthenticatedRequestReady?(authenticatedRequest.expectedAuthUserID)
         try await authenticatedRequest.validateForDispatch()
         await onProviderDispatchReady?()
 
@@ -361,7 +365,10 @@ extension MerianNetworkClient {
                 body: authenticatedRequest.request.httpBody,
                 telemetry: telemetry, validateAttempt: measurementValidator,
                 comparisonCapture: comparisonCapture
-            )
+            ),
+            // An outer completion lease must unwind before Auth can drain
+            // account work. Automatic 401 recovery would wait on this request.
+            allowsUnauthorizedSessionRecovery: onAuthenticatedRequestReady == nil
         )
     }
 

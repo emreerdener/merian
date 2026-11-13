@@ -149,8 +149,8 @@ enum ObservationVideoUploadLifecycleStore {
         let work = try Work(stagedData: original.stagedData, attempts: prefix + [.init(id: last.id, mediaID: last.mediaID,
             phase: receipt == nil ? .unknown : .observed, receipt: receipt)])
         let unknown = try Work(stagedData: original.stagedData, attempts: prefix + [.init(id: last.id, mediaID: last.mediaID, phase: .unknown, receipt: nil)])
-        let metadata = String(decoding: try work.storedData(), as: UTF8.self)
-        let unknownMetadata = String(decoding: try unknown.storedData(), as: UTF8.self)
+        guard let metadata = String(bytes: try work.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+        guard let unknownMetadata = String(bytes: try unknown.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
         return try Persistence.transaction(proof.preparation.identity, container: container, isCurrent: isCurrent, save: save,
             settlingVideoUpload: receipt) { context in
                 let current = try pair(proof, container, context)
@@ -170,7 +170,7 @@ enum ObservationVideoUploadLifecycleStore {
         return (.init(work: work, metadata: text, containerID: ObjectIdentifier(container)), job)
     }
     private static func write(_ work: Work, _ job: OfflineJobRecord, _ container: ModelContainer) throws -> Snapshot {
-        let metadata = String(decoding: try work.storedData(), as: UTF8.self)
+        guard let metadata = String(bytes: try work.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
         job.metadataJSON = metadata
         return .init(work: work, metadata: metadata, containerID: ObjectIdentifier(container))
     }

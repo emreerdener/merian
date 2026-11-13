@@ -4,24 +4,23 @@ import candidate from "../_shared/initialAnalysis/fixtures/cpm-photo-candidate-v
   type: "json",
 };
 
-const nativeTests = new URL(
-  "../../../../apps/ios/MerianTests/Core/Network/Transport/",
+const nativeFixture = new URL(
+  "../../../../apps/ios/TestSupport/InitialPhotoTransferFixtures.json",
   import.meta.url,
 );
 
 Deno.test("native transfer golden bytes share the closed issue/status contract", async () => {
-  const statusSource = await Deno.readTextFile(
-    new URL("InitialPhotoTransferRequestTests.swift", nativeTests),
-  );
-  const candidateSource = await Deno.readTextFile(
-    new URL("InitialPhotoAllocationRoleReplyTests.swift", nativeTests),
-  );
-  const statusText = statusSource.match(/static let statusGolden = #"(.*)"#/)
-    ?.[1];
-  const candidateText = candidateSource.match(/static let candidate = #"(.*)"#/)
-    ?.[1];
+  const fixture = JSON.parse(await Deno.readTextFile(nativeFixture));
+  assertEquals(Object.keys(fixture).sort(), [
+    "candidate_canonical",
+    "status_canonical",
+    "version",
+  ]);
+  assertEquals(fixture.version, 1);
+  const statusText = fixture.status_canonical;
+  const candidateText = fixture.candidate_canonical;
   assertEquals(candidateText, candidate.canonical);
-  const status = JSON.parse(statusText!);
+  const status = JSON.parse(statusText);
   const parsed = parseTransferRequest(status);
   assertEquals(parsed.action, "status");
   assertEquals(parsed.allocation, null);

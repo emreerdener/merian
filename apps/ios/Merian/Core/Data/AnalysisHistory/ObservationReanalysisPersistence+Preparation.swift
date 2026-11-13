@@ -44,6 +44,7 @@ extension ObservationReanalysisPersistence {
     @MainActor
     static func beginPreparation(_ proof: ObservationReanalysisPreparationIntent.Verified, container: ModelContainer,
                                  isCurrent: () -> Bool,
+                                 retainedInputs: [ObservationReanalysisRetainedInput.Origin] = [],
                                  save: (ModelContext) throws -> Void = { try $0.save() }) throws -> DraftState? {
         let pending = proof.pending
         return try transaction(pending.draft.identity, container: container, isCurrent: isCurrent, save: save) { context in
@@ -62,6 +63,9 @@ extension ObservationReanalysisPersistence {
                 }
                 return ready
             }
+            // Native input must still name the same historical cohort at first
+            // ownership transfer. Exact durable retries own their copied inputs.
+            for origin in retainedInputs { try origin.validate(context: context) }
             try insert(pending.draft.identity, paths: pending.draft.photoPaths, metadata: pending.storedData(), context: context)
             return nil
         }

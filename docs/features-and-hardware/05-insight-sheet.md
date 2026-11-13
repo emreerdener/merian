@@ -292,10 +292,10 @@ Apple Intelligence, result arrival, and every scan-ownership handoff all
 suppress or cancel the richer stage without changing the visible fallback.
 
 Daily-quota presentation is normally decided before Insight exists. Online
-Capture runs the caller-scoped scan-admission preview before the camera shutter,
-audio recorder, or staged submission begins; an exhausted allowance opens the
-root `PaywallView` while preserving staged input. Insight's exact
-`ai_quota_daily_exceeded` handler is retained only for authoritative
+Capture runs the caller-scoped scan-admission preview before staged submission
+begins; physical camera/audio capture does not wait for it. An exhausted
+allowance opens the root `PaywallView` while preserving staged input. Insight's
+exact `ai_quota_daily_exceeded` handler is retained only for authoritative
 post-preview races, and it replaces the sheet without publishing a synthetic
 result. The preview has a two-second no-wait/no-retry transport bound. A
 classified connectivity failure plus local eligibility selects queue-only, so
@@ -391,6 +391,11 @@ scan/media write succeeds. It does so before award calculation or Field trips.
 Field trips remain gated on `/check-scan-status` confirming server ingestion,
 and optional enrichment may fill cards later without blocking the initial
 result.
+
+The biological common-name header wraps onto as many lines as needed at its full
+height, preserving centered large-title typography without truncation. The
+scientific-name subtitle likewise wraps at its full height, retaining its
+centered italic typography without shrinking or truncating.
 
 Completed biological and non-biological results show the full available AI
 response inline in the scroll view. Response text has no line cap and takes its
@@ -2554,6 +2559,11 @@ preview and photo, including titles derived from community review. A delayed
 page or preview cannot reinstall an older revision. Restore/Undo refreshes the
 newest bounded page after acknowledgment; if that read fails, the acknowledged
 choice and eligible Undo remain valid while the user can refresh the entries.
+The parent Insight receives acknowledgement only after the History command has
+released its busy/task ownership. Review receipt delivery requests a fresh
+bounded list automatically, including when revision validation has already
+invalidated the review preview. Negative terminal receipts also require fresh
+rows and a new preview; refreshing never repeats a review or changes selection.
 Back is disabled during a pending operation's active dispatch; Done remains the
 explicit dismissal/cancellation path.
 
@@ -2681,14 +2691,30 @@ parent into the presentation. Metadata refreshes and collection edits cannot
 adopt a newer identification while an older result remains visible. Opening the
 capability requires that frozen baseline and its immutable review ticket still
 match fresh local authority, with no pending selection. It neither enrolls nor
-dispatches review and holds no idle Auth lease. Ordinary access stays disabled.
+dispatches review and holds no idle Auth lease. Ordinary Release composition
+remains disabled; the local HistoryTesting configuration enables this capability
+with normal OAuth for the current simulator qualification.
+
+The selected-result adapter passes the typed observation UUID to the shared
+History Session in canonical lowercase form. Session review reads and admission
+retain strict identifier validation. Opening a valid menu must complete the real
+pending-review and Undo-eligibility reads; merely constructing its ticket is not
+sufficient evidence that review is usable.
 
 The retained selected-review host binds during presentation lifecycle rather
-than view rendering. Protected toolbar actions use its immutable ticket and
-primary scientific name; the actual tap synchronously persists one request
-before waking delivery. Retry saving review retains the same operation after an
-uncertain local save. Delayed confirmation callbacks carry a binding token, so
-closing and reopening even the same scan cannot authorize an old action.
+than view rendering. Its bind and delivery-refresh callbacks schedule
+short-lived MainActor tasks owned by that presentation, because SwiftUI
+callbacks can inherit a cancelled task. Rebinding, closing or invalidating
+cancels queued reads; refresh coalesces against the exact key, token and model.
+The task releases its ownership before synchronous binding or receipt
+retirement. Persistence cancellation and account checks remain unchanged. A
+successful idle status refresh clears a stale read-error message; pending, held,
+terminal and uncertain-save messages remain bound to their existing request
+state. Protected toolbar actions use its immutable ticket and primary scientific
+name; the actual tap synchronously persists one request before waking delivery.
+Retry saving review retains the same operation after an uncertain local save.
+Delayed confirmation callbacks carry a binding token, so closing and reopening
+even the same scan cannot authorize an old action.
 
 The confidence badge consumes that same ticket's protected confirmation state,
 so an acknowledged primary confirmation or named correction displays

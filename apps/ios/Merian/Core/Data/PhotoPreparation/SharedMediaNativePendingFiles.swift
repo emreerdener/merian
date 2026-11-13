@@ -37,7 +37,7 @@ struct SharedMediaNativePendingFiles {
                 try fault?(.afterUnlink)
             }
             try fault?(.beforeSync)
-            guard (parent < 0 || fsync(parent) == 0), fsync(namespace) == 0 else { throw PhotoPreparationFailure.cleanupPending }
+            guard parent < 0 || fsync(parent) == 0, fsync(namespace) == 0 else { throw PhotoPreparationFailure.cleanupPending }
             try fault?(.afterSync)
             try require(saved, parent: parent, namespace: namespace)
             guard try parent < 0 || presentName(parent: parent) == nil else { throw PhotoPreparationFailure.cleanupPending }

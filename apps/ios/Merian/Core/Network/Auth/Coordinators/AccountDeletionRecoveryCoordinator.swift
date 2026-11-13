@@ -25,8 +25,9 @@ struct AccountDeletionRecoveryCoordinator {
             -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor @escaping () -> Void,
-        purgeLocalData: @MainActor @escaping () async -> Bool
+        purgeLocalData: @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async -> Bool {
+        guard !MerianEnvironment.isHistoryQualificationBuild else { return false }
         guard let recoveryState = dependencies.localState.state() else {
             return true
         }
@@ -43,29 +44,11 @@ struct AccountDeletionRecoveryCoordinator {
         if recoveryState == .capabilityRejectionRetirementPending {
             let didRetireProof = AccountDeletionWorkflow
                 .retireRejectedRecoveryProof(
-                    retireRecoveryCapability: {
-                        clearCapability(recoveryCapabilityStore)
-                    }
+                    retireRecoveryCapability: recoveryCapabilityStore.retireVerified
                 )
             guard didRetireProof else { return false }
             return await restoreDeferredCachedSessionAndResolveBarrier(
                 ownedBy: transition
-            )
-        }
-
-        if recoveryState == .capabilityRetirementPending {
-            return await AccountDeletionWorkflow.performRecoveryRetirement(
-                performLocalSignOut: {
-                    await dependencies.session
-                        .performVerifiedLocalSignOut(transition)
-                },
-                purgeLocalData: purgeLocalData,
-                retireRecoveryCapability: {
-                    clearCapability(recoveryCapabilityStore)
-                },
-                resolveCleanup: {
-                    dependencies.localState.resolve()
-                }
             )
         }
 
@@ -76,6 +59,23 @@ struct AccountDeletionRecoveryCoordinator {
         } catch {
             return false
         }
+        if recoveryState == .capabilityRetirementPending {
+            let scope = dependencies.scope(transition, state: recoveryState, proof: storedCapability, store: recoveryCapabilityStore)
+            return await AccountDeletionWorkflow.performRecoveryRetirement(
+                validateContext: { scope.isCurrent },
+                performLocalSignOut: {
+                    await dependencies.session
+                        .performVerifiedLocalSignOut(transition, scope)
+                },
+                purgeLocalData: {
+                    guard await purgeLocalData(scope), scope.isCurrent else { return false }
+                    return dependencies.acknowledgeLibraryPurge(scope)
+                },
+                retireRecoveryCapability: recoveryCapabilityStore.retireVerified,
+                resolveCleanup: dependencies.localState.resolve
+            )
+        }
+
         if let storedCapability,
            storedCapability.protocolVersion == 2 {
             return await resumeCapabilityBackedV2(
@@ -170,22 +170,25 @@ struct AccountDeletionRecoveryCoordinator {
             )
         }
 
+        let scope = dependencies.scope(transition, state: .cleanupPending, proof: storedCapability, store: recoveryCapabilityStore)
         return await AccountDeletionWorkflow.performPendingLocalCleanup(
+            validateContext: { scope.isCurrent },
             performLocalSignOut: {
                 await dependencies.session
-                    .performVerifiedLocalSignOut(transition)
+                    .performVerifiedLocalSignOut(transition, scope)
             },
-            purgeLocalData: purgeLocalData,
-            resolveCleanup: {
-                dependencies.localState.resolve()
-            }
+            purgeLocalData: {
+                guard await purgeLocalData(scope), scope.isCurrent else { return false }
+                return dependencies.acknowledgeLibraryPurge(scope)
+            },
+            resolveCleanup: dependencies.localState.resolve
         )
     }
 
     private func restoreDeferredCachedSessionAndResolveBarrier(
         ownedBy transition: AuthTransitionToken
     ) async -> Bool {
-        guard dependencies.session.ownsTransition(transition),
+        guard dependencies.validateLibrary(nil), dependencies.session.ownsTransition(transition),
               dependencies.localState.isPending(),
               let sourceSession = dependencies.session
                 .sourceSession(transition) else {
@@ -204,7 +207,7 @@ struct AccountDeletionRecoveryCoordinator {
             cachedUserID: cachedSession.identity.userID,
             cachedUserIsAnonymous: cachedSession.identity.isAnonymous,
             cachedSessionIsExpired: cachedSession.isExpired
-        ), dependencies.session.ownsTransition(transition),
+        ), dependencies.validateLibrary(nil), dependencies.session.ownsTransition(transition),
            dependencies.session.currentCachedSession()
             == cachedSession.identity else {
             return false
@@ -215,7 +218,7 @@ struct AccountDeletionRecoveryCoordinator {
                 dependencies.localState.isPending()
             },
             adoptCachedSession: {
-                guard dependencies.session.ownsTransition(transition),
+                guard dependencies.validateLibrary(nil), dependencies.session.ownsTransition(transition),
                       dependencies.session.currentCachedSession()
                         == cachedSession.identity else {
                     return false
@@ -228,12 +231,9 @@ struct AccountDeletionRecoveryCoordinator {
             validateCachedSession: {
                 dependencies.session.currentCachedSession()
                     == cachedSession.identity
-                    && dependencies.session
-                    .currentSessionMatchesTransition(transition)
+                    && dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition)
             },
-            resolveCleanup: {
-                dependencies.localState.resolve()
-            },
+            resolveCleanup: dependencies.localState.resolve,
             publishCachedSession: {
                 dependencies.session.publishCachedSession(
                     cachedSession.identity
@@ -260,7 +260,7 @@ struct AccountDeletionRecoveryCoordinator {
             -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () async -> Bool
+        purgeLocalData: @MainActor (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async -> Bool {
         guard capability.protocolVersion == 2,
               let acknowledgementCapability =
@@ -268,18 +268,18 @@ struct AccountDeletionRecoveryCoordinator {
             return false
         }
 
+        let contextIsCurrent = { dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition) &&
+            dependencies.localState.state() == recoveryState && recoveryCapabilityStore.matchesExisting(capability) }
         dependencies.session.updateTransition(transition, .deletingAccount)
         let receipt: AccountDeletionReceipt
         do {
             receipt = try await recoverDeletion(capability.recoveryValue)
-            guard dependencies.session
-                .currentSessionMatchesTransition(transition),
+            guard contextIsCurrent(),
                 receipt.protocolVersion == 2 else {
                 return false
             }
         } catch {
-            guard dependencies.session
-                .currentSessionMatchesTransition(transition) else {
+            guard contextIsCurrent() else {
                 return false
             }
             if AccountDeletionTransitionPolicy.isUnknownRecovery(error) {
@@ -341,6 +341,7 @@ struct AccountDeletionRecoveryCoordinator {
         return await performAcceptedCleanup(
             receipt: receipt,
             transition: transition,
+            expectedCapability: capability, expectedState: recoveryState,
             recoveryCapabilityStore: recoveryCapabilityStore,
             recordManualProviderRevocation: recordManualProviderRevocation,
             purgeLocalData: purgeLocalData,
@@ -365,17 +366,22 @@ struct AccountDeletionRecoveryCoordinator {
         ) async throws -> AccountDeletionReceipt,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () async -> Bool,
+        purgeLocalData: @MainActor (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool,
         allowAuthenticatedIntakeReplay: Bool
     ) async -> Bool {
-        let capability: String
+        let storedCapability: PreparedDeletionRecoveryCapability
         do {
-            capability = try recoveryCapabilityStore.loadExistingValue()
+            guard let stored = try recoveryCapabilityStore.loadExistingIfPresent() else { return false }
+            storedCapability = stored
         } catch {
             dependencies.diagnostics.reportRecoveryProofUnavailable()
             return false
         }
 
+        let capability = storedCapability.recoveryValue
+        let recoveryState = dependencies.localState.state()
+        let contextIsCurrent = { dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition) &&
+            dependencies.localState.state() == recoveryState && recoveryCapabilityStore.matchesExisting(storedCapability) }
         dependencies.session.updateTransition(transition, .deletingAccount)
         let receipt: AccountDeletionReceipt
         do {
@@ -384,14 +390,14 @@ struct AccountDeletionRecoveryCoordinator {
                dependencies.session.currentCachedSession() != nil {
                 do {
                     try await dependencies.session
-                        .verifyExpectedSession(transition)
+                        .verifyExpectedSession(transition, dependencies.scope(transition, state: recoveryState, proof: storedCapability, store: recoveryCapabilityStore))
+                    guard contextIsCurrent() else { return false }
                     receipt = try await requestDeletion(
                         transition,
                         capability
                     )
                 } catch {
-                    guard dependencies.session
-                        .currentSessionMatchesTransition(transition) else {
+                    guard contextIsCurrent() else {
                         return false
                     }
                     if AccountDeletionTransitionPolicy
@@ -410,13 +416,11 @@ struct AccountDeletionRecoveryCoordinator {
             } else {
                 receipt = try await recoverDeletion(capability, false)
             }
-            guard dependencies.session
-                .currentSessionMatchesTransition(transition) else {
+            guard contextIsCurrent() else {
                 return false
             }
         } catch {
-            guard dependencies.session
-                .currentSessionMatchesTransition(transition) else {
+            guard contextIsCurrent() else {
                 return false
             }
             if AccountDeletionTransitionPolicy.isAcceptedExpiredRecovery(
@@ -438,6 +442,7 @@ struct AccountDeletionRecoveryCoordinator {
         return await performAcceptedCleanup(
             receipt: receipt,
             transition: transition,
+            expectedCapability: storedCapability, expectedState: recoveryState,
             recoveryCapabilityStore: recoveryCapabilityStore,
             recordManualProviderRevocation: recordManualProviderRevocation,
             purgeLocalData: purgeLocalData,
@@ -454,42 +459,41 @@ struct AccountDeletionRecoveryCoordinator {
     private func performAcceptedCleanup(
         receipt: AccountDeletionReceipt,
         transition: AuthTransitionToken,
+        expectedCapability: PreparedDeletionRecoveryCapability, expectedState: AccountDeletionLocalRecoveryState?,
         recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
         recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () async -> Bool,
+        purgeLocalData: @MainActor (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool,
         acknowledgeRecovery: @MainActor () async throws -> Bool
     ) async -> Bool {
-        await AccountDeletionWorkflow.performAcceptedCleanup(
+        let scope = dependencies.scope(transition, state: .capabilityCleanupPending, proof: expectedCapability, store: recoveryCapabilityStore)
+        return await AccountDeletionWorkflow.performAcceptedCleanup(
+            validateContext: { scope.isCurrent },
             receipt: receipt,
             recordCleanupPending: {
-                dependencies.localState.recordCleanupPending()
+                dependencies.localState.state() == expectedState && recoveryCapabilityStore.matchesExisting(expectedCapability) &&
+                    dependencies.localState.recordCleanupPending()
             },
             recordManualProviderRevocation: recordManualProviderRevocation,
             performLocalSignOut: {
                 await dependencies.session
-                    .performVerifiedLocalSignOut(transition)
+                    .performVerifiedLocalSignOut(transition, scope)
             },
-            purgeLocalData: purgeLocalData,
+            purgeLocalData: {
+                guard await purgeLocalData(scope), scope.isCurrent else { return false }
+                return dependencies.acknowledgeLibraryPurge(scope)
+            },
             acknowledgeRecovery: {
                 do {
                     let wasAcknowledged = try await acknowledgeRecovery()
                     return wasAcknowledged
-                        && dependencies.session
-                        .currentSessionMatchesTransition(transition)
+                        && dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition)
                 } catch {
                     return false
                 }
             },
-            recordRecoveryRetirementPending: {
-                dependencies.localState
-                    .recordCapabilityRetirementPending()
-            },
-            retireRecoveryCapability: {
-                clearCapability(recoveryCapabilityStore)
-            },
-            resolveCleanup: {
-                dependencies.localState.resolve()
-            }
+            recordRecoveryRetirementPending: dependencies.localState.recordCapabilityRetirementPending,
+            retireRecoveryCapability: recoveryCapabilityStore.retireVerified,
+            resolveCleanup: dependencies.localState.resolve
         )
     }
 
@@ -497,24 +501,9 @@ struct AccountDeletionRecoveryCoordinator {
         _ store: AccountDeletionRecoveryCapabilityStore
     ) -> Bool {
         AccountDeletionWorkflow.retireDefinitiveIntakeRejectionProof(
-            recordRejectionRetirementPending: {
-                dependencies.localState
-                    .recordCapabilityRejectionRetirementPending()
-            },
-            retireRecoveryCapability: {
-                clearCapability(store)
-            }
+            recordRejectionRetirementPending: dependencies.localState.recordCapabilityRejectionRetirementPending,
+            retireRecoveryCapability: store.retireVerified
         )
     }
 
-    private func clearCapability(
-        _ store: AccountDeletionRecoveryCapabilityStore
-    ) -> Bool {
-        do {
-            try store.clearVerified()
-            return true
-        } catch {
-            return false
-        }
-    }
 }

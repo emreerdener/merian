@@ -4,6 +4,8 @@ import SwiftData
 /// Dedicated inactive two-row writer. It consumes no media, AI dispatch, scan
 /// token or fresh free-space reservation. Existing generic receiving stays closed.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeAppReleaseStageOperations {
     typealias Request = SharedMediaNativeReleaseStartRequest
     typealias Values = SharedMediaNativeReceivingReleaseValues
@@ -48,9 +50,9 @@ final class SharedMediaNativeAppReleaseStageOperations {
                         io: SharedMediaNativeOriginalIO, fileBinding: SharedMediaNativeBinding,
                         verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void, verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void, verifyRetiring: @escaping (SharedMediaNativeRetiringPairInspection) throws -> Void,
                         verifyOriginal: @escaping (SharedMediaNativeHeldOriginalInspection) throws -> SharedMediaNativeHeldOriginalInspection,
-                 requireOriginalAbsence: @escaping (SharedMediaNativeRetirementState) throws -> Void,
-                 verifyPrefix: @escaping (SharedMediaNativeReleasePrefix) throws -> Void,
-                 recoveryHeader: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                        requireOriginalAbsence: @escaping (SharedMediaNativeRetirementState) throws -> Void,
+                        verifyPrefix: @escaping (SharedMediaNativeReleasePrefix) throws -> Void,
+                        recoveryHeader: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
                         boundary: @escaping (SharedMediaNativeMetadataBoundary) throws -> Void) async throws -> SharedMediaNativeAppReleaseStageOperations {
         let expected = try authority.header(container)
         _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
@@ -66,7 +68,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
         let c = fresh(), inventory = try inventory(c)
         guard let witness = try SharedMediaNativeReceivingCleanGraph.pending(c, inventory: inventory)[packageID] else { return nil }
         switch witness {
-        case .allocating: throw SharedMediaStorageFailure.closed
+        case .initial, .allocating: throw SharedMediaStorageFailure.closed
         case .generic(let value):
             guard value.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
             return nil
@@ -228,7 +230,7 @@ final class SharedMediaNativeAppReleaseStageOperations {
         let snapshot = try Reader.prospectiveStage(request, context: context, checkpoint: validate)
         guard snapshot.predecessor.components.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.closed }
         let others = try PhotoPreparationPolicy.add(witnesses.values.map { try $0.remainingAdvances })
-        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).consumptionAdvances
+        let terminals = try SharedMediaNativeTerminalScan.read(container: context.container, inventoryID: inventory.id).remainingAdvances
         let needed = try PhotoPreparationPolicy.add([terminals, 2, snapshot.predecessor.components.progress.remainingAdvances, others])
         _ = try SharedMediaStoragePolicy.add(inventory.revision, needed)
         return snapshot

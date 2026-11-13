@@ -1741,3 +1741,17 @@ checked after admission, before starting the next writer. The fixture retains
 all 30 frames and the one-second media range, with bounded readiness waits and
 frame/status diagnostics. This test-only gate does not serialize production
 capture or change extraction behavior.
+
+## Native warning checks
+
+The generated Xcode build phase runs `swiftlint lint --strict --no-cache` with
+the repository configuration. New lint warnings fail that phase when SwiftLint
+is installed; the missing-tool warning remains explicit. Run
+`swiftlint lint --strict --no-cache` before handoff. Declaration-level
+exceptions document intentional domain names, private state namespaces and
+cohesive lookup results; they do not relax concurrency checks or the global rule
+configuration.
+
+Unassigned app-icon source artwork belongs in `AppStore/SourceArtwork`, outside
+the compiled asset catalog. `AppIcon.appiconset` contains only its assigned
+light, dark and tinted icon images.

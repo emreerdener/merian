@@ -5,6 +5,8 @@ import SwiftData
 /// It starts from a fully validated nil receiving set. Only exact successors of
 /// that set can be read with positive bytes; ordinary readers remain nil-only.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeRecoveryPresentationPoststate {
     typealias Rows = SharedMediaNativeReceivingRows
     typealias Raw = SharedMediaNativeReceivingTerminalRaw
@@ -23,6 +25,15 @@ struct SharedMediaNativeRecoveryPresentationPoststate {
 
     init(prepared: SharedMediaNativeReceivingIntent.Prepared, reservationID: UUID,
          context: ModelContext, inventory: SharedMediaInventoryRecord) throws {
+        try self.init(prepared: prepared, start: .reserve(reservationID), context: context, inventory: inventory)
+    }
+    static func forfeiting(prepared: SharedMediaNativeReceivingIntent.Prepared,
+                           context: ModelContext, inventory: SharedMediaInventoryRecord) throws -> Self {
+        try .init(prepared: prepared, start: .forfeit, context: context, inventory: inventory)
+    }
+    private enum Start { case reserve(UUID), forfeit }
+    private init(prepared: SharedMediaNativeReceivingIntent.Prepared, start: Start,
+                 context: ModelContext, inventory: SharedMediaInventoryRecord) throws {
         guard !context.hasChanges, prepared.profile == (try SharedMediaNativeAppEligibility.profile(inventory)) else {
             throw SharedMediaStorageFailure.stale
         }
@@ -33,26 +44,40 @@ struct SharedMediaNativeRecoveryPresentationPoststate {
         case .generic(let value):
             guard case .received(let p, _, let t) = value.slot else { throw SharedMediaStorageFailure.closed }
             saved = p; transaction = t; slot = value.row
+        case .initial(let value):
+            guard value.initialPin != nil else { throw SharedMediaStorageFailure.closed }
+            saved = value.prepared; transaction = value.transaction; slot = value.row
         case .allocating(let value):
             saved = value.prepared; transaction = value.transaction; slot = value.row
         case .staged, .releasing: throw SharedMediaStorageFailure.closed
         }
         guard try saved.encoded() == prepared.encoded() else { throw SharedMediaStorageFailure.stale }
-        guard let rows = try Rows.read(transaction, in: context, absent: false) else { throw SharedMediaStorageFailure.stale }
-        let initial = AnalysisRecoveryPresentation.initial(for: .init(ownerID: prepared.profile.ownerID,
-            observationID: prepared.observationID, operationID: prepared.operationID))
-        let receipt = try initial.reserve(id: reservationID)
+        let identity = AnalysisRecoveryPresentation.Identity(ownerID: prepared.profile.ownerID,
+            observationID: prepared.observationID, operationID: prepared.operationID)
+        let rows: Rows.Set, receipt: AnalysisRecoveryPresentation.Reservation?, next: AnalysisRecoveryPresentation
+        switch start {
+        case .reserve(let id):
+            guard let saved = try Rows.read(transaction, in: context, absent: false) else { throw SharedMediaStorageFailure.stale }
+            rows = saved
+            let reserved = try AnalysisRecoveryPresentation.initial(for: identity).reserve(id: id)
+            receipt = reserved; next = reserved.reserved
+        case .forfeit:
+            rows = try Rows.readObserved(transaction, in: context)
+            guard let bytes = rows.queue.recoveryPresentationData else { throw SharedMediaStorageFailure.stale }
+            next = try AnalysisRecoveryPresentation.decode(bytes, identity: identity).forfeitingUnownedReservation()
+            receipt = nil
+        }
         try SharedMediaNativeReceivingCleanGraph.requirePresentationReplacementRunway(inventoryRevision: inventory.revision,
-            packageID: prepared.package.id, presentationAdvances: receipt.reserved.remainingTransitions, saveAdvances: 1,
-            witnesses: witnesses, terminalConsumptionAdvances: SharedMediaNativeTerminalScan.read(
-                container: context.container, inventoryID: inventory.id).consumptionAdvances)
+            packageID: prepared.package.id, presentationAdvances: next.remainingTransitions, saveAdvances: 1,
+            witnesses: witnesses, historical: SharedMediaNativeTerminalScan.read(
+                container: context.container, inventoryID: inventory.id))
         guard let slotRow = try SharedMediaNativeReceivingPhaseGraph.row(slot.id, in: context) else { throw SharedMediaStorageFailure.stale }
         slotID = slotRow.persistentModelID; quartetIDs = rows.identities
         beforeInventory = .init(inventory); inventoryID = inventory.persistentModelID; queueID = rows.queue.persistentModelID
         consumer = try Raw.fields(rows.consumer); job = try Raw.fields(rows.job); event = try Raw.fields(rows.event)
         beforeQueue = try Raw.fields(rows.queue)
-        afterQueue = try Self.replacingPresentation(beforeQueue, with: receipt.reserved)
-        reservation = receipt; successor = receipt.reserved
+        afterQueue = try Self.replacingPresentation(beforeQueue, with: next)
+        reservation = receipt; successor = next
     }
 
     private init(previous: Self, rows: Rows.Set, inventory: SharedMediaInventoryRecord,

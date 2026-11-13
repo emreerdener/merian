@@ -23,8 +23,8 @@ enum SharedMediaNativeFreezeGraph {
     /// A retained consumer supplies the exact historical membership assertion.
     /// This proves immutable facts only, not current bytes or execution authority.
     static func validateRetained(_ envelope: SharedMediaNativeDraftEnvelope.V2, membership: Data,
-                                membershipRevision: Int64, package: PhotoPreparationRecord,
-                                inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
+                                 membershipRevision: Int64, package: PhotoPreparationRecord,
+                                 inventory: SharedMediaInventoryRecord, context: ModelContext) throws {
         guard let blob = envelope.frozen, envelope.attempt == nil, package.phaseRaw == "preparedHeld",
               package.accountingTierRaw == "retained", !package.retirementRequested else { throw SharedMediaStorageFailure.closed }
         let commit = try SharedMediaNativeFreezeCommit.decode(blob.bytes)

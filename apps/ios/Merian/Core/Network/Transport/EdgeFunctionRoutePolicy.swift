@@ -54,6 +54,10 @@ enum EdgeFunctionRoutePolicy {
         return url
     }
 
+    static func isFunctionURL(_ url: URL) -> Bool {
+        url.path.hasPrefix("/functions/v1/")
+    }
+
     static func isUnavailable(
         evidence: EdgeFunctionRouteResponseEvidence,
         responseData: Data

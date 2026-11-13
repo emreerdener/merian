@@ -29,8 +29,7 @@ actor SharedMediaInboxDestinationIO {
         return try withFiles(state) { try $0.write(data) }
     }
     func recover(_ state: SharedMediaInboxHandoff) throws -> SharedMediaInboxDestinationCompletion? {
-        do { return try withFiles(state) { try $0.recover() } }
-        catch PhotoPreparationFailure.missingMedia {
+        do { return try withFiles(state) { try $0.recover() } } catch PhotoPreparationFailure.missingMedia {
             guard state.phase == "reserved", state.inode == nil else { throw SharedMediaStorageFailure.conflict }
             return nil
         }

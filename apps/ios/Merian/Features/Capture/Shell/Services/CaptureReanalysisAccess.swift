@@ -8,6 +8,7 @@ struct CaptureReanalysisAccess {
 
     static func prepared(ownership: ObservationReanalysisPreparationOwner, account: ObservationHistoryCloudClient? = nil,
                          photos: ObservationHistoryPhotoLoader? = nil,
+                         retainedOwner: (@MainActor () async throws -> SharedMediaNativeOriginalOwner)? = nil,
                          documents: @escaping @MainActor () throws -> URL = {
                              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
                          },
@@ -34,7 +35,7 @@ struct CaptureReanalysisAccess {
             guard current() else { throw ObservationHistoryError.accountChanged }
             let documents = try documents()
             return CaptureReanalysisEditor(source: source, container: container, account: account,
-                loader: CaptureReanalysisEvidenceLoader(account: account, loadPhoto: loadPhoto),
+                loader: CaptureReanalysisEvidenceLoader(account: account, retainedOwner: retainedOwner, loadPhoto: loadPhoto),
                 producer: ObservationReanalysisProducer(files: ObservationReanalysisFileStore(documents: documents), ownership: ownership, account: account, loadOriginal: loadPhoto),
                 isCurrent: current, requestSubmitted: requestSubmitted, requestCleanup: requestCleanup)
         })

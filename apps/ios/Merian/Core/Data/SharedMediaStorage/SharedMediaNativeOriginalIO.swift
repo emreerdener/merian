@@ -96,6 +96,22 @@ actor SharedMediaNativeOriginalIO {
         return result
     }
 
+    func previewOriginal(_ original: SharedMediaNativeOriginalIdentity) async throws -> ImageDownsampler.SendableImage {
+        try Task.checkCancellation()
+        #if DEBUG
+        await acquisitionEntryPause?(.previewOriginal)
+        #endif
+        try Task.checkCancellation()
+        let before = try files.inspectSharedRetirement(original.file)
+        guard before.identity == original.descriptor, before.binding == binding.bytes,
+              before.epoch == binding.epoch else { throw SharedMediaStorageFailure.conflict }
+        guard let image = ImageDownsampler.downsampledSendableImage(url: try files.preparationURL(original.file),
+            maxSize: ImagePreparationPolicy.displayMaxDimension) else { throw SharedMediaStorageFailure.closed }
+        try Task.checkCancellation()
+        try files.requireCurrentSharedInspection(before)
+        return image
+    }
+
     func verifyPair(_ state: SharedMediaNativePairFileState) throws {
         if case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(state.plan.envelope), let frozen = envelope.frozen {
             let commit = try SharedMediaNativeFreezeCommit.decode(frozen.bytes)
@@ -263,5 +279,5 @@ actor SharedMediaNativeOriginalIO {
 }
 
 #if DEBUG
-enum SharedMediaNativeOriginalIOEntry: Sendable { case readPair, readTransfer, load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
+enum SharedMediaNativeOriginalIOEntry: Sendable { case previewOriginal, readPair, readTransfer, load, write, beginPair, recoverPair, releasePair, releaseOriginal, inspectOriginal }
 #endif

@@ -60,6 +60,8 @@ struct AccountDeletionCapabilityStoreTests {
         let created = try store.prepare()
         let reused = try store.prepare()
 
+        #expect(store.matchesExisting(created))
+        #expect(store.matchesExisting(reused))
         #expect(created.wasCreated)
         #expect(!reused.wasCreated)
         #expect(created.value == reused.value)
@@ -404,6 +406,25 @@ struct AccountDeletionCapabilityStoreTests {
             AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
                 == nil
         )
+    }
+
+    @Test("Proof matching requires exact durable identity or verified absence")
+    func proofMatchingFailsClosedOnChangeAndUnreadableAbsence() throws {
+        let secureStore = SecureStoreStub()
+        let store = AccountDeletionRecoveryCapabilityStore(secureStore: secureStore)
+        #expect(store.matchesExisting(nil))
+        secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] = Data(repeating: 6, count: 32)
+        let expected = try store.loadExistingIfPresent()
+        #expect(store.matchesExisting(expected))
+        #expect(!store.matchesExisting(nil))
+        secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] = Data(repeating: 7, count: 32)
+        #expect(!store.matchesExisting(expected))
+        secureStore.values.removeValue(forKey: KeychainKeys.accountDeletionRecoveryCapability)
+        #expect(!store.matchesExisting(expected))
+        #expect(store.matchesExisting(nil))
+        secureStore.readError = SecureStoreFailure()
+        #expect(!store.matchesExisting(nil))
+        #expect(!store.matchesExisting(expected))
     }
 
     @Test("Capability retirement is verified by secure storage")

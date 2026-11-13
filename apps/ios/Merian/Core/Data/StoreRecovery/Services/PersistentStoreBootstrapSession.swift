@@ -9,7 +9,7 @@ enum StoreBootstrapBoundaryFailure: Error {
 }
 
 @MainActor
-fileprivate final class StartupConstructionProvenance {
+private final class StartupConstructionProvenance {
     var denied = false
 }
 
@@ -120,8 +120,7 @@ final class PersistentStoreBootstrapSession {
 
     func check() throws {
         guard !invalidated else { throw StoreBootstrapBoundaryFailure.ownership }
-        do { try fence.check() }
-        catch {
+        do { try fence.check() } catch {
             invalidated = true
             denied = true
             throw StoreBootstrapBoundaryFailure.ownership

@@ -7,6 +7,64 @@ import Testing
 @Suite("Native exact received status", .serialized, .sharedProcessState(.offlineQueueManager))
 @MainActor
 struct SharedMediaNativeReceivedStatusTests {
+    @Test func uncertainFirstReservationDoesNotRemintWhenSuccessorIsMissing() async throws {
+        let (h, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(await owner.discoverAppReceivedCandidates().first)
+        let c = h.context(), inventoryID = h.inventoryID, queueID = p.queueID.uuidString.lowercased()
+        let originalRevision = try SharedMediaNativePairPlanGraph.one(c,
+            FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID })).revision
+        var saves = 0, reads = 0
+        try owner.setMetadataFault { boundary in
+            if boundary == .afterSave { saves += 1 }
+            if boundary == .beforeReadback {
+                // Disposable fault injection models a missing successor; this
+                // is not evidence of an actual SQLite save failure or crash.
+                let context = h.context()
+                let queue = try SharedMediaNativePairPlanGraph.one(context,
+                    FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueID }))
+                let inventory = try SharedMediaNativePairPlanGraph.one(context,
+                    FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
+                queue.recoveryPresentationData = nil; inventory.revision = originalRevision
+                try context.save(); throw SharedMediaStorageFailure.unavailable
+            }
+        }
+        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { scan, account, validate in
+            try validate(); reads += 1; return try ScanObservationTestFixture.response(ownerID: account, scanID: scan, rowExists: true)
+        }
+        #expect(try await access.reserve(candidate) == nil)
+        try owner.setMetadataFault { if $0 == .afterSave { saves += 1 } }
+        #expect(try await access.reserve(candidate) == nil)
+        #expect(try await access.check(candidate))
+        #expect(saves == 1 && reads == 1)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
+    @Test(arguments: ["renewal", "settlement"])
+    func uncertainTransitionKeepsExplicitStatusAvailable(_ point: String) async throws {
+        let (_, owner, _) = try await SharedMediaNativePhotoAllocationTests().fixture()
+        let candidate = try #require(await owner.discoverAppReceivedCandidates().first)
+        var reads = 0
+        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { scan, account, validate in
+            try validate(); reads += 1; return try ScanObservationTestFixture.response(ownerID: account, scanID: scan, rowExists: true)
+        }
+        let first = try #require(await access.reserve(candidate))
+        if point == "renewal" {
+            #expect(try await first.settle(.milliseconds(1)))
+            try owner.setMetadataFault { if $0 == .beforeReadback { throw SharedMediaStorageFailure.unavailable } }
+            #expect(try await access.reserve(candidate) == nil)
+        } else {
+            try owner.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.unavailable } }
+            await #expect(throws: (any Error).self) { _ = try await first.settle(.zero) }
+        }
+        try owner.setMetadataFault(nil)
+        // Exact uncertainty reconciliation may forfeit an unowned active clock;
+        // it never renews the consumed predecessor or invents visible allowance.
+        #expect(try await access.reserve(candidate) == nil)
+        #expect(try await access.check(candidate))
+        #expect(reads == 1)
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+    }
+
     @Test func releaseStagingInvalidatesPreviouslySelectedCandidate() async throws {
         let (_, owner, prepared) = try await SharedMediaNativePhotoAllocationTests().fixture()
         let selected = try #require(try await owner.discoverAppReceivedCandidates().first)
@@ -30,7 +88,7 @@ struct SharedMediaNativeReceivedStatusTests {
             entered.withLock { $0 = true }
             _ = release.wait(timeout: .now() + 5)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"])!, Data("{\"status\":\"found\"}".utf8))
+                headerFields: ["Content-Type": "application/json"])!, try ScanObservationTestFixture.response(to: request))
         }
         let transport = NativeReceivedStatusTransport(baseURL: "https://example.supabase.co", dispatcher: fixture.dispatcher)
         var senderTerminated = false
@@ -77,11 +135,12 @@ struct SharedMediaNativeReceivedStatusTests {
         for found in [false, true] {
             fixture.mock.register(path: "/check-scan-status") { request in
                 let body = try #require(MockURLProtocol.bodyData(for: request))
-                let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
-                #expect(object == ["scan_id": prepared.observationID.uuidString.lowercased()])
+                let expected = try ScanObservationResponse.request(ownerID: h.ownerID, scanID: prepared.observationID)
+                #expect(body == expected)
+                #expect(request.value(forHTTPHeaderField: "X-Merian-Initial-Recovery") == "observe-v1")
                 #expect(request.httpMethod == "POST" && request.timeoutInterval == 5)
                 return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
-                    headerFields: ["Content-Type": "application/json"])!, Data((found ? "{\"status\":\"found\"}" : "{\"status\":\"not_found\"}").utf8))
+                    headerFields: ["Content-Type": "application/json"])!, try ScanObservationTestFixture.response(to: request, rowExists: found))
             }
             #expect(try await owner.checkAppReceivedStatus(selected) { scan, account, validate in
                 try await transport.perform(scanID: scan, ownerID: account, validate: validate)
@@ -122,7 +181,7 @@ struct SharedMediaNativeReceivedStatusTests {
         let (h, owner, _) = try await SharedMediaNativePhotoAllocationTests().fixture()
         let selected = try #require(try await owner.discoverAppReceivedCandidates().first)
         let task = Task { @MainActor in
-            try await owner.checkAppReceivedStatus(selected) { _, _, validate in
+            try await owner.checkAppReceivedStatus(selected) { scan, account, validate in
                 try validate()
                 if fault == "deleted" {
                     let context = h.context()
@@ -130,9 +189,9 @@ struct SharedMediaNativeReceivedStatusTests {
                     context.delete(queue); try context.save()
                 } else if fault == "cancelled" { withUnsafeCurrentTask { $0?.cancel() } }
                 if fault == "foreignReply" {
-                    return Data("{\"status\":\"found\",\"scan_id\":\"00000000-0000-4000-8000-000000000001\"}".utf8)
+                    return try ScanObservationTestFixture.response(ownerID: account, scanID: UUID(), rowExists: true)
                 }
-                return Data("{\"status\":\"found\"}".utf8)
+                return try ScanObservationTestFixture.response(ownerID: account, scanID: scan, rowExists: true)
             }
         }
         await #expect(throws: (any Error).self) { _ = try await task.value }

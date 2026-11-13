@@ -76,7 +76,7 @@ extension InsightSheetViewModel {
     }
 
     var canShareToExplore: Bool {
-        guard queuedContext == nil,
+        guard !activeMedia.hasRetainedDisplayImages, queuedContext == nil,
               let speciesData = inferenceEngine?.speciesData,
               presentedLocalRecordScanId != nil,
               let snapshot = toolbarRecordSnapshot,

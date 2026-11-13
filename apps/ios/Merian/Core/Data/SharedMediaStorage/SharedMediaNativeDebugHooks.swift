@@ -62,11 +62,15 @@ final class SharedMediaNativeDebugHooks {
     /// value-only phase reports; no identifiers, persistence or authority.
     @MainActor
     final class InspectionTrace {
+        // Inspection details belong to this Debug-only trace.
+        // swiftlint:disable:next nesting
         enum Phase: String {
             case identity, repository, inspect, pending, receipts, receivingRoots
             case receivingLeaves, receivingIdentities, receivingBoundary
             case consumers, pairs, allocations, references, inbox, finalHeader
         }
+        // Inspection details belong to this Debug-only trace.
+        // swiftlint:disable:next nesting
         struct Summary {
             let phase: Phase
             let completed: Bool
@@ -105,8 +109,7 @@ final class SharedMediaNativeDebugHooks {
         func checkpoint(_ duration: Duration) {
             if count < 1_000_000 { count += 1 } else { saturated = true }
             let limit = Duration.seconds(86_400)
-            if duration >= limit - time { time = limit; saturated = true }
-            else { time += duration }
+            if duration >= limit - time { time = limit; saturated = true } else { time += duration }
             // A timed-out phase still leaves bounded partial measurements.
             if lastReport.duration(to: .now) >= .seconds(30) { emit(completed: false) }
         }

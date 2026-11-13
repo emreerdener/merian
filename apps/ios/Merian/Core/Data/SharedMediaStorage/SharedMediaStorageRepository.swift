@@ -190,8 +190,8 @@ final class SharedMediaStorageRepository {
               item.id == inventoryID, item.rootIdentity == rootBinding,
               rootBinding == (try SharedMediaStorageLookup.binding(authority: files.identity, sources: sources)), item.storeIdentity == storeIdentity,
               item.modeRaw == mode.rawValue, item.revision >= 0,
-              (mode.includesPhotoStorage ? (item.phaseRaw == "readyP1" || (allowPurge && mode == .p1InboxQualification && ["purgingP1", "purgedP1"].contains(item.phaseRaw))) :
-                (mode == .qualification ? ["readyQualification", "retiring"].contains(item.phaseRaw) : ["observing", "retiring"].contains(item.phaseRaw))) else {
+              mode.includesPhotoStorage ? (item.phaseRaw == "readyP1" || (allowPurge && mode == .p1InboxQualification && ["purgingP1", "purgedP1"].contains(item.phaseRaw))) :
+                (mode == .qualification ? ["readyQualification", "retiring"].contains(item.phaseRaw) : ["observing", "retiring"].contains(item.phaseRaw)) else {
             throw SharedMediaStorageFailure.conflict
         }
         if mode == .p1InboxQualification && item.phaseRaw != "readyP1" { _ = try SharedMediaPurgeState.read(item) }
@@ -215,8 +215,6 @@ final class SharedMediaStorageRepository {
         if mode == .p1Qualification { return try photoLedger(context).validate() }
         return try SharedMediaReservationLedger(context: context, inventoryID: inventoryID, mode: mode, sources: Set(sources.keys)).validate()
     }
-
-
 
     private func revision(_ inventory: SharedMediaInventoryRecord, _ expected: SharedMediaStorageSnapshot) throws {
         guard inventory.generation == expected.generation, inventory.revision == expected.revision else { throw SharedMediaStorageFailure.stale }
@@ -496,7 +494,6 @@ final class SharedMediaStorageRepository {
     var handoffAvailableBytes: Int64?
     var handoffFault: ((SharedMediaInboxHandoffBoundary) throws -> Void)?
     #endif
-
 
 }
 

@@ -90,23 +90,26 @@ struct CaptureAudioSourceAccessTests {
 
     @Test(arguments: ["owner", "generation", "session", "container", "presentation"])
     func staleOpeningCannotSubmitOrResume(_ change: String) async throws {
+        let container = MainActorTestValue(true)
+        let generation = MainActorTestValue(UInt64(1))
+        let session = MainActorTestValue(true)
         let source = ObservationAudioSourceSubmissionTests(), seed = try await source.fixture.fixture.ready()
         defer { try? FileManager.default.removeItem(at: seed.root) }
         let saved = try source.state("staged", seed: seed)
-        var owner = seed.source.ownerID, generation: UInt64 = 1, session = true, container = true, starts = 0
+        var owner = seed.source.ownerID, starts = 0
         let access = CaptureAudioSourceReanalysisAccess.prepared(account: fixture.fixture.account(), ownership: .init(),
             configuration: .init(start: { _, _, _, _ in starts += 1; return .started }, sourceStart: { _, _, _, _ in starts += 1; return .started }),
-            currentOwner: { owner }, generation: { generation }, sessionIsCurrent: { _ in session },
-            containerIsCurrent: { _ in container }, documents: { seed.root })
+            currentOwner: { owner }, generation: { generation.value }, sessionIsCurrent: { _ in session.value },
+            containerIsCurrent: { _ in container.value }, documents: { seed.root })
         let presentation = UUID(), target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
             analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
         let opened = try access.open(target, seed.container, presentation), resumed = try access.openSourceResume(saved.identity, seed.container)
         _ = try opened.session.freeze([.audio(seed.bytes)], generation: presentation)
         switch change {
         case "owner": owner = UUID()
-        case "generation": generation += 1
-        case "session": session = false
-        case "container": container = false
+        case "generation": generation.value += 1
+        case "session": session.value = false
+        case "container": container.value = false
         default: break
         }
         await #expect(throws: (any Error).self) { try await opened.submit { change != "presentation" } }

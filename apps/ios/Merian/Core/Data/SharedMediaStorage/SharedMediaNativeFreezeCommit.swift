@@ -32,8 +32,7 @@ struct SharedMediaNativeFreezeCommit: Codable, Equatable, Sendable {
     static func validateHistoricalOrCurrent(_ bytes: Data) throws {
         struct Header: Decodable { let format: String }
         let header: Header = try SharedMediaAcquisitionEncoding.decode(bytes, maximum: Int(PhotoPreparationPolicy.metadata))
-        if header.format == Format.receipt.rawValue { _ = try decode(bytes) }
-        else { _ = try SharedMediaNativeFreezeReceipt.decode(bytes) }
+        if header.format == Format.receipt.rawValue { _ = try decode(bytes) } else { _ = try SharedMediaNativeFreezeReceipt.decode(bytes) }
     }
 }
 

@@ -142,7 +142,7 @@ struct ObservationReanalysisExecutionTests {
         case "owner": row.reanalysisOwnerAccountID = UUID().uuidString.lowercased()
         case "source": context.delete(try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first))
         case "deletion": context.insert(PendingCloudDeletionTask(scanId: fixture.fixture.observation.uuidString.lowercased()))
-        case "metadata": job.metadataJSON = try #require(String(bytes: fixture.intent(text: "Changed").storedData(), encoding: .utf8))
+        case "metadata": job.metadataJSON = (try #require(String(bytes: fixture.intent(text: "Changed").storedData(), encoding: .utf8))) as String
         case "counter": row.queueAttemptCount += 1
         case "timestamp": row.queueUpdatedAt = now.addingTimeInterval(1)
         case "child-deletion": context.insert(PendingCloudDeletionTask(scanId: fixture.child.uuidString))

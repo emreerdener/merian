@@ -4,7 +4,7 @@ import SwiftData
 /// Read-only format selection, never a file, mutation or account capability.
 /// The existing V1 entry remains strict; V2 is always selected explicitly.
 @MainActor
-enum SharedMediaNativeScopedFormat: Sendable {
+enum SharedMediaNativeScopedFormat {
     case existingV1, appV2
     var phase: String { self == .existingV1 ? SharedMediaNativeScopedEligibility.phase : SharedMediaNativeAppProfile.phase }
     var membershipVersion: Int { self == .existingV1 ? 1 : 2 }
@@ -66,7 +66,6 @@ enum SharedMediaNativeAppEligibility {
               !configuration.isStoredInMemoryOnly, !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
         return try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
     }
-
 
     static func identity(container: ModelContainer, inventoryID: UUID, ownerID: UUID) throws -> SharedMediaNativeAppProfile {
         let currentStore = try storeIdentity(container: container)

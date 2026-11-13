@@ -4,6 +4,8 @@ import SwiftData
 /// Minted only from a complete saved boundary under the registered owner's
 /// locks. Historical acquisition identity grants no physical I/O authority.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeOriginalDispositionAttempt {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
@@ -36,8 +38,7 @@ final class SharedMediaNativeOriginalDispositionAttempt {
         let next = try SharedMediaNativeReceivingReleaseState.expected(sizing,
             prepared: snapshot.release.origin.prepared, received: snapshot.release.origin.received)
         let digest: String
-        if let retirement { digest = try SharedMediaAcquisitionEncoding.digest(Data(retirement.encoded().utf8)) }
-        else { digest = try SharedMediaNativeOriginalDispositionAttestation.digest(before: before, next: next, header: header, context: context) }
+        if let retirement { digest = try SharedMediaAcquisitionEncoding.digest(Data(retirement.encoded().utf8)) } else { digest = try SharedMediaNativeOriginalDispositionAttestation.digest(before: before, next: next, header: header, context: context) }
         let after = try progress(digest)
         self.before = before; self.after = after; self.snapshot = snapshot; self.original = original
         self.retirement = retirement; self.header = header; successor = next

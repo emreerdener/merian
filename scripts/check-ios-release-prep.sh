@@ -41,6 +41,12 @@ validate_revenuecat_key() {
   esac
 }
 
+# The separate qualification configuration never inherits distribution authority.
+if [[ "${CONFIGURATION:-}" == "HistoryQualification" || "${CONFIGURATION:-}" == "HistoryTesting" ]] &&
+  [[ "${ACTION:-}" == "install" || "${DEPLOYMENT_LOCATION:-}" == "YES" || -n "${ARCHIVE_PRODUCTS_PATH:-}" ]]; then
+  fail "${CONFIGURATION} archive and distribution are disabled."
+fi
+
 should_enforce="false"
 if [[ "${CONFIGURATION:-}" == "Release" ]]; then
   if [[ "${ACTION:-}" == "install" || "${DEPLOYMENT_LOCATION:-}" == "YES" || -n "${ARCHIVE_PRODUCTS_PATH:-}" ]]; then

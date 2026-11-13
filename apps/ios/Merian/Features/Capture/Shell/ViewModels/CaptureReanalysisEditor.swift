@@ -14,6 +14,10 @@ final class CaptureReanalysisEditor {
     private(set) var capture = StagedCapture()
     private(set) var isBusy = false
     private(set) var errorMessage: String?
+    private(set) var retainedPhotoIDs: [UUID] = []
+    @ObservationIgnored private var retainedInput: ObservationReanalysisRetainedInput?
+    private var retainedOptionsLoaded = false
+    private var retainedOptionsResolved = false
     @ObservationIgnored private var session: CaptureReanalysisSession?
     @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private let account: ObservationHistoryCloudClient
@@ -31,6 +35,8 @@ final class CaptureReanalysisEditor {
          prepareImage: @escaping PreparedStagedImageLoader = CaptureWorkspaceDependencies.livePreparedImageLoader) {
         session = CaptureReanalysisSession(source: source, generation: UUID())
         self.container = container; self.account = account; self.loader = loader; self.producer = producer
+        retainedOptionsLoaded = loader.retainedOwner == nil
+        retainedOptionsResolved = loader.retainedOwner == nil
         isCurrentOwner = isCurrent; self.requestSubmitted = requestSubmitted; self.requestCleanup = requestCleanup; self.prepareImage = prepareImage
     }
 
@@ -38,25 +44,51 @@ final class CaptureReanalysisEditor {
     var isFrozen: Bool { session?.plan != nil }
     var canEdit: Bool { phase == .editing && !isBusy && !isFrozen && current }
     var canSubmit: Bool { phase == .editing && !isBusy && !capture.images.isEmpty && current }
+    var canContinue: Bool { phase == .choosing && !isBusy && retainedOptionsResolved && current }
+    var canReloadOriginals: Bool { phase == .choosing && !isBusy && !retainedOptionsLoaded && current }
     private var current: Bool { phase != .closed && session != nil && isCurrentOwner() }
 
+    func loadRetainedOptions() async {
+        guard phase == .choosing, !isBusy, !retainedOptionsLoaded, current, let session else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let input = try await loader.retained(source: session.source, container: container, isCurrent: { [weak self] in self?.current == true })
+            guard current, !Task.isCancelled else { return }
+            retainedInput = input; retainedPhotoIDs = input?.photos.map { $0.photo.pairID } ?? []
+            retainedOptionsLoaded = true; retainedOptionsResolved = true; errorMessage = nil
+        } catch {
+            if current {
+                retainedOptionsResolved = true
+                errorMessage = "Original photos couldn’t be loaded. Try again, or continue to add new photos."
+            }
+        }
+    }
+
     func toggle(_ id: UUID) {
-        guard phase == .choosing, !isBusy, current, let source = session?.source else { return }
+        guard canContinue, let source = session?.source else { return }
         var proposed = selectedPhotoIDs
         if proposed.contains(id) { proposed.remove(id) } else { proposed.insert(id) }
         do {
-            _ = try CaptureReanalysisEvidenceSelection(source: source, selectedPhotoIDs: proposed)
+            if let retainedInput { _ = try retainedInput.selection(proposed) } else {
+                _ = try CaptureReanalysisEvidenceSelection(source: source, selectedPhotoIDs: proposed)
+            }
             selectedPhotoIDs = proposed; errorMessage = nil
         } catch { errorMessage = "Choose up to five JPEG or PNG photos, within 5 MB in total." }
     }
 
     func loadSelection() async {
-        guard phase == .choosing, !isBusy, current, let session else { return }
+        guard canContinue, let session else { return }
         isBusy = true; errorMessage = nil
         defer { isBusy = false }
         do {
-            let selection = try CaptureReanalysisEvidenceSelection(source: session.source, selectedPhotoIDs: selectedPhotoIDs)
-            let staged = try await loader.load(selection, container: container, isCurrent: { [weak self] in self?.current == true })
+            let staged: StagedCapture
+            if let retainedInput {
+                staged = try await loader.load(retainedInput, selected: selectedPhotoIDs, container: container, isCurrent: { [weak self] in self?.current == true })
+            } else {
+                let selection = try CaptureReanalysisEvidenceSelection(source: session.source, selectedPhotoIDs: selectedPhotoIDs)
+                staged = try await loader.load(selection, container: container, isCurrent: { [weak self] in self?.current == true })
+            }
             guard current, !Task.isCancelled else { return }
             capture = staged; phase = .editing
         } catch { if current { errorMessage = "These photos couldn’t be loaded. Your selection is unchanged. Try again or choose different photos." } }
@@ -66,6 +98,14 @@ final class CaptureReanalysisEditor {
         guard current, let session else { throw ObservationHistoryError.accountChanged }
         let selection = try CaptureReanalysisEvidenceSelection(source: session.source, selectedPhotoIDs: [photo.mediaID])
         let staged = try await loader.load(selection, container: container, isCurrent: { [weak self] in self?.current == true })
+        guard current, !Task.isCancelled, let image = staged.images.first?.uiImage else { throw ObservationHistoryError.accountChanged }
+        return image
+    }
+
+    func preview(_ id: UUID) async throws -> UIImage {
+        if let photo = photos.first(where: { $0.mediaID == id }) { return try await preview(photo) }
+        guard current, let retainedInput else { throw ObservationHistoryError.unavailable }
+        let staged = try await loader.load(retainedInput, selected: [id], container: container, isCurrent: { [weak self] in self?.current == true })
         guard current, !Task.isCancelled, let image = staged.images.first?.uiImage else { throw ObservationHistoryError.accountChanged }
         return image
     }
@@ -145,6 +185,7 @@ final class CaptureReanalysisEditor {
 
     /// Presentation teardown never claims cancellation of a saved or ambiguous child.
     func invalidate() {
+        retainedInput = nil; retainedPhotoIDs = []
         phase = .closed; capture = StagedCapture(); selectedPhotoIDs = []; session = nil; errorMessage = nil
     }
 }

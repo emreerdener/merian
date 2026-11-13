@@ -4,6 +4,8 @@ import Foundation
 /// transition, filesystem or database authority is returned. Synthetic future
 /// assertions exist only to size valid forward states; they are never saved.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 enum SharedMediaNativeReleaseSurvivorProjection {
     typealias Values = SharedMediaNativeReceivingReleaseValues
     typealias Snapshot = SharedMediaNativeReleaseMetadataSnapshot.Snapshot
@@ -110,6 +112,8 @@ enum SharedMediaNativeReleaseSurvivorProjection {
     /// entry and array counts bound that overhead separately. Oversize keys simply
     /// use the unchanged uncached computation, never fail media admission.
     final class Memo {
+        // Memo keys and entries remain private to the projection cache.
+        // swiftlint:disable:next nesting
         fileprivate struct Key: Equatable {
             let encoded: [Data]
             let counts: [Int64]
@@ -145,6 +149,8 @@ enum SharedMediaNativeReleaseSurvivorProjection {
                 }
             }
         }
+        // Memo keys and entries remain private to the projection cache.
+        // swiftlint:disable:next nesting
         private struct Entry { let key: Key; let projection: Projection; let bytes: Int64 }
         private var entries: [Entry] = []
         fileprivate let capacity: Int64

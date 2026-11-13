@@ -1,11 +1,18 @@
 import Foundation
 import SwiftData
 
-/// Inert assembly for qualification. Ordinary live dependencies do not install this bundle.
+/// Live History assembly for explicitly enabled test builds. Ordinary releases stay inert.
 @MainActor
 struct PreparedHistoryReanalysisComposition {
-    // Source-controlled qualification boundary. No preference or remote flag can enable it.
+    // Build capability is separate from OAuth storage and provider admission.
+    #if MERIAN_HISTORY_NORMAL_OAUTH
+    static let isAppInstallationQualified = MerianEnvironment.historyNormalOAuthConfigurationIsValid
+    #elseif MERIAN_HISTORY_QUALIFICATION
+    static let isAppInstallationQualified = MerianEnvironment.isHistoryQualificationBuild
+        && MerianEnvironment.historyQualificationScope != nil
+    #else
     static let isAppInstallationQualified = false
+    #endif
 
     static func appInstallation(make: () -> Self) -> Self? {
         guard isAppInstallationQualified else { return nil }
@@ -19,6 +26,9 @@ struct PreparedHistoryReanalysisComposition {
     let audioSourceCapture: CaptureAudioSourceReanalysisAccess?
     let audioStatus: CaptureAudioStatusAccess?
     let audioSourceStatus: CaptureAudioSourceStatusAccess?
+    let videoCapture: CaptureVideoReanalysisAccess?
+    let videoResume: CaptureVideoResumeAccess?
+    let videoStatus: CaptureVideoStatusAccess?
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
     let protectedChat: ProtectedInsightChatAccess
@@ -44,13 +54,16 @@ struct PreparedHistoryReanalysisComposition {
          audioStatusOwner: ObservationAudioStatusOwner? = nil,
          audioHostOwner: CaptureAudioReanalysisHostOwner? = nil,
          audioSource: CaptureAudioSourceReanalysisAccess.Configuration? = nil,
+         video: CaptureVideoResumeAccess.Configuration? = nil,
+         freshVideo: CaptureVideoReanalysisAccess.Configuration? = nil,
+         retainedPhotoOwner: (@MainActor () async throws -> SharedMediaNativeOriginalOwner)? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
          },
          downloadPhoto: @escaping @Sendable (ObservationHistoryPhotoTicket) async throws -> Data = { ticket in
              try await PrivateHistoryPhotoTransport.download(ticket)
          }) {
-        self.audioHostOwner = audio != nil || audioSource != nil ? (audioHostOwner ?? CaptureAudioReanalysisHostOwner()) : nil
+        self.audioHostOwner = audio != nil || audioSource != nil || freshVideo != nil ? (audioHostOwner ?? CaptureAudioReanalysisHostOwner()) : nil
         let photos = ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto, download: downloadPhoto)
         let session: (String, ModelContainer) throws -> IdentificationHistorySession = { id, container in
             try IdentificationHistorySession(observation: id, container: container, cloud: cloud, photos: photos,
@@ -61,7 +74,9 @@ struct PreparedHistoryReanalysisComposition {
         self.history = history
         self.protectedChat = .prepared(cloud: cloud, configuration: protectedChat, session: session)
         selectedReview = .prepared(cloud: cloud, session: session)
-        status = .prepared(session: session, retirement: retirement)
+        var statusConfiguration = retirement
+        statusConfiguration?.documents = documents
+        status = .prepared(session: session, retirement: statusConfiguration)
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
@@ -83,7 +98,21 @@ struct PreparedHistoryReanalysisComposition {
                 currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
                 containerIsCurrent: containerIsCurrent, documents: documents)
         }
-        capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, documents: documents,
+        videoStatus = video == nil ? nil : audioStatusOwner.map { owner in
+            .prepared(account: cloud, owner: owner, reader: .init(), currentOwner: currentOwner,
+                generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent)
+        }
+        videoCapture = freshVideo.map { configuration in
+            .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
+                currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
+                containerIsCurrent: containerIsCurrent, documents: documents)
+        }
+        videoResume = video.map { configuration in
+            .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
+                currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
+                containerIsCurrent: containerIsCurrent, documents: documents)
+        }
+        capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, retainedOwner: retainedPhotoOwner, documents: documents,
             isCurrentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent, requestSubmitted: submitted, requestCleanup: cleanup)
     }
 
@@ -135,6 +164,10 @@ struct PreparedHistoryReanalysisComposition {
                     dependencies.appEventPublisher.send(.scanLibraryChanged)
                 }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
                 audioStatusOwner: queue.audioStatusOwner,
-                audioSource: audioSourceConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared))
+                audioHostOwner: dependencies.preparedReanalysisHostOwner,
+                audioSource: audioSourceConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                video: videoConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                freshVideo: freshVideoConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                retainedPhotoOwner: { try await dependencies.nativeMediaOwnerForFeature() })
     }
 }

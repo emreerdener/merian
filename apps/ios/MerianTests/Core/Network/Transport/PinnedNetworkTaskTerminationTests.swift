@@ -1,5 +1,7 @@
+import CryptoKit
 import Foundation
 import os
+import Security
 import Testing
 
 @testable import Merian
@@ -49,7 +51,7 @@ struct PinnedNetworkTaskTerminationTests {
     @Test func transportRetainsStateAfterCancelledCallerDropsIt() async throws {
         let pause = CompletionPause()
         var state: PinnedNetworkDataTaskState? = .init(completionPause: { pause.wait() })
-        weak var weakState = state
+        weak let weakState = state
         let session = hangingSession()
         defer { pause.release(); session.invalidateAndCancel() }
         let call = Task { [state = state!] in
@@ -148,7 +150,7 @@ struct PinnedNetworkTaskTerminationTests {
     @Test func boundedCollectorRemainsAliveUntilCallbackAfterCallerDropsIt() async throws {
         let pause = CompletionPause(), session = hangingSession()
         var collector: PinnedBoundedJSONDataTask? = .init(maximumBytes: 8192, completionPause: { pause.wait() })
-        weak var retained = collector
+        weak let retained = collector
         defer { pause.release(); session.invalidateAndCancel() }
         let call = Task { [collector = collector!] in
             try await collector.response(using: session, request: request(), timeout: 0.1)
@@ -297,6 +299,102 @@ struct PinnedPhotoUploadTaskTests {
         try Data([1, 2, 3]).write(to: url)
         return url
     }
+    /// Drive the actual foreground file task and consume its supplied stream.
+    /// Success and halfway cancellation retain a separate observed resource trace.
+    @Test(arguments: [false, true])
+    @MainActor func maximumOriginalStreamResources(cancelHalfway: Bool) async throws {
+        let size = Int(PhotoPreparationPolicy.original)
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data().write(to: source, options: .withoutOverwriting)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let expected = try Self.writeSyntheticOriginal(source, size: size)
+        let wire = ScopedMockTransport(), session = wire.makeSession()
+        defer { session.invalidateAndCancel() }
+        let baseline = try PhotoUploadResourceSample(original: source)
+        let samples = OSAllocatedUnfairLock(initialState: [String: [Int64]]())
+        let takeSample: @Sendable (String) throws -> Void = { phase in
+            let sample = try PhotoUploadResourceSample(original: source)
+            samples.withLock {
+                $0[phase] = [sample.additionalOpenFileBytes(since: baseline), Int64(sample.footprint), sample.lifetimePeak, sample.originalOpen ? 1 : 0]
+            }
+        }
+        let call = OSAllocatedUnfairLock(initialState: Optional<Task<HTTPURLResponse, Error>>.none)
+        let received = OSAllocatedUnfairLock(initialState: (count: 0, digest: Data(), calls: 0))
+        wire.register(path: "/photo-upload") { outgoing in
+            let stream = try #require(outgoing.httpBodyStream)
+            stream.open()
+            defer { stream.close() }
+            var chunk = [UInt8](repeating: 0, count: 65536), hash = SHA256(), total = 0
+            var nextSample = size / 4
+            try takeSample("streamOpened")
+            while true {
+                let limit = nextSample > total ? min(chunk.count, nextSample - total) : chunk.count
+                let n = stream.read(&chunk, maxLength: limit)
+                guard n >= 0, n <= size - total else { throw URLError(.cannotDecodeContentData) }
+                if n == 0 { break }
+                chunk.withUnsafeBytes { hash.update(bufferPointer: UnsafeRawBufferPointer(rebasing: $0[..<n])) }
+                total += n
+                if total >= nextSample {
+                    try takeSample("streamQuarter" + String(nextSample / (size / 4)))
+                    nextSample += size / 4
+                    if cancelHalfway && total >= size / 2 {
+                        let running = try #require(call.withLock { $0 })
+                        running.cancel()
+                        break
+                    }
+                }
+            }
+            let receivedBytes = total, receivedDigest = Data(hash.finalize())
+            received.withLock { $0 = (receivedBytes, receivedDigest, $0.calls + 1) }
+            let url = try #require(outgoing.url)
+            return (try #require(HTTPURLResponse(url: url, statusCode: 201, httpVersion: nil, headerFields: nil)), Data())
+        }
+        let transport = PinnedNetworkTransport()
+        transport.overridingSession = session
+        let task = transport.measuredPhotoUploadTask {
+            do { try takeSample("beforeResume") } catch { Issue.record("Could not sample the suspended upload") }
+        }
+        let request = request()
+        let runner = Task { try await task.response(for: request, fromFile: source, timeout: 60) }
+        call.withLock { $0 = runner }
+        switch await runner.result {
+        case .success(let reply): #expect(!cancelHalfway && reply.statusCode == 201)
+        case .failure(let error): #expect(cancelHalfway && error is CancellationError)
+        }
+        await task.waitForLocalTermination()
+        #expect(task.acknowledgedOwnedSessionEnd && task.hasPurgedMeasuredTransfer)
+        call.withLock { $0 = nil }
+        try await waitUntil { received.withLock { $0.calls } > 0 }
+        try takeSample("drained")
+        let facts = received.withLock { $0 }
+        #expect(facts.calls == 1 && facts.count == (cancelHalfway ? size / 2 : size))
+        if !cancelHalfway { #expect(facts.digest == expected) }
+        #expect(await session.allTasks.isEmpty)
+        let measured = samples.withLock { $0 }
+        #expect(measured.count == (cancelHalfway ? 5 : 7))
+        let json = try JSONEncoder().encode(measured)
+        print("PHOTO_UPLOAD_RESOURCE_SAMPLE cancelled=\(cancelHalfway) bytes=\(facts.count) baselineFootprint=\(baseline.footprint) baselinePeak=\(baseline.lifetimePeak) samples=\(String(decoding: json, as: UTF8.self))")
+    }
+
+    private static func writeSyntheticOriginal(_ url: URL, size: Int) throws -> Data {
+        let file = try FileHandle(forWritingTo: url)
+        defer { try? file.close() }
+        let chunkSize = 65536
+        var hash = SHA256(), written = 0
+        while written < size {
+            var chunk = Data(count: min(chunkSize, size - written))
+            let status = chunk.withUnsafeMutableBytes { buffer in
+                guard let address = buffer.baseAddress else { return errSecParam }
+                return SecRandomCopyBytes(kSecRandomDefault, buffer.count, address)
+            }
+            guard status == errSecSuccess else { throw CocoaError(.fileWriteUnknown) }
+            try file.write(contentsOf: chunk)
+            hash.update(data: chunk)
+            written += chunk.count
+        }
+        try file.synchronize()
+        return Data(hash.finalize())
+    }
     private func hangingSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [TerminationHangingProtocol.self]
@@ -345,7 +443,7 @@ struct PinnedPhotoUploadTaskTests {
         await state.waitForLocalTermination()
     }
 
-    @Test(arguments: ["cancel", "timeout", "ceiling", "remoteFile", "body", "method"])
+    @Test(arguments: ["cancel", "timeout", "ceiling", "remoteFile", "body", "method", "expired"])
     func rejectedStartCreatesNoTask(reason: String) async throws {
         let session = hangingSession()
         let upload = PinnedPhotoUploadTask(session: session), file = try file(), gate = StartGate()
@@ -358,11 +456,16 @@ struct PinnedPhotoUploadTaskTests {
             await gate.wait()
             return try await upload.response(for: captured,
                 fromFile: reason == "remoteFile" ? URL(string: "https://example.invalid/file")! : file,
-                timeout: reason == "timeout" ? 0 : reason == "ceiling" ? 301 : 1)
+                timeout: reason == "timeout" ? 0 : reason == "ceiling" ? 301 : 1,
+                expiresAtMilliseconds: reason == "expired" ? 0 : nil)
         }
         if reason == "cancel" { call.cancel() }
         await gate.open()
-        if case .success = await call.result { Issue.record("Rejected upload started") }
+        switch await call.result {
+        case .success: Issue.record("Rejected upload started")
+        case .failure(let error):
+            if reason == "expired" { #expect((error as? URLError)?.code == .timedOut) }
+        }
         await upload.waitForLocalTermination()
         #expect(await session.allTasks.isEmpty)
     }
@@ -466,7 +569,7 @@ struct PinnedPhotoUploadTaskTests {
     @Test func taskRetainsOwnerUntilCallbackAfterCallerDropsHandle() async throws {
         let session = hangingSession(), file = try file(), pause = CompletionPause()
         var upload: PinnedPhotoUploadTask? = .init(session: session, completionPause: { pause.wait() })
-        weak var weakUpload = upload
+        weak let weakUpload = upload
         defer { pause.release(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
         let call = Task { [upload = upload!] in try await upload.response(for: request(), fromFile: file, timeout: 0.03) }
         _ = await call.result

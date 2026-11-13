@@ -4,6 +4,8 @@ import SwiftData
 /// Scoped preparation under one retained app owner. Only a newly acknowledged
 /// reservation can enter processing; saved attempts never authorize replay.
 @MainActor
+// The full name identifies the exact native operation and its ownership boundary.
+// swiftlint:disable:next type_name
 final class SharedMediaNativeAppPreparationOperations {
     private let container: ModelContainer
     private let authority: SharedMediaNativeAppOperationAuthority
@@ -42,11 +44,11 @@ final class SharedMediaNativeAppPreparationOperations {
                         boundary: @escaping (SharedMediaNativePreparationBoundary) throws -> Void,
                         io: SharedMediaNativeOriginalIO, focusFactory: ImageFocusWorkFactory,
                         verifyProof: @escaping (SharedMediaPhotoRetirementInspection) throws -> Void,
-                 verifyPlannedAbsence: @escaping (SharedMediaNativePlannedAbsence) throws -> Void,
-                 fileBinding: SharedMediaNativeBinding, verifyPartial: @escaping (SharedMediaNativePairPartial) throws -> Void,
-                 verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
-                 verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void,
-                 verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void) async throws -> SharedMediaNativeAppPreparationOperations {
+                        verifyPlannedAbsence: @escaping (SharedMediaNativePlannedAbsence) throws -> Void,
+                        fileBinding: SharedMediaNativeBinding, verifyPartial: @escaping (SharedMediaNativePairPartial) throws -> Void,
+                        verifyCompletion: @escaping (SharedMediaNativePairCompletion) throws -> Void,
+                        verifyInspection: @escaping (SharedMediaNativePairInspection) throws -> Void,
+                        verifyAbsence: @escaping (SharedMediaNativePairAbsence) throws -> Void) async throws -> SharedMediaNativeAppPreparationOperations {
         let expected = try authority.header(container)
         _ = try await SharedMediaNativeScopedAudit(app: container, profile: authority.profile, expected: expected.inventory,
             check: { guard try authority.header(container) == expected else { throw SharedMediaStorageFailure.stale } },
@@ -416,6 +418,8 @@ struct SharedMediaNativeAppPairPlanWitness {
 /// Cold closure authority is separate from fresh-processing authority. The saved
 /// work epoch may be old; the physical proof always uses the current held owner.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppPairPlanClosureWitness {
     let preparation: SharedMediaNativeAppPreparationWitness
     let state: SharedMediaNativePairFileState
@@ -483,7 +487,10 @@ struct SharedMediaNativeAppPairRecoveryWitness {
     enum Action {
         case completeSaved(SharedMediaNativePairCompletion), publishSaved([SharedMediaNativePairCompletion])
         var transition: SharedMediaNativeAppPairAction {
-            switch self { case .completeSaved(let proof): return .complete(proof); case .publishSaved(let proofs): return .publish(proofs) }
+            switch self {
+            case .completeSaved(let proof): return .complete(proof)
+            case .publishSaved(let proofs): return .publish(proofs)
+            }
         }
     }
     let preparation: SharedMediaNativeAppPreparationWitness
@@ -530,6 +537,8 @@ struct SharedMediaNativeAppPairRecoveryWitness {
 /// App-only sealed retirement authority. No saved state alone grants unlink or
 /// release permission, and no retirement action accepts new media bytes.
 @MainActor
+// The full domain name distinguishes this state or capability from adjacent storage boundaries.
+// swiftlint:disable:next type_name
 struct SharedMediaNativeAppPairRetirementWitness {
     enum Action { case retire([SharedMediaNativePairInspection]), inspect, release([SharedMediaNativePairAbsence]) }
     let preparation: SharedMediaNativeAppPreparationWitness

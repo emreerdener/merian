@@ -1,5 +1,15 @@
 # Insight Shell
 
+The inactive native initial-photo route uses the existing
+`LocalScanInsightLoader` and `Services/NativeInitialInsightMedia` for transient
+display. The service uses the existing native owner and a closed Applied query,
+rechecks account/container/ presentation/binding, and synchronously rejects a
+final queued deletion before publication. A fresh record supplies the selected
+result; exact retained photos and initial submitted text supply media only. The
+ordinary loader remains local. Source review and focused native validation
+passed with independent verification. See the
+[canonical journey](../../../../../../docs/development-guides/25-scan-to-history.md#retained-initial-photo-display-candidate).
+
 The `Shell` directory acts as the root container and primary structural layout
 for the Insight sheet.
 
@@ -82,9 +92,9 @@ both signals, because the root router may advance to a queued presentation while
 the previous dismiss action is still unwinding. `ScanInsightRoute` carries only
 the stable scan ID. Route tap handlers must not load `InferenceEngine` before
 mounting a sheet or navigation destination. `LocalScanInsightLoader` commits
-that presentation first, performs one fetch-limited local-record lookup, and
-then hydrates the engine before it constructs `InsightSheetView`. A record
-deleted during the handoff renders **Scan unavailable** instead of stale Insight
+that presentation first, performs a fetch-limited local-record lookup, and then
+hydrates the engine before it constructs `InsightSheetView`. A record deleted
+during the handoff renders **Scan unavailable** instead of stale Insight
 content. The sheet's normal record binding recognizes that exact already-loaded
 scan and does not cancel and restart its hydration.
 

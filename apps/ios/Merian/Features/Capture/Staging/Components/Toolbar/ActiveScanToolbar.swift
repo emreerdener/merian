@@ -119,7 +119,6 @@ struct ActiveScanToolbar: View {
         )
         .disabled(isMutationLocked)
         .padding(.horizontal, 16)
-        .padding(.bottom, 24)
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(key: CaptureToolbarHeightKey.self, value: proxy.size.height)
@@ -181,8 +180,8 @@ struct ActiveScanToolbar: View {
                     .frame(width: 140)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                     .fixedSize(horizontal: false, vertical: true)
-                    // Anchor the bubble's bottom above the 48 pt action plus an 8 pt gap.
-                    .offset(y: -56)
+                    // Anchor the bubble's bottom above the 52 pt action plus an 8 pt gap.
+                    .offset(y: -60)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("CaptureSubmitTooltip")
             }

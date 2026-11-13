@@ -41,7 +41,7 @@ test("prelaunch iOS app sharing targets the served canonical homepage", async ()
   );
   assert.doesNotMatch(appShare, /websiteURL\(path:\s*"invite"\)/);
   assert.doesNotMatch(appShare, /naturebook\.earth\/invite/);
-  assert.match(homePage, /export default async function HomePage\(\)/);
+  assert.match(homePage, /export default (?:async )?function HomePage\(/);
 });
 
 test("web quality runs when the iOS app-share destination changes", async () => {

@@ -127,18 +127,19 @@ maps. Missing or invalid preferences mean satellite. Sign-out, account changes,
 and account deletion preserve this presentation preference. The passive
 Collections map preview remains a standard-map snapshot.
 
-Both interactive maps show the user's live location as a blue pin with a white
-person symbol, distinct from circular observation markers. The pin tip anchors
-to the location. Core UI's shared `MapUserLocationPin` customizes MapKit's
-native `UserAnnotation`, retaining its live updates and authorization gate. A
-UIKit bridge sets the enclosing annotation's normal and selected Z priorities to
-maximum and its display priority to required, keeping the pin above clusters and
-observation markers, including selected observations. SwiftUI declaration order
-alone does not establish MapKit's annotation stacking.
+Both interactive maps show the user's live location with MapKit's standard
+`UserAnnotation()` indicator, retaining its default appearance, live updates,
+and authorization gate. Core UI's shared `MapObservationPriority` sets app-owned
+cluster and observation annotations below the native indicator. Selected
+observations stay above other observations while remaining below the user
+location. The UIKit bridge sets annotation Z priorities on attachment, updates,
+and layout; SwiftUI declaration order alone does not establish MapKit stacking.
 
-Both interactive maps keep the native distance scale visible at the bottom
-trailing edge, opposite the Apple Maps attribution, below the floating controls
-and preview cards. The controls leave 28 points for this bottom row.
+Both interactive maps keep the native distance scale visible directly above the
+trailing map-style/search/locate toolbar. The shared toolbar owns the scale and
+its map scope, so they move together as preview cards appear or text size
+changes. The count pill aligns with the toolbar buttons at ordinary text sizes.
+The floating controls leave 28 points below them for the Apple Maps attribution.
 
 The bottom Explore Map discovery carousel uses rounded Liquid Glass cards on iOS
 26 and later, matching the floating map controls. Older supported versions keep
@@ -160,12 +161,13 @@ The endpoint's existing 500-candidate and 160-post caps remain in force, with
 post-mode cards appear immediately, and successful moderation or unpublishing
 removes affected cards from the sheet too.
 
-Search opens a medium/large sheet at medium height, with recent places and no
-keyboard. Focusing the field expands to large. MapKit autocomplete and full-text
-search support cities, states, addresses, and places without requiring location
-permission. Search uses Apple services; Merian does not upload scan points or
-use private scan coordinates as search hints. Queries debounce for 300 ms, and
-cancelled, dismissed, or superseded work cannot publish results.
+Search opens a medium/large sheet at medium height, with a visible native
+grabber, recent places, and no keyboard in both maps. Focusing the field expands
+to large. MapKit autocomplete and full-text search support cities, states,
+addresses, and places without requiring location permission. Search uses Apple
+services; Merian does not upload scan points or use private scan coordinates as
+search hints. Queries debounce for 300 ms, and cancelled, dismissed, or
+superseded work cannot publish results.
 
 Selecting a resolved place dismisses search, clears a discovery preview,
 preserves filters, and frames the selected geographic area without automatic

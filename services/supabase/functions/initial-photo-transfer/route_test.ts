@@ -259,3 +259,77 @@ Deno.test("dormant route keeps SQL owner and policy denials opaque without retry
     }
   });
 });
+
+Deno.test("role progress joins three exact reads on the authenticated bridge after catalog removal", async () => {
+  await environment(async () => {
+    const f = await fixture(2), calls: string[] = [];
+    const body = {
+      ...f.status,
+      version: 2,
+      action: "role_progress",
+      attempt_id: attempt,
+    };
+    const expectedStatus = {
+      p_owner: owner,
+      p_scan: f.status.scan_id,
+      p_digest: f.status.assignment_digest,
+      p_object: f.status.object_id,
+    };
+    const observed = new Date(f.fresh.observation.binding.issued_at_ms + 1)
+      .toISOString().replace("Z", "000Z");
+    globalThis.fetch = (url, init) => {
+      const op = String(url).split("/").at(-1)!;
+      calls.push(op);
+      const args = JSON.parse(String(init?.body));
+      if (op === "read_initial_cpm_photo_write_status") {
+        assertEquals(args, expectedStatus);
+        return Promise.resolve(Response.json({
+          version: 1,
+          authority: "none",
+          scan_id: f.status.scan_id,
+          object_id: f.status.object_id,
+          assignment_digest: f.status.assignment_digest,
+          attempt: {
+            attempt_id: attempt,
+            state: "may_have_issued",
+            write_closed: true,
+            created_at_ms: f.fresh.created_at_ms,
+            capability_expires_at_ms: f.fresh.capability_expires_at_ms,
+          },
+        }));
+      }
+      if (op === "read_initial_cpm_photo_write_closure") {
+        assertEquals(args, { p_attempt: attempt, p_outcome: "live_object" });
+        return Promise.resolve(
+          Response.json({
+            attempt_id: attempt,
+            outcome: "live_object",
+            policy_digest: f.entry.policy_digest,
+            observed_at: observed,
+            claim_digest: null,
+          }),
+        );
+      }
+      assertEquals(op, "read_initial_cpm_photo_observation");
+      assertEquals(args, {
+        p_attempt: attempt,
+        p_outcome: "live_object",
+        p_claim: null,
+        p_expected: null,
+      });
+      return Promise.resolve(Response.json(f.fresh.observation));
+    };
+    const res = await initialPhotoTransferRoute(
+      req(body),
+      transferPolicyCatalog([]),
+      authenticated,
+    );
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).role, "display");
+    assertEquals(calls, [
+      "read_initial_cpm_photo_write_status",
+      "read_initial_cpm_photo_write_closure",
+      "read_initial_cpm_photo_observation",
+    ]);
+  });
+});
