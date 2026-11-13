@@ -465,6 +465,14 @@ not guarantee a wall-clock bound for publication. Cancellation after a link may
 leave the complete content-addressed artifact; inspect and verify that exact
 address before treating any local failure as absence.
 
+The isolated `build_initial_source_archive_test.sh` lane also runs
+`initial_admission_archive_integration.ts`: admission write uncertainty,
+recovery without asset reads, and cancellation after the final asset use the
+verified historical archive. Ordinary Edge tests retain missing, altered and
+unknown manifest rejection coverage without reading moving checkout files as
+historical assets. Current dependency updates do not change the saved catalog or
+digest.
+
 The archive does not vendor external dependency bytes or prove which executable
 preprocessor/provider runs. Runnable bundle/dependency archival, runtime image
 and bootstrap attestation, immutable hosted retention and execution-time

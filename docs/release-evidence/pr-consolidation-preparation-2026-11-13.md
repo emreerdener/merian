@@ -43,6 +43,16 @@ approval must name this hold disposition, exact source SHA, protected main, beta
 project, workflow effects and downstream web targets. Other hold criteria and
 deployment protections remain intact.
 
+Read-only Vercel dashboard inspection on November 13 confirmed that both
+`naturebook` (`apps/web`) and `naturebook-admin` (`apps/admin`) track `main`,
+have **Auto-Assign Custom Production Domains enabled**, and show **No checks
+configured** under Deployment Checks. Their current production deployments use
+`c435ea80f5bace1d28b6fc383f290c264c73d3d9`. Main promotion is therefore blocked
+until an explicitly authorized change establishes and verifies a production
+promotion hold and the required exact-commit quality checks. No Vercel setting
+was changed during inspection. Public web must remain held until successful
+backend migration/function readback; admin must also wait for its quality gate.
+
 ## Coordinated execution, subject to approval
 
 1. Publish one immutable candidate and validate that SHA through the required
