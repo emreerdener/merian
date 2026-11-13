@@ -55,7 +55,7 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
-- [Current 1.1.0 release checklist](../.artifacts/identification-history-release-checklist.md)
+- [Current 1.1.0 release checklist](./release-evidence/identification-history-release-checklist-2026-11-13.md)
   consolidates remaining functional acceptance and distribution checks, with
   scoped evidence and explicit blockers. Historical checkpoints are preserved.
 - [Identification-history integrated review plan](./rfcs/identification-history-integrated-review-plan-2026-10-07.md)

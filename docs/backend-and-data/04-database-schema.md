@@ -4299,7 +4299,7 @@ coordinates to the client contract.
   card/pagination/detail wrappers apply it; the combined page inherits it. Case
   dismissal/resolution permits restoration only after every other visibility
   rule passes. Native projections remain unchanged. The additive migration is
-  `20261108185855_quarantine_public_web_explore.sql`; it must precede frontend
+  `20261113222835_quarantine_public_web_explore.sql`; it must precede frontend
   release. No new tables, client table grants, or Realtime publication are
   added.
 - `public.get_public_web_explore_posts(target_post_id UUID, max_limit INTEGER)`:
@@ -4316,7 +4316,7 @@ coordinates to the client contract.
   `(shared_at, post_id)` descending, and returns at most `limit + 1` rows for
   server-side lookahead. Browser roles remain denied; the prior card/detail/page
   signatures remain unchanged. Migration
-  `20261108062742_public_web_explore_pagination.sql` also records its exact
+  `20261113222833_public_web_explore_pagination.sql` also records its exact
   service-role signature in the privileged routine allowlist.
 - `public.get_public_web_explore_post_detail(target_post_id UUID)`:
   Service-only, fixed-anonymous wrapper over

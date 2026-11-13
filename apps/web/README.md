@@ -390,7 +390,7 @@ provide the legacy JavaScript compiler API. See Microsoft's
 
 ### Dependency maintenance
 
-All direct Mantine packages are pinned together at 9.6.2. Dependabot groups
+All direct Mantine packages are pinned together at 9.7.5. Dependabot groups
 minor and patch updates because Mantine uses exact peer versions. Node types
 remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
 with matching 19.3 type declarations; Dependabot groups those packages and the
@@ -423,7 +423,7 @@ The Sharp override tracks 0.35.5, which includes the patched librsvg release for
 [SVG memory safety](https://github.com/advisories/GHSA-wq5f-xc86-pv6w) and
 retains the earlier
 [libheif fixes](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c). The direct
-Tiptap packages are pinned together at 3.31.3 to cover both the
+Tiptap packages are pinned together at 3.31.4 to cover both the
 [attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
@@ -749,7 +749,7 @@ and Sharp overrides remain unchanged; the dependency audit is not bypassed.
 ## Website review quarantine
 
 The infrastructure release includes
-`20261108185855_quarantine_public_web_explore.sql`. Public web card, pagination,
+`20261113222835_quarantine_public_web_explore.sql`. Public web card, pagination,
 and detail readers exclude posts with an `open` or `in_review` post case or
 identification case, plus scans whose `is_flagged` remains true. Native Explore
 visibility and reporter-specific preferences are unchanged. The grouped review

@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 const sql = await Deno.readTextFile(
   new URL(
-    "../../migrations/20261108062742_public_web_explore_pagination.sql",
+    "../../migrations/20261113222833_public_web_explore_pagination.sql",
     import.meta.url,
   ),
 );

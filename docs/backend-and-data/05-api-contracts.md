@@ -20055,7 +20055,7 @@ issuance authority.
 ## Website review quarantine
 
 The infrastructure release includes
-`20261108185855_quarantine_public_web_explore.sql`. Public web card, pagination,
+`20261113222835_quarantine_public_web_explore.sql`. Public web card, pagination,
 and detail readers exclude posts with an `open` or `in_review` post case or
 identification case, plus scans whose `is_flagged` remains true. Native Explore
 visibility and reporter-specific preferences are unchanged. The grouped review

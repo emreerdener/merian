@@ -1,7 +1,7 @@
 ## November 13 — current release checklist
 
 Use the
-[single current 1.1.0 checklist](../../.artifacts/identification-history-release-checklist.md)
+[single current 1.1.0 checklist](../release-evidence/identification-history-release-checklist-2026-11-13.md)
 for remaining work and evidence. Completion411–413 supersede the earlier
 unverified-second-result claim: actual photo reanalysis produced two preserved
 versions; selection and review/Undo have scoped simulator evidence. The

@@ -51,7 +51,7 @@ required. This metadata check does not replace compiler/source provenance,
 signing or functional acceptance. CI additionally rejects the local History
 diagnostic category from the Release binary. HistoryTesting and
 HistoryQualification still refuse archive/distribution. Follow the
-[current candidate checklist](../../.artifacts/identification-history-release-checklist.md)
+[current candidate checklist](../release-evidence/identification-history-release-checklist-2026-11-13.md)
 for remaining exact-source, device and distribution gates.
 
 ## Policy
