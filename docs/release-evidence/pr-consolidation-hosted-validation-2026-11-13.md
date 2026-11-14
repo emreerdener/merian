@@ -176,7 +176,48 @@ gate must still execute every case. Main, beta and production domains remain
 unchanged, and this further local correction again requires exact-SHA approval
 before publication.
 
-Fresh read-only inspection 43565069349 still reports 520 beta migrations. The
+## Fourth approved replacement and runtime cache preparation
+
+The user approved `55b73a1bd9a2bc2c50768b066830012e75550042`, which was
+published to PR 152 after both Vercel holds and Production package checks were
+read back. Both the PR unit job 132482605755 (run 43606546399) and exact-SHA
+manual unit job 132482805955 (run 43606578336) installed the required `23F77`
+runtime, then failed the unchanged 300-second boot check. Retained qualification
+artifacts 14118454121 and 14119130620 independently show the same
+`com.apple.-0LaunchServicesMigrator` data-migration wait through the deadline.
+Neither run compiled or executed the native unit target. Download selection is
+corrected; successful boot and full native validation remain unproved.
+
+The next local repair explicitly waits for runtime cache readiness before
+creating the device. Apple's
+[Xcode 26.4 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-26_4-release-notes.md)
+document degraded performance during cache preparation and the supported
+completion command. Chromium's
+[simulator helper](https://chromium.googlesource.com/chromium/src/+/93b31d4424cb0fddb7cb5a901f21eb9859270658/ios/build/bots/scripts/iossim_util.py)
+uses `xcrun simctl runtime dyld_shared_cache update <runtime-id>` before boot.
+The repair uses only the already verified iOS 26.5 runtime identifier on an
+arm64 GitHub-hosted runner. Cache preparation is a plausible compatibility
+mitigation; the retained migration wait does not prove caches caused it or that
+this change will resolve it. No security setting or Apple migration is bypassed.
+
+The cache operation has a 600-second bound and fails before device creation on
+error or timeout. Existing download and boot limits stay unchanged. The helper
+command maxima total 1,330 seconds within a 25-minute qualification step; the
+unit validation job allows 190 minutes, preserving ten minutes for other setup
+and evidence after package, compile, qualification and unchanged 120-minute test
+budgets. Production limits and test assertions stay unchanged. Passing cache
+preparation cannot substitute for booted identity or native test results. This
+local change requires replacement-SHA approval before publication.
+
+Fresh read-only inspection 43606754802 at 14:48 UTC on November 14 still reports
+520 beta migrations. The exact candidate planner returns `normal`, with only the
+two approved retimed migrations pending and both obsolete versions absent. The
+function plan remains the original 125 functions against the last successful
+actual deployment `c435ea80f5bace1d28b6fc383f290c264c73d3d9`. GitHub's PR
+integration tree equals the approved `55b73a1` tree. These read-only checks do
+not clear either native failure or authorize a different source SHA.
+
+Earlier read-only inspection 43565069349 also reported 520 beta migrations. The
 candidate contains 522, with only the two approved retimed migrations pending;
 both obsolete versions are absent and the planner returns `normal`. The
 deployment-baseline resolver still identifies `c435ea8`, and the function plan

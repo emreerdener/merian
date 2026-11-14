@@ -73,6 +73,11 @@ def prepare(*, run=command, environment=None, machine=None):
             or not any(item.get("identifier") == DEVICE_TYPE for item in device_types)):
         raise ValueError("The measured runtime does not support the required iPhone 17 Pro device type.")
 
+    # Wait for Apple's runtime cache preparation before starting first boot.
+    # Scope this to the verified runtime; never force rebuild or update all runtimes.
+    output = run(["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", RUNTIME], timeout=600)
+    print(output, file=sys.stderr)
+
     # Own a new device on this disposable runner instead of borrowing one by name.
     device = run(["xcrun", "simctl", "create", "Merian measured unit tests", DEVICE_TYPE, RUNTIME], timeout=20)
     if str(uuid.UUID(device)).upper() != device.upper():
@@ -90,6 +95,7 @@ def prepare(*, run=command, environment=None, machine=None):
         "architecture": machine,
         "runtime_identifier": RUNTIME,
         "device_type_identifier": DEVICE_TYPE,
+        "runtime_cache_ready": True,
         "simulator_destination": f"platform=iOS Simulator,id={device}",
         "observed_environment": observed,
     }
@@ -118,6 +124,13 @@ def main():
             if isinstance(output, bytes):
                 output = output.decode("utf-8", errors="replace")
             result["boot_diagnostic_tail"] = output[-8000:]
+        if (isinstance(error, subprocess.TimeoutExpired)
+                and error.cmd == ["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", RUNTIME]
+                and error.stdout):
+            output = error.stdout
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", errors="replace")
+            result["runtime_cache_diagnostic_tail"] = output[-8000:]
         args.evidence.write_text(json.dumps(result, indent=2) + "\n")
         raise
     args.evidence.write_text(json.dumps(result, indent=2) + "\n")

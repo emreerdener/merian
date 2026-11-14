@@ -38,6 +38,8 @@ class Runner:
             return json.dumps(item)
         if args[:2] == ["xcodebuild", "-downloadPlatform"]:
             return "Requested Apple runtime installed"
+        if args == ["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", simulator.RUNTIME]:
+            return "Runtime cache ready"
         if args[:3] == ["xcrun", "simctl", "create"]:
             return self.device
         if args[:3] == ["xcrun", "simctl", "bootstatus"]:
@@ -59,11 +61,14 @@ class QualificationTests(unittest.TestCase):
         self.assertTrue(result["qualified"])
         self.assertEqual(result["simulator_destination"], f"platform=iOS Simulator,id={DEVICE}")
         self.assertEqual(result["observed_environment"], simulator.EXPECTED_ENVIRONMENT)
+        self.assertTrue(result["runtime_cache_ready"])
         self.assertFalse(any(c[0][0] == "xcodebuild" for c in runner.commands))
-        self.assertEqual(runner.commands[1][0], ["xcrun", "simctl", "create",
+        self.assertEqual(runner.commands[1], (["xcrun", "simctl", "runtime", "dyld_shared_cache",
+                                             "update", simulator.RUNTIME], 600))
+        self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "create",
                          "Merian measured unit tests", simulator.DEVICE_TYPE, simulator.RUNTIME])
-        self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "bootstatus", DEVICE, "-b"])
-        self.assertEqual([c[0][-1] for c in runner.commands[3:]], list(simulator.EXPECTED_ENVIRONMENT))
+        self.assertEqual(runner.commands[3][0], ["xcrun", "simctl", "bootstatus", DEVICE, "-b"])
+        self.assertEqual([c[0][-1] for c in runner.commands[4:]], list(simulator.EXPECTED_ENVIRONMENT))
 
     def test_missing_runtime_requests_exact_build_and_rechecks_installed_identity(self):
         runner = Runner([{"runtimes": []}, {"runtimes": [RUNTIME]}])
@@ -71,8 +76,8 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(runner.commands[1], (["xcodebuild", "-downloadPlatform", "iOS",
                          "-buildVersion", "23F77", "-architectureVariant", "arm64"], 360))
         self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "list", "runtimes", "--json"])
-        self.assertEqual(sum(timeout for _, timeout in runner.commands), 730)
-        self.assertLess(sum(timeout for _, timeout in runner.commands), 15 * 60)
+        self.assertEqual(sum(timeout for _, timeout in runner.commands), 1330)
+        self.assertLess(sum(timeout for _, timeout in runner.commands), 25 * 60)
 
     def test_wrong_or_unavailable_runtime_never_falls_back_to_latest(self):
         for key, value in [("identifier", "com.apple.CoreSimulator.SimRuntime.iOS-27-2"),
@@ -133,7 +138,22 @@ class QualificationTests(unittest.TestCase):
                 runner = Runner(device=device)
                 with self.assertRaises(ValueError):
                     self.prepare(runner)
+                self.assertEqual(len(runner.commands), 3)
+
+    def test_cache_failure_or_timeout_prevents_device_creation_and_boot(self):
+        for failure in [subprocess.CalledProcessError(1, ["xcrun"]),
+                        subprocess.TimeoutExpired(["xcrun"], 600)]:
+            with self.subTest(failure=type(failure)):
+                runner = Runner()
+                def fail_cache(args, **kwargs):
+                    if args[:4] == ["xcrun", "simctl", "runtime", "dyld_shared_cache"]:
+                        runner.commands.append((args, kwargs["timeout"]))
+                        raise failure
+                    return runner(args, **kwargs)
+                with self.assertRaises(type(failure)):
+                    self.prepare(fail_cache)
                 self.assertEqual(len(runner.commands), 2)
+                self.assertFalse(any(c[0][2] in ["create", "bootstatus"] for c in runner.commands))
 
     def test_command_failures_propagate_without_alternate_destination(self):
         for error in [subprocess.CalledProcessError(1, ["xcrun"]),
@@ -192,6 +212,23 @@ class QualificationTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "failed")
             self.assertEqual(len(receipt["boot_diagnostic_tail"]), 8000)
             self.assertTrue(receipt["boot_diagnostic_tail"].endswith("Waiting for boot readiness"))
+
+    def test_cache_timeout_retains_bounded_progress_without_passing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "qualification.json"
+            failure = subprocess.TimeoutExpired(
+                ["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", simulator.RUNTIME],
+                600, output=b"x" * 9000 + b"Preparing runtime cache")
+            with patch("sys.argv", ["prepare", "--evidence", str(evidence)]), \
+                    patch.object(simulator, "prepare", side_effect=failure):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    simulator.main()
+            receipt = json.loads(evidence.read_text())
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(receipt["status"], "failed")
+            self.assertEqual(len(receipt["runtime_cache_diagnostic_tail"]), 8000)
+            self.assertTrue(receipt["runtime_cache_diagnostic_tail"].endswith("Preparing runtime cache"))
+            self.assertNotIn("boot_diagnostic_tail", receipt)
 
 
 if __name__ == "__main__":

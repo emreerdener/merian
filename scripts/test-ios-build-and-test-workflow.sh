@@ -378,10 +378,10 @@ awk '
   in_unit_step && /^        timeout-minutes:/ { unit_timeout = $2 }
   in_simulator_step && /^        timeout-minutes:/ { simulator_timeout = $2 }
   END {
-    exit !(unit_timeout == 120 && simulator_timeout == 15 && job_timeout == 180)
+    exit !(unit_timeout == 120 && simulator_timeout == 25 && job_timeout == 190)
   }
 ' "$workflow" \
-  || fail "Full iOS tests require a 120-minute step, 15-minute simulator preparation, and a 180-minute job budget."
+  || fail "Full iOS tests require a 120-minute step, 25-minute simulator preparation, and a 190-minute job budget."
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
 assert_count 3 "runs-on: xcode-27"
 assert_count 3 "/Applications/Xcode_27.0.app/Contents/Developer"
