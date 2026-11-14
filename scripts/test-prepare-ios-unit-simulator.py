@@ -272,6 +272,120 @@ class QualificationTests(unittest.TestCase):
 class IdentityProcessTests(unittest.TestCase):
     arguments = ["xcrun", "simctl", "getenv", DEVICE, "SIMULATOR_RUNTIME_VERSION"]
 
+    def test_spawn_probe_is_failure_only_and_never_retries_or_qualifies(self):
+        for key in simulator.EXPECTED_ENVIRONMENT:
+            for outcome in ("passed", "timeout", "nonzero", "unavailable"):
+                runner = Runner()
+                failure = simulator.IdentityQueryTimeout(
+                    ["xcrun", "simctl", "getenv", DEVICE, key], 30, {"identity_key": key})
+                def run(args, **kwargs):
+                    value = runner(args, **kwargs)
+                    if args[:3] == ["xcrun", "simctl", "getenv"] and args[-1] == key:
+                        raise failure
+                    return value
+                with self.subTest(key=key, outcome=outcome), tempfile.TemporaryDirectory() as directory:
+                    evidence = Path(directory) / "qualification.json"
+                    original = simulator.prepare
+                    with patch.object(simulator, "post_boot_spawn", return_value={"outcome": outcome}) as probe, \
+                            patch.object(simulator, "prepare", side_effect=lambda: original(
+                                run=run, environment=HOST, machine="arm64")), \
+                            patch("sys.argv", ["prepare", "--evidence", str(evidence)]):
+                        with self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                            simulator.main()
+                    self.assertIs(raised.exception, failure)
+                    receipt = json.loads(evidence.read_text())
+                    self.assertFalse(receipt["qualified"])
+                    self.assertEqual(receipt["status"], "failed")
+                    self.assertEqual([(p["phase"], p["outcome"]) for p in receipt["phase_diagnostics"]],
+                                     [("runtime_cache_update", "passed"), ("bootstatus", "passed")])
+                    self.assertTrue(all(p["elapsed_ms"] >= 0 for p in receipt["phase_diagnostics"]))
+                    reads = [a[-1] for a, _ in runner.commands if a[:3] == ["xcrun", "simctl", "getenv"]]
+                    self.assertEqual(reads, list(simulator.EXPECTED_ENVIRONMENT)[:reads.index(key) + 1])
+                    if key == "SIMULATOR_RUNTIME_VERSION":
+                        probe.assert_called_once_with(DEVICE)
+                        self.assertEqual(receipt["identity_query_diagnostics"]["post_boot_spawn"]["outcome"], outcome)
+                    else:
+                        probe.assert_not_called()
+
+    def test_success_never_probes_and_phase_evidence_has_no_output(self):
+        with patch.object(simulator, "post_boot_spawn") as probe:
+            receipt = simulator.prepare(run=Runner(), environment=HOST, machine="arm64")
+        probe.assert_not_called()
+        self.assertTrue(receipt["qualified"])
+        for phase in receipt["phase_diagnostics"]:
+            self.assertEqual(set(phase), {"phase", "outcome", "elapsed_ms"})
+
+    def test_spawn_diagnostic_bounds_and_discards_both_output_streams(self):
+        for code in (0, 1):
+            process = Mock()
+            process.wait.return_value = code
+            with patch.object(simulator.subprocess, "Popen", return_value=process) as popen:
+                result = simulator.post_boot_spawn(DEVICE)
+            popen.assert_called_once_with(["xcrun", "simctl", "spawn", DEVICE, "/usr/bin/true"],
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process.wait.assert_called_once_with(timeout=10)
+            process.kill.assert_not_called()
+            self.assertEqual(result["outcome"], "passed" if code == 0 else "nonzero")
+            self.assertEqual(result["returncode"], code)
+            self.assertTrue(result["direct_process_reaped"])
+
+    def test_spawn_timeout_reaps_only_direct_process_with_bounded_cleanup(self):
+        for reaped in (True, False):
+            process = Mock()
+            process.poll.return_value = None
+            process.wait.side_effect = [subprocess.TimeoutExpired(["probe"], 10),
+                                        -9 if reaped else subprocess.TimeoutExpired(["probe"], 5)]
+            with patch.object(simulator.subprocess, "Popen", return_value=process):
+                result = simulator.post_boot_spawn(DEVICE)
+            self.assertEqual(result["outcome"], "timeout")
+            self.assertTrue(result["direct_process_running_at_timeout"])
+            self.assertEqual(result["direct_process_reaped"], reaped)
+            self.assertEqual(process.wait.call_args_list, [call(timeout=10), call(timeout=5)])
+            process.kill.assert_called_once_with()
+
+    def test_probe_launch_error_has_no_raw_error_or_environment(self):
+        for error in (OSError, RuntimeError, ValueError):
+            with self.subTest(error=error), patch.object(
+                    simulator.subprocess, "Popen", side_effect=error("private-sentinel")):
+                result = simulator.post_boot_spawn(DEVICE)
+            self.assertEqual(result["outcome"], "unavailable")
+            self.assertNotIn("private-sentinel", json.dumps(result))
+
+    def test_unexpected_probe_error_preserves_original_identity_timeout_receipt(self):
+        runner = Runner()
+        failure = simulator.IdentityQueryTimeout(self.arguments, 30,
+                                                 {"identity_key": "SIMULATOR_RUNTIME_VERSION"})
+        def run(args, **kwargs):
+            if args == self.arguments:
+                raise failure
+            return runner(args, **kwargs)
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "qualification.json"
+            original = simulator.prepare
+            with patch.object(simulator.subprocess, "Popen", side_effect=RuntimeError("private-sentinel")), \
+                    patch.object(simulator, "prepare", side_effect=lambda: original(
+                        run=run, environment=HOST, machine="arm64")), \
+                    patch("sys.argv", ["prepare", "--evidence", str(evidence)]):
+                with self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                    simulator.main()
+            self.assertIs(raised.exception, failure)
+            receipt = json.loads(evidence.read_text())
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(receipt["identity_query_diagnostics"]["post_boot_spawn"]["outcome"], "unavailable")
+            self.assertNotIn("private-sentinel", evidence.read_text())
+
+    def test_phase_failure_retains_only_bounded_metadata_and_stops(self):
+        runner = Runner()
+        def fail(args, **kwargs):
+            if args[:3] == ["xcrun", "simctl", "bootstatus"]:
+                raise subprocess.TimeoutExpired(args, 300)
+            return runner(args, **kwargs)
+        with patch.object(simulator, "post_boot_spawn") as probe, self.assertRaises(subprocess.TimeoutExpired) as raised:
+            simulator.prepare(run=fail, environment=HOST, machine="arm64")
+        probe.assert_not_called()
+        self.assertEqual(raised.exception.phase_diagnostics[-1]["outcome"], "failed")
+        self.assertEqual(raised.exception.phase_diagnostics[-1]["phase"], "bootstatus")
+
     def process(self, raw, *, returncode=0, timeout=False, reap=True, running=True):
         process = Mock()
         process.poll.return_value = None if running else returncode

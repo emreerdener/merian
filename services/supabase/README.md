@@ -700,7 +700,12 @@ applied prefix with the remaining reviewed suffix missing, and every candidate
 SQL digest must remain intact. Failure logs expose closed reason codes without
 driver errors or credentials. The separate
 `scripts/test_migration_recovery_replay.sh` exercises both delayed orders on
-private disposable databases before the ordinary candidate replay. Follow the
+private disposable databases before the ordinary candidate replay. The Explore
+catalog wrapper verifies its owned local container and suspends only its
+accounting cron, checks it is idle, runs all three unchanged catalogs, then
+restores and verifies the original active state even on fixture failure. Busy or
+ambiguous cron state fails before fixtures; it never cancels a running job or
+accepts a hosted connection. Follow the
 [reviewed recovery contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#reviewed-out-of-order-migration-recovery);
 this is not a general authorization to use `--include-all` or repair history.
 

@@ -553,7 +553,16 @@ under the existing Production concurrency lock and exact-current-main controls.
 histories in private disposable databases, verifies that ordinary push refuses
 the gaps, applies the approved recovery, and checks normal mode afterward. The
 Explore scenario runs report-visibility, invocation-accounting, and privileged
-routine catalogs. The history scenario runs Gemini assignment, history, reader,
+routine catalogs. Its `run_recovery_catalogs.py` wrapper verifies the generated
+local project, Unix Docker endpoint, fixed recovery port, and immutable running
+container identity before changing only that disposable database's
+`reconcile_identification_usage` cron job. It records the exact job and active
+state, suspends it, verifies suspension and no unfinished cron run, and restores
+and verifies the original state in `finally`, including fixture failure, before
+database cleanup. This prevents background accounting writes from racing the
+accounting fixture's test-trigger DDL; direct reconciler calls and all three
+catalogs remain required. An unknown or busy job fails before fixtures, without
+cancelling it. The history scenario runs Gemini assignment, history, reader,
 append, evidence, funding, protected-analysis, and privileged-routine catalogs
 to prove the delayed order preserves the deployed photo policy and closed
 rollout defaults. Candidate Validation runs both regressions in addition to

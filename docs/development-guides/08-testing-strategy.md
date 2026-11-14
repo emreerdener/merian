@@ -1756,12 +1756,24 @@ HTTP request is dispatched. See the
    identity, with a 64-byte output limit. Timeout diagnostics retain only the
    key, direct-process status, output-presence/exact-match booleans and cleanup
    outcome; partial output never qualifies the device. Cleanup kills only the
-   query process and allows at most five seconds to reap it. Helper command
-   maxima total 1,390 seconds, or 1,395 including timeout cleanup, within the
-   unchanged 25-minute step. Cache or boot timeouts retain bounded command
-   progress in the non-passing failure receipt. UI and startup jobs retain their
-   current simulator selection. The build/inventory job has a 95-minute bound;
-   each shard has a 240-minute test step inside a 330-minute job, and aggregate
+   query process and allows at most five seconds to reap it. Only after the
+   first identity query times out, a failure-only
+   `simctl spawn <owned-UDID>
+   /usr/bin/true` diagnostic checks process
+   dispatch without `-s`. It discards both output streams, waits at most ten
+   seconds, and allows five seconds to reap only its own process. Its outcome,
+   duration, return code and cleanup flags supplement the original failed
+   identity receipt; even a successful probe never retries or qualifies
+   identity. Cache-update and boot phases retain only outcome and elapsed
+   milliseconds alongside existing failure diagnostics. This adds evidence to
+   distinguish dispatch from environment query failure, not a proven readiness
+   fix. Because the first-query failure skips the remaining two 30-second
+   queries, the diagnostic fits inside the existing bound. Helper command maxima
+   total 1,390 seconds, or 1,395 including timeout cleanup, within the unchanged
+   25-minute step. Cache or boot timeouts retain bounded command progress in the
+   non-passing failure receipt. UI and startup jobs retain their current
+   simulator selection. The build/inventory job has a 95-minute bound; each
+   shard has a 240-minute test step inside a 330-minute job, and aggregate
    reconciliation has fifteen minutes. The previous single-process 120-minute
    run 43615068314 timed out while executing cases; a partial log is not a pass.
    These budgets bound execution rather than assert performance. At most four

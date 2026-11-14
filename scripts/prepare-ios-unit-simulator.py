@@ -8,6 +8,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -24,6 +25,7 @@ EXPECTED_ENVIRONMENT = {
 }
 IDENTITY_OUTPUT_LIMIT = 64
 IDENTITY_CLEANUP_TIMEOUT = 5
+SPAWN_DIAGNOSTIC_TIMEOUT = 10
 
 
 class IdentityQueryTimeout(subprocess.TimeoutExpired):
@@ -40,6 +42,33 @@ def reap_identity_process(process):
         return True
     except (OSError, subprocess.TimeoutExpired):
         return False
+
+
+def post_boot_spawn(device):
+    """Failure-only dispatch evidence; never qualifies identity or retries it."""
+    started = time.monotonic()
+    result = {"outcome": "unavailable", "direct_process_reaped": False}
+    try:
+        # Do not use -s: that skips the booted device's bootstrap context.
+        process = subprocess.Popen(["xcrun", "simctl", "spawn", device, "/usr/bin/true"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            code = process.wait(timeout=SPAWN_DIAGNOSTIC_TIMEOUT)
+            result.update(outcome="passed" if code == 0 else "nonzero",
+                          returncode=code, direct_process_reaped=True)
+        except subprocess.TimeoutExpired:
+            code = process.poll()
+            result.update(outcome="timeout", returncode=code,
+                          direct_process_running_at_timeout=code is None,
+                          direct_process_reaped=reap_identity_process(process))
+        except BaseException:
+            reap_identity_process(process)
+            raise
+    except Exception:
+        # Diagnostic failure cannot replace the original qualification failure.
+        pass
+    result["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+    return result
 
 
 def identity_query(arguments, timeout):
@@ -123,6 +152,22 @@ def prepare(*, run=command, environment=None, machine=None):
     def inventory():
         return json.loads(run(["xcrun", "simctl", "list", "runtimes", "--json"], timeout=10))
 
+    phases = []
+
+    def phase(name, arguments, timeout):
+        started = time.monotonic()
+        receipt = {"phase": name, "outcome": "failed"}
+        phases.append(receipt)
+        try:
+            output = run(arguments, timeout=timeout)
+            receipt["outcome"] = "passed"
+            return output
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            error.phase_diagnostics = phases
+            raise
+        finally:
+            receipt["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+
     runtime = qualified_runtime(inventory())
     if runtime is None:
         # Request the exact build, not the release number (which can select a
@@ -140,18 +185,26 @@ def prepare(*, run=command, environment=None, machine=None):
 
     # Wait for Apple's runtime cache preparation before starting first boot.
     # Scope this to the verified runtime; never force rebuild or update all runtimes.
-    output = run(["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", RUNTIME], timeout=600)
+    output = phase("runtime_cache_update",
+                   ["xcrun", "simctl", "runtime", "dyld_shared_cache", "update", RUNTIME], 600)
     print(output, file=sys.stderr)
 
     # Own a new device on this disposable runner instead of borrowing one by name.
     device = run(["xcrun", "simctl", "create", "Merian measured unit tests", DEVICE_TYPE, RUNTIME], timeout=20)
     if str(uuid.UUID(device)).upper() != device.upper():
         raise ValueError("Simulator creation returned an invalid device identifier.")
-    run(["xcrun", "simctl", "bootstatus", device, "-b"], timeout=300)
+    phase("bootstatus", ["xcrun", "simctl", "bootstatus", device, "-b"], 300)
     # A newly booted hosted simulator can still be starting its query service.
     # Bound each exact read; a timeout still fails qualification without retry.
-    observed = {key: run(["xcrun", "simctl", "getenv", device, key], timeout=30)
-                for key in EXPECTED_ENVIRONMENT}
+    try:
+        observed = {key: run(["xcrun", "simctl", "getenv", device, key], timeout=30)
+                    for key in EXPECTED_ENVIRONMENT}
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        error.phase_diagnostics = phases
+        if (isinstance(error, IdentityQueryTimeout)
+                and error.diagnostics.get("identity_key") == "SIMULATOR_RUNTIME_VERSION"):
+            error.diagnostics["post_boot_spawn"] = post_boot_spawn(device)
+        raise
     if observed != EXPECTED_ENVIRONMENT:
         raise ValueError("Booted simulator identity does not match the measured-transfer qualification: "
                          + json.dumps(observed, sort_keys=True))
@@ -165,6 +218,7 @@ def prepare(*, run=command, environment=None, machine=None):
         "runtime_cache_ready": True,
         "simulator_destination": f"platform=iOS Simulator,id={device}",
         "observed_environment": observed,
+        "phase_diagnostics": phases,
     }
 
 
@@ -181,6 +235,8 @@ def main():
         result = prepare()
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         result.update(status="failed", failure=str(error))
+        if hasattr(error, "phase_diagnostics"):
+            result["phase_diagnostics"] = error.phase_diagnostics
         if isinstance(error, IdentityQueryTimeout):
             result["identity_query_diagnostics"] = error.diagnostics
         if (isinstance(error, subprocess.TimeoutExpired)

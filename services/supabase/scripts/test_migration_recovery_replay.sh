@@ -28,8 +28,9 @@ run_recovery() {
   local scenario="$1" tip="$2" missing_versions="$3"
   shift 3
   recovery_workdir="$(mktemp -d "${TMPDIR:-/tmp}/merian-migration-recovery.XXXXXX")"
+  local recovery_project="merian-migration-recovery-$$-$scenario"
   mkdir -p "$recovery_workdir/supabase/migrations"
-  sed -e "s/^project_id = .*/project_id = \"merian-migration-recovery-$$-$scenario\"/" \
+  sed -e "s/^project_id = .*/project_id = \"$recovery_project\"/" \
     -e 's/5432/5543/g' \
     services/supabase/config.toml > "$recovery_workdir/supabase/config.toml"
   for migration in services/supabase/migrations/*.sql; do
@@ -59,8 +60,16 @@ run_recovery() {
   for fixture in "$@"; do
     fixtures+=("$recovery_repository_root/services/supabase/tests/$fixture.sql")
   done
-  supabase --workdir "$recovery_workdir" test db --local "${fixtures[@]}" \
-    2>&1 | tee "$recovery_output"
+  if [ "$scenario" = explore ]; then
+    # This wrapper restores the exact cron state in finally, including a fixture
+    # failure, before this shell's EXIT trap stops the private database.
+    python3 -B "$recovery_script_dir/run_recovery_catalogs.py" \
+      --workdir "$recovery_workdir" --project "$recovery_project" \
+      2>&1 | tee "$recovery_output"
+  else
+    supabase --workdir "$recovery_workdir" test db --local "${fixtures[@]}" \
+      2>&1 | tee "$recovery_output"
+  fi
   grep -Eq "^Files=${#fixtures[@]}, Tests=[1-9][0-9]*," "$recovery_output"
   grep -Eq '^Result: PASS[[:space:]]*$' "$recovery_output"
   cleanup
