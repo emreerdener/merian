@@ -1745,7 +1745,9 @@ HTTP request is dispatched. See the
    five-minute cold-boot allowance. The cache command uses the verified runtime
    identifier, never `--all`, `--force`, a retry, or warn-and-continue behavior.
    Cache readiness does not qualify the simulator without subsequent boot and
-   identity proof. Helper command maxima total 1,330 seconds; cache or boot
+   identity proof. Each of the three sequential identity reads has a 30-second
+   deadline and fails closed without retry on timeout. Helper command maxima
+   total 1,390 seconds within the unchanged 25-minute step; cache or boot
    timeouts retain bounded command progress in the non-passing failure receipt.
    UI and startup jobs retain their current simulator selection. The complete
    unit-test step has a 120-minute limit: the expanded serial suite was still

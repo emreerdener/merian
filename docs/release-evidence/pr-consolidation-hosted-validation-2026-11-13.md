@@ -223,3 +223,65 @@ both obsolete versions are absent and the planner returns `normal`. The
 deployment-baseline resolver still identifies `c435ea8`, and the function plan
 remains exactly 125 functions. No main, beta or production-domain change has
 occurred. PR 150 and History's active checkout remain separate.
+
+## Fifth approved replacement and bounded identity queries
+
+The user approved `2bde1d57d777435a0011b5b3abae931e26ca24e5`, published after
+both Vercel holds and Production checks were verified again. Exact-SHA manual
+unit job 132489999411 (run 43608984201) and PR unit job 132490266510 (run
+43608950244) both installed `23F77`, completed runtime cache preparation and
+returned successfully from the 300-second boot check. Both then exceeded the
+10-second deadline on the first `SIMULATOR_RUNTIME_VERSION` environment query.
+Artifacts 14119559763 and 14120936884 retain the non-passing receipts. Neither
+unit job compiled or executed the app tests. This confirms a repeated query
+availability timeout, not an observed identity mismatch; its underlying runner
+service cause remains unproved.
+
+The next local repair gives each of the three sequential `simctl getenv` reads
+30 seconds. It still requires the exact values from the owned simulator and
+stops on any timeout, command error, missing value or mismatch, without retry or
+fallback. The helper command maxima become 1,390 seconds within the existing
+25-minute preparation step. Cache, boot, compilation, full-test and enclosing
+job limits remain unchanged. Portable tests cover each timed-out identity read,
+the non-passing receipt, no later query or retry, and the aggregate time budget.
+The larger query allowance is a bounded mitigation, not a proven hosted fix.
+
+The exact-SHA manual UI lane passed all six required cases and its Release
+archive passed structure, embedded-product, privacy-manifest and dSYM checks. PR
+startup/migration safety and both package quality checks also passed. The PR
+backend run 43608950265 separately failed C1's
+`prove_three_admitted_counter_topology` assertion; its fixture admission steps
+passed, but the aggregate failure alone does not identify which topology
+predicate differed. Artifact 14120368722 is retained for independent review. The
+manual exact-SHA backend run 43608981701 passed its complete C1 stage and is
+continuing private-handoff qualification at this checkpoint. That comparison
+does not clear the PR failure or qualify a replacement source.
+
+Independent source review found that `counter-images` requires three admissions
+to share the same minute-based quota windows but did not establish that fixture
+precondition. The failed PR fixture ran across 15:48:00 UTC. This is consistent
+with a window rollover, but the retained aggregate assertion cannot prove that
+was this failure's cause. The companion `counter-order` suite already has a
+bounded, sampled precondition for the same assumption. The local repair shares
+that existing helper and database sampler with `counter-images`: verify the
+60-second user/IP policy and daily counter, require 50 seconds of usable runway,
+allow at most one wait/resample within 55 seconds, then admit the three scans.
+No admission is retried and no clock, policy, production SQL or assertion is
+changed. Precondition failure closes the fixture before any admission. Portable
+tests cover that ordering, failure cleanup, read-only bounded sampling, and the
+existing near-boundary and midnight cases. C1's retained source manifest also
+fingerprints the shared helper. Fresh disposable-database C1 qualification
+remains required; this preparation does not clear the failure.
+
+Main, beta and both production domains remain unchanged; replacement-SHA
+approval and every new exact-SHA prerequisite remain required before publication
+and release.
+
+Local validation passed the complete portable iOS tooling target, complete
+Supabase tooling target, 19 simulator-qualification tests, 14 deterministic
+counter-window tests, 27 workflow-security tests, recursive Supabase formatting
+and changed Markdown formatting. Independent reviews found no remaining
+actionable issue after the shared helper was added to the source manifest. No
+local simulator or database was used for these repairs. Hosted native
+qualification, complete unit execution and fresh-database backend validation
+remain unproved for the replacement.

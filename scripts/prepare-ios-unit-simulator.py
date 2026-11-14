@@ -83,7 +83,9 @@ def prepare(*, run=command, environment=None, machine=None):
     if str(uuid.UUID(device)).upper() != device.upper():
         raise ValueError("Simulator creation returned an invalid device identifier.")
     run(["xcrun", "simctl", "bootstatus", device, "-b"], timeout=300)
-    observed = {key: run(["xcrun", "simctl", "getenv", device, key], timeout=10)
+    # A newly booted hosted simulator can still be starting its query service.
+    # Bound each exact read; a timeout still fails qualification without retry.
+    observed = {key: run(["xcrun", "simctl", "getenv", device, key], timeout=30)
                 for key in EXPECTED_ENVIRONMENT}
     if observed != EXPECTED_ENVIRONMENT:
         raise ValueError("Booted simulator identity does not match the measured-transfer qualification: "

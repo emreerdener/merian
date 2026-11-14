@@ -76,7 +76,7 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(runner.commands[1], (["xcodebuild", "-downloadPlatform", "iOS",
                          "-buildVersion", "23F77", "-architectureVariant", "arm64"], 360))
         self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "list", "runtimes", "--json"])
-        self.assertEqual(sum(timeout for _, timeout in runner.commands), 1330)
+        self.assertEqual(sum(timeout for _, timeout in runner.commands), 1390)
         self.assertLess(sum(timeout for _, timeout in runner.commands), 25 * 60)
 
     def test_wrong_or_unavailable_runtime_never_falls_back_to_latest(self):
@@ -116,6 +116,42 @@ class QualificationTests(unittest.TestCase):
                     observed = dict(simulator.EXPECTED_ENVIRONMENT, **{key: value})
                     with self.assertRaisesRegex(ValueError, "Booted simulator identity"):
                         self.prepare(Runner(observed=observed))
+
+    def test_identity_reads_use_owned_device_and_bounded_sequential_queries(self):
+        runner = Runner()
+        self.prepare(runner)
+        queries = [(args, timeout) for args, timeout in runner.commands
+                   if args[:3] == ["xcrun", "simctl", "getenv"]]
+        self.assertEqual(queries, [(["xcrun", "simctl", "getenv", DEVICE, key], 30)
+                                   for key in simulator.EXPECTED_ENVIRONMENT])
+
+    def test_each_identity_timeout_stops_without_retry_and_retains_failed_receipt(self):
+        keys = list(simulator.EXPECTED_ENVIRONMENT)
+        for index, key in enumerate(keys):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+                runner = Runner()
+                def timeout_identity(args, **kwargs):
+                    if args == ["xcrun", "simctl", "getenv", DEVICE, key]:
+                        runner.commands.append((args, kwargs["timeout"]))
+                        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+                    return runner(args, **kwargs)
+                evidence = Path(directory) / "qualification.json"
+                original = simulator.prepare
+                with patch("sys.argv", ["prepare", "--evidence", str(evidence)]), \
+                        patch.object(simulator, "prepare", side_effect=lambda: original(
+                            run=timeout_identity, environment=HOST, machine="arm64")):
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        simulator.main()
+                queries = [(args, timeout) for args, timeout in runner.commands
+                           if args[:3] == ["xcrun", "simctl", "getenv"]]
+                self.assertEqual(queries, [(["xcrun", "simctl", "getenv", DEVICE, name], 30)
+                                           for name in keys[:index + 1]])
+                receipt = json.loads(evidence.read_text())
+                self.assertFalse(receipt["qualified"])
+                self.assertEqual(receipt["status"], "failed")
+                self.assertNotIn("runtime_cache_ready", receipt)
+                self.assertNotIn("observed_environment", receipt)
+                self.assertIn("timed out after 30 seconds", receipt["failure"])
 
     def test_local_self_hosted_and_wrong_architecture_are_refused_without_commands(self):
         for environment, machine in [({}, "arm64"), (dict(HOST, RUNNER_ENVIRONMENT="self-hosted"), "arm64"),
