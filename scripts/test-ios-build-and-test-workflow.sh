@@ -356,6 +356,11 @@ assert_no_runner_context_in_job_env() {
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
 assert_contains "    name: Full iOS unit tests"
+assert_count 1 'name: Prepare qualified unit-test simulator'
+assert_count 1 'python3 -B scripts/prepare-ios-unit-simulator.py'
+assert_count 2 'ios-unit-simulator-qualification.json'
+assert_before 'name: Prepare qualified unit-test simulator' 'name: Compile app, unit, and performance test targets'
+assert_file_contains "$repo_root/Makefile" 'python3 -B scripts/test-prepare-ios-unit-simulator.py'
 # Keep the complete serial target bounded without restoring the deadline that
 # interrupted healthy execution. Reserve job time for package resolution,
 # compilation and evidence collection as well; UI has its own job budget.
@@ -363,16 +368,20 @@ awk '
   /^  ios-unit-tests:$/ { in_unit_job = 1; next }
   in_unit_job && /^  [A-Za-z0-9_-]+:$/ { in_unit_job = 0 }
   in_unit_job && /^    timeout-minutes:/ { job_timeout = $2 }
-  in_unit_job && /^      - name:/ { in_unit_step = 0 }
+  in_unit_job && /^      - name:/ { in_unit_step = 0; in_simulator_step = 0 }
+  in_unit_job && /^      - name: Prepare qualified unit-test simulator$/ {
+    in_simulator_step = 1
+  }
   in_unit_job && /^      - name: Run complete unit-test target$/ {
     in_unit_step = 1
   }
   in_unit_step && /^        timeout-minutes:/ { unit_timeout = $2 }
+  in_simulator_step && /^        timeout-minutes:/ { simulator_timeout = $2 }
   END {
-    exit !(unit_timeout == 120 && job_timeout == 165)
+    exit !(unit_timeout == 120 && simulator_timeout == 10 && job_timeout == 175)
   }
 ' "$workflow" \
-  || fail "Full iOS tests require a 120-minute step and a 165-minute job budget."
+  || fail "Full iOS tests require a 120-minute step and a 175-minute job budget."
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
 assert_count 3 "runs-on: xcode-27"
 assert_count 3 "/Applications/Xcode_27.0.app/Contents/Developer"

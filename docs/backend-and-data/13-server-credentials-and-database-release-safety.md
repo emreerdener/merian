@@ -622,7 +622,7 @@ ad-hoc repair SQL merely to turn a monitor green.
   `run_number` or the exact archive SHA, preventing a rerun from overwriting
   evidence from an earlier attempt.
 - Jobs have a timeout of at most 120 minutes, except the validation-only
-  `ios-unit-tests` job in `ios-build-and-test.yml`, bounded at 165 minutes for
+  `ios-unit-tests` job in `ios-build-and-test.yml`, bounded at 175 minutes for
   the complete serial target and its build/evidence stages. Its unit execution
   remains bounded at 120 minutes. Production jobs and all other native jobs
   retain the common cap; the workflow security contract scopes this exception to

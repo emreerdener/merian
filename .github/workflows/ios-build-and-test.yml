@@ -59,7 +59,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: xcode-27
-    timeout-minutes: 165
+    timeout-minutes: 175
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -168,10 +168,12 @@ jobs:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
-      - name: Select current iOS simulator
+      - name: Prepare qualified unit-test simulator
         id: ios-test-simulator
+        timeout-minutes: 10
         run: |
-          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          destination="$(python3 -B scripts/prepare-ios-unit-simulator.py \
+            --evidence "$RUNNER_TEMP/ios-unit-simulator-qualification.json")"
           echo "destination=${destination}" >> "$GITHUB_OUTPUT"
           echo "Selected ${destination}"
 
@@ -322,6 +324,7 @@ jobs:
             ${{ runner.temp }}/ios-unit-test-summary.json
             ${{ runner.temp }}/ios-unit-test-tree.json
             ${{ runner.temp }}/ios-unit-xcode-version.txt
+            ${{ runner.temp }}/ios-unit-simulator-qualification.json
           if-no-files-found: warn
           retention-days: 14
 

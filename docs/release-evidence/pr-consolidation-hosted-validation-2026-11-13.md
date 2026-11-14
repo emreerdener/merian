@@ -87,3 +87,56 @@ is not a new incremental-release requirement; its historical completion record
 was not located and is not claimed by this checkpoint. No ad-hoc production
 fault tests or cleanup are authorized. Main, beta and both production domains
 have not been changed by this operation, and PR 150 remains separate.
+
+## Second approved replacement and simulator qualification repair
+
+The user approved `936f1d72e246c621ae1ac31be5cad9205e6fbfcb` and it was
+published to PR 152 under the same gated packet. Exact-SHA backend dispatch
+43559253813 passed all three jobs, including Candidate readiness, retaining the
+same-attempt C1 and private-handoff artifacts. The checked-in reuse resolver
+returned `exact_candidate_verified`. Its native dispatch 43559255692 passed all
+six UI smokes without skips and the unsigned Release archive. Web, admin,
+startup, project guardrails, Markdown and Agent Quality checks also passed.
+
+The still-running full native unit job reported two failures at
+`CaptureNativePhotoRoleAllocationTests.swift:309`: the `accepted` cases in
+`freshCaptureSendsOneFrozenSourceAndFencesChanges` and
+`firstOriginalPutChecksExactProgressOnce` both observed no `completedRoles`.
+Their retained V13 state has an authenticated role-progress receipt, but no
+measured-transfer retirement callback. Independent review traced that callback
+to the unchanged exact simulator qualification in `PinnedNetworkTransport`:
+arm64, iOS 26.5 / `23F77` / `iPhone18,1`. The generic CI selector instead chose
+the current simulator. The same dispatch's UI evidence identifies that
+destination as iPhone 18 Pro, iOS 27.2 build `24B8117`. These are substantive
+failed assertions, not a new timeout pass or a flaky-test exemption.
+
+The local repair prepares and verifies the existing qualified simulator before
+the full unit lane, with a bounded Apple runtime installation when needed. It
+refuses local/self-hosted execution, runtime/build/model mismatches and injected
+simulator identity. It preserves the app's measured-transfer safety fence, all
+tests, the pinned compiler, production job limits and the 120-minute native test
+budget. The unit validation job grows from 165 to 175 minutes to retain ten
+minutes for other setup and evidence after the new ten-minute qualification
+step. Its helper command budgets total at most 550 seconds, below that step's
+deadline. The exact-job security exception and workflow budget contracts move
+together. A non-passing qualification receipt is retained on setup failure or
+interruption. Portable adversarial tests cover selection and refusal paths;
+hosted installation and complete native validation remain required. This repair
+needs a new exact-SHA approval before publication. The running failed candidate
+is retained to collect its remaining diagnostics; no full-unit pass is claimed.
+
+Local repair verification passed the complete portable `test-ios-ci-tooling`
+target, all 14 final simulator-qualification tests, 27 workflow-security tests,
+recursive Edge formatting (1,977 files), changed-test lint, changed Markdown
+formatting and diff checks. Independent review found no remaining actionable
+issue after the budget and failure-evidence corrections. No local app build or
+runtime installation was performed. Backend PR integration 43559231788 also
+passed, but neither backend run clears the native failures or qualifies a future
+replacement SHA.
+
+Fresh read-only inspection 43565069349 still reports 520 beta migrations. The
+candidate contains 522, with only the two approved retimed migrations pending;
+both obsolete versions are absent and the planner returns `normal`. The
+deployment-baseline resolver still identifies `c435ea8`, and the function plan
+remains exactly 125 functions. No main, beta or production-domain change has
+occurred. PR 150 and History's active checkout remain separate.

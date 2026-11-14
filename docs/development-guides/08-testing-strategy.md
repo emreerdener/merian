@@ -1729,19 +1729,31 @@ HTTP request is dispatched. See the
    committed Xcode project was not regenerated. The unit-test selector does not
    select or skip any suite. Xcode process-level parallel testing is disabled
    because several hardware, networking, and persistence suites exercise shared
-   singletons. The complete unit-test step has a 120-minute limit: the expanded
-   serial suite was still executing cases when the 40-minute deadline stopped
-   run 43551818461. That run also reported a separate consumer-contract failure;
-   a larger budget does not clear a failed assertion. The enclosing job has a
-   165-minute limit, covering the 10-minute package resolution, 25-minute
-   compilation, and 120-minute unit tests, with 10 minutes reserved for setup
-   and evidence collection. UI tests run in a separate job so their failures do
-   not wait behind the complete unit suite. The portable workflow contract
-   checks both limits. A timeout still fails the gate; the complete-target
-   selector and result requirements remain unchanged. The result gate fails if
-   Xcode returns success without a `Passed` result, a non-empty test run, zero
-   skipped tests, an exact passed/total count match, and at least one passed
-   test case from each critical concurrency boundary: `CameraManagerTests`,
+   singletons. Before compilation, `prepare-ios-unit-simulator.py` prepares the
+   existing measured-transfer qualification: arm64, iOS 26.5 build `23F77`,
+   iPhone 17 Pro model `iPhone18,1`. On a disposable GitHub-hosted runner only,
+   it requests Apple's iOS 26.5 runtime when absent, independently verifies the
+   installed build and supported device type, creates its own simulator, and
+   reads the three identity variables from the booted device. It never injects
+   those values or falls back to the newest runtime. Installation, identity or
+   boot failure blocks the full unit lane; accepted-transfer cases are not
+   skipped and the transport's drain/measurement fence is unchanged. The
+   qualification receipt is retained with the unit-test artifact. The setup step
+   is bounded at ten minutes within the existing job budget. UI and startup jobs
+   retain their current simulator selection. The complete unit-test step has a
+   120-minute limit: the expanded serial suite was still executing cases when
+   the 40-minute deadline stopped run 43551818461. That run also reported a
+   separate consumer-contract failure; a larger budget does not clear a failed
+   assertion. The enclosing job has a 175-minute limit, covering the 10-minute
+   package resolution, 25-minute compilation, 10-minute simulator qualification,
+   and 120-minute unit tests, with 10 minutes reserved for other setup and
+   evidence collection. UI tests run in a separate job so their failures do not
+   wait behind the complete unit suite. The portable workflow contract checks
+   both limits. A timeout still fails the gate; the complete-target selector and
+   result requirements remain unchanged. The result gate fails if Xcode returns
+   success without a `Passed` result, a non-empty test run, zero skipped tests,
+   an exact passed/total count match, and at least one passed test case from
+   each critical concurrency boundary: `CameraManagerTests`,
    `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    contains exactly one matching passed suite for each critical boundary and
