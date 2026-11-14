@@ -215,9 +215,11 @@ background-account regressions—exact upload-owner retirement, rejected
 inference-dispatch requeue, and retirement after an upload callback advances to
 staged—plus activation-time ingestion-job creation for a legacy scan without
 one. `BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
-ownership, the exact Background Transfer and Media Upload consumer allowlists,
-throwing reads, balanced per-scan persistence fences, dependency exclusions,
-400-line focused-file ceilings, and a 1,600-line non-growth cap on the residual
+ownership, the exact Background Inference, Background Transfer and Media Upload
+consumer allowlists, and the sole Debug-only initial-media History activation
+fixture with its compile-time and launch guards. It also freezes throwing reads,
+balanced per-scan persistence fences, dependency exclusions, 400-line
+focused-file ceilings, and a 1,600-line non-growth cap on the residual
 aggregate.
 
 `InferenceLifecyclePersistenceTests` mirrors claims, retreats, durable

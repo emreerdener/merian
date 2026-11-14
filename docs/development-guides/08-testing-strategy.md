@@ -1729,18 +1729,20 @@ HTTP request is dispatched. See the
    committed Xcode project was not regenerated. The unit-test selector does not
    select or skip any suite. Xcode process-level parallel testing is disabled
    because several hardware, networking, and persistence suites exercise shared
-   singletons. The complete unit-test step has a 40-minute limit: the expanded
-   suite was still making progress when the former 20-minute deadline stopped
-   run 405. The enclosing job has a 90-minute limit, covering the 10-minute
-   package resolution, 25-minute compilation, and 40-minute unit tests, with 15
-   minutes reserved for setup and evidence collection. UI tests run in a
-   separate job so their failures do not wait behind the complete unit suite.
-   The portable workflow contract checks both limits. A timeout still fails the
-   gate; the complete-target selector and result requirements remain unchanged.
-   The result gate fails if Xcode returns success without a `Passed` result, a
-   non-empty test run, zero skipped tests, an exact passed/total count match,
-   and at least one passed test case from each critical concurrency boundary:
-   `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
+   singletons. The complete unit-test step has a 120-minute limit: the expanded
+   serial suite was still executing cases when the 40-minute deadline stopped
+   run 43551818461. That run also reported a separate consumer-contract failure;
+   a larger budget does not clear a failed assertion. The enclosing job has a
+   165-minute limit, covering the 10-minute package resolution, 25-minute
+   compilation, and 120-minute unit tests, with 10 minutes reserved for setup
+   and evidence collection. UI tests run in a separate job so their failures do
+   not wait behind the complete unit suite. The portable workflow contract
+   checks both limits. A timeout still fails the gate; the complete-target
+   selector and result requirements remain unchanged. The result gate fails if
+   Xcode returns success without a `Passed` result, a non-empty test run, zero
+   skipped tests, an exact passed/total count match, and at least one passed
+   test case from each critical concurrency boundary: `CameraManagerTests`,
+   `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    contains exactly one matching passed suite for each critical boundary and
    reports every named scan-flow regression exactly once under exactly one
@@ -6980,7 +6982,9 @@ iOS regression coverage is intentionally joined as well:
   retirement, rejected inference-dispatch requeue, staged callback-race, and
   legacy missing-job activation regressions.
   `BackgroundAccountWorkArchitectureTests` freezes sole declaration and
-  behavior-test ownership, exact Background Transfer and Media Upload consumers,
+  behavior-test ownership, exact Background Inference, Background Transfer and
+  Media Upload consumers, and the single Debug-only initial-media History
+  activation fixture with its compile-time and launch guards. It also freezes
   throwing scan/job reads, balanced per-scan persistence fences, dependency
   exclusions, 400-line focused-file ceilings, and the residual actor's
   non-growth cap.

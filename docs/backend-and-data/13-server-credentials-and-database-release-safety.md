@@ -621,9 +621,13 @@ ad-hoc repair SQL merely to turn a monitor green.
 - Every artifact includes `run_attempt` plus a run-specific identity such as
   `run_number` or the exact archive SHA, preventing a rerun from overwriting
   evidence from an earlier attempt.
-- Every job has a timeout of at most 120 minutes. Deno processes receive only
-  the network, environment, read/write, and subprocess permissions required by
-  that step.
+- Jobs have a timeout of at most 120 minutes, except the validation-only
+  `ios-unit-tests` job in `ios-build-and-test.yml`, bounded at 165 minutes for
+  the complete serial target and its build/evidence stages. Its unit execution
+  remains bounded at 120 minutes. Production jobs and all other native jobs
+  retain the common cap; the workflow security contract scopes this exception to
+  that exact workflow and job. Deno processes receive only the network,
+  environment, read/write, and subprocess permissions required by that step.
 - Aggregate monitors use a 15-second request deadline and 64 KiB response
   ceiling. Scan-media health uses the same deadline and a 2 MiB ceiling.
   Taxonomy import uses a three-minute request deadline and 512 KiB ceiling.

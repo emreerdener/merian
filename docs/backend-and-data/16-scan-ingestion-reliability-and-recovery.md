@@ -4546,8 +4546,10 @@ The focused regression inventory includes:
   `BackgroundAccountWorkArchitectureTests`, covering exact upload-owner
   retirement, rejected inference-dispatch requeue, the staged callback race,
   legacy missing-job activation, sole declaration/test ownership, exact
-  Background Transfer and Media Upload consumers, throwing scan/job reads, and
-  balanced per-scan persistence fences;
+  Background Inference, Background Transfer and Media Upload consumers, the
+  single Debug-only initial-media History activation fixture and its
+  compile-time/launch guards, throwing scan/job reads, and balanced per-scan
+  persistence fences;
 - `InferenceLifecyclePersistenceTests`, `InferenceRetryPersistenceTests`, and
   `InferencePersistenceArchitectureTests`, covering durable inference claims,
   retreats, generation checks, timestamp-fenced orphan release, post-wait

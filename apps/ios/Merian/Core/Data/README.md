@@ -665,9 +665,13 @@ regressions for upload retirement, rejected inference dispatch, and the staged
 upload-callback race, plus the missing-job compatibility case that proves a
 legacy scan still receives a durable ingestion job during activation.
 `BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
-ownership, exact Offline Sync consumers, throwing reads, balanced per-scan
-persistence fences, dependency exclusions, a 400-line focused owner/test
-ceiling, and a 1,600-line residual-aggregate non-growth cap.
+ownership, exact Offline Sync consumers and the single
+`InitialMediaHistoryUISubmission` activation fixture, throwing reads, balanced
+per-scan persistence fences, dependency exclusions, a 400-line focused
+owner/test ceiling, and a 1,600-line residual-aggregate non-growth cap. The
+existing Models integration architecture suite requires the fixture's whole-file
+`DEBUG` guard and explicit UI-test activation guard; production consumers remain
+unchanged.
 
 ## Inference Lifecycle and Retry Persistence
 

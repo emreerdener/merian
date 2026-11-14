@@ -600,7 +600,9 @@ Focused tests mirror the extracted owners:
   rejected inference-dispatch requeue, the staged upload-callback race, and
   activation-time ingestion-job creation for legacy scans without one.
   `BackgroundAccountWorkArchitectureTests` freezes its focused actor extension,
-  exact Background Transfer and Media Upload consumers, throwing SwiftData
+  exact Background Inference, Background Transfer and Media Upload consumers,
+  and the single Debug-only initial-media History activation fixture. It also
+  freezes the fixture's compile-time and launch guards, throwing SwiftData
   reads, balanced per-scan persistence fences, mirrored tests, dependency
   exclusions, and focused/residual size ceilings.
 - `InferenceLifecyclePersistenceTests` covers inference claims and retreats,
