@@ -65,18 +65,18 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "bootstatus", DEVICE, "-b"])
         self.assertEqual([c[0][-1] for c in runner.commands[3:]], list(simulator.EXPECTED_ENVIRONMENT))
 
-    def test_missing_runtime_downloads_requested_version_then_rechecks_exact_build(self):
+    def test_missing_runtime_requests_exact_build_and_rechecks_installed_identity(self):
         runner = Runner([{"runtimes": []}, {"runtimes": [RUNTIME]}])
         self.assertTrue(self.prepare(runner)["qualified"])
         self.assertEqual(runner.commands[1], (["xcodebuild", "-downloadPlatform", "iOS",
-                         "-buildVersion", "26.5", "-architectureVariant", "arm64"], 360))
+                         "-buildVersion", "23F77", "-architectureVariant", "arm64"], 360))
         self.assertEqual(runner.commands[2][0], ["xcrun", "simctl", "list", "runtimes", "--json"])
-        self.assertEqual(sum(timeout for _, timeout in runner.commands), 550)
-        self.assertLess(sum(timeout for _, timeout in runner.commands), 10 * 60)
+        self.assertEqual(sum(timeout for _, timeout in runner.commands), 730)
+        self.assertLess(sum(timeout for _, timeout in runner.commands), 15 * 60)
 
     def test_wrong_or_unavailable_runtime_never_falls_back_to_latest(self):
         for key, value in [("identifier", "com.apple.CoreSimulator.SimRuntime.iOS-27-2"),
-                           ("version", "27.2"), ("buildversion", "23F78"),
+                           ("version", "27.2"), ("buildversion", "23F73"),
                            ("isAvailable", False), ("isAvailable", "true")]:
             with self.subTest(key=key):
                 runtime = dict(RUNTIME, **{key: value})
@@ -177,6 +177,21 @@ class QualificationTests(unittest.TestCase):
             receipt = json.loads(evidence.read_text())
             self.assertFalse(receipt["qualified"])
             self.assertEqual(receipt["status"], "preparing")
+
+    def test_boot_timeout_retains_bounded_progress_without_passing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "qualification.json"
+            failure = subprocess.TimeoutExpired(["xcrun", "simctl", "bootstatus", DEVICE, "-b"],
+                                                300, output=b"x" * 9000 + b"Waiting for boot readiness")
+            with patch("sys.argv", ["prepare", "--evidence", str(evidence)]), \
+                    patch.object(simulator, "prepare", side_effect=failure):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    simulator.main()
+            receipt = json.loads(evidence.read_text())
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(receipt["status"], "failed")
+            self.assertEqual(len(receipt["boot_diagnostic_tail"]), 8000)
+            self.assertTrue(receipt["boot_diagnostic_tail"].endswith("Waiting for boot readiness"))
 
 
 if __name__ == "__main__":

@@ -1732,40 +1732,42 @@ HTTP request is dispatched. See the
    singletons. Before compilation, `prepare-ios-unit-simulator.py` prepares the
    existing measured-transfer qualification: arm64, iOS 26.5 build `23F77`,
    iPhone 17 Pro model `iPhone18,1`. On a disposable GitHub-hosted runner only,
-   it requests Apple's iOS 26.5 runtime when absent, independently verifies the
-   installed build and supported device type, creates its own simulator, and
-   reads the three identity variables from the booted device. It never injects
-   those values or falls back to the newest runtime. Installation, identity or
-   boot failure blocks the full unit lane; accepted-transfer cases are not
-   skipped and the transport's drain/measurement fence is unchanged. The
-   qualification receipt is retained with the unit-test artifact. The setup step
-   is bounded at ten minutes within the existing job budget. UI and startup jobs
-   retain their current simulator selection. The complete unit-test step has a
-   120-minute limit: the expanded serial suite was still executing cases when
-   the 40-minute deadline stopped run 43551818461. That run also reported a
-   separate consumer-contract failure; a larger budget does not clear a failed
-   assertion. The enclosing job has a 175-minute limit, covering the 10-minute
-   package resolution, 25-minute compilation, 10-minute simulator qualification,
-   and 120-minute unit tests, with 10 minutes reserved for other setup and
-   evidence collection. UI tests run in a separate job so their failures do not
-   wait behind the complete unit suite. The portable workflow contract checks
-   both limits. A timeout still fails the gate; the complete-target selector and
-   result requirements remain unchanged. The result gate fails if Xcode returns
-   success without a `Passed` result, a non-empty test run, zero skipped tests,
-   an exact passed/total count match, and at least one passed test case from
-   each critical concurrency boundary: `CameraManagerTests`,
-   `InferenceEngineTests`, `OfflineQueueManagerTests`, and
-   `SyncStateManagerTests`. It also fails closed unless the structured test tree
-   contains exactly one matching passed suite for each critical boundary and
-   reports every named scan-flow regression exactly once under exactly one
-   matching passed suite as `Passed`. A duplicate matching suite, duplicate
-   protected case, or failed-suite/passed-child contradiction is invalid
-   evidence. The current validator protects 98 exact cases. Twenty-seven were
-   added by the joined scan-reliability follow-up. Eleven more form the
-   live-connectivity follow-up: nine engine-level ownership, presentation, and
-   exact-generation recovery fences plus two network-client replay-policy
-   controls. The former consolidated pre-queue admission declaration is now
-   three exact Core Data Offline Sync cases:
+   it requests Apple's exact build `23F77` when absent (not the release-number
+   selector `26.5`), independently verifies the installed build and supported
+   device type, creates its own simulator, and reads the three identity
+   variables from the booted device. It never injects those values or falls back
+   to the newest runtime. Installation, identity or boot failure blocks the full
+   unit lane; accepted-transfer cases are not skipped and the transport's
+   drain/measurement fence is unchanged. The qualification receipt is retained
+   with the unit-test artifact. The setup step is bounded at fifteen minutes,
+   including the same five-minute cold-boot allowance used by the UI lane.
+   Helper command maxima total 730 seconds; a boot timeout retains bounded boot
+   progress in the failure receipt. UI and startup jobs retain their current
+   simulator selection. The complete unit-test step has a 120-minute limit: the
+   expanded serial suite was still executing cases when the 40-minute deadline
+   stopped run 43551818461. That run also reported a separate consumer-contract
+   failure; a larger budget does not clear a failed assertion. The enclosing job
+   has a 180-minute limit, covering the 10-minute package resolution, 25-minute
+   compilation, 15-minute simulator qualification, and 120-minute unit tests,
+   with 10 minutes reserved for other setup and evidence collection. UI tests
+   run in a separate job so their failures do not wait behind the complete unit
+   suite. The portable workflow contract checks both limits. A timeout still
+   fails the gate; the complete-target selector and result requirements remain
+   unchanged. The result gate fails if Xcode returns success without a `Passed`
+   result, a non-empty test run, zero skipped tests, an exact passed/total count
+   match, and at least one passed test case from each critical concurrency
+   boundary: `CameraManagerTests`, `InferenceEngineTests`,
+   `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
+   unless the structured test tree contains exactly one matching passed suite
+   for each critical boundary and reports every named scan-flow regression
+   exactly once under exactly one matching passed suite as `Passed`. A duplicate
+   matching suite, duplicate protected case, or failed-suite/passed-child
+   contradiction is invalid evidence. The current validator protects 98 exact
+   cases. Twenty-seven were added by the joined scan-reliability follow-up.
+   Eleven more form the live-connectivity follow-up: nine engine-level
+   ownership, presentation, and exact-generation recovery fences plus two
+   network-client replay-policy controls. The former consolidated pre-queue
+   admission declaration is now three exact Core Data Offline Sync cases:
    `connectivityFailuresSelectQueueOnlyAdmission`,
    `authenticationAndTrustFailuresRemainFailClosed`, and
    `secureTransportFailuresUseOnlyDurableRecovery`. They separately protect the

@@ -60,9 +60,9 @@ def prepare(*, run=command, environment=None, machine=None):
 
     runtime = qualified_runtime(inventory())
     if runtime is None:
-        # Apple's OS-version selector is only a download request. The exact
-        # installed build is independently checked below before device creation.
-        output = run(["xcodebuild", "-downloadPlatform", "iOS", "-buildVersion", VERSION,
+        # Request the exact build, not the release number (which can select a
+        # different build). Independently verify the installed identity below.
+        output = run(["xcodebuild", "-downloadPlatform", "iOS", "-buildVersion", BUILD,
                       "-architectureVariant", "arm64"], timeout=360)
         print(output, file=sys.stderr)
         runtime = qualified_runtime(inventory())
@@ -77,7 +77,7 @@ def prepare(*, run=command, environment=None, machine=None):
     device = run(["xcrun", "simctl", "create", "Merian measured unit tests", DEVICE_TYPE, RUNTIME], timeout=20)
     if str(uuid.UUID(device)).upper() != device.upper():
         raise ValueError("Simulator creation returned an invalid device identifier.")
-    run(["xcrun", "simctl", "bootstatus", device, "-b"], timeout=120)
+    run(["xcrun", "simctl", "bootstatus", device, "-b"], timeout=300)
     observed = {key: run(["xcrun", "simctl", "getenv", device, key], timeout=10)
                 for key in EXPECTED_ENVIRONMENT}
     if observed != EXPECTED_ENVIRONMENT:
@@ -108,6 +108,16 @@ def main():
         result = prepare()
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         result.update(status="failed", failure=str(error))
+        if (isinstance(error, subprocess.TimeoutExpired)
+                and isinstance(error.cmd, list)
+                and error.cmd[:3] == ["xcrun", "simctl", "bootstatus"]
+                and error.stdout):
+            # This new, empty hosted simulator has not run the app. Preserve
+            # bounded boot progress only, never command/environment dumps.
+            output = error.stdout
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", errors="replace")
+            result["boot_diagnostic_tail"] = output[-8000:]
         args.evidence.write_text(json.dumps(result, indent=2) + "\n")
         raise
     args.evidence.write_text(json.dumps(result, indent=2) + "\n")

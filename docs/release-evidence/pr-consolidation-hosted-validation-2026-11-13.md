@@ -134,6 +134,48 @@ runtime installation was performed. Backend PR integration 43559231788 also
 passed, but neither backend run clears the native failures or qualifies a future
 replacement SHA.
 
+## Third approved replacement and exact-build request correction
+
+The user approved `daa624a49327fc88cd14585ebc43caf37e28f354` under the same
+packet, and it was published to PR 152. The Vercel holds and distinct Production
+checks were read back immediately before publication. Web/admin dispatch and PR
+checks, Markdown, Agent Quality and iOS Project Guardrails passed.
+
+The PR native unit job 132368534307 stopped before compilation because the
+helper's release-number request, `-buildVersion 26.5`, installed simulator build
+`23F73`. The existing exact-build check correctly refused it. Artifact
+14104190221 retains the non-passing qualification receipt; no full native result
+is claimed. The download completed within its budget, so no timeout increase is
+justified for downloading. Apple's
+[Xcode release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_1-release-notes.md)
+document that `-buildVersion` accepts an exact build update number as well as a
+release number. The local correction requests `23F77` explicitly and preserves
+the independent installed/build/device readback and all tests. Its regression
+now rejects a release-number download request. Hosted exact-build selection and
+completed boot remain required on a newly approved replacement.
+
+The exact-SHA manual unit job 132368597470 separately downloaded the required
+`23F77` build, but its new simulator exceeded the 120-second boot deadline. This
+proves the release-number selector was insufficiently specific and that the
+two-minute boot budget was too short for this observed hosted attempt. The
+correction gives boot readiness the same five-minute bound already used by the
+UI lane. Helper command maxima total 730 seconds within a fifteen-minute
+qualification step. Only the unit validation job grows from 175 to 180 minutes,
+preserving ten minutes for other setup/evidence beyond the declared package,
+compile, qualification and unchanged 120-minute test budgets. A boot timeout
+retains bounded progress from the new, empty hosted simulator for diagnosis.
+Exact-job security and workflow contracts track these bounds; production jobs
+are unchanged. A further boot failure still blocks native testing and release.
+
+The superseded `936f1d7` manual native run was cancelled after its failed path
+was diagnosed, to free hosted capacity. Its final retained log contains 25
+issues within the same photo-role helper. Independent review traced every
+recorded issue to the absent qualified retirement callback and consequent
+missing successor/admission state; none is waived. The current complete native
+gate must still execute every case. Main, beta and production domains remain
+unchanged, and this further local correction again requires exact-SHA approval
+before publication.
+
 Fresh read-only inspection 43565069349 still reports 520 beta migrations. The
 candidate contains 522, with only the two approved retimed migrations pending;
 both obsolete versions are absent and the planner returns `normal`. The

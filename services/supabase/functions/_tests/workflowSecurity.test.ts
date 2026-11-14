@@ -739,7 +739,7 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
       // budget. Other iOS jobs and every production job retain the common cap.
       const limit = name === "ios-build-and-test.yml" &&
           job === "  ios-unit-tests:"
-        ? 175
+        ? 180
         : 120;
       assert(
         minutes <= limit,
