@@ -1760,26 +1760,43 @@ HTTP request is dispatched. See the
    first identity query times out, a failure-only
    `simctl spawn <owned-UDID>
    /usr/bin/true` diagnostic checks process
-   dispatch without `-s`. It discards both output streams, waits at most ten
-   seconds, and allows five seconds to reap only its own process. Its outcome,
-   duration, return code and cleanup flags supplement the original failed
-   identity receipt; even a successful probe never retries or qualifies
-   identity. Cache-update and boot phases retain only outcome and elapsed
-   milliseconds alongside existing failure diagnostics. This adds evidence to
-   distinguish dispatch from environment query failure, not a proven readiness
-   fix. Because the first-query failure skips the remaining two 30-second
-   queries, the diagnostic fits inside the existing bound. Helper command maxima
-   total 1,390 seconds, or 1,395 including timeout cleanup, within the unchanged
-   25-minute step. Cache or boot timeouts retain bounded command progress in the
-   non-passing failure receipt. UI and startup jobs retain their current
-   simulator selection. The build/inventory job has a 95-minute bound; each
-   shard has a 240-minute test step inside a 330-minute job, and aggregate
-   reconciliation has fifteen minutes. The previous single-process 120-minute
-   run 43615068314 timed out while executing cases; a partial log is not a pass.
-   These budgets bound execution rather than assert performance. At most four
-   shards run concurrently per workflow, each with a separate simulator and
-   filesystem. Every suite and parameterized method stays intact, with unchanged
-   fixtures, resource guards and assertions. The
+   dispatch without `-s`. It discards stdout, waits at most ten seconds, and
+   allows five seconds to reap only its own process. A nonblocking pipe reader
+   caps retained stderr at 8 KiB, attempts bounded direct-process cleanup on
+   overflow and records whether reaping succeeded. It never waits for a
+   descendant to close the pipe after direct exit. No raw output is written to
+   disk or retained in the receipt. Only after a `nonzero` or `timeout` probe is
+   reaped, a strict parser extracts allowlisted Apple error domains and numeric
+   codes; empty and unrecognized output have fixed outcomes. An oversized
+   capture reports that outcome without parsing. A process exit code alone never
+   identifies an Apple error domain or proves that the device shut down. After
+   that probe, one ten-second `simctl list devices <owned-UDID> --json` read
+   snapshots only the owned device's state. Its direct process has the same
+   five-second cleanup bound and nonblocking reader, capped at 64 KiB of
+   retained stdout with a bounded cleanup attempt on overflow. Only a closed
+   state enum or fixed missing, ambiguous, invalid, nonzero, oversized, timeout
+   or unavailable outcome is retained, never device names, other inventory,
+   availability messages or paths. Neither diagnostic runs on success or a later
+   identity-query failure. Their outcomes, duration, return codes and cleanup
+   flags supplement the original failed identity receipt; even a successful
+   probe and a `Booted` state never retry or qualify identity. Diagnostic
+   failures cannot replace the original timeout; cancellation still propagates
+   after bounded direct-process cleanup. Cache-update and boot phases retain
+   only outcome and elapsed milliseconds alongside existing failure diagnostics.
+   This adds evidence to distinguish dispatch from environment query failure,
+   not a proven readiness fix. Because the first-query failure skips the
+   remaining two 30-second queries, the diagnostic fits inside the existing
+   bound. Helper command maxima total 1,390 seconds, or 1,395 including timeout
+   cleanup, within the unchanged 25-minute step. Cache or boot timeouts retain
+   bounded command progress in the non-passing failure receipt. UI and startup
+   jobs retain their current simulator selection. The build/inventory job has a
+   95-minute bound; each shard has a 240-minute test step inside a 330-minute
+   job, and aggregate reconciliation has fifteen minutes. The previous
+   single-process 120-minute run 43615068314 timed out while executing cases; a
+   partial log is not a pass. These budgets bound execution rather than assert
+   performance. At most four shards run concurrently per workflow, each with a
+   separate simulator and filesystem. Every suite and parameterized method stays
+   intact, with unchanged fixtures, resource guards and assertions. The
    [complete-unit sharding contract](#complete-unit-sharding-contract) defines
    artifact provenance, coverage checks, process-isolation limits and reruns. UI
    and archive validation remain independent gates. The result gate fails if

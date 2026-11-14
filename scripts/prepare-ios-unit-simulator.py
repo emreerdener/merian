@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,12 @@ EXPECTED_ENVIRONMENT = {
 IDENTITY_OUTPUT_LIMIT = 64
 IDENTITY_CLEANUP_TIMEOUT = 5
 SPAWN_DIAGNOSTIC_TIMEOUT = 10
+STATE_DIAGNOSTIC_TIMEOUT = 10
+DIAGNOSTIC_ERROR_LIMIT = 8192
+DEVICE_STATE_LIMIT = 65536
+ERROR_DOMAINS = frozenset({"com.apple.CoreSimulator.SimError",
+                           "com.apple.SimLaunchHostService.RequestError", "NSPOSIXErrorDomain"})
+DEVICE_STATES = frozenset({"Creating", "Booting", "Booted", "Shutting Down", "Shutdown"})
 
 
 class IdentityQueryTimeout(subprocess.TimeoutExpired):
@@ -44,30 +51,137 @@ def reap_identity_process(process):
         return False
 
 
-def post_boot_spawn(device):
-    """Failure-only dispatch evidence; never qualifies identity or retries it."""
+def diagnostic_error_identity(raw):
+    """Extract only fixed Apple error domains and bounded numeric codes."""
+    if len(raw) > DIAGNOSTIC_ERROR_LIMIT:
+        return {"outcome": "oversized"}
+    if not raw:
+        return {"outcome": "empty"}
+    try:
+        decoded = raw.decode("ascii")
+    except UnicodeDecodeError:
+        return {"outcome": "unrecognized"}
+    errors = []
+    for line in decoded.splitlines():
+        match = re.fullmatch(
+            r"(?:An error was encountered processing the command|Underlying error) "
+            r"\(domain=([A-Za-z.]+), code=(-?[0-9]{1,5})\):", line.strip())
+        if match and match[1] in ERROR_DOMAINS:
+            item = {"domain": match[1], "code": int(match[2])}
+            if item not in errors:
+                errors.append(item)
+    if len(errors) > 4:
+        return {"outcome": "unrecognized"}
+    return {"outcome": "recognized", "errors": errors} if errors else {"outcome": "unrecognized"}
+
+
+def owned_device_state(raw, device):
+    if len(raw) > DEVICE_STATE_LIMIT:
+        return {"outcome": "oversized"}
+    try:
+        inventory = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return {"outcome": "invalid"}
+    if not isinstance(inventory, dict) or not isinstance(inventory.get("devices"), dict):
+        return {"outcome": "invalid"}
+    matches = []
+    for devices in inventory["devices"].values():
+        if not isinstance(devices, list) or any(not isinstance(item, dict) for item in devices):
+            return {"outcome": "invalid"}
+        matches.extend(item for item in devices if isinstance(item.get("udid"), str)
+                       and item["udid"].upper() == device.upper())
+    if not matches:
+        return {"outcome": "missing"}
+    if len(matches) != 1:
+        return {"outcome": "ambiguous"}
+    state = matches[0].get("state")
+    if not isinstance(state, str) or state not in DEVICE_STATES:
+        return {"outcome": "unrecognized"}
+    return {"outcome": "observed", "state": state}
+
+
+def diagnostic_process(arguments, *, capture, limit, timeout):
+    """Bound retained bytes and time without waiting for descendant pipe EOF."""
     started = time.monotonic()
     result = {"outcome": "unavailable", "direct_process_reaped": False}
+    process = stream = None
+    retained = bytearray()
     try:
-        # Do not use -s: that skips the booted device's bootstrap context.
-        process = subprocess.Popen(["xcrun", "simctl", "spawn", device, "/usr/bin/true"],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        try:
-            code = process.wait(timeout=SPAWN_DIAGNOSTIC_TIMEOUT)
-            result.update(outcome="passed" if code == 0 else "nonzero",
-                          returncode=code, direct_process_reaped=True)
-        except subprocess.TimeoutExpired:
+        process = subprocess.Popen(arguments, bufsize=0,
+                                   stdout=subprocess.PIPE if capture == "stdout" else subprocess.DEVNULL,
+                                   stderr=subprocess.PIPE if capture == "stderr" else subprocess.DEVNULL)
+        stream = getattr(process, capture)
+        os.set_blocking(stream.fileno(), False)
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                code = process.poll()
+                result.update(outcome="timeout", returncode=code,
+                              direct_process_running_at_timeout=code is None,
+                              direct_process_reaped=reap_identity_process(process))
+                break
+            room = limit - len(retained)
+            try:
+                chunk = os.read(stream.fileno(), min(8192, room + 1))
+            except BlockingIOError:
+                chunk = None
+            if chunk:
+                retained.extend(chunk[:room])
+                if len(chunk) > room:
+                    code = process.poll()
+                    result.update(outcome="oversized", returncode=code,
+                                  direct_process_reaped=reap_identity_process(process))
+                    break
             code = process.poll()
-            result.update(outcome="timeout", returncode=code,
-                          direct_process_running_at_timeout=code is None,
-                          direct_process_reaped=reap_identity_process(process))
-        except BaseException:
-            reap_identity_process(process)
+            # Drain bytes already available after direct exit, but never wait
+            # for EOF from an inherited descriptor. The byte cap also bounds
+            # a descendant that keeps writing after the direct child exits.
+            if code is not None and not chunk:
+                result.update(outcome="passed" if code == 0 else "nonzero",
+                              returncode=code, direct_process_reaped=True)
+                break
+            if not chunk:
+                time.sleep(min(.01, remaining))
+    except BaseException as error:
+        if process is not None:
+            result["direct_process_reaped"] = reap_identity_process(process)
+        if not isinstance(error, Exception):
             raise
-    except Exception:
-        # Diagnostic failure cannot replace the original qualification failure.
-        pass
+    finally:
+        if stream is not None:
+            try:
+                stream.close()
+            except Exception:
+                pass
     result["elapsed_ms"] = round((time.monotonic() - started) * 1000)
+    return result, bytes(retained)
+
+
+def post_boot_device_state(device):
+    """One post-probe registry snapshot, never a readiness retry."""
+    result, raw = diagnostic_process(["xcrun", "simctl", "list", "devices", device, "--json"],
+                                     capture="stdout", limit=DEVICE_STATE_LIMIT,
+                                     timeout=STATE_DIAGNOSTIC_TIMEOUT)
+    if result["outcome"] == "passed":
+        try:
+            result.update(owned_device_state(raw, device))
+        except Exception:
+            result["outcome"] = "unavailable"
+    return result
+
+
+def post_boot_spawn(device):
+    """Failure-only dispatch evidence; never qualifies identity or retries it."""
+    # Do not use -s: that skips the booted device's bootstrap context.
+    result, raw = diagnostic_process(["xcrun", "simctl", "spawn", device, "/usr/bin/true"],
+                                     capture="stderr", limit=DIAGNOSTIC_ERROR_LIMIT,
+                                     timeout=SPAWN_DIAGNOSTIC_TIMEOUT)
+    if result["outcome"] in ("nonzero", "timeout") and result["direct_process_reaped"]:
+        try:
+            result["error_identity"] = diagnostic_error_identity(raw)
+        except Exception:
+            result["error_identity"] = {"outcome": "unavailable"}
     return result
 
 
@@ -204,6 +318,7 @@ def prepare(*, run=command, environment=None, machine=None):
         if (isinstance(error, IdentityQueryTimeout)
                 and error.diagnostics.get("identity_key") == "SIMULATOR_RUNTIME_VERSION"):
             error.diagnostics["post_boot_spawn"] = post_boot_spawn(device)
+            error.diagnostics["post_probe_device_state"] = post_boot_device_state(device)
         raise
     if observed != EXPECTED_ENVIRONMENT:
         raise ValueError("Booted simulator identity does not match the measured-transfer qualification: "
