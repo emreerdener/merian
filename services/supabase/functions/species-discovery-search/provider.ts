@@ -1,4 +1,12 @@
-import { _genAI, extractJson } from "../_shared/gemini.ts";
+import {
+  decodeGeminiApplication,
+  type GeminiTransportHooks,
+} from "../_shared/ai/geminiTransport.ts";
+import {
+  candidateGeneration,
+  GEMINI_SUPPORT_MODEL,
+} from "../_shared/ai/geminiProfiles.ts";
+import { extractJson, generateGeminiContent } from "../_shared/gemini.ts";
 import type { SearchContext } from "./contract.ts";
 import { GROUPS, MEDIA, parseInterpretation } from "./contract.ts";
 
@@ -14,8 +22,9 @@ export async function interpretSearch(
   context: SearchContext | null,
   model: string,
   signal?: AbortSignal,
+  transport?: GeminiTransportHooks,
 ) {
-  const result = await _genAI.models.generateContent({
+  const result = await generateGeminiContent({
     model,
     contents: [{
       role: "user",
@@ -25,9 +34,12 @@ export async function interpretSearch(
     }],
     config: {
       systemInstruction: SEARCH_INSTRUCTION,
-      temperature: 0,
+      ...(model === GEMINI_SUPPORT_MODEL ? {} : { temperature: 0 }),
       maxOutputTokens: 700,
       thinkingConfig: { thinkingBudget: 0 },
+      ...(model === GEMINI_SUPPORT_MODEL
+        ? candidateGeneration("discovery_search")
+        : {}),
       httpOptions: { timeout: 20000 },
       abortSignal: signal,
       responseMimeType: "application/json",
@@ -53,12 +65,14 @@ export async function interpretSearch(
         required: ["status", "message", "context"],
       },
     },
+  }, transport);
+  return decodeGeminiApplication(transport, () => {
+    if ((result.text?.length ?? 0) > 8192) {
+      throw new Error("Search interpretation too large");
+    }
+    return {
+      interpretation: parseInterpretation(extractJson(result.text ?? "")),
+      usage: result.usageMetadata,
+    };
   });
-  if ((result.text?.length ?? 0) > 8192) {
-    throw new Error("Search interpretation too large");
-  }
-  return {
-    interpretation: parseInterpretation(extractJson(result.text ?? "")),
-    usage: result.usageMetadata,
-  };
 }

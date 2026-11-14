@@ -1,3 +1,11 @@
+import {
+  decodeGeminiApplication,
+  type GeminiTransportHooks,
+} from "./ai/geminiTransport.ts";
+import {
+  candidateGeneration,
+  GEMINI_SUPPORT_MODEL,
+} from "./ai/geminiProfiles.ts";
 import { encodeBase64 } from "@std/encoding-base64";
 import type { GeminiUsageMetadata } from "./aiUsage.ts";
 import { readResponseArrayBufferWithinBudget } from "./mediaBudgets.ts";
@@ -83,6 +91,7 @@ export interface AudioModerationQuota {
     originalAnalysisId?: string;
   }): Promise<{
     reservation: { model: string };
+    geminiTransport?: GeminiTransportHooks;
     commit(): Promise<void>;
     refund(): Promise<boolean>;
     fail(): Promise<boolean>;
@@ -93,6 +102,7 @@ type GeminiGenerate = (
   audioBase64: string,
   mimeType: string,
   model?: string,
+  transport?: GeminiTransportHooks,
 ) => Promise<
   string | { text: string; usage?: GeminiUsageMetadata }
 >;
@@ -169,48 +179,58 @@ const generateGeminiClassification: GeminiGenerate = async (
   audioBase64,
   mimeType,
   model = AUDIO_MODERATION_MODEL,
+  transport?: GeminiTransportHooks,
 ) => {
-  const { _genAI } = await import("./gemini.ts");
-  const result = await _genAI.models.generateContent({
-    model,
-    contents: [{
-      role: "user",
-      parts: [
-        { text: "Classify the attached media for public Explore publication." },
-        { inlineData: { mimeType, data: audioBase64 } },
-      ],
-    }],
-    config: {
-      systemInstruction: AUDIO_PUBLICATION_POLICY,
-      temperature: 0,
-      seed: 42,
-      maxOutputTokens: 4096,
-      thinkingConfig: { thinkingBudget: 0 },
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          transcript: { type: "STRING" },
-          non_speech_description: { type: "STRING" },
-          policy_categories: {
-            type: "ARRAY",
-            items: { type: "STRING", enum: [...POLICY_CATEGORIES] },
+  const { generateGeminiContent } = await import("./gemini.ts");
+  const result = await generateGeminiContent(
+    {
+      model,
+      contents: [{
+        role: "user",
+        parts: [
+          {
+            text: "Classify the attached media for public Explore publication.",
           },
-          approved: { type: "BOOLEAN" },
-          confidence: { type: "NUMBER", minimum: 0, maximum: 1 },
-          requires_review: { type: "BOOLEAN" },
-        },
-        required: [
-          "transcript",
-          "non_speech_description",
-          "policy_categories",
-          "approved",
-          "confidence",
-          "requires_review",
+          { inlineData: { mimeType, data: audioBase64 } },
         ],
+      }],
+      config: {
+        systemInstruction: AUDIO_PUBLICATION_POLICY,
+        ...(model === GEMINI_SUPPORT_MODEL ? {} : { temperature: 0 }),
+        ...(model === GEMINI_SUPPORT_MODEL ? {} : { seed: 42 }),
+        maxOutputTokens: 4096,
+        thinkingConfig: { thinkingBudget: 0 },
+        ...(model === GEMINI_SUPPORT_MODEL
+          ? candidateGeneration("audio_moderation")
+          : {}),
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            transcript: { type: "STRING" },
+            non_speech_description: { type: "STRING" },
+            policy_categories: {
+              type: "ARRAY",
+              items: { type: "STRING", enum: [...POLICY_CATEGORIES] },
+            },
+            approved: { type: "BOOLEAN" },
+            confidence: { type: "NUMBER", minimum: 0, maximum: 1 },
+            requires_review: { type: "BOOLEAN" },
+          },
+          required: [
+            "transcript",
+            "non_speech_description",
+            "policy_categories",
+            "approved",
+            "confidence",
+            "requires_review",
+          ],
+        },
       },
     },
-  });
+    transport,
+    64 * 1024,
+  );
   return { text: result.text ?? "", usage: result.usageMetadata };
 };
 
@@ -257,10 +277,20 @@ export async function classifyExploreAudio(
   mimeType: string,
   generate: GeminiGenerate = generateGeminiClassification,
   model = AUDIO_MODERATION_MODEL,
+  transport?: GeminiTransportHooks,
 ): Promise<AudioModerationDecision> {
-  const generated = await generate(encodeBase64(bytes), mimeType, model);
-  const classification = parseGeminiAudioClassification(
-    typeof generated === "string" ? generated : generated.text,
+  const generated = await generate(
+    encodeBase64(bytes),
+    mimeType,
+    model,
+    transport,
+  );
+  const classification = await decodeGeminiApplication(
+    transport,
+    () =>
+      parseGeminiAudioClassification(
+        typeof generated === "string" ? generated : generated.text,
+      ),
   );
   const decision: AudioModerationDecision = {
     approved: classification.approved &&
@@ -345,6 +375,7 @@ export async function moderateExploreAudioUrl(
       audio.mimeType,
       generate,
       model,
+      quotaLease?.geminiTransport,
     );
     if (cache) {
       try {

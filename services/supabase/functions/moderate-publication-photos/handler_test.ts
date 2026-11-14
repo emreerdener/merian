@@ -143,7 +143,7 @@ function fixture(initial: RecoveredPhotoWork | null = null) {
   };
   return { deps, calls, clock: (n: number) => elapsed = n };
 }
-Deno.test("publication worker verifies full cohort and prepares before one paid admission", async () => {
+Deno.test("publication worker verifies full cohort before admission and prepares its owned assignment before dispatch", async () => {
   const f = fixture();
   assertEquals(await moderatePublicationPhotos(f.deps), {
     claimed: 1,
@@ -155,8 +155,8 @@ Deno.test("publication worker verifies full cohort and prepares before one paid 
     "read",
     "finalize",
     "preflight",
-    "prepare",
     "admit",
+    "prepare",
     "proof",
     "dispatch",
     "invoke",

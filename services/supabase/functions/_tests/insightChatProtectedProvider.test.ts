@@ -1,8 +1,21 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   decodeProtectedChatProvider,
-  prepareProtectedChatProvider,
+  prepareProtectedChatProvider as prepareProvider,
 } from "../insight-chat/protectedProvider.ts";
+const prepareProtectedChatProvider: typeof prepareProvider = (
+  system,
+  prompt,
+  model,
+  deps = {},
+) =>
+  prepareProvider(system, prompt, model, {
+    transport: {
+      beforeTransport: () => Promise.resolve(),
+      recordResponse: () => Promise.resolve(),
+    },
+    ...deps,
+  });
 const envelope = () => ({
   modelVersion: "gemini-2.5-flash",
   candidates: [{
@@ -40,15 +53,19 @@ Deno.test("protected provider closes answer and exact granted-model accounting",
           safetyRatings: [{ blocked: true }],
         }],
       },
-      { ...envelope(), usageMetadata: { promptTokenCount: -1 } },
-      {
-        ...envelope(),
-        usageMetadata: {
-          promptTokensDetails: [{ modality: "OTHER", tokenCount: 1 }],
-        },
-      },
     ]
   ) assertThrows(() => decodeProtectedChatProvider(raw));
+  const partial = decodeProtectedChatProvider({
+    ...envelope(),
+    usageMetadata: {
+      promptTokenCount: -1,
+      candidatesTokenCount: 4,
+      promptTokensDetails: [{ modality: "OTHER", tokenCount: 1 }],
+    },
+  });
+  assertEquals(partial.usage?.prompt_tokens, null);
+  assertEquals(partial.usage?.candidate_tokens, 4);
+  assertEquals(partial.usage?.modality_breakdown.prompt, {});
   assertEquals(
     decodeProtectedChatProvider({ ...envelope(), usageMetadata: undefined })
       .usage,
@@ -178,4 +195,38 @@ Deno.test("provider rejects oversized declared and streaming bodies", async () =
     );
     await assertRejects(() => invoke(new AbortController().signal));
   }
+});
+
+Deno.test("protected semantic rejection persists provider facts before application outcome", async () => {
+  const events: string[] = [];
+  const raw = envelope();
+  raw.candidates[0].content.parts[0].text = '{"unexpected":true}';
+  const invoke = prepareProtectedChatProvider(
+    "system",
+    "question",
+    "gemini-2.5-flash",
+    {
+      apiKey: () => "synthetic-key",
+      fetcher: () => Promise.resolve(Response.json(raw)),
+      transport: {
+        beforeTransport: () => {
+          events.push("dispatch");
+          return Promise.resolve();
+        },
+        recordResponse: (receipt) => {
+          assertEquals(receipt.returnedModel, "gemini-2.5-flash");
+          assertEquals(receipt.usage?.promptTokens, 10);
+          assertEquals(receipt.failure, null);
+          events.push("provider facts");
+          return Promise.resolve();
+        },
+        recordApplicationOutcome: (outcome) => {
+          events.push(outcome);
+          return Promise.resolve();
+        },
+      },
+    },
+  );
+  await assertRejects(() => invoke(new AbortController().signal));
+  assertEquals(events, ["dispatch", "provider facts", "error"]);
 });

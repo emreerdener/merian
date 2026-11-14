@@ -23,7 +23,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
             "schema_version": 2, "observation_id": observationID.uuidString.lowercased(),
             "analysis_id": analysisID.uuidString.lowercased(),
             "source_analysis_id": sourceAnalysisID.uuidString.lowercased(),
-            "entitlement_protocol": 3, "identification_protocol": 6, "history_protocol": 8,
+            "entitlement_protocol": 3, "identification_protocol": 7, "history_protocol": 8,
             "expected_processor_permission": processor.rawValue,
             "evidence_manifest": try Self.manifest(evidence)
         ]
@@ -40,7 +40,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
                                 "identification_protocol", "history_protocol", "expected_processor_permission"],
               Self.integer(row["schema_version"]) == 2,
               Self.integer(row["entitlement_protocol"]) == 3,
-              Self.integer(row["identification_protocol"]) == 6,
+              [6, 7].contains(Self.integer(row["identification_protocol"]) ?? -1),
               Self.integer(row["history_protocol"]) == 8,
               let observation = Self.uuid(row["observation_id"]),
               let analysis = Self.uuid(row["analysis_id"]),

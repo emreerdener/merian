@@ -18,6 +18,10 @@ async function fixture(bytes = png, content_type = "image/png") {
   return {
     source,
     deps: {
+      transport: {
+        beforeTransport: () => Promise.resolve(),
+        recordResponse: () => Promise.resolve(),
+      },
       apiKey: () => "synthetic-key",
       readSource: () => Promise.resolve(bytes),
     },

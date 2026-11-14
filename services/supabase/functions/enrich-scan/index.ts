@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import {
@@ -156,10 +157,14 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
           family: cachedSpecies?.family,
         },
       };
-    const inFlightKey = sharedSpeciesContentKey(
-      contentRequest,
-      speciesId ?? scientific_name,
-    );
+    const inFlightKey = JSON.stringify([
+      _user.id,
+      body.ai_request_id,
+      sharedSpeciesContentKey(
+        contentRequest,
+        speciesId ?? scientific_name,
+      ),
+    ]);
 
     // ── ENRICHMENT SCOPE ──────────────────────────────────────────────────────
     if (scope === "enrichment") {
@@ -290,6 +295,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
         );
 
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "scan_overview_enrichment",
           model: quotaLease.reservation.model,
           usage: enrichmentResult.usage,
@@ -542,6 +548,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
 
       if (similarResult?.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "scan_lookalike_enrichment",
           model: quotaLease.reservation.model,
           usage: similarResult.usage,
@@ -645,10 +652,9 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
 
 const handleEnrichRequest = createEnrichHandler();
 if (import.meta.main) {
-  Deno.serve((req: Request) =>
+  serveGeminiEdge("enrich-scan", (req: Request) =>
     withEdgeHandler(
       req,
       (user, supabaseAdmin) => handleEnrichRequest(req, user, supabaseAdmin),
-    )
-  );
+    ));
 }

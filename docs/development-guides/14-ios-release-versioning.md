@@ -1,3 +1,15 @@
+## Compatible app prerequisite for Gemini activation
+
+The
+[Gemini backend release](../backend-and-data/22-gemini-generation3-release.md)
+requires the exact I7/V3-capable app version/build/source fingerprint to be
+available to the intended TestFlight group before starting its activation
+deployment. Continue using Organizer for signing and upload; the compatible app
+must work against legacy routing. Availability is manually verified and recorded
+in the release record, with no polling or activation trigger. Backend deployment
+and its final model activation share one explicit authorization; app
+distribution remains separately authorized.
+
 # iOS Release Versioning and Xcode Organizer Runbook
 
 > **Beta policy update — September 18, 2026:** The owner authorized the existing

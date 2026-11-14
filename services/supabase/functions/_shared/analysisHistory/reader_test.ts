@@ -388,3 +388,52 @@ Deno.test("shared native V3 fixture has no original completion or private media 
     HistoryError,
   );
 });
+
+Deno.test("reader13 reads mixed historical snapshots and V3 without rewriting canonical text", async () => {
+  const photo = JSON.parse(
+    await Deno.readTextFile(
+      new URL("./fixtures/page-v2.json", import.meta.url),
+    ),
+  );
+  const next = JSON.parse(fixture.items[0].snapshot);
+  next.ordinal = 3;
+  next.analysis_id = "00000000-0000-4000-8000-000000000099";
+  next.result.identification_provenance = {
+    version: 3,
+    provider: "gemini",
+    binding: "gemini_generation3_v1",
+    model: "gemini-3.8-flash",
+    returned_model: "gemini-3.8-flash",
+    variant: "multimodal",
+    operation: "scan_identification",
+    policy_version: 2,
+    prompt: "identify_text_v1",
+    schema: "merian_identify_v1",
+    confidence: "gemini_identify_v1",
+    diagnostic_trigger: 0.99,
+    prompt_diagnostic_trigger: null,
+    safety: null,
+    timeout_ms: 90000,
+    generation: { max_output_tokens: 8192, thinking_level: "medium" },
+  };
+  const mixed = {
+    ...fixture,
+    items: [
+      { ordinal: 3, snapshot: JSON.stringify(next) },
+      photo.items[0],
+      fixture.items[0],
+    ],
+  };
+  assertEquals(
+    parseHistoryPage(mixed, request, fixture.owner_id, 13).items,
+    mixed.items,
+  );
+  assertThrows(() => parseHistoryPage(mixed, request, fixture.owner_id, 11));
+  assertThrows(() =>
+    parseHistoryPage(mixed, request, fixture.owner_id, 12 as 13)
+  );
+  assertEquals(
+    parseHistoryPage(fixture, request, fixture.owner_id, 13).items,
+    fixture.items,
+  );
+});

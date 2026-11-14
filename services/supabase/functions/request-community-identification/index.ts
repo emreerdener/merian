@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
@@ -32,66 +33,68 @@ function normalizeSpeciesCommonName(value: unknown): string | null {
   return trimmed;
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req, { limit: "standard" });
-    if (parsedBody instanceof Response) return parsedBody;
-    const body = parsedBody;
+serveGeminiEdge(
+  "request-community-identification",
+  (req: Request) =>
+    withEdgeHandler(req, async (user, supabaseAdmin) => {
+      const parsedBody = await parseJsonBody(req, { limit: "standard" });
+      if (parsedBody instanceof Response) return parsedBody;
+      const body = parsedBody;
 
-    const paramErr = requireParams(body, ["scan_id"]);
-    if (paramErr) return paramErr;
+      const paramErr = requireParams(body, ["scan_id"]);
+      if (paramErr) return paramErr;
 
-    const scanId = requireUuid(body.scan_id, "scan_id");
-    const note = normalizeCommunityNote(body.note);
-    const locationSharing = normalizeCommunityLocationSharing(
-      body.location_sharing,
-    );
-    const speciesCommonName = normalizeSpeciesCommonName(
-      body.species_common_name,
-    );
-    const {
-      restoredObjectKeys,
-      restoredVideoObjectKeys,
-      restoredAudioObjectKeys,
-    } = normalizeRestoredMediaObjectKeys(body, user.id);
+      const scanId = requireUuid(body.scan_id, "scan_id");
+      const note = normalizeCommunityNote(body.note);
+      const locationSharing = normalizeCommunityLocationSharing(
+        body.location_sharing,
+      );
+      const speciesCommonName = normalizeSpeciesCommonName(
+        body.species_common_name,
+      );
+      const {
+        restoredObjectKeys,
+        restoredVideoObjectKeys,
+        restoredAudioObjectKeys,
+      } = normalizeRestoredMediaObjectKeys(body, user.id);
 
-    await syncPublicAuthorIdentity(user.id, supabaseAdmin);
+      await syncPublicAuthorIdentity(user.id, supabaseAdmin);
 
-    let moderationParentRequestId: string | null = null;
-    const data = await requestCommunityIdentification(
-      scanId,
-      user.id,
-      note,
-      locationSharing,
-      speciesCommonName,
-      restoredObjectKeys,
-      restoredVideoObjectKeys,
-      restoredAudioObjectKeys,
-      supabaseAdmin,
-      {
-        beforeProvider: async ({
-          checksumSha256,
-          policyVersion,
-          originalAnalysisId,
-        }) => {
-          moderationParentRequestId ??= resolveAIRequestId(
-            req,
-            body.ai_request_id,
-          );
-          const requestId = await deriveAIRequestId(
-            moderationParentRequestId,
-            `${checksumSha256}:${policyVersion}`,
-          );
-          return await reserveAIProviderCall(req, supabaseAdmin, {
-            userId: user.id,
-            operation: "explore_audio_moderation",
-            requestId,
-            originalAnalysisId: originalAnalysisId ?? scanId,
-          });
+      let moderationParentRequestId: string | null = null;
+      const data = await requestCommunityIdentification(
+        scanId,
+        user.id,
+        note,
+        locationSharing,
+        speciesCommonName,
+        restoredObjectKeys,
+        restoredVideoObjectKeys,
+        restoredAudioObjectKeys,
+        supabaseAdmin,
+        {
+          beforeProvider: async ({
+            checksumSha256,
+            policyVersion,
+            originalAnalysisId,
+          }) => {
+            moderationParentRequestId ??= resolveAIRequestId(
+              req,
+              body.ai_request_id,
+            );
+            const requestId = await deriveAIRequestId(
+              moderationParentRequestId,
+              `${checksumSha256}:${policyVersion}`,
+            );
+            return await reserveAIProviderCall(req, supabaseAdmin, {
+              userId: user.id,
+              operation: "explore_audio_moderation",
+              requestId,
+              originalAnalysisId: originalAnalysisId ?? scanId,
+            });
+          },
         },
-      },
-    );
+      );
 
-    return jsonResponse({ success: true, data });
-  })
+      return jsonResponse({ success: true, data });
+    }),
 );

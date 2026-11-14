@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import {
   corsHeaders,
   jsonResponse,
@@ -12,7 +12,7 @@ import {
 } from "../_shared/analysisHistory/production.ts";
 import { recoverObservationAnalyses } from "./handler.ts";
 
-serveEdge(async (req: Request) => {
+serveGeminiEdge("recover-observation-analyses", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

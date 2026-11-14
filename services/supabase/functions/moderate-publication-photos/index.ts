@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import {
   corsHeaders,
   jsonResponse,
@@ -9,7 +9,7 @@ import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { publicationModerationWorkerRepository } from "./db.ts";
 import { moderatePublicationPhotos } from "./handler.ts";
 
-serveEdge(async (req: Request) => {
+serveGeminiEdge("moderate-publication-photos", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

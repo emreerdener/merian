@@ -1,3 +1,17 @@
+import {
+  decodeGeminiApplication,
+  enterGeminiTransport,
+} from "../ai/geminiTransport.ts";
+import type { GeminiTransportHooks } from "../ai/geminiTransport.ts";
+import {
+  geminiResponseReceipt,
+  GeminiResponseRejected,
+  normalizeGeminiEnvelope,
+} from "../ai/geminiEnvelope.ts";
+import {
+  candidateGeneration,
+  GEMINI_SUPPORT_MODEL,
+} from "../ai/geminiProfiles.ts";
 import { publicationAbortable } from "./publicationDeadline.ts";
 import { encodeBase64 } from "../encoding.ts";
 import { fetchWithDeadline, readResponseJsonWithinLimit } from "../outbound.ts";
@@ -21,7 +35,7 @@ const CATEGORIES = [
   "personal_data",
   "other_harmful_content",
 ] as const;
-const policy = {
+const legacyPolicy = {
   version: "photo_publication_v1",
   model: MODEL,
   approvalConfidence: 0.95,
@@ -72,7 +86,36 @@ const policy = {
   },
 } as const;
 // Serialized once. Callers never receive a mutable prompt/config or photo body.
-const POLICY_JSON = JSON.stringify(policy);
+const POLICY_JSON = JSON.stringify(legacyPolicy);
+function classifierPolicy(model: string) {
+  if (model === MODEL) return JSON.parse(POLICY_JSON) as typeof legacyPolicy;
+  if (model !== GEMINI_SUPPORT_MODEL) {
+    throw new Error("photo_classifier_profile_invalid");
+  }
+  const base = JSON.parse(POLICY_JSON) as typeof legacyPolicy;
+  return {
+    ...base,
+    model,
+    version: "photo_publication_v2" as const,
+    transport: {
+      ...base.transport,
+      endpoint:
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    },
+    generationConfig: {
+      ...candidateGeneration("photo_moderation"),
+      responseMimeType: base.generationConfig.responseMimeType,
+      responseSchema: base.generationConfig.responseSchema,
+    },
+  };
+}
+export async function publicationPhotoPolicyDigest(
+  model: string,
+): Promise<string> {
+  return await evidenceDigest(
+    new TextEncoder().encode(JSON.stringify(classifierPolicy(model))),
+  );
+}
 export interface PublicationPhotoSource {
   media_id: string;
   object_id: string;
@@ -82,11 +125,11 @@ export interface PublicationPhotoSource {
 }
 export interface PhotoClassifierProof {
   readonly schema_version: 1;
-  readonly policy_version: "photo_publication_v1";
+  readonly policy_version: "photo_publication_v1" | "photo_publication_v2";
   readonly policy_sha256: string;
   readonly request_sha256: string;
   readonly provider: "gemini";
-  readonly model: "gemini-2.5-flash";
+  readonly model: "gemini-2.5-flash" | "gemini-3.5-flash-lite";
   readonly processor_permission: "google_gemini";
   readonly source: Readonly<PublicationPhotoSource>;
 }
@@ -105,84 +148,60 @@ function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
   return value as Record<string, unknown>;
 }
-function tokenCount(value: unknown, optional = false): number {
-  if (optional && value === undefined) return 0;
-  if (
-    !Number.isSafeInteger(value) || (value as number) < 0 ||
-    (value as number) > 100_000_000
-  ) invalid();
-  return value as number;
-}
-function validateSafetyRatings(ratings: unknown): void {
-  if (ratings !== undefined) {
-    if (!Array.isArray(ratings)) invalid();
-    for (const rating of ratings) {
-      const safety = record(rating);
-      if (safety.blocked !== undefined && safety.blocked !== false) invalid();
-    }
+export function decodePhotoClassifier(
+  value: unknown,
+  model = MODEL,
+): PhotoClassifierResult {
+  const envelope = normalizeGeminiEnvelope(value, model, MAX_RESPONSE_BYTES);
+  const receipt = geminiResponseReceipt(envelope);
+  try {
+    if (envelope.failure || !envelope.text) invalid();
+    const decision = record(JSON.parse(envelope.text));
+    if (
+      Object.keys(decision).sort().join(",") !==
+        "categories,confidence,decision" ||
+      !["allow", "reject", "review"].includes(decision.decision as string) ||
+      typeof decision.confidence !== "number" ||
+      !Number.isFinite(decision.confidence) ||
+      decision.confidence < 0 || decision.confidence > 1 ||
+      !Array.isArray(decision.categories) ||
+      decision.categories.length > CATEGORIES.length ||
+      decision.categories.some((category) =>
+        !(CATEGORIES as readonly unknown[]).includes(category)
+      ) ||
+      new Set(decision.categories).size !== decision.categories.length ||
+      (decision.decision === "allow" && decision.categories.length !== 0)
+    ) invalid();
+    const usage = envelope.usage;
+    if (
+      !usage || !envelope.usageConsistent || usage.promptTokens === null ||
+      usage.candidateTokens === null || usage.totalTokens === null
+    ) invalid();
+    const input = usage.promptTokens;
+    const output = usage.candidateTokens + (usage.thinkingTokens ?? 0);
+    const total = usage.totalTokens;
+    return {
+      decision: decision.decision === "allow" &&
+          decision.confidence >= legacyPolicy.approvalConfidence
+        ? "approved"
+        : "rejected",
+      classification: decision
+        .decision as PhotoClassifierResult["classification"],
+      confidence: decision.confidence,
+      categories: [...decision.categories],
+      model,
+      usage: {
+        input_tokens: input,
+        output_tokens: output,
+        total_tokens: total,
+      },
+    };
+  } catch {
+    throw new GeminiResponseRejected(
+      receipt,
+      "photo_classifier_execution_unknown",
+    );
   }
-}
-function decode(value: unknown): PhotoClassifierResult {
-  const envelope = record(value);
-  if (envelope.modelVersion !== MODEL) invalid();
-  if (envelope.promptFeedback !== undefined) {
-    const feedback = record(envelope.promptFeedback);
-    if (feedback.blockReason !== undefined) invalid();
-    validateSafetyRatings(feedback.safetyRatings);
-  }
-  if (!Array.isArray(envelope.candidates) || envelope.candidates.length !== 1) {
-    invalid();
-  }
-  const candidate = record(envelope.candidates[0]);
-  if (candidate.finishReason !== "STOP") invalid();
-  validateSafetyRatings(candidate.safetyRatings);
-  const content = record(candidate.content);
-  if (
-    content.role !== "model" || !Array.isArray(content.parts) ||
-    content.parts.length !== 1
-  ) invalid();
-  const part = record(content.parts[0]);
-  if (Object.keys(part).length !== 1 || typeof part.text !== "string") {
-    invalid();
-  }
-  const decision = record(JSON.parse(part.text));
-  if (
-    Object.keys(decision).sort().join(",") !==
-      "categories,confidence,decision" ||
-    !["allow", "reject", "review"].includes(decision.decision as string) ||
-    typeof decision.confidence !== "number" ||
-    !Number.isFinite(decision.confidence) ||
-    decision.confidence < 0 || decision.confidence > 1 ||
-    !Array.isArray(decision.categories) ||
-    decision.categories.length > CATEGORIES.length ||
-    decision.categories.some((category) =>
-      !(CATEGORIES as readonly unknown[]).includes(category)
-    ) ||
-    new Set(decision.categories).size !== decision.categories.length ||
-    (decision.decision === "allow" && decision.categories.length !== 0)
-  ) invalid();
-  const usage = record(envelope.usageMetadata);
-  const input = tokenCount(usage.promptTokenCount);
-  const output = tokenCount(usage.candidatesTokenCount);
-  const total = tokenCount(usage.totalTokenCount);
-  if (
-    input < 1 || output < 1 || total !== input + output ||
-    tokenCount(usage.thoughtsTokenCount, true) !== 0 ||
-    tokenCount(usage.cachedContentTokenCount, true) !== 0 ||
-    tokenCount(usage.toolUsePromptTokenCount, true) !== 0
-  ) invalid();
-  return {
-    decision: decision.decision === "allow" &&
-        decision.confidence >= policy.approvalConfidence
-      ? "approved"
-      : "rejected",
-    classification: decision
-      .decision as PhotoClassifierResult["classification"],
-    confidence: decision.confidence,
-    categories: [...decision.categories],
-    model: MODEL,
-    usage: { input_tokens: input, output_tokens: output, total_tokens: total },
-  };
 }
 /** Container signature only; provider safety classification is a separate step. */
 function matchesType(bytes: Uint8Array, type: string): boolean {
@@ -219,12 +238,16 @@ export async function preparePublicationPhotoClassifier(
     apiKey?: () => string | undefined;
     fetcher?: typeof fetch;
     signal?: AbortSignal;
+    model?: "gemini-2.5-flash" | "gemini-3.5-flash-lite";
+    transport?: GeminiTransportHooks;
   } = {},
 ): Promise<
   { proof: PhotoClassifierProof; invoke: () => Promise<PhotoClassifierResult> }
 > {
   // The repository caller supplies an authorized immutable job source, never a
   // client URL or arbitrary receipt. Storage verification alone is not ownership.
+  const model = dependencies.model ?? MODEL;
+  const policy = classifierPolicy(model);
   dependencies.signal?.throwIfAborted();
   const source = Object.freeze({ ...input });
   if (
@@ -281,8 +304,10 @@ export async function preparePublicationPhotoClassifier(
   }
   const proof: PhotoClassifierProof = Object.freeze({
     schema_version: 1,
-    policy_version: "photo_publication_v1",
-    policy_sha256: await evidenceDigest(new TextEncoder().encode(POLICY_JSON)),
+    policy_version: policy.version,
+    policy_sha256: await evidenceDigest(
+      new TextEncoder().encode(JSON.stringify(policy)),
+    ),
     request_sha256: await evidenceDigest(
       new TextEncoder().encode(JSON.stringify({
         method: policy.transport.method,
@@ -291,7 +316,7 @@ export async function preparePublicationPhotoClassifier(
       })),
     ),
     provider: "gemini",
-    model: MODEL,
+    model,
     processor_permission: "google_gemini",
     source,
   });
@@ -309,6 +334,7 @@ export async function preparePublicationPhotoClassifier(
         ? AbortSignal.any([timeout, dependencies.signal])
         : timeout;
       try {
+        await enterGeminiTransport(dependencies.transport, model);
         const response = await publicationAbortable(
           signal,
           () =>
@@ -341,8 +367,9 @@ export async function preparePublicationPhotoClassifier(
           void response.body?.cancel().catch(() => {});
           invalid();
         }
-        return decode(
-          await publicationAbortable(signal, () =>
+        const raw = await publicationAbortable(
+          signal,
+          () =>
             readResponseJsonWithinLimit(
               response.body
                 ? new Response(
@@ -354,9 +381,22 @@ export async function preparePublicationPhotoClassifier(
                 )
                 : response,
               policy.responseContract.maximumBytes,
-            )),
+            ),
         );
-      } catch {
+        const envelope = normalizeGeminiEnvelope(
+          raw,
+          model,
+          MAX_RESPONSE_BYTES,
+        );
+        await dependencies.transport?.recordResponse(
+          geminiResponseReceipt(envelope),
+        );
+        return await decodeGeminiApplication(
+          dependencies.transport,
+          () => decodePhotoClassifier(raw, model),
+        );
+      } catch (error) {
+        if (error instanceof GeminiResponseRejected) throw error;
         // No raw provider body, URL, key, photo, prompt or transport cause escapes.
         // Every post-dispatch error is uncertain, never approval or a refund.
         throw new Error("photo_classifier_execution_unknown");

@@ -89,6 +89,7 @@ function workerClient(options: {
   primary?: Record<string, unknown> | null;
   outcome?: unknown;
   persistFailure?: boolean;
+  completionAccepted?: boolean;
 } = {}) {
   const calls: Array<{ name: string; body: Record<string, unknown> }> = [];
   const client = createClient(
@@ -117,8 +118,10 @@ function workerClient(options: {
           if (name === "claim_species_model_enrichment_jobs") {
             return Promise.resolve(Response.json([job]));
           }
-          if (name === "complete_species_enrichment_job") {
-            return Promise.resolve(Response.json(null));
+          if (name === "complete_gemini_species_job") {
+            return Promise.resolve(
+              Response.json(options.completionAccepted ?? true),
+            );
           }
           if (name === "persist_species_model_lookalikes") {
             return Promise.resolve(Response.json(
@@ -142,7 +145,7 @@ function workerClient(options: {
 }
 
 function completion(calls: ReturnType<typeof workerClient>["calls"]) {
-  return calls.find((call) => call.name === "complete_species_enrichment_job")
+  return calls.find((call) => call.name === "complete_gemini_species_job")
     ?.body;
 }
 
@@ -380,4 +383,21 @@ Deno.test("model refresh preview - uses the same grouped selection and never gen
       preview_only: true,
     },
   }]);
+});
+
+Deno.test("received generation with unconfirmed completion remains recovery pending", async () => {
+  const { client, calls } = workerClient({ completionAccepted: false });
+  let generations = 0;
+  const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
+    fetchSimilarSpecies: () => {
+      generations++;
+      return Promise.resolve({ similar_species: [] });
+    },
+  });
+  assertEquals(generations, 1);
+  assertEquals(result.status, "failed");
+  assertEquals(result.error, "gemini_species_recovery_pending");
+  assertEquals(calls.length, 2);
+  assertEquals(completion(calls)?.succeeded, true);
 });

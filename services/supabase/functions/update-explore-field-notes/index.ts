@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   parseJsonBody,
@@ -172,66 +173,68 @@ function normalizeNonNegativeInteger(
   return value as number;
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req, { limit: "standard" });
-    if (parsedBody instanceof Response) return parsedBody;
-    const body = parsedBody;
+serveGeminiEdge(
+  "update-explore-field-notes",
+  (req: Request) =>
+    withEdgeHandler(req, async (user, supabaseAdmin) => {
+      const parsedBody = await parseJsonBody(req, { limit: "standard" });
+      if (parsedBody instanceof Response) return parsedBody;
+      const body = parsedBody;
 
-    const paramErr = requireParams(body, ["post_id"]);
-    if (paramErr) return paramErr;
+      const paramErr = requireParams(body, ["post_id"]);
+      if (paramErr) return paramErr;
 
-    const postId = requireUuid(body.post_id, "post_id");
-    const fieldNotes = normalizeFieldNotes(body.field_notes);
-    const hashtags = normalizeHashtags(body.hashtags);
-    const speciesCommonName = Object.hasOwn(body, "species_common_name")
-      ? normalizeSpeciesCommonName(body.species_common_name)
-      : undefined;
-    const locationSharing = Object.hasOwn(body, "location_sharing")
-      ? normalizeLocationSharing(body.location_sharing)
-      : undefined;
-    const mediaItems = normalizeMediaItems(body.media_items);
-    let moderationParentRequestId: string | null = null;
-    const row = await updateExploreFieldNotes(
-      postId,
-      user.id,
-      fieldNotes,
-      hashtags,
-      speciesCommonName,
-      locationSharing,
-      mediaItems,
-      supabaseAdmin,
-      {
-        beforeProvider: async ({
-          checksumSha256,
-          policyVersion,
-          originalAnalysisId,
-        }) => {
-          moderationParentRequestId ??= resolveAIRequestId(
-            req,
-            body.ai_request_id,
-          );
-          const requestId = await deriveAIRequestId(
-            moderationParentRequestId,
-            `${checksumSha256}:${policyVersion}`,
-          );
-          return await reserveAIProviderCall(req, supabaseAdmin, {
-            userId: user.id,
-            operation: "explore_audio_moderation",
-            requestId,
-            originalAnalysisId: originalAnalysisId ?? null,
-          });
+      const postId = requireUuid(body.post_id, "post_id");
+      const fieldNotes = normalizeFieldNotes(body.field_notes);
+      const hashtags = normalizeHashtags(body.hashtags);
+      const speciesCommonName = Object.hasOwn(body, "species_common_name")
+        ? normalizeSpeciesCommonName(body.species_common_name)
+        : undefined;
+      const locationSharing = Object.hasOwn(body, "location_sharing")
+        ? normalizeLocationSharing(body.location_sharing)
+        : undefined;
+      const mediaItems = normalizeMediaItems(body.media_items);
+      let moderationParentRequestId: string | null = null;
+      const row = await updateExploreFieldNotes(
+        postId,
+        user.id,
+        fieldNotes,
+        hashtags,
+        speciesCommonName,
+        locationSharing,
+        mediaItems,
+        supabaseAdmin,
+        {
+          beforeProvider: async ({
+            checksumSha256,
+            policyVersion,
+            originalAnalysisId,
+          }) => {
+            moderationParentRequestId ??= resolveAIRequestId(
+              req,
+              body.ai_request_id,
+            );
+            const requestId = await deriveAIRequestId(
+              moderationParentRequestId,
+              `${checksumSha256}:${policyVersion}`,
+            );
+            return await reserveAIProviderCall(req, supabaseAdmin, {
+              userId: user.id,
+              operation: "explore_audio_moderation",
+              requestId,
+              originalAnalysisId: originalAnalysisId ?? null,
+            });
+          },
         },
-      },
-    );
+      );
 
-    return jsonResponse({
-      success: true,
-      post_id: row.id,
-      field_notes: row.field_notes,
-      hashtags: row.hashtags,
-      species_common_name: row.species_common_name,
-      location_sharing: row.location_sharing,
-    });
-  })
+      return jsonResponse({
+        success: true,
+        post_id: row.id,
+        field_notes: row.field_notes,
+        hashtags: row.hashtags,
+        species_common_name: row.species_common_name,
+        location_sharing: row.location_sharing,
+      });
+    }),
 );

@@ -818,3 +818,7 @@ verify_jwt = false
 # Candidate-only authenticated CPM allocation/status; deployment hold remains.
 [functions.initial-photo-allocation]
 verify_jwt = false
+
+# Service-authenticated, frozen synthetic cases only. Ordinary routing is unchanged.
+[functions.gemini-release-smoke]
+verify_jwt = false

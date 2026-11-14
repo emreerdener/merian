@@ -1,5 +1,6 @@
 import { PublicationPhotoCohortContainerRejection } from "./photoCohortPreflight.ts";
 import { publicationAbortable } from "./publicationDeadline.ts";
+import { recordGeminiApplicationOutcome } from "../ai/geminiTransport.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   exactObject,
@@ -13,7 +14,10 @@ import type {
   PhotoModerationState,
   PhotoModerationWork,
 } from "./photoExecution.ts";
-import type { PublicationPhotoSource } from "./photoClassifier.ts";
+import {
+  preparePublicationPhotoClassifier,
+  type PublicationPhotoSource,
+} from "./photoClassifier.ts";
 
 export interface PublicationWorkScope {
   owner_id: string;
@@ -74,8 +78,11 @@ function receipt(
     r.schema_version !== 1 || r.operation_id !== operation ||
     r.media_id !== source.media_id ||
     !states.has(r.state as string) ||
-    r.policy_version !== "photo_publication_v1" ||
-    r.provider !== "gemini" || r.model !== "gemini-2.5-flash" ||
+    !((r.policy_version === "photo_publication_v1" &&
+      r.model === "gemini-2.5-flash") ||
+      (r.policy_version === "photo_publication_v2" &&
+        r.model === "gemini-3.5-flash-lite")) ||
+    r.provider !== "gemini" ||
     r.processor_permission !== "google_gemini" ||
     Object.keys(s).some((k) =>
       s[k] !== source[k as keyof PublicationPhotoSource]
@@ -103,9 +110,9 @@ function receipt(
     lease_token: r.lease_token as string | null,
     dispatch_expires_at: r.dispatch_expires_at as string | null,
     source,
-    policy_version: "photo_publication_v1",
+    policy_version: r.policy_version as string,
     provider: "gemini",
-    model: "gemini-2.5-flash",
+    model: r.model as string,
     processor_permission: "google_gemini",
   });
 }
@@ -302,7 +309,87 @@ export function publicationModerationRepository(
         }
         return r.state;
       }
+      let invocationReceipt: string | null = null;
+      let responseSaved = false;
+      let transportAttempted = false;
+      async function recordNonInvocation() {
+        const { data, error } = await client.rpc(
+          "record_gemini_photo_non_invocation",
+          {
+            p_owner: scope.p_owner,
+            p_observation: scope.p_observation,
+            p_attempt: attempt,
+            p_token: token,
+            p_receipt: invocationReceipt,
+          },
+        ).retry(false).abortSignal(AbortSignal.timeout(5000));
+        if (error || data !== true) {
+          throw new HistoryError("analysis_history_unavailable");
+        }
+      }
       return {
+        prepare: (source, dependencies) =>
+          preparePublicationPhotoClassifier(source, {
+            ...dependencies,
+            model: work.model as "gemini-2.5-flash" | "gemini-3.5-flash-lite",
+            signal: AbortSignal.any(
+              [dependencies?.signal, deadlines.freshSignal, deadlines.signal]
+                .filter((signal): signal is AbortSignal =>
+                  signal !== undefined
+                ),
+            ),
+            transport: {
+              recordNonInvocation,
+              async beforeTransport() {
+                if (transportAttempted) {
+                  throw new HistoryError("analysis_history_unavailable");
+                }
+                transportAttempted = true;
+                const { data, error } = await client.rpc(
+                  "authorize_gemini_photo_transport",
+                  {
+                    p_owner: scope.p_owner,
+                    p_observation: scope.p_observation,
+                    p_attempt: attempt,
+                    p_token: token,
+                  },
+                ).retry(false).abortSignal(AbortSignal.timeout(5000));
+                if (error) {
+                  if (
+                    error.message === "gemini_dispatch_closed"
+                  ) await recordNonInvocation().catch(() => {});
+                  throw new HistoryError("analysis_history_unavailable");
+                }
+                invocationReceipt = historyUUID(data);
+              },
+              async recordResponse(receipt) {
+                if (!invocationReceipt) {
+                  throw new HistoryError("analysis_history_unavailable");
+                }
+                const { data, error } = await client.rpc(
+                  "record_gemini_invocation_receipt",
+                  {
+                    p_receipt_id: invocationReceipt,
+                    p_lease_token: token,
+                    p_receipt: receipt,
+                  },
+                ).retry(false).abortSignal(AbortSignal.timeout(5000));
+                if (error || data !== true) {
+                  throw new HistoryError("analysis_history_unavailable");
+                }
+                responseSaved = true;
+              },
+              async recordApplicationOutcome(outcome) {
+                if (!responseSaved || !invocationReceipt) return;
+                await recordGeminiApplicationOutcome(
+                  client,
+                  invocationReceipt,
+                  token,
+                  outcome,
+                );
+              },
+            },
+          }),
         saveProof: async (s, proof) => {
           const data = await advance(s, "prepare", { proof });
           if (

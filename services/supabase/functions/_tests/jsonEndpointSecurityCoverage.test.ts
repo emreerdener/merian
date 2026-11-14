@@ -28,7 +28,8 @@ Deno.test("production Edge routes do not bypass the bounded request readers", as
         /Deno\.serve\(\s*(?:async\s*)?\([^)]*\)\s*=>\s*withEdgeHandler\(/.test(
           source,
         );
-      const registeredPublicHandler = /\bserveEdge\s*\(/.test(source);
+      const registeredPublicHandler = /\b(?:serveEdge|serveGeminiEdge)\s*\(/
+        .test(source);
       if (!directlyWrappedUserHandler && !registeredPublicHandler) {
         unwrappedEntrypoints.push(fileUrl.pathname);
       }

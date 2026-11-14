@@ -155,7 +155,12 @@ Deno.test("prepared result policy rejects mismatched or unqualified execution be
   const base = snapshot();
   const policy = prepareMultimodalResultPolicy(base);
   assertThrows(
-    () => policy.safetySignals(outcome({ ...base, model: "gemini-2.5-pro" })),
+    () =>
+      policy.safetySignals(
+        outcome(
+          { ...base, model: "gemini-2.5-pro" } as unknown as AIAttemptSnapshot,
+        ),
+      ),
     Error,
     "ai_identification_result_policy_mismatch",
   );

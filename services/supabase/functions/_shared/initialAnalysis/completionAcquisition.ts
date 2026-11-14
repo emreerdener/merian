@@ -13,7 +13,7 @@ import {
 import { mediaDigest, mediaRecord, mediaUUID } from "./mediaBinding.ts";
 import { snapshotInitialResultReference } from "./resultEvidence.ts";
 import { transformInitialResult } from "./resultEncoding.ts";
-import { provenanceContractV1 } from "./resultSchemaV1.ts";
+import { provenanceContractV2 } from "./resultSchemaV2.ts";
 import { type InitialSchemaRule, matchesInitialSchema } from "./schema.ts";
 
 /** Explicit new private acquisition scope, not a widening of v1 admission input. */
@@ -137,7 +137,7 @@ export async function decodeInitialCompletionAcquisition(
   const digest = mediaDigest(reply.result_digest);
   const provenance = initialCanonicalText(
     transformInitialResult(
-      provenanceContractV1,
+      provenanceContractV2,
       reply.original_provenance,
       "encode",
     ),

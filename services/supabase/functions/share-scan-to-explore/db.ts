@@ -1100,6 +1100,7 @@ export async function requireApprovedAudioMedia(
       );
       if (supabaseAdmin && !decision.cacheHit && decision.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "explore_audio_moderation",
           model: decision.model,
           usage: decision.usage,

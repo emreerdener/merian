@@ -80,6 +80,7 @@ export function analysisAuthority(
     reservation: {
       assignment,
       id: historyUUID(q.reservation_id),
+      leaseToken: historyUUID(q.lease_token),
       requestId: historyUUID(q.request_id),
       attemptCount: q.attempt_count as number,
       policyVersion: q.policy_version as number,

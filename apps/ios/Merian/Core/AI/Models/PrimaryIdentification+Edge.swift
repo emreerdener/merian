@@ -16,6 +16,7 @@ enum PrimaryIdentificationProvenancePolicy {
         switch provenance {
         case .v1(let value): return value.schema == "merian_identify_primary_v1"
         case .v2(let value): return value.schema == "merian_identify_primary_v1"
+        case .v3(let value): return value.schema == "merian_identify_primary_v1"
         }
     }
 }

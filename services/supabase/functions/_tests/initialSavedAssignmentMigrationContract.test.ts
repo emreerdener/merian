@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assert, assertEquals } from "@std/assert";
 import assignmentSchema from "../_shared/initialAnalysis/assignment-schema-v2.json" with {
   type: "json",
@@ -15,8 +16,8 @@ const migration = await Deno.readTextFile(
 
 Deno.test("saved assignment SQL and TypeScript closed schemas stay identical", () => {
   const schemas = [...migration.matchAll(/SELECT '(.*?)'::JSONB;/g)];
-  assertEquals(JSON.parse(schemas[0][1]), assignmentSchema);
-  assertEquals(JSON.parse(schemas[1][1]), candidateSchema);
+  assertEquals(JSON.parse(schemas[0][1]), historicalI6Schema(assignmentSchema));
+  assertEquals(JSON.parse(schemas[1][1]), historicalI6Schema(candidateSchema));
 });
 
 Deno.test("saved assignment entrypoints retain service-only inactive authority", () => {

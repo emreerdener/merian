@@ -197,7 +197,7 @@ Deno.test("provider policy rejection uses one stable terminal response across ev
     const source = (await Deno.readTextFile(new URL(path, import.meta.url)))
       .replaceAll(/\s+/g, " ");
     const adapter = await Deno.readTextFile(
-      new URL("../_shared/ai/gemini.ts", import.meta.url),
+      new URL("../_shared/ai/geminiEnvelope.ts", import.meta.url),
     );
     assertStringIncludes(adapter, 'finishReason === "SAFETY"');
     assertStringIncludes(adapter, 'finishReason === "PROHIBITED_CONTENT"');

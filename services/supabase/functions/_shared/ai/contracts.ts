@@ -1,3 +1,4 @@
+import type { GeminiTransportHooks } from "./geminiTransport.ts";
 /** Internal contracts. No SDK types, credentials, HTTP admission or settlement. */
 import type {
   AudioMediaDescriptor,
@@ -26,6 +27,7 @@ export interface UserRequestAuthority {
     readonly assignment?: IdentificationProviderAssignment;
     readonly id: string;
     readonly requestId: string;
+    readonly leaseToken?: string;
     readonly attemptCount: number;
     readonly policyVersion: number;
     readonly model: string;
@@ -136,7 +138,7 @@ export type SpeciesContentAIRequest =
 
 export type AIAttemptSnapshot = GeminiAttemptSnapshot | OpenAIPhotoSnapshot;
 
-export interface GeminiAttemptSnapshot {
+export interface LegacyGeminiAttemptSnapshot {
   readonly provider: "gemini";
   readonly binding: "gemini_baseline_v1";
   readonly task: AITask;
@@ -190,6 +192,21 @@ export interface GeminiAttemptSnapshot {
   };
 }
 
+export interface Gemini3AttemptSnapshot
+  extends
+    Omit<LegacyGeminiAttemptSnapshot, "binding" | "model" | "generation"> {
+  readonly binding: "gemini_generation3_v1";
+  readonly model: "gemini-3.8-flash" | "gemini-3.5-flash-lite";
+  readonly generation: {
+    readonly maxOutputTokens: 512 | 1024 | 2048 | 4096 | 8192;
+    readonly thinkingLevel: "minimal" | "low" | "medium";
+  };
+}
+
+export type GeminiAttemptSnapshot =
+  | LegacyGeminiAttemptSnapshot
+  | Gemini3AttemptSnapshot;
+
 export interface AIUsage {
   /** Responses output includes reasoning; retain it even when the split is unknown. */
   readonly outputTokens?: number | null;
@@ -226,7 +243,7 @@ export type AIProviderOutcome =
     | { readonly kind: "refusal" }
     | {
       readonly kind: "invalid_output";
-      readonly reason: "json" | "finish" | "safety";
+      readonly reason: "json" | "finish" | "safety" | "identity";
     }
     | { readonly kind: "operational_failure" | "unknown_execution" }
   );
@@ -243,10 +260,10 @@ export interface AIAdapter<Snapshot = AIAttemptSnapshot> {
   prepare(
     request: AIRequest,
     snapshot: Snapshot,
-  ): () => Promise<AIProviderOutcome>;
+  ): (hooks?: GeminiTransportHooks) => Promise<AIProviderOutcome>;
 }
 
 export interface PreparedAIExecution<Snapshot = AIAttemptSnapshot> {
   readonly snapshot: Snapshot;
-  invoke(): Promise<AIExecutionOutcome<Snapshot>>;
+  invoke(hooks?: GeminiTransportHooks): Promise<AIExecutionOutcome<Snapshot>>;
 }

@@ -15,7 +15,7 @@ struct ObservationVideoSourceFingerprint: Equatable, Sendable {
         ])
         guard try ObservationHistoryPage.integer(row["schema_version"]) == 4,
               try ObservationHistoryPage.integer(row["entitlement_protocol"]) == 3,
-              try ObservationHistoryPage.integer(row["identification_protocol"]) == 6,
+              try [6, 7].contains(ObservationHistoryPage.integer(row["identification_protocol"])),
               try ObservationHistoryPage.integer(row["history_protocol"]) == 9,
               row["expected_processor_permission"] as? String == "google_gemini",
               let digest = row["request_digest"] as? String, digest.utf8.count == 64,
@@ -31,7 +31,7 @@ struct ObservationVideoSourceFingerprint: Equatable, Sendable {
         let artifacts = [graph.source] + graph.frames.map(\.artifact) + (graph.audio.map { [$0.artifact] } ?? [])
         guard !artifacts.contains(where: { $0.mediaID == source }) else { throw MerianError.invalidResponse }
         var fields = ["merian.analysis-video-source-binding", "1", "4", observation.uuidString.lowercased(),
-                      analysis.uuidString.lowercased(), source.uuidString.lowercased(), digest, "3", "6", "9", "google_gemini",
+                      analysis.uuidString.lowercased(), source.uuidString.lowercased(), digest, "3", String(try ObservationHistoryPage.integer(row["identification_protocol"])), "9", "google_gemini",
                       graph.audio == nil ? "multimodal_video_frames_v1" : "multimodal_video_audio_v1", "4", "1", "retained_clip_v1"]
         func appendArtifact(_ artifact: ObservationVideoProvenance.Artifact) {
             fields += [artifact.mediaID.uuidString.lowercased(), artifact.contentType, String(artifact.byteCount), artifact.sha256]

@@ -140,6 +140,9 @@ export async function assignmentFor(
     };
   }
   const snapshot = resolveAIClaim(request, fixtureAuthority(profile, request));
+  if (snapshot.binding !== "gemini_baseline_v1") {
+    throw new Error("evaluation_profile_unqualified");
+  }
   const native = buildGeminiRequestParameters(request, snapshot);
   return {
     key: `${input.caseId}-${profile}-${attempt}`,

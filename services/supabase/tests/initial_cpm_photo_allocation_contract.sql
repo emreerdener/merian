@@ -36,7 +36,7 @@ FROM cpm_candidate_vector CROSS JOIN LATERAL unnest(ARRAY[value->>'canonical'||E
 SELECT extensions.throws_ok(format('SELECT internal.parse_initial_cpm_photo_candidate(%L)',internal.initial_canonical(bad)),'22023','initial_analysis_input_invalid','reject candidate protocol/options/embedded content')
 FROM cpm_candidate_vector CROSS JOIN LATERAL (VALUES
  (jsonb_set(value->'candidate','{admission,client_protocol}','2')),
- (jsonb_set(value->'candidate','{admission,identification_protocol}','7')),
+ (jsonb_set(value->'candidate','{admission,identification_protocol}','8')),
  (jsonb_set(value->'candidate','{admission,expected_processor_permission}','null')),
  (jsonb_set(value->'candidate','{admission,language}','"en"')),
  (jsonb_set(value->'candidate','{variant}','"media_sources"')),

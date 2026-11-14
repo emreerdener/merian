@@ -61,7 +61,7 @@ struct IdentificationPreflightTests {
         #expect((object["p_original_analysis_id"] as? String)?.lowercased() == scanID)
         #expect(object["p_input_profile"] as? String == "multimodal_photo_v1")
         #expect(object["p_client_protocol"] as? Int == 3)
-        #expect(object["p_identification_protocol"] as? Int == 6)
+        #expect(object["p_identification_protocol"] as? Int == 7)
         #expect(!String(decoding: data, as: UTF8.self).contains("synthetic"))
     }
 
@@ -153,13 +153,13 @@ struct IdentificationPreflightTests {
             Data("[{\"input_profile\":\"multimodal_photo_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"openai\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(minimum)}]".utf8)
         }
         // The new reader remains compatible with today's minimum-4 assignment.
-        for minimum in [4, 5] {
+        for minimum in [4, 5, 6] {
             #expect(try IdentificationPreflightResponse.recipient(from: response("ready", minimum: minimum), for: input) == .openAI)
             #expect(throws: MerianError.openAIConsentRequired) {
                 try IdentificationPreflightResponse.recipient(from: response("permission_required", minimum: minimum), for: input)
             }
         }
-        for minimum in [-1, 0, 1, 2, 3, 6, 1001] {
+        for minimum in [-1, 0, 1, 2, 3, 7, 1001] {
             for decision in ["ready", "permission_required"] {
                 #expect(throws: MerianError.invalidResponse) {
                     try IdentificationPreflightResponse.recipient(from: response(decision, minimum: minimum), for: input)

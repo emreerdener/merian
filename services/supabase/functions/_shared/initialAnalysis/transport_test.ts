@@ -1,3 +1,4 @@
+import { retainedInitialTestAsset } from "./fixtures/retainedAssets.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import vectors from "./fixtures/admission-v1.json" with { type: "json" };
 import catalog from "./configuration-assets-v1.json" with { type: "json" };
@@ -27,11 +28,10 @@ const unavailable = {
 } as const;
 const signal = () => new AbortController().signal;
 const encoder = new TextEncoder();
-const root = new URL("../../../../../", import.meta.url);
 const assetReader: InitialAssetReader = async (path, revision, caller) => {
   assertEquals(revision, catalog.manifest.repository_revision);
   caller.throwIfAborted();
-  return new Blob([await Deno.readFile(new URL(path, root))]).stream();
+  return await retainedInitialTestAsset(path, caller);
 };
 const binding = {
   version: 1 as const,

@@ -58,7 +58,11 @@ export function recordedMetricProvenance(
       },
     },
   };
-  return identificationProvenance(resolveAIClaim(request, authority));
+  const snapshot = resolveAIClaim(request, authority);
+  if (snapshot.binding !== "gemini_baseline_v1") {
+    throw new Error("historical_fixture_profile_changed");
+  }
+  return identificationProvenance(snapshot);
 }
 export function geminiMetricProvenance() {
   return recordedMetricProvenance({

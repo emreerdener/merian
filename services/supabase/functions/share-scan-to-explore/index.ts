@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import {
   jsonResponse,
   runBackground,
@@ -195,114 +196,116 @@ function normalizeNonNegativeInteger(
   return value as number;
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const parsedBody = await parseJsonBody(req, { limit: "standard" });
-    if (parsedBody instanceof Response) return parsedBody;
-    const body = parsedBody;
+serveGeminiEdge(
+  "share-scan-to-explore",
+  (req: Request) =>
+    withEdgeHandler(req, async (user, supabaseAdmin) => {
+      const parsedBody = await parseJsonBody(req, { limit: "standard" });
+      if (parsedBody instanceof Response) return parsedBody;
+      const body = parsedBody;
 
-    const paramErr = requireParams(body, ["scan_id"]);
-    if (paramErr) return paramErr;
+      const paramErr = requireParams(body, ["scan_id"]);
+      if (paramErr) return paramErr;
 
-    const scanId = requireUuid(body.scan_id, "scan_id");
-    const {
-      restoredObjectKeys,
-      restoredVideoObjectKeys,
-      restoredAudioObjectKeys,
-    } = normalizeRestoredMediaObjectKeys(body, user.id);
-    const speciesCommonName = normalizeSpeciesCommonName(
-      body.species_common_name,
-    );
-    const fieldNotes = normalizeFieldNotes(body.field_notes);
-    const hashtags = normalizeHashtags(body.hashtags);
-    const requestedLocationSharing = normalizeLocationSharing(
-      body.location_sharing,
-    );
-    const mediaItems = normalizeMediaItems(body.media_items);
-    const recoveryScan = normalizeOwnedScanRecovery(
-      body.recovery_scan,
-      scanId,
-      user.id,
-    );
-    let moderationParentRequestId: string | null = null;
-
-    runBackground(trackPostHogEvent(user.id, "ExplorePostShareStarted", {
-      event_source: "supabase_edge",
-      requested_audio_clip_count: mediaItems?.filter((item) =>
-        item.kind === "audio"
-      ).length ?? null,
-    }));
-
-    try {
-      const scan = await fetchShareEligibleScan(
-        scanId,
-        user.id,
+      const scanId = requireUuid(body.scan_id, "scan_id");
+      const {
         restoredObjectKeys,
         restoredVideoObjectKeys,
         restoredAudioObjectKeys,
-        supabaseAdmin,
-        recoveryScan,
+      } = normalizeRestoredMediaObjectKeys(body, user.id);
+      const speciesCommonName = normalizeSpeciesCommonName(
+        body.species_common_name,
       );
-      await assertCommunityRequestCanPublishToExplore(
+      const fieldNotes = normalizeFieldNotes(body.field_notes);
+      const hashtags = normalizeHashtags(body.hashtags);
+      const requestedLocationSharing = normalizeLocationSharing(
+        body.location_sharing,
+      );
+      const mediaItems = normalizeMediaItems(body.media_items);
+      const recoveryScan = normalizeOwnedScanRecovery(
+        body.recovery_scan,
         scanId,
         user.id,
-        supabaseAdmin,
       );
-      await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-      const post = await publishExplorePostAtomically(
-        scan,
-        user.id,
-        speciesCommonName,
-        fieldNotes,
-        requestedLocationSharing,
-        mediaItems,
-        hashtags,
-        supabaseAdmin,
-        {
-          beforeProvider: async ({
-            checksumSha256,
-            policyVersion,
-            originalAnalysisId,
-          }) => {
-            moderationParentRequestId ??= resolveAIRequestId(
-              req,
-              body.ai_request_id,
-            );
-            const requestId = await deriveAIRequestId(
-              moderationParentRequestId,
-              `${checksumSha256}:${policyVersion}`,
-            );
-            return await reserveAIProviderCall(req, supabaseAdmin, {
-              userId: user.id,
-              operation: "explore_audio_moderation",
-              requestId,
-              originalAnalysisId: originalAnalysisId ?? scanId,
-            });
+      let moderationParentRequestId: string | null = null;
+
+      runBackground(trackPostHogEvent(user.id, "ExplorePostShareStarted", {
+        event_source: "supabase_edge",
+        requested_audio_clip_count: mediaItems?.filter((item) =>
+          item.kind === "audio"
+        ).length ?? null,
+      }));
+
+      try {
+        const scan = await fetchShareEligibleScan(
+          scanId,
+          user.id,
+          restoredObjectKeys,
+          restoredVideoObjectKeys,
+          restoredAudioObjectKeys,
+          supabaseAdmin,
+          recoveryScan,
+        );
+        await assertCommunityRequestCanPublishToExplore(
+          scanId,
+          user.id,
+          supabaseAdmin,
+        );
+        await syncPublicAuthorIdentity(user.id, supabaseAdmin);
+        const post = await publishExplorePostAtomically(
+          scan,
+          user.id,
+          speciesCommonName,
+          fieldNotes,
+          requestedLocationSharing,
+          mediaItems,
+          hashtags,
+          supabaseAdmin,
+          {
+            beforeProvider: async ({
+              checksumSha256,
+              policyVersion,
+              originalAnalysisId,
+            }) => {
+              moderationParentRequestId ??= resolveAIRequestId(
+                req,
+                body.ai_request_id,
+              );
+              const requestId = await deriveAIRequestId(
+                moderationParentRequestId,
+                `${checksumSha256}:${policyVersion}`,
+              );
+              return await reserveAIProviderCall(req, supabaseAdmin, {
+                userId: user.id,
+                operation: "explore_audio_moderation",
+                requestId,
+                originalAnalysisId: originalAnalysisId ?? scanId,
+              });
+            },
           },
-        },
-      );
-      runBackground(trackPostHogEvent(user.id, "ExplorePostShared", {
-        event_source: "supabase_edge",
-        has_audio: post.audible_media_count > 0,
-        audio_clip_count: post.audio_clip_count,
-        is_mixed_media: post.audio_clip_count > 0 &&
-          post.media_kinds.some((kind) => kind !== "audio"),
-        location_sharing: post.location_sharing,
-      }));
-      return jsonResponse({
-        success: true,
-        post_id: post.id,
-        scan_id: scanId,
-        shared_at: post.shared_at,
-        location_sharing: post.location_sharing,
-        publication_status: post.publication_status,
-      });
-    } catch (error) {
-      runBackground(trackPostHogEvent(user.id, "ExplorePostShareFailed", {
-        event_source: "supabase_edge",
-        reason: exploreShareFailureReason(error),
-      }));
-      throw error;
-    }
-  })
+        );
+        runBackground(trackPostHogEvent(user.id, "ExplorePostShared", {
+          event_source: "supabase_edge",
+          has_audio: post.audible_media_count > 0,
+          audio_clip_count: post.audio_clip_count,
+          is_mixed_media: post.audio_clip_count > 0 &&
+            post.media_kinds.some((kind) => kind !== "audio"),
+          location_sharing: post.location_sharing,
+        }));
+        return jsonResponse({
+          success: true,
+          post_id: post.id,
+          scan_id: scanId,
+          shared_at: post.shared_at,
+          location_sharing: post.location_sharing,
+          publication_status: post.publication_status,
+        });
+      } catch (error) {
+        runBackground(trackPostHogEvent(user.id, "ExplorePostShareFailed", {
+          event_source: "supabase_edge",
+          reason: exploreShareFailureReason(error),
+        }));
+        throw error;
+      }
+    }),
 );

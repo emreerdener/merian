@@ -385,7 +385,10 @@ Deno.test("prepared video binds both tier/model pairs even when quota and snapsh
     const f = setup(0, tier),
       other = tier === "free" ? "gemini-2.5-pro" : "gemini-2.5-flash";
     const execution = f.outcome.execution;
-    assert(execution.provider === "gemini");
+    assert(
+      execution.provider === "gemini" &&
+        execution.binding === "gemini_baseline_v1",
+    );
     assertThrows(() =>
       capturePreparedVideoOutcome({
         ...f.outcome,

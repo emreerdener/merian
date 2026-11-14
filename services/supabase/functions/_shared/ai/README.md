@@ -1,3 +1,14 @@
+## Generation 3 compatibility and guarded activation
+
+`geminiProfiles.ts`, `geminiEnvelope.ts`, `geminiTransport.ts`, and the
+service-only release smoke executor add candidate profiles, bounded reasoning
+metadata, durable requested/returned identities, and final dispatch fencing.
+Installing compatibility retains current routing. See the
+[canonical release, accounting, protocol, cutoff, and recovery contract](../../../../../docs/backend-and-data/22-gemini-generation3-release.md).
+The beta profile descriptions below remain historical/current-routing contracts
+until the authorized atomic activation. New V3 confidence presentation is
+provisional and unqualified for metrics.
+
 # AI provider boundary
 
 All four identification routes (`identify-multimodal`, `identify-describe`,
@@ -482,7 +493,26 @@ Private candidate storage and task-specific promotion remain necessary if
 another content provider is introduced; see the
 [shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
 
+The Gemini adapter validates shared overview, lookalike, and group-tag drafts
+against the native closed response schema before returning them to biology
+normalization. Required fields, unknown keys, types, enums, array bounds, and
+confidence limits fail closed. A valid provider envelope alone is not
+application success: provider facts persist first, then user-owned support
+receipts record one application outcome. Outcome acknowledgement failure cannot
+relabel accepted content or cause another invocation. Background species jobs
+separately require received nonfailure evidence and successful downstream
+persistence before their completion marker permits another scheduled refresh;
+uncertain or received-but- incomplete work remains excluded from automatic
+claims.
+
 ## Usage and diagnostics
+
+Gemini receipt-backed support usage is append-only. The initial ledger records
+unknown application outcome until acceptance is known at insertion. Subsequent
+application outcome evidence lives on the original owned receipt, without
+rewriting or repricing the ledger. Consult the
+[Gemini migration accounting contract](../../../../../docs/backend-and-data/22-gemini-generation3-release.md)
+for requested/returned identities, partial evidence, and reconciliation.
 
 Returned token counts retain Gemini's existing interpretation, including null
 for missing counts; modality breakdown retains its existing meaning. New primary

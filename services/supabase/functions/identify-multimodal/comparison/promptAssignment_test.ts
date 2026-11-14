@@ -215,6 +215,9 @@ Deno.test("trusted prompt authority matches the offline native bytes exactly and
       audioPromptComparison: arm,
     };
     const policy = resolveAIClaim(request, authority);
+    if (policy.binding !== "gemini_baseline_v1") {
+      throw new Error("comparison_profile_changed");
+    }
     assertEquals(
       buildGeminiRequestParameters(request, policy),
       offline.variants[i].native,

@@ -29,7 +29,8 @@ export function parsePreparedVideoAdmission(value: unknown) {
   ]);
   if (
     row.schema_version !== 4 || row.entitlement_protocol !== 3 ||
-    row.identification_protocol !== 6 || row.history_protocol !== 9 ||
+    (row.identification_protocol !== 6 && row.identification_protocol !== 7) ||
+    row.history_protocol !== 9 ||
     row.expected_processor_permission !== "google_gemini"
   ) return invalidHistory();
   const identity = parseAnalysisIdentity({
@@ -62,7 +63,7 @@ export function parsePreparedVideoAdmission(value: unknown) {
     schema_version: 4 as const,
     evidence_manifest: manifest,
     entitlement_protocol: 3 as const,
-    identification_protocol: 6 as const,
+    identification_protocol: row.identification_protocol as 6 | 7,
     history_protocol: 9 as const,
     expected_processor_permission: "google_gemini" as const,
   });

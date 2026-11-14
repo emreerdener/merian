@@ -4,6 +4,7 @@ import {
   PublicationPhotoCohortContainerRejection,
 } from "./photoCohortPreflight.ts";
 import { evidenceDigest } from "./evidence.ts";
+import { preparePublicationPhotoClassifier } from "./photoClassifier.ts";
 import {
   joined,
   jpegSegment,
@@ -26,6 +27,7 @@ Deno.test("whole-cohort preflight prepares exact ordered one-shot photos without
   const sources = [await source(1), await source(2)];
   const reads: string[] = [];
   let providerCalls = 0;
+  let transportCalls = 0;
   const prepared = await preparePublicationPhotoCohort(sources, {
     apiKey: () => "synthetic-key",
     readSource: (s, signal) => {
@@ -44,12 +46,28 @@ Deno.test("whole-cohort preflight prepares exact ordered one-shot photos without
   sources[0].sha256 = "b".repeat(64);
   bytes.fill(0);
   assert(Object.isFrozen(prepared));
-  const chosen = await prepared.prepare(id(1));
+  const chosen = await prepared.prepare(
+    id(1),
+    (source, dependencies) =>
+      preparePublicationPhotoClassifier(source, {
+        ...dependencies,
+        model: "gemini-3.5-flash-lite",
+        transport: {
+          beforeTransport: () => {
+            transportCalls++;
+            return Promise.resolve();
+          },
+          recordResponse: () => Promise.resolve(),
+        },
+      }),
+  );
   assertEquals(chosen.proof.source, prepared.sources[0]);
   await assertRejects(() => prepared.prepare(id(2)));
   await assertRejects(() => chosen.invoke());
   await assertRejects(() => chosen.invoke());
   assertEquals(providerCalls, 1);
+  assertEquals(transportCalls, 1);
+  assertEquals(chosen.proof.model, "gemini-3.5-flash-lite");
 });
 Deno.test("last-source metadata rejection cannot return a partial prepared cohort or charge quota", async () => {
   const good = safeJpeg(),

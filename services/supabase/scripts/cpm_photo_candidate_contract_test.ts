@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../functions/_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assertEquals } from "@std/assert";
 import candidateSchema from "../functions/_shared/initialAnalysis/cpm-photo-candidate-schema-v1.json" with {
   type: "json",
@@ -49,7 +50,7 @@ Deno.test("CPM SQL embeds the authoritative content and candidate schemas exactl
     );
     const matches = [...source.matchAll(pattern)];
     assertEquals(matches.length, 1);
-    assertEquals(JSON.parse(matches[0][1]), expected);
+    assertEquals(JSON.parse(matches[0][1]), historicalI6Schema(expected));
   }
 });
 
@@ -68,7 +69,7 @@ Deno.test("CPM SQL and Deno exercise the same independent golden vectors", async
     );
     const matches = [...source.matchAll(pattern)];
     assertEquals(matches.length, 1);
-    assertEquals(JSON.parse(matches[0][1]), expected);
+    assertEquals(JSON.parse(matches[0][1]), historicalI6Schema(expected));
   }
 });
 

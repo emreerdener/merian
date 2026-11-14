@@ -418,6 +418,18 @@ BEGIN
         RAISE EXCEPTION 'entitlement version did not advance atomically';
     END IF;
 
+    -- A changed tier/model must not rewrite a previously admitted request.
+    BEGIN
+        PERFORM public.reserve_ai_quota(test_user_id,'scan_identification',request_id,pg_catalog.REPEAT('a',64));
+        RAISE EXCEPTION 'failed admission unexpectedly rebound to the new tier model';
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_quota_unavailable' THEN RAISE; END IF;
+    END;
+    IF (SELECT model FROM internal.ai_quota_reservations WHERE id=retried_reservation.reservation_id)
+        IS DISTINCT FROM retried_reservation.model THEN
+        RAISE EXCEPTION 'failed admission lost immutable requested model';
+    END IF;
+    request_id := pg_catalog.gen_random_uuid();
     SELECT *
     INTO STRICT replayed_reservation
     FROM public.reserve_ai_quota(
@@ -428,11 +440,11 @@ BEGIN
     );
 
     IF replayed_reservation.is_replay
-       OR replayed_reservation.attempt_count <> 3
+       OR replayed_reservation.attempt_count <> 1
        OR replayed_reservation.lease_token
             = retried_reservation.lease_token
        OR replayed_reservation.effective_plan <> 'pro_paid' THEN
-        RAISE EXCEPTION 'failed provider attempt was not safely re-reserved';
+        RAISE EXCEPTION 'explicit successor was not admitted with current entitlements';
     END IF;
 
     BEGIN

@@ -17,7 +17,7 @@ Deno.test("dictionary chat is authenticated, Pro-only, and action bounded", asyn
 
   assertStringIncludes(
     index,
-    "Deno.serve((req: Request) =>",
+    'serveGeminiEdge("species-dictionary-chat", (req: Request) =>',
   );
   assertStringIncludes(
     index,
@@ -29,7 +29,7 @@ Deno.test("dictionary chat is authenticated, Pro-only, and action bounded", asyn
   assertStringIncludes(index, '"species-dictionary-chat"');
   assertMatch(
     index,
-    /Deno\.serve\(\(req: Request\) =>\s*withEdgeHandler\(\s*req,/,
+    /serveGeminiEdge\("species-dictionary-chat", \(req: Request\) =>\s*withEdgeHandler\(\s*req,/,
   );
   assertMatch(
     index,

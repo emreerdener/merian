@@ -123,19 +123,24 @@ export async function moderatePublicationPhotos(
             }
             throw error;
           }
-          const prepared = await publicationAbortable(
-            freshSignal,
-            () => cohort.prepare(work.sources[index].media_id),
-          );
           // Admission/proof/dispatch can each consume 12s. Do not reserve unless
           // there is still a useful provider window after those operations.
           if (remaining() >= 60_000 && !freshSignal.aborted) {
             const attempt = reserved ??
               await repo.admit(work.sources[index].media_id);
             if (isActivePhotoWork(attempt)) {
+              const execution = repo.execution(attempt);
               await executePublicationPhotoModeration(work.scope, attempt, {
-                ...repo.execution(attempt),
-                prepare: () => Promise.resolve(prepared),
+                ...execution,
+                prepare: () =>
+                  publicationAbortable(
+                    freshSignal,
+                    () =>
+                      cohort.prepare(
+                        work.sources[index].media_id,
+                        execution.prepare,
+                      ),
+                  ),
               });
             }
           }

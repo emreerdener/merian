@@ -2,7 +2,7 @@
  * of retained v1 rules. The full dependency-free public source hash covers all
  * transitive parser/primary constants and helpers, including harmless edits. */
 import { assertEquals } from "@std/assert";
-import baseline from "../functions/_shared/initialAnalysis/resultContractV1Baseline.json" with {
+import baseline from "../functions/_shared/initialAnalysis/resultContractV2Baseline.json" with {
   type: "json",
 };
 import {
@@ -11,10 +11,10 @@ import {
   primaryIdentificationContract,
 } from "../functions/_shared/identify/contract.ts";
 import {
-  dataContractV1,
-  primaryContractV1,
-  provenanceContractV1,
-} from "../functions/_shared/initialAnalysis/resultSchemaV1.ts";
+  dataContractV2,
+  primaryContractV2,
+  provenanceContractV2,
+} from "../functions/_shared/initialAnalysis/resultSchemaV2.ts";
 function executable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(executable);
   if (value && typeof value === "object") {
@@ -27,18 +27,18 @@ function executable(value: unknown): unknown {
   }
   return value;
 }
-Deno.test("result-v1 structural source drift requires an explicit compatibility decision", () => {
+Deno.test("result-v2 is the reviewed additive public contract", () => {
   assertEquals(
-    dataContractV1,
+    executable(dataContractV2),
     executable(identifyWireEnvelopeContract.fields.data.contract),
   );
   assertEquals(
-    provenanceContractV1,
+    executable(provenanceContractV2),
     executable(identificationProvenanceContract),
   );
-  assertEquals(primaryContractV1, executable(primaryIdentificationContract));
+  assertEquals(primaryContractV2, executable(primaryIdentificationContract));
 });
-Deno.test("result-v1 transitive public semantic source drift requires explicit review", async () => {
+Deno.test("result-v2 semantic baseline preserves immutable result-v1 sources", async () => {
   const source = await Deno.readFile(
     new URL("../functions/_shared/identify/contract.ts", import.meta.url),
   );
@@ -46,6 +46,25 @@ Deno.test("result-v1 transitive public semantic source drift requires explicit r
   const actual = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
     "",
   );
+  for (
+    const [file, expected] of [[
+      "resultSchemaV1.ts",
+      baseline.retained_v1_schema_sha256,
+    ], ["resultSemanticsV1.ts", baseline.retained_v1_semantics_sha256]]
+  ) {
+    const bytes = await Deno.readFile(
+      new URL(`../functions/_shared/initialAnalysis/${file}`, import.meta.url),
+    );
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (b) => b.toString(16).padStart(2, "0"),
+    ).join("");
+    assertEquals(
+      digest,
+      expected,
+      "Historical V1 rules must remain byte-identical.",
+    );
+  }
   assertEquals(
     actual,
     baseline.public_source_sha256,

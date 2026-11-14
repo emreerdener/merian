@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { enterGeminiTransport } from "./ai/geminiTransport.ts";
+import { type GenerateContentParameters, GoogleGenAI } from "@google/genai";
 
 export const GEMINI_REQUEST_TIMEOUT_MS = 90_000;
 
@@ -46,4 +47,37 @@ export function extractJson<T = unknown>(text: string): T {
     throw new Error("Malformed Gemini response: no JSON object found");
   }
   return JSON.parse(text.substring(start, end + 1)) as T;
+}
+
+/** Direct SDK callers share the same bounded normalization and receipt path. */
+export async function generateGeminiContent(
+  parameters: GenerateContentParameters,
+  hooks?: import("./ai/geminiTransport.ts").GeminiTransportHooks,
+  maximumBytes = 32 * 1024,
+) {
+  const {
+    normalizeGeminiEnvelope,
+    geminiResponseReceipt,
+    GeminiResponseRejected,
+  } = await import("./ai/geminiEnvelope.ts");
+  if (!hooks) throw new Error("gemini_transport_authority_required");
+  const models = _genAI.models;
+  await enterGeminiTransport(hooks, parameters.model);
+  const response = await models.generateContent(parameters);
+  const normalized = normalizeGeminiEnvelope(
+    response,
+    parameters.model,
+    maximumBytes,
+  );
+  const receipt = geminiResponseReceipt(normalized);
+  await hooks?.recordResponse(receipt);
+  if (normalized.failure || !normalized.text) {
+    await hooks.recordApplicationOutcome?.("error");
+    throw new GeminiResponseRejected(receipt);
+  }
+  return {
+    text: normalized.text,
+    usageMetadata: response.usageMetadata,
+    modelVersion: normalized.returnedModel,
+  };
 }

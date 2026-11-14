@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { prepareAccountedIdentification } from "../_shared/ai/identificationUsage.ts";
 import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
@@ -28,7 +29,6 @@ import {
   jsonResponse,
   logStructuredError,
   runBackground,
-  serveEdge,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
@@ -1383,6 +1383,7 @@ export async function handleIdentifyMultimodalRequest(
   try {
     payloadReadyForClient.identification_provenance = identificationProvenance(
       result.execution,
+      result.returnedModel,
     );
     responseEnvelope = parseIdentifySuccessEnvelope({
       success: true,
@@ -1713,7 +1714,10 @@ export async function handleIdentifyMultimodalRequest(
         {
           id: generatedScanId,
           user_id: user.id,
-          identification_provenance: identificationProvenance(result.execution),
+          identification_provenance: identificationProvenance(
+            result.execution,
+            result.returnedModel,
+          ),
           species_id: speciesId,
           timestamp: timestamp ?? undefined,
           gps_lat_exact: safeGpsLat,
@@ -2260,7 +2264,7 @@ async function tryHandleInternalReplayRequest(
 }
 
 if (import.meta.main) {
-  serveEdge(async (req: Request) => {
+  serveGeminiEdge("identify-multimodal", async (req: Request) => {
     if (req.method === "OPTIONS") {
       return new Response("ok", { headers: corsHeaders });
     }

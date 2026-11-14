@@ -24,7 +24,7 @@ struct ObservationReanalysisPreflightTests {
         #expect(Set(row.keys) == ["schema_version", "observation_id", "analysis_id", "source_analysis_id",
                                  "entitlement_protocol", "identification_protocol", "history_protocol"])
         #expect(row["history_protocol"] as? Int == 8)
-        #expect(row["identification_protocol"] as? Int == 6)
+        #expect(row["identification_protocol"] as? Int == 7)
         #expect(throws: (any Error).self) {
             try ObservationReanalysisPreflightRequest(observationID: input.observationID, analysisID: input.analysisID, sourceAnalysisID: input.analysisID)
         }
@@ -51,7 +51,7 @@ struct ObservationReanalysisPreflightTests {
             ["source_analysis_id": NSNull()], ["source_analysis_id": input.sourceAnalysisID.uuidString.uppercased()],
             ["decision": "unknown"], ["processor_permission": "recovery_only"], ["processor_permission": "unknown"],
             ["minimum_entitlement_protocol": true], ["minimum_entitlement_protocol": 4],
-            ["minimum_identification_protocol": 7], ["minimum_identification_protocol": 1.5],
+            ["minimum_identification_protocol": 8], ["minimum_identification_protocol": 1.5],
             ["minimum_identification_protocol": true], ["minimum_identification_protocol": -1]
         ] { #expect(throws: (any Error).self) { try decode(response(input).merging(patch) { _, new in new }, input) } }
         for key in response(input).keys {

@@ -4,8 +4,8 @@
 import type { AIExecutionOutcome } from "../ai/contracts.ts";
 import { identificationProvenance } from "../ai/provenance.ts";
 import { identificationUsageFacts } from "../ai/identificationUsage.ts";
-import { dataContractV1, provenanceContractV1 } from "./resultSchemaV1.ts";
-import { parseInitialResultDataV1 } from "./resultSemanticsV1.ts";
+import { dataContractV2, provenanceContractV2 } from "./resultSchemaV2.ts";
+import { parseInitialResultDataV2 } from "./resultSemanticsV2.ts";
 import {
   initialCanonicalText,
   parseInitialCanonicalText,
@@ -41,7 +41,7 @@ export interface CapturedInitialResult {
 }
 const encoder = new TextEncoder();
 const captured = new WeakSet<object>();
-const dataContract = dataContractV1;
+const dataContract = dataContractV2;
 const digest = (domain: "result" | "result-provenance", text: string) =>
   initialMediaHash(
     encoder.encode(`merian.initial-analysis.${domain}.v1\n${text}`),
@@ -195,21 +195,24 @@ export async function captureInitialResult(input: {
   if (input.outcome.kind !== "draft") throw invalidInitialResult();
   const encoded = transformInitialResult(dataContract, input.data, "encode");
   const decoded = transformInitialResult(dataContract, encoded, "decode");
-  const data = parseInitialResultDataV1(decoded);
+  const data = parseInitialResultDataV2(decoded);
   if (data.scan_id !== ref.scan_id || !data.identification_provenance) {
     throw invalidInitialResult();
   }
   const provenance = initialCanonicalText(
     transformInitialResult(
-      provenanceContractV1,
+      provenanceContractV2,
       data.identification_provenance,
       "encode",
     ),
   );
   const original = initialCanonicalText(
     transformInitialResult(
-      provenanceContractV1,
-      identificationProvenance(input.outcome.execution),
+      provenanceContractV2,
+      identificationProvenance(
+        input.outcome.execution,
+        input.outcome.returnedModel,
+      ),
       "encode",
     ),
   );
@@ -273,7 +276,12 @@ export async function decodeInitialResult(
   ]);
   canonicalBound(provenanceText, 65536);
   canonicalBound(originalProvenanceCanonical, 65536);
-  if (provenanceText !== originalProvenanceCanonical) {
+  if (
+    !initialRequestedProvenanceMatches(
+      provenanceText,
+      originalProvenanceCanonical,
+    )
+  ) {
     throw invalidInitialResult();
   }
   const resultDigest = mediaDigest(value.result_digest),
@@ -286,14 +294,14 @@ export async function decodeInitialResult(
     result.config_digest !== ref.config_digest ||
     result.funding_binding_digest !== ref.funding_binding_digest
   ) throw invalidInitialResult();
-  const data = parseInitialResultDataV1(
+  const data = parseInitialResultDataV2(
     transformInitialResult(dataContract, result.data, "decode"),
   );
   if (
     data.scan_id !== ref.scan_id || !data.identification_provenance ||
     initialCanonicalText(
         transformInitialResult(
-          provenanceContractV1,
+          provenanceContractV2,
           data.identification_provenance,
           "encode",
         ),
@@ -373,5 +381,32 @@ export async function persistInitialResult(
     });
   } catch {
     return "held";
+  }
+}
+
+/** Compare immutable requested configuration without pretending it knew the response. */
+export function initialRequestedProvenanceMatches(
+  received: string,
+  requested: string,
+): boolean {
+  if (received === requested) return true;
+  try {
+    const left = parseInitialCanonicalText(received) as Record<string, unknown>;
+    const right = parseInitialCanonicalText(requested) as Record<
+      string,
+      unknown
+    >;
+    if (
+      left.version !== 3 || right.version !== 3 ||
+      left.model !== "gemini-3.8-flash" ||
+      left.returned_model !== left.model ||
+      (right.returned_model !== null && right.returned_model !== left.model)
+    ) return false;
+    const { returned_model: _left, ...leftRequested } = left;
+    const { returned_model: _right, ...rightRequested } = right;
+    return initialCanonicalText(leftRequested) ===
+      initialCanonicalText(rightRequested);
+  } catch {
+    return false;
   }
 }

@@ -1,13 +1,22 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
+import {
+  decodeGeminiApplication,
+  type GeminiTransportHooks,
+} from "../_shared/ai/geminiTransport.ts";
+import {
+  candidateGeneration,
+  GEMINI_SUPPORT_MODEL,
+} from "../_shared/ai/geminiProfiles.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { handleProtectedChatSend } from "./protectedSendHandler.ts";
 import { Type } from "@google/genai";
 import { insightChatRequiresContext } from "./sendRoute.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { requireUuid } from "../_shared/explore.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
+import { generateGeminiContent } from "../_shared/gemini.ts";
 import {
   buildFieldChatReplyRequest,
-  extractFieldChatReplyJson,
+  parseFieldChatReply,
 } from "../_shared/fieldChat/reply.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
@@ -45,7 +54,6 @@ import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
-  normalizeAssistantAnswer,
   normalizeFeatureFeedbackSentiment,
   normalizeFeedbackNote,
   normalizeFeedbackRating,
@@ -59,9 +67,11 @@ import {
   buildSupportSystemInstruction,
   buildSystemInstruction,
   buildUserPrompt,
-  sanitizeFieldNotesDraft,
 } from "./prompt.ts";
-import { sanitizePromptSuggestions } from "./promptSuggestions.ts";
+import {
+  parseFieldNotesResponse,
+  parsePromptSuggestionsResponse,
+} from "./providerResponses.ts";
 import {
   DAILY_SEND_LIMIT,
   INSIGHT_CHAT_MODEL,
@@ -115,34 +125,28 @@ async function generateAssistantReply(
   systemInstruction: string,
   userPrompt: string,
   model = INSIGHT_CHAT_MODEL,
+  transport?: GeminiTransportHooks,
 ): Promise<ModelChatResult> {
-  const result = await _genAI.models.generateContent({
+  const result = await generateGeminiContent({
     ...buildFieldChatReplyRequest(systemInstruction, userPrompt, model),
-  });
+  }, transport);
 
-  const parsed = extractFieldChatReplyJson<{
-    answer?: unknown;
-    is_refusal?: unknown;
-    refusal_reason?: unknown;
-  }>(result.text ?? "");
-
-  return {
-    answer: normalizeAssistantAnswer(
-      parsed.answer,
-      "I could not produce a useful answer. Please try asking again.",
-    ),
-    isRefusal: parsed.is_refusal === true,
-    refusalReason: typeof parsed.refusal_reason === "string"
-      ? parsed.refusal_reason
-      : null,
-    usage: result.usageMetadata,
-  };
+  return decodeGeminiApplication(transport, () => {
+    const parsed = parseFieldChatReply(result.text ?? "");
+    return {
+      answer: parsed.answer,
+      isRefusal: parsed.is_refusal,
+      refusalReason: parsed.refusal_reason,
+      usage: result.usageMetadata,
+    };
+  }, (value) => value.isRefusal ? "refusal" : "success");
 }
 
 async function generateFieldNotesSummary(
   systemInstruction: string,
   messages: InsightChatMessageRow[],
   model = INSIGHT_CHAT_MODEL,
+  transport?: GeminiTransportHooks,
 ): Promise<{
   summaryText: string;
   usage: ModelChatResult["usage"];
@@ -156,32 +160,31 @@ async function generateFieldNotesSummary(
   };
   const userPrompt = buildFieldNotesSummaryPrompt(messages);
 
-  const result = await _genAI.models.generateContent({
+  const result = await generateGeminiContent({
     model,
     contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     config: {
       systemInstruction,
-      temperature: 0.15,
-      maxOutputTokens: 450,
+      ...(model === GEMINI_SUPPORT_MODEL ? {} : { temperature: 0.15 }),
+      ...(model === GEMINI_SUPPORT_MODEL
+        ? candidateGeneration("field_notes")
+        : { maxOutputTokens: 450, thinkingConfig: { thinkingBudget: 0 } }),
       responseMimeType: "application/json",
       responseSchema,
-      thinkingConfig: { thinkingBudget: 0 },
     },
-  });
+  }, transport);
 
-  const parsed = extractJson<{ summary_text?: unknown }>(result.text ?? "");
-  const rawSummaryText = typeof parsed.summary_text === "string" &&
-      parsed.summary_text.trim()
-    ? parsed.summary_text.trim()
-    : "";
-  const summaryText = sanitizeFieldNotesDraft(rawSummaryText);
-  return { summaryText, usage: result.usageMetadata };
+  return decodeGeminiApplication(transport, () => {
+    const summaryText = parseFieldNotesResponse(result.text ?? "");
+    return { summaryText, usage: result.usageMetadata };
+  });
 }
 
 async function generatePromptSuggestions(
   systemInstruction: string,
   messages: InsightChatMessageRow[],
   model = INSIGHT_CHAT_MODEL,
+  transport?: GeminiTransportHooks,
 ): Promise<{
   prompts: InsightChatPromptSuggestionPayload[];
   usage: ModelChatResult["usage"];
@@ -204,7 +207,7 @@ async function generatePromptSuggestions(
     required: ["prompts"],
   };
 
-  const result = await _genAI.models.generateContent({
+  const result = await generateGeminiContent({
     model,
     contents: [{
       role: "user",
@@ -212,19 +215,21 @@ async function generatePromptSuggestions(
     }],
     config: {
       systemInstruction,
-      temperature: 0.45,
-      maxOutputTokens: 220,
+      ...(model === GEMINI_SUPPORT_MODEL ? {} : { temperature: 0.45 }),
+      ...(model === GEMINI_SUPPORT_MODEL
+        ? candidateGeneration("suggested_questions")
+        : { maxOutputTokens: 220, thinkingConfig: { thinkingBudget: 0 } }),
       responseMimeType: "application/json",
       responseSchema,
-      thinkingConfig: { thinkingBudget: 0 },
     },
-  });
+  }, transport);
 
-  const parsed = extractJson<{ prompts?: unknown }>(result.text ?? "");
-  return {
-    prompts: sanitizePromptSuggestions(parsed.prompts),
-    usage: result.usageMetadata,
-  };
+  return decodeGeminiApplication(transport, () => {
+    return {
+      prompts: parsePromptSuggestionsResponse(result.text ?? ""),
+      usage: result.usageMetadata,
+    };
+  });
 }
 
 function createInsightHandler(req: Request, protectedStartedAt: number) {
@@ -354,9 +359,11 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
           systemInstruction,
           messages,
           quotaLease.reservation.model,
+          quotaLease.geminiTransport,
         );
         const usage = suggestions.usage;
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "insight_chat_prompt_suggestions",
           model: quotaLease.reservation.model,
           usage,
@@ -538,6 +545,7 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
           systemInstruction,
           messages,
           quotaLease.reservation.model,
+          quotaLease.geminiTransport,
         );
       } catch (error) {
         if (providerAttempted) {
@@ -549,6 +557,7 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
       }
       const usage = summary.usage;
       recordAIUsageBestEffort(supabaseAdmin, {
+        durableGeminiReceipt: true,
         operation: "insight_chat_summary",
         model: quotaLease.reservation.model,
         usage,
@@ -866,6 +875,7 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
           systemInstruction,
           userPrompt,
           quotaLease!.reservation.model,
+          quotaLease!.geminiTransport,
         );
       } catch (error) {
         if (providerAttempted) {
@@ -874,6 +884,7 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
           await quotaLease!.refund();
         }
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "insight_chat_reply",
           model: quotaLease!.reservation.model,
           effectivePlan: tier.plan,
@@ -987,8 +998,10 @@ function createInsightHandler(req: Request, protectedStartedAt: number) {
   };
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, createInsightHandler(req, performance.now()), {
-    responseHeaders: FIELD_CHAT_RESPONSE_HEADERS,
-  })
+serveGeminiEdge(
+  "insight-chat",
+  (req: Request) =>
+    withEdgeHandler(req, createInsightHandler(req, performance.now()), {
+      responseHeaders: FIELD_CHAT_RESPONSE_HEADERS,
+    }),
 );

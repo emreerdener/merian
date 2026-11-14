@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicHttpError } from "../_shared/http.ts";
@@ -68,9 +69,11 @@ export async function handleDiscoverySearch(
         request.context,
         lease.reservation.model,
         req.signal,
+        lease.geminiTransport,
       );
       interpretation = generated.interpretation;
       dependencies.record(admin, {
+        durableGeminiReceipt: true,
         operation: "species_discovery_search",
         model: lease.reservation.model,
         usage: generated.usage,
@@ -132,13 +135,12 @@ export async function handleDiscoverySearch(
   );
 }
 if (import.meta.main) {
-  Deno.serve((req: Request) =>
+  serveGeminiEdge("species-discovery-search", (req: Request) =>
     withEdgeHandler(
       req,
       (user, admin) => handleDiscoverySearch(req, user, admin),
       {
         responseHeaders: { "Cache-Control": "private, no-store" },
       },
-    )
-  );
+    ));
 }

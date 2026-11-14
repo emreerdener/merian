@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assert, assertEquals } from "@std/assert";
 import profile from "../_shared/initialAnalysis/media-preparation-profile-schema-v1.json" with {
   type: "json",
@@ -26,7 +27,7 @@ Deno.test("media lifecycle closed schemas and canonical fixtures are identical i
   embedded.push(
     JSON.parse(sql.match(/SELECT '(.*?)'::JSONB;/s)![1].replaceAll("''", "'")),
   );
-  assertEquals(embedded, [profile, assignment, response]);
+  assertEquals(embedded, historicalI6Schema([profile, assignment, response]));
   assertEquals(JSON.parse(tests.split("$vectors$")[1]), vectors.valid);
 });
 Deno.test("inactive source catalogs are never seeded or exposed to API roles", () => {

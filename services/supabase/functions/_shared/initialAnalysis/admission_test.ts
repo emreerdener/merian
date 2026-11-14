@@ -1,3 +1,5 @@
+import { retainedInitialTestAsset } from "./fixtures/retainedAssets.ts";
+import { historicalI6Schema } from "./fixtures/historicalSchema.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import vectors from "./fixtures/admission-v1.json" with { type: "json" };
 import catalog from "./configuration-assets-v1.json" with { type: "json" };
@@ -77,7 +79,7 @@ Deno.test("IC-1 fixture schema/catalog exactly match reviewed migration literals
   );
   const schemaLiteral =
     sql.split("AS $schema$\n SELECT '")[1].split("'::JSONB;")[0];
-  assertEquals(JSON.parse(schemaLiteral), schema);
+  assertEquals(JSON.parse(schemaLiteral), historicalI6Schema(schema));
   const assetLiteral = sql.split(
     "INSERT INTO internal.initial_analysis_configuration_assets(digest,manifest) VALUES('",
   )[1].split("'::JSONB);")[0];
@@ -91,9 +93,10 @@ Deno.test("IC-1 fixture schema/catalog exactly match reviewed migration literals
     catalog.digest,
   );
 });
-const repoRoot = new URL("../../../../../", import.meta.url);
-const readAsset = async (path: string) =>
-  new Blob([await Deno.readFile(new URL(path, repoRoot))]).stream();
+const readAsset = (path: string, revision: string, caller: AbortSignal) => {
+  assertEquals(revision, catalog.manifest.repository_revision);
+  return retainedInitialTestAsset(path, caller);
+};
 Deno.test("IC-1 pinned configuration source hashes hold on missing, changed or other manifest", async () => {
   await verifyInitialConfigurationAssets(readAsset, signal());
   await assertRejects(

@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Strict private result-v1 evidence. This proves byte/schema consistency only;
+/// Strict private result encoding with frozen V1/V2 compatibility rules. This proves byte/schema consistency only;
 /// the caller must authenticate the original acquisition and retain its fences.
 struct InitialRetainedResult: Sendable {
     typealias Value = InitialAnalysisCanonical.Value
@@ -16,7 +16,7 @@ struct InitialRetainedResult: Sendable {
               resultDigest.utf8.count == 64, provenanceDigest.utf8.count == 64,
               Self.matches(resultDigest, pattern: "^[0-9a-f]{64}$"),
               Self.matches(provenanceDigest, pattern: "^[0-9a-f]{64}$"),
-              reference == expectedReference, provenance == originalProvenance,
+              reference == expectedReference, try Self.requestedProvenanceMatches(provenance, originalProvenance),
               let rules = Self.rules else { throw InitialAnalysisCanonical.Invalid.document }
         let ref = try Self.referenceFields(reference)
         let body = try Self.closed(InitialAnalysisCanonical.parse(result), keys: ["version", "state", "scan_id",
@@ -37,11 +37,27 @@ struct InitialRetainedResult: Sendable {
               let provider = embedded.object?["provider"]?.string, let usage = body["provider_usage"] else {
             throw InitialAnalysisCanonical.Invalid.document
         }
+        if embedded.object?["version"]?.integer == 3 {
+            guard embedded.object?["model"]?.string == "gemini-3.8-flash",
+                  embedded.object?["returned_model"]?.string == "gemini-3.8-flash" else { throw InitialAnalysisCanonical.Invalid.document }
+        }
         try Self.usage(usage, provider: provider)
         guard Self.digest("result", result) == resultDigest,
               Self.digest("result-provenance", provenance) == provenanceDigest else { throw InitialAnalysisCanonical.Invalid.document }
         self.reference = reference; self.result = result; self.provenance = provenance
         self.resultDigest = resultDigest; self.provenanceDigest = provenanceDigest
+    }
+
+    private static func requestedProvenanceMatches(_ received: Data, _ requested: Data) throws -> Bool {
+        if received == requested { return true }
+        guard var left = try InitialAnalysisCanonical.parse(received).object,
+              var right = try InitialAnalysisCanonical.parse(requested).object,
+              left["version"]?.integer == 3, right["version"]?.integer == 3,
+              left["model"]?.string == "gemini-3.8-flash",
+              left["returned_model"]?.string == "gemini-3.8-flash",
+              right["returned_model"]?.isNull == true || right["returned_model"]?.string == "gemini-3.8-flash" else { return false }
+        left.removeValue(forKey: "returned_model"); right.removeValue(forKey: "returned_model")
+        return try InitialAnalysisCanonical.encode(.object(left)) == InitialAnalysisCanonical.encode(.object(right))
     }
 
     /// Projection input for the existing local-record factory. Numbers retain

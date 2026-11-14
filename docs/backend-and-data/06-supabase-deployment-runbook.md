@@ -1,3 +1,14 @@
+## Gemini activation as the final backend release step
+
+Follow the [Gemini activation contract](./22-gemini-generation3-release.md) for
+the optional `gemini_activation_release` manual-dispatch input. Verify the exact
+compatible Organizer build is available to the intended TestFlight group before
+starting. The authorized release includes bounded paid smokes and
+revision-fenced protective suspension. Existing production lock, exact-source
+controls, mandatory gates, and feature holds remain required. Ordinary
+deployments and migrations retain routing. TestFlight availability never
+triggers activation.
+
 # Supabase Deployment Runbook
 
 > **Beta policy update — September 18, 2026:** The owner authorized the existing

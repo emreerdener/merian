@@ -29,6 +29,17 @@ export async function computeFunctionBundleDigests<T extends string>(
       join(functionsRoot, "dependencies.lock"),
     ]);
     files.delete(generatedPath);
+    // A function may share several generated identities. Exclude all generated
+    // digest payloads so cross-imports cannot create a circular hash dependency.
+    for (
+      const name of [
+        "geminiDeploymentIdentity.ts",
+        "fieldChatDeploymentIdentity.ts",
+        "identificationDeploymentIdentity.ts",
+      ]
+    ) {
+      files.delete(join(functionsRoot, "_shared", name));
+    }
     const config = join(functionsRoot, name, "deno.json");
     try {
       if ((await Deno.stat(config)).isFile) files.add(config);

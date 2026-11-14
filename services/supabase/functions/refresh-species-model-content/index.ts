@@ -1,5 +1,6 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
-import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
+import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import {
@@ -7,7 +8,7 @@ import {
   runSpeciesModelContentRefresh,
 } from "./db.ts";
 
-serveEdge(async (req: Request) => {
+serveGeminiEdge("refresh-species-model-content", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

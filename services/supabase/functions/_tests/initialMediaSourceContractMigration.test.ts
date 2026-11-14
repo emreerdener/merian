@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assert, assertEquals } from "@std/assert";
 import schema from "../_shared/initialAnalysis/media-source-candidate-schema-v2.json" with {
   type: "json",
@@ -17,7 +18,7 @@ const sqlTests = await Deno.readTextFile(
 Deno.test("source schema and test vectors agree across SQL and TypeScript", () => {
   assertEquals(
     JSON.parse(migration.match(/SELECT '(.*?)'::JSONB;/s)![1]),
-    schema,
+    historicalI6Schema(schema),
   );
   assertEquals(
     JSON.parse(

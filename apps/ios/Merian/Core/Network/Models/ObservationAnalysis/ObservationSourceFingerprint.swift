@@ -16,7 +16,7 @@ struct ObservationSourceFingerprint: Sendable, Equatable {
                                 "history_protocol", "expected_processor_permission"] else { throw MerianError.invalidResponse }
         let version = try Self.integer(row["schema_version"])
         guard [2, 3].contains(version), try Self.integer(row["entitlement_protocol"]) == 3,
-              try Self.integer(row["identification_protocol"]) == 6,
+              try [6, 7].contains(Self.integer(row["identification_protocol"])),
               try Self.integer(row["history_protocol"]) == (version == 2 ? 8 : 9),
               let processor = row["expected_processor_permission"] as? String,
               (version == 2 ? ["google_gemini", "openai"] : ["google_gemini"]).contains(processor) else {
@@ -33,7 +33,7 @@ struct ObservationSourceFingerprint: Sendable, Equatable {
             throw MerianError.invalidResponse
         }
         var fields = ["merian.analysis-source-reservation", "1", String(version), observation.uuidString.lowercased(),
-                      analysis.uuidString.lowercased(), source.uuidString.lowercased(), digest, "3", "6",
+                      analysis.uuidString.lowercased(), source.uuidString.lowercased(), digest, "3", String(try ObservationHistoryPage.integer(row["identification_protocol"])),
                       version == 2 ? "8" : "9", processor, version == 2 ? "multimodal_photo_v1" : "multimodal_audio_v1",
                       String(version), String(items.count)]
         var mediaIDs = Set<UUID>(), bytes = 0, textUnits = 0

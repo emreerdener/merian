@@ -286,6 +286,7 @@ explore-post-chat
 export-dwca
 field-trips
 flag-issue
+gemini-release-smoke
 generate-upload-urls
 get-community-identification-activity
 get-community-identification-detail

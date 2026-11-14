@@ -60,6 +60,11 @@ private enum OpenAIGenerationCodingKeys: String, CodingKey {
     case image_detail
 }
 
+private enum GeminiGenerationCodingKeys: String, CodingKey {
+    case max_output_tokens
+    case thinking_level
+}
+
 struct EdgeResponseWrapper: Codable {
     let success: Bool?
     let data: EdgeResponse
@@ -736,6 +741,7 @@ struct IdentificationProvenanceV2DTO: Codable {
 enum IdentificationProvenanceDTO: Codable {
     case v1(IdentificationProvenanceV1DTO)
     case v2(IdentificationProvenanceV2DTO)
+    case v3(IdentificationProvenanceV3DTO)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
@@ -743,6 +749,7 @@ enum IdentificationProvenanceDTO: Codable {
         switch version {
         case 1: self = .v1(try IdentificationProvenanceV1DTO(from: decoder))
         case 2: self = .v2(try IdentificationProvenanceV2DTO(from: decoder))
+        case 3: self = .v3(try IdentificationProvenanceV3DTO(from: decoder))
         default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unsupported identification metadata version."))
         }
     }
@@ -751,7 +758,172 @@ enum IdentificationProvenanceDTO: Codable {
         switch self {
         case .v1(let value): try value.encode(to: encoder)
         case .v2(let value): try value.encode(to: encoder)
+        case .v3(let value): try value.encode(to: encoder)
         }
+    }
+}
+
+struct IdentificationProvenanceV3DTO: Codable {
+    struct GeminiGeneration: Codable {
+        let max_output_tokens: Int
+        let thinking_level: String
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: GeminiGenerationCodingKeys.self)
+            let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+            let allowedKeys: Set<String> = ["max_output_tokens", "thinking_level"]
+            guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+            }
+            max_output_tokens = try container.decode(Int.self, forKey: .max_output_tokens)
+            thinking_level = try container.decode(String.self, forKey: .thinking_level)
+            guard max_output_tokens >= 8192 && max_output_tokens <= 8192 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+            guard thinking_level.utf16.count <= 10 && ["medium"].contains(thinking_level) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: GeminiGenerationCodingKeys.self)
+            try container.encode(max_output_tokens, forKey: .max_output_tokens)
+            try container.encode(thinking_level, forKey: .thinking_level)
+        }
+    }
+
+    let version: Int
+    let provider: String
+    let binding: String
+    let model: String
+    let variant: String
+    let operation: String
+    let policy_version: Int
+    let prompt: String
+    let schema: String
+    let confidence: String
+    let diagnostic_trigger: Double?
+    let prompt_diagnostic_trigger: Double?
+    let safety: String?
+    let timeout_ms: Int
+    let generation: GeminiGeneration
+    let returned_model: String?
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case provider
+        case binding
+        case model
+        case variant
+        case operation
+        case policy_version
+        case prompt
+        case schema
+        case confidence
+        case diagnostic_trigger
+        case prompt_diagnostic_trigger
+        case safety
+        case timeout_ms
+        case generation
+        case returned_model
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["version", "provider", "binding", "model", "variant", "operation", "policy_version", "prompt", "schema", "confidence", "diagnostic_trigger", "prompt_diagnostic_trigger", "safety", "timeout_ms", "generation", "returned_model"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
+        version = try container.decode(Int.self, forKey: .version)
+        provider = try container.decode(String.self, forKey: .provider)
+        binding = try container.decode(String.self, forKey: .binding)
+        model = try container.decode(String.self, forKey: .model)
+        variant = try container.decode(String.self, forKey: .variant)
+        operation = try container.decode(String.self, forKey: .operation)
+        policy_version = try container.decode(Int.self, forKey: .policy_version)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        schema = try container.decode(String.self, forKey: .schema)
+        confidence = try container.decode(String.self, forKey: .confidence)
+        diagnostic_trigger = try container.decode(Double?.self, forKey: .diagnostic_trigger)
+        prompt_diagnostic_trigger = try container.decode(Double?.self, forKey: .prompt_diagnostic_trigger)
+        safety = try container.decode(String?.self, forKey: .safety)
+        timeout_ms = try container.decode(Int.self, forKey: .timeout_ms)
+        generation = try container.decode(GeminiGeneration.self, forKey: .generation)
+        returned_model = try container.decode(String?.self, forKey: .returned_model)
+        guard version >= 3 && version <= 3 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard provider.utf16.count <= 80 && ["gemini"].contains(provider) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard binding.utf16.count <= 80 && ["gemini_generation3_v1"].contains(binding) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard model.utf16.count <= 80 && ["gemini-3.8-flash"].contains(model) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard variant.utf16.count >= 1 && variant.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard operation.utf16.count >= 1 && operation.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard policy_version >= 1 && policy_version <= 999999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard prompt.utf16.count >= 1 && prompt.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard schema.utf16.count >= 1 && schema.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard confidence.utf16.count >= 1 && confidence.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        if let diagnostic_trigger {
+            guard diagnostic_trigger >= 0 && diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let prompt_diagnostic_trigger {
+            guard prompt_diagnostic_trigger >= 0 && prompt_diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let safety {
+            guard safety.utf16.count >= 1 && safety.utf16.count <= 80 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        guard timeout_ms >= 1 && timeout_ms <= 999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        if let returned_model {
+            guard returned_model.utf16.count <= 80 && ["gemini-3.8-flash"].contains(returned_model) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(provider, forKey: .provider)
+        try container.encode(binding, forKey: .binding)
+        try container.encode(model, forKey: .model)
+        try container.encode(variant, forKey: .variant)
+        try container.encode(operation, forKey: .operation)
+        try container.encode(policy_version, forKey: .policy_version)
+        try container.encode(prompt, forKey: .prompt)
+        try container.encode(schema, forKey: .schema)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encode(diagnostic_trigger, forKey: .diagnostic_trigger)
+        try container.encode(prompt_diagnostic_trigger, forKey: .prompt_diagnostic_trigger)
+        try container.encode(safety, forKey: .safety)
+        try container.encode(timeout_ms, forKey: .timeout_ms)
+        try container.encode(generation, forKey: .generation)
+        try container.encode(returned_model, forKey: .returned_model)
     }
 }
 

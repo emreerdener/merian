@@ -125,7 +125,11 @@ export async function preparePublicationPhotoCohort(
     // One provider attempt per orchestration pass. Hold at most 32 MiB raw;
     // release all unselected buffers BEFORE the classifier builds one base64
     // request. Never retain a cohort of eagerly serialized provider bodies.
-    prepare: async (media: string) => {
+    prepare: async (
+      media: string,
+      classifier: typeof preparePublicationPhotoClassifier =
+        preparePublicationPhotoClassifier,
+    ) => {
       if (selected) {
         throw new HistoryError("analysis_history_operation_conflict");
       }
@@ -135,7 +139,7 @@ export async function preparePublicationPhotoCohort(
       selected = true;
       verified.clear();
       signal.throwIfAborted();
-      const prepared = await preparePublicationPhotoClassifier(source, {
+      const prepared = await classifier(source, {
         readSource: () => Promise.resolve(bytes),
         apiKey: dependencies.apiKey,
         fetcher: dependencies.fetcher,

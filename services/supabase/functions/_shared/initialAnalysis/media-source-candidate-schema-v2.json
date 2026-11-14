@@ -232,7 +232,7 @@
             "identification_protocol": {
               "type": "integer",
               "minimum": 6,
-              "maximum": 6
+              "maximum": 7
             },
             "expected_processor_permission": {
               "type": "string",

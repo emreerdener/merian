@@ -59,6 +59,7 @@ const dwcaMonitorScriptUrl = new URL(
 );
 
 const EXPECTED_AUTHORIZATION_BOUNDARIES = [
+  "_shared/ai/geminiDeployment.ts",
   "auto-purge-nonbio/index.ts",
   "backfill-explore-audio-spectrograms/index.ts",
   "community-taxonomy-status/index.ts",
@@ -67,6 +68,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "erase-publication-photos/index.ts",
   "expire-subscription-passes/index.ts",
   "export-dwca/index.ts",
+  "gemini-release-smoke/index.ts",
   "identify-multimodal/index.ts",
   "moderate-publication-photos/index.ts",
   "process-community-consensus-jobs/index.ts",
@@ -182,7 +184,13 @@ Deno.test("every service-role request boundary uses exact environment-backed aut
       );
     }
     assertStringIncludes(source, "auth.ok");
-    assertStringIncludes(source, "auth.serverApiKey");
+    if (path !== "_shared/ai/geminiDeployment.ts") {
+      assertStringIncludes(source, "auth.serverApiKey");
+    } else {
+      assertStringIncludes(source, 'req.method === "HEAD"');
+      assertStringIncludes(source, "await withPublicEdgeHandler(req, handler)");
+      assert(!source.includes("createServiceRoleClient"));
+    }
     assert(
       !source.includes("auth.token"),
       `${path} must not reuse a caller-supplied credential downstream.`,

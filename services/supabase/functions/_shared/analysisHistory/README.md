@@ -722,6 +722,13 @@ attestation and zero-attempt needs-action settlement never authorize provider
 retries or copy work. Unknown errors remain recoverable. Policy changes require
 a new attestation version; no raw bytes or diagnostics are persisted.
 
+Gemini compatibility keeps whole-cohort verification before admission. After
+admission, the cohort supplies its verified cached bytes to the repository's
+classifier builder, which freezes the admitted model and durable transport
+owner. The final provider call cannot bypass the revision/cutoff check by using
+the preflight's default classifier. See the
+[Gemini release contract](../../../../../docs/backend-and-data/22-gemini-generation3-release.md).
+
 ## Copy service integration
 
 The prepared `copy-publication-photos` owner finalizes durable copy outcomes

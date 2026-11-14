@@ -85,6 +85,68 @@ export function resolveAIClaim(
     }
     return openAIPhotoSnapshot(request, policyVersion);
   }
+  if (model === "gemini-3.8-flash") {
+    const tier = authority.reservation.tier?.effective_tier;
+    if (
+      (tier !== "free" && tier !== "pro") ||
+      authority.audioPromptComparison !== undefined
+    ) throw new Error("ai_authority_mismatch");
+    const images = request.variant !== "description_compat" &&
+      request.evidence.some((item) => item.kind === "image");
+    const audio = request.variant !== "description_compat" &&
+      request.evidence.some((item) => item.kind === "audio");
+    const variant = request.variant;
+    return Object.freeze({
+      provider: "gemini",
+      binding: "gemini_generation3_v1",
+      task: "identify",
+      variant,
+      model,
+      contextKind: "user_request",
+      operation,
+      policyVersion,
+      permission: "google_gemini",
+      prompt: variant === "description_compat"
+        ? "identify_describe_v1"
+        : variant === "audio_compat"
+        ? "identify_audio_compat_v2"
+        : variant === "vision_compat"
+        ? "identify_vision_v1"
+        : images
+        ? audio ? "identify_blended_v1" : "identify_vision_v1"
+        : audio
+        ? "identify_audio_v2"
+        : "identify_text_v1",
+      schema: variant === "description_compat"
+        ? "merian_describe_v1"
+        : variant === "audio_compat" || (!images && audio)
+        ? "merian_audio_v2"
+        : "merian_identify_v1",
+      confidence: variant === "description_compat"
+        ? "gemini_describe_v1"
+        : variant === "audio_compat"
+        ? "gemini_audio_compat_v2"
+        : variant === "vision_compat"
+        ? "gemini_vision_compat_v1"
+        : !images && audio
+        ? "gemini_audio_v2"
+        : "gemini_identify_v1",
+      ...(variant === "multimodal" || variant === "vision_compat"
+        ? { diagnosticTrigger: 0.99 }
+        : {}),
+      ...(variant === "vision_compat"
+        ? {
+          promptDiagnosticTrigger: 0.99,
+          safety: "biological_vision_v1" as const,
+        }
+        : {}),
+      timeoutMs: 90000,
+      generation: Object.freeze({
+        maxOutputTokens: 8192,
+        thinkingLevel: "medium",
+      }),
+    });
+  }
   if (model !== "gemini-2.5-flash" && model !== "gemini-2.5-pro") {
     throw new Error("ai_model_not_enabled");
   }

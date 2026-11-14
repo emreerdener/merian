@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import {
   corsHeaders,
   parseJsonBody,
@@ -15,7 +15,7 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-serveEdge(async (request) => {
+serveGeminiEdge("backfill-explore-audio-spectrograms", async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

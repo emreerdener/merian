@@ -1,3 +1,7 @@
+import {
+  geminiReservationTransport,
+  type GeminiTransportHooks,
+} from "./ai/geminiTransport.ts";
 import type { AIRequest } from "./ai/contracts.ts";
 import {
   type IdentificationInputProfile,
@@ -29,6 +33,8 @@ const IP_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const SUPPORTED_MODELS = new Set([
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
 ]);
 
 export type AIQuotaOperation =
@@ -87,7 +93,12 @@ export interface AIQuotaReservation {
   leaseToken: string;
   leaseExpiresAt: string;
   attemptCount: number;
-  model: "gemini-2.5-flash" | "gemini-2.5-pro" | "gpt-6-sol";
+  model:
+    | "gemini-2.5-flash"
+    | "gemini-2.5-pro"
+    | "gemini-3.8-flash"
+    | "gemini-3.5-flash-lite"
+    | "gpt-6-sol";
   tier: TierResolution;
   policyVersion: number;
   dailyLimit: number | null;
@@ -101,6 +112,7 @@ export interface AIProviderQuotaLease<
   Reservation extends AIQuotaReservation = AIQuotaReservation,
 > {
   reservation: Reservation;
+  geminiTransport?: GeminiTransportHooks;
   commit(): Promise<void>;
   refund(): Promise<boolean>;
   fail(): Promise<boolean>;
@@ -384,7 +396,7 @@ async function reserveQuota(
         expectedRecipient,
       )) ||
     (identificationProtocol !== null &&
-      (!["4", "5", "6"].includes(identificationProtocol) ||
+      (!["4", "5", "6", "7"].includes(identificationProtocol) ||
         expectedRecipient === null))
   ) {
     throw new AIQuotaError(
@@ -660,6 +672,11 @@ export function createAIProviderQuotaLease<
 
   return {
     reservation,
+    geminiTransport: geminiReservationTransport(
+      supabaseAdmin,
+      userId,
+      reservation,
+    ),
     async commit() {
       if (finalState === "committed") return;
       if (finalState !== null) {

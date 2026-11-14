@@ -1,0 +1,6 @@
+{
+  "public_source_sha256": "e56008334666eca2bfffe89db10a6f0a8a23578154e26b810eb877b37956cb0b",
+  "retained_v1_schema_sha256": "6979420a9b0503ece620f6d686f4996b3b7513c365d24e37e72d5ed321d0dc8a",
+  "retained_v1_semantics_sha256": "a090f4661f306cbc020d8112da159a1d6b9fb14c883c460fc9a612f0657df17e",
+  "decision": "2026-11-14: Add result V2 for Gemini provenance V3. Keep retained V1 structural and semantic bytes unchanged; new V2 accepts the former V1/V2 provenance plus V3. No saved result rewrite."
+}

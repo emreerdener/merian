@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   jsonResponse,
@@ -696,9 +697,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
     let responseEnvelope: IdentifySuccessEnvelope;
     try {
       payloadReadyForClient.identification_provenance =
-        identificationProvenance(
-          result.execution,
-        );
+        identificationProvenance(result.execution, result.returnedModel);
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
         data: payloadReadyForClient,
@@ -797,6 +796,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
             user_id: user.id,
             identification_provenance: identificationProvenance(
               result.execution,
+              result.returnedModel,
             ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
@@ -1051,11 +1051,10 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
 const handleIdentifyDescribeRequest = createDescribeHandler();
 
 if (import.meta.main) {
-  Deno.serve((req: Request) =>
+  serveGeminiEdge("identify-describe", (req: Request) =>
     withEdgeHandler(
       req,
       (user, supabaseAdmin) =>
         handleIdentifyDescribeRequest(req, user, supabaseAdmin),
-    )
-  );
+    ));
 }

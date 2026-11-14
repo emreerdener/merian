@@ -1,7 +1,7 @@
 /** Explicit test profile for the complimentary Pro fixture, separate from any installed archive. */
-import type { GeminiAttemptSnapshot } from "../../ai/contracts.ts";
+import type { LegacyGeminiAttemptSnapshot } from "../../ai/contracts.ts";
 import { diagnosticTriggerForTier } from "../../identify/thresholds.ts";
-export const syntheticOriginalPhotoSnapshot: GeminiAttemptSnapshot = {
+export const syntheticOriginalPhotoSnapshot: LegacyGeminiAttemptSnapshot = {
   task: "identify",
   binding: "gemini_baseline_v1",
   provider: "gemini",

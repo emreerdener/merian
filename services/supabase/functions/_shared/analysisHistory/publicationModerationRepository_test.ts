@@ -6,6 +6,8 @@ import {
   publicationModerationRepository,
 } from "./publicationModerationRepository.ts";
 import { HistoryError } from "./contract.ts";
+import { evidenceDigest } from "./evidence.ts";
+import { safeJpeg } from "./testing/publicPhotoFixtures.ts";
 const id = (n: number) =>
   `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
 const source = () => ({
@@ -20,6 +22,88 @@ const identity = () => ({
   observation_id: id(2),
   operation_id: id(3),
   work_token: id(4),
+});
+Deno.test("owned photo classifier preserves candidate profile and both provider and worker cancellation", async () => {
+  for (const boundary of ["provider", "worker"] as const) {
+    const bytes = safeJpeg();
+    const photo = {
+      ...source(),
+      byte_count: bytes.length,
+      sha256: await evidenceDigest(bytes),
+    };
+    const provider = new AbortController(), worker = new AbortController();
+    const started = Promise.withResolvers<void>();
+    let calls = 0, guards = 0;
+    const ownedClient = {
+      rpc(name: string) {
+        const query = {
+          retry() {
+            return query;
+          },
+          abortSignal() {
+            if (name === "read_publication_moderation_work") {
+              return Promise.resolve({
+                data: [{
+                  media_id: photo.media_id,
+                  attempt: {
+                    ...receipt(),
+                    source: photo,
+                    model: "gemini-3.5-flash-lite",
+                    policy_version: "photo_publication_v2",
+                  },
+                }],
+                error: null,
+              });
+            }
+            assertEquals(name, "authorize_gemini_photo_transport");
+            guards++;
+            return Promise.resolve({ data: id(9), error: null });
+          },
+        };
+        return query;
+      },
+    } as unknown as SupabaseClient;
+    const repo = publicationModerationRepository(ownedClient, identity(), [
+      photo,
+    ], { signal: worker.signal });
+    const [work] = await repo.read();
+    assert(work && isActivePhotoWork(work));
+    const prepared = await repo.execution(work).prepare!(photo, {
+      readSource: () => Promise.resolve(bytes),
+      signal: provider.signal,
+      apiKey: () => "synthetic-key",
+      fetcher: (url, options) => {
+        calls++;
+        assert(String(url).includes("gemini-3.5-flash-lite"));
+        const body = JSON.parse(options!.body as string);
+        assertEquals(
+          body.generationConfig.thinkingConfig.thinkingLevel,
+          "MINIMAL",
+        );
+        const signal = options!.signal!;
+        started.resolve();
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      },
+      transport: {
+        beforeTransport: () => {
+          throw new Error("caller must not own transport");
+        },
+        recordResponse: () => Promise.resolve(),
+      },
+    });
+    assertEquals(prepared.proof.model, "gemini-3.5-flash-lite");
+    const rejected = assertRejects(() => prepared.invoke());
+    await started.promise;
+    (boundary === "provider" ? provider : worker).abort();
+    await rejected;
+    await assertRejects(() => prepared.invoke());
+    assertEquals(guards, 1);
+    assertEquals(calls, 1);
+  }
 });
 function receipt(state = "reserved") {
   return {

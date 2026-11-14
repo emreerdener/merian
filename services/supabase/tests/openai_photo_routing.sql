@@ -245,7 +245,7 @@ BEGIN
         (SELECT COUNT(*) FROM internal.identification_provider_attempts),
         (SELECT COUNT(*) FROM internal.complimentary_scan_usage)
     ) INTO before_counts;
-    FOREACH protocol IN ARRAY ARRAY[NULL,3,7] LOOP
+    FOREACH protocol IN ARRAY ARRAY[NULL,3,8] LOOP
         denied := FALSE;
         BEGIN
             PERFORM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,

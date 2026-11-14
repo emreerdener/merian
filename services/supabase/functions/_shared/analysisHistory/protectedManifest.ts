@@ -121,7 +121,9 @@ export function buildProtectedAnalysisAdmission(
     "expected_processor_permission",
   ]);
   if (
-    claims.entitlement_protocol !== 3 || claims.identification_protocol !== 6 ||
+    claims.entitlement_protocol !== 3 ||
+    (claims.identification_protocol !== 6 &&
+      claims.identification_protocol !== 7) ||
     claims.history_protocol !== 8 ||
     !["google_gemini", "openai"].includes(
       claims.expected_processor_permission as string,

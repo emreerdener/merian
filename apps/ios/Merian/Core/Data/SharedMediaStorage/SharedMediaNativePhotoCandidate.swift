@@ -14,7 +14,7 @@ struct SharedMediaNativePhotoAdmission: Codable, Equatable, Sendable {
         try validate()
     }
     func validate() throws {
-        guard clientProtocol == 3, identificationProtocol == 6,
+        guard clientProtocol == 3, [6, 7].contains(identificationProtocol),
               expectedProcessorPermission == .gemini || expectedProcessorPermission == .openAI else {
             throw SharedMediaStorageFailure.invalid
         }
@@ -41,7 +41,7 @@ struct SharedMediaNativePhotoCandidate: Sendable {
         }
         let text = "{\"admission\":{\"client_protocol\":3,\"expected_processor_permission\":"
             + SharedMediaNativePhotoContent.quote(admission.expectedProcessorPermission.rawValue)
-            + ",\"identification_protocol\":6},\"content_canonical\":"
+            + ",\"identification_protocol\":\(admission.identificationProtocol)},\"content_canonical\":"
             + SharedMediaNativePhotoContent.quote(contentText) + ",\"variant\":\"client_prepared_photo\",\"version\":1}"
         let bytes = Data(text.utf8)
         guard bytes.count <= PhotoPreparationPolicy.metadata else { throw PhotoPreparationFailure.sizeLimit }

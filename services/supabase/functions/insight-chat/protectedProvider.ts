@@ -1,6 +1,11 @@
 import {
+  decodeGeminiApplication,
+  enterGeminiTransport,
+} from "../_shared/ai/geminiTransport.ts";
+import type { GeminiTransportHooks } from "../_shared/ai/geminiTransport.ts";
+import {
   buildFieldChatReplyRequest,
-  extractFieldChatReplyJson,
+  parseFieldChatReply,
 } from "../_shared/fieldChat/reply.ts";
 import {
   fetchWithDeadline,
@@ -8,128 +13,57 @@ import {
 } from "../_shared/outbound.ts";
 import { parseProtectedChatReply } from "./protectedReply.ts";
 import {
-  boundedStoredJSON,
-  exactStoredObject,
-  storedObject,
-} from "./storedContextContract.ts";
+  geminiResponseReceipt,
+  GeminiResponseRejected,
+  normalizeGeminiEnvelope,
+} from "../_shared/ai/geminiEnvelope.ts";
+import { GEMINI_SUPPORT_MODEL } from "../_shared/ai/geminiProfiles.ts";
 
 export const PROTECTED_CHAT_PROVIDER_MS = 90_000;
 const MODEL = "gemini-2.5-flash";
 function unknown(): never {
   throw new Error("field_chat_execution_held");
 }
-function count(value: unknown): number | null {
-  if (value === undefined || value === null) return null;
-  if (
-    typeof value !== "number" || !Number.isInteger(value) || value < 0 ||
-    value > 2147483647
-  ) return unknown();
-  return value;
-}
-function modalities(value: unknown) {
-  if (value === undefined) return {};
-  if (!Array.isArray(value) || value.length > 6) return unknown();
-  const result: Record<string, number> = {};
-  for (const item of value) {
-    const row = exactStoredObject(item, ["modality", "tokenCount"]);
-    if (typeof row.modality !== "string") return unknown();
-    const key = row.modality.toLowerCase();
-    if (
-      !["text", "image", "audio", "video", "document", "unspecified"].includes(
-        key,
-      ) || Object.hasOwn(result, key)
-    ) return unknown();
-    const tokens = count(row.tokenCount);
-    if (tokens === null) return unknown();
-    result[key] = tokens;
+/** Normalize metadata before enforcing the application's closed JSON contract. */
+export function decodeProtectedChatProvider(value: unknown, model = MODEL) {
+  const envelope = normalizeGeminiEnvelope(value, model, 32 * 1024);
+  const receipt = geminiResponseReceipt(envelope);
+  try {
+    if (envelope.failure || !envelope.text) throw new Error();
+    const answer = parseFieldChatReply(envelope.text);
+    const u = envelope.usage;
+    return parseProtectedChatReply({
+      answer: answer.answer,
+      model,
+      is_refusal: answer.is_refusal,
+      refusal_reason: answer.refusal_reason,
+      usage: u
+        ? {
+          prompt_tokens: u.promptTokens,
+          candidate_tokens: u.candidateTokens,
+          thinking_tokens: u.thinkingTokens,
+          total_tokens: u.totalTokens,
+          cached_tokens: u.cachedTokens,
+          modality_breakdown: u.modalityBreakdown,
+        }
+        : null,
+    });
+  } catch {
+    throw new GeminiResponseRejected(receipt);
   }
-  return result;
-}
-function safety(value: unknown) {
-  if (value === undefined) return;
-  if (!Array.isArray(value) || value.length > 16) return unknown();
-  for (const entry of value) {
-    const rating = storedObject(entry);
-    if (rating.blocked !== undefined && rating.blocked !== false) {
-      return unknown();
-    }
-  }
-}
-/** Closed normalization; malformed accounting is uncertainty, never invented usage. */
-export function decodeProtectedChatProvider(value: unknown) {
-  boundedStoredJSON(value, 32 * 1024);
-  const root = storedObject(value);
-  if (
-    root.modelVersion !== MODEL || !Array.isArray(root.candidates) ||
-    root.candidates.length !== 1
-  ) return unknown();
-  if (
-    root.promptFeedback !== undefined &&
-    storedObject(root.promptFeedback).blockReason !== undefined
-  ) return unknown();
-  if (root.promptFeedback !== undefined) {
-    safety(storedObject(root.promptFeedback).safetyRatings);
-  }
-  const candidate = storedObject(root.candidates[0]);
-  safety(candidate.safetyRatings);
-  if (candidate.finishReason !== "STOP") return unknown();
-  const content = storedObject(candidate.content);
-  if (
-    content.role !== "model" || !Array.isArray(content.parts) ||
-    content.parts.length !== 1
-  ) return unknown();
-  const part = exactStoredObject(content.parts[0], ["text"]);
-  if (typeof part.text !== "string") return unknown();
-  const answer = exactStoredObject(extractFieldChatReplyJson(part.text), [
-    "answer",
-    "is_refusal",
-    "refusal_reason",
-  ]);
-  if (
-    typeof answer.answer !== "string" ||
-    typeof answer.is_refusal !== "boolean" ||
-    (answer.refusal_reason !== null &&
-      typeof answer.refusal_reason !== "string")
-  ) return unknown();
-  const text = answer.answer.trim();
-  if (!text || [...text].length > 4000) return unknown();
-  const reason = answer.is_refusal && typeof answer.refusal_reason === "string"
-    ? answer.refusal_reason.trim()
-    : null;
-  let usage = null;
-  if (root.usageMetadata !== undefined && root.usageMetadata !== null) {
-    const raw = storedObject(root.usageMetadata);
-    usage = {
-      prompt_tokens: count(raw.promptTokenCount),
-      candidate_tokens: count(raw.candidatesTokenCount),
-      thinking_tokens: count(raw.thoughtsTokenCount),
-      total_tokens: count(raw.totalTokenCount),
-      cached_tokens: count(raw.cachedContentTokenCount),
-      modality_breakdown: {
-        prompt: modalities(raw.promptTokensDetails),
-        cached: modalities(raw.cacheTokensDetails),
-        candidates: modalities(raw.candidatesTokensDetails),
-        tool: modalities(raw.toolUsePromptTokensDetails),
-      },
-    };
-  }
-  return parseProtectedChatReply({
-    answer: text,
-    model: MODEL,
-    is_refusal: answer.is_refusal,
-    refusal_reason: reason,
-    usage,
-  });
 }
 /** Prepare before the irreversible grant; only its execution owner invokes once afterward. */
 export function prepareProtectedChatProvider(
   systemInstruction: string,
   userPrompt: string,
   model: string,
-  dependencies: { apiKey?: () => string | undefined; fetcher?: typeof fetch } =
-    {},
+  dependencies: {
+    apiKey?: () => string | undefined;
+    fetcher?: typeof fetch;
+    transport?: GeminiTransportHooks;
+  } = {},
 ) {
-  if (model !== MODEL) return unknown();
+  if (model !== MODEL && model !== GEMINI_SUPPORT_MODEL) return unknown();
   const apiKey =
     (dependencies.apiKey ?? (() => Deno.env.get("GEMINI_PAID_API_KEY")))()
       ?.trim();
@@ -149,7 +83,7 @@ export function prepareProtectedChatProvider(
       responseMimeType: config.responseMimeType,
       responseSchema: config.responseSchema,
       thinkingConfig: config.thinkingConfig,
-      candidateCount: 1,
+      ...(model === MODEL ? { candidateCount: 1 } : {}),
     },
   });
   if (new TextEncoder().encode(body).byteLength > 192 * 1024) return unknown();
@@ -163,8 +97,9 @@ export function prepareProtectedChatProvider(
     ]);
     try {
       deadline.throwIfAborted();
+      await enterGeminiTransport(dependencies.transport, model);
       const response = await fetchWithDeadline(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: "POST",
           redirect: "error",
@@ -199,8 +134,16 @@ export function prepareProtectedChatProvider(
         : response;
       const result = await readResponseJsonWithinLimit(bounded, 32 * 1024);
       deadline.throwIfAborted();
-      return decodeProtectedChatProvider(result);
-    } catch {
+      await dependencies.transport?.recordResponse(
+        geminiResponseReceipt(normalizeGeminiEnvelope(result, model)),
+      );
+      return await decodeGeminiApplication(
+        dependencies.transport,
+        () => decodeProtectedChatProvider(result, model),
+        (reply) => reply.is_refusal ? "refusal" : "success",
+      );
+    } catch (error) {
+      if (error instanceof GeminiResponseRejected) throw error;
       return unknown();
     }
   };

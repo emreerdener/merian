@@ -28,6 +28,9 @@ enum InferenceConfidencePolicy {
         forInferenceTier tier: String?,
         provenance: IdentificationResultProvenance? = nil
     ) -> DisplayBands? {
+        if provenance?.supportsGemini3DisplayBands == true {
+            return DisplayBands(strong: pro.strong, possible: pro.possible)
+        }
         if let qualified = bands(forInferenceTier: tier, provenance: provenance) {
             return DisplayBands(strong: qualified.strong, possible: qualified.possible)
         }
@@ -75,6 +78,29 @@ enum InferenceConfidencePolicy {
 }
 
 extension IdentificationResultProvenance {
+    /// Provisional presentation only; never confers historical metrics qualification.
+    var supportsGemini3DisplayBands: Bool {
+        guard data.count <= 2_048,
+              let decoded = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
+              case .v3(let value) = decoded else { return false }
+        let tuple = [value.variant, value.prompt, value.schema, value.confidence].joined(separator: ":")
+        let known = [
+            "multimodal:identify_text_v1:merian_identify_v1:gemini_identify_v1",
+            "multimodal:identify_vision_v1:merian_identify_v1:gemini_identify_v1",
+            "multimodal:identify_blended_v1:merian_identify_v1:gemini_identify_v1",
+            "multimodal:identify_audio_v2:merian_audio_v2:gemini_audio_v2",
+            "vision_compat:identify_vision_v1:merian_identify_v1:gemini_vision_compat_v1",
+            "description_compat:identify_describe_v1:merian_describe_v1:gemini_describe_v1",
+            "audio_compat:identify_audio_compat_v2:merian_audio_v2:gemini_audio_compat_v2"
+        ].contains(tuple)
+        return known && value.policy_version > 0 &&
+            value.operation == (value.variant == "audio_compat" ? "scan_audio_identification" : "scan_identification") &&
+            value.provider == "gemini" && value.binding == "gemini_generation3_v1" &&
+            value.model == "gemini-3.8-flash" && value.returned_model == value.model &&
+            value.generation.thinking_level == "medium" && value.generation.max_output_tokens == 8_192 &&
+            value.timeout_ms == 90_000
+    }
+
     /// Each recognized photo prompt owns its historical display policy.
     /// Its recorded numeric confidence remains unqualified for other policies.
     var supportsOpenAIPhotoDisplayBands: Bool {

@@ -1,0 +1,23 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SELECT extensions.plan(13);
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM internal.ai_quota_policies WHERE model IN ('gemini-3.8-flash','gemini-3.5-flash-lite')), 'compatibility migrations do not activate candidate models');
+SELECT extensions.is((SELECT revision FROM internal.gemini_routing_head WHERE singleton),0::BIGINT,'routing starts at unchanged legacy revision');
+SELECT extensions.is(internal.require_identification_capability('00000000-0000-4000-8000-000000000001','scan_identification','00000000-0000-4000-8000-000000000002','multimodal_text_v1',7,FALSE,0),7,'I7 is accepted under legacy routing');
+SELECT extensions.throws_ok($$SELECT internal.require_identification_capability('00000000-0000-4000-8000-000000000001','scan_identification','00000000-0000-4000-8000-000000000002','multimodal_text_v1',6,FALSE,7)$$,'P0001','client_update_required','I6 cannot acquire an I7-only assignment');
+CREATE TEMP TABLE candidate(value JSONB);
+INSERT INTO candidate VALUES ('{"version":3,"provider":"gemini","binding":"gemini_generation3_v1","model":"gemini-3.8-flash","returned_model":null,"variant":"multimodal","operation":"scan_identification","policy_version":2,"prompt":"identify_text_v1","schema":"merian_identify_v1","confidence":"gemini_identify_v1","diagnostic_trigger":0.99,"prompt_diagnostic_trigger":null,"safety":null,"timeout_ms":90000,"generation":{"max_output_tokens":8192,"thinking_level":"medium"}}');
+SELECT extensions.ok(internal.identification_provenance_is_valid((SELECT value FROM candidate)),'pre-dispatch V3 has separate unknown returned identity');
+SELECT extensions.ok(internal.identification_provenance_is_valid((SELECT value||'{"returned_model":"gemini-3.8-flash"}'::JSONB FROM candidate)),'verified returned identity is valid V3');
+SELECT extensions.ok(NOT internal.identification_provenance_is_valid((SELECT value||'{"returned_model":"gemini-2.5-pro"}'::JSONB FROM candidate)),'mismatched V3 returned identity is rejected');
+SET LOCAL request.headers='{"x-merian-identification-protocol":"7"}';
+SELECT extensions.ok(internal.require_identification_result_reader((SELECT value FROM candidate),NULL),'I7 can read V3');
+SET LOCAL request.headers='{"x-merian-identification-protocol":"6"}';
+SELECT extensions.throws_ok($$SELECT internal.require_identification_result_reader((SELECT value FROM candidate),NULL)$$,'PT426','client_update_required','older reader rejects V3');
+SELECT extensions.ok(NOT pg_catalog.has_function_privilege('service_role','internal.activate_gemini_release(uuid,text,text,text,jsonb,jsonb)','EXECUTE'),'ordinary service calls cannot activate routing');
+SELECT extensions.ok(NOT pg_catalog.has_function_privilege('authenticated','public.claim_gemini_release_smoke(uuid,text,text)','EXECUTE'),'ordinary clients cannot execute release smokes');
+SELECT extensions.ok(pg_catalog.strpos(pg_catalog.pg_get_functiondef('public.get_owned_observation_analysis_page(jsonb,integer)'::regprocedure),'p_reader NOT IN (7,8,9,10,11,13)')>0,'reader13 inherits page coverage, reader12 remains outside page allowlist');
+SELECT extensions.ok(pg_catalog.strpos(pg_catalog.pg_get_functiondef('internal.require_observation_action_reader(uuid,integer,uuid)'::regprocedure),'13')=0,'reader13 receives no action authority');
+SELECT * FROM extensions.finish();
+ROLLBACK;

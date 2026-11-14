@@ -1,4 +1,9 @@
-import type { AIAttemptSnapshot, GeminiAttemptSnapshot } from "./contracts.ts";
+import type {
+  AIAttemptSnapshot,
+  Gemini3AttemptSnapshot,
+  GeminiAttemptSnapshot,
+  LegacyGeminiAttemptSnapshot,
+} from "./contracts.ts";
 import type { OpenAIPhotoSnapshot } from "./openaiPhoto.ts";
 
 /**
@@ -49,22 +54,49 @@ export interface IdentificationProvenanceV2
   };
 }
 
+export interface IdentificationProvenanceV3 extends
+  Omit<
+    IdentificationProvenanceV1,
+    "version" | "provider" | "binding" | "generation"
+  > {
+  version: 3;
+  provider: "gemini";
+  binding: "gemini_generation3_v1";
+  /** Null only in pre-dispatch configuration evidence; completed results require identity. */
+  model: "gemini-3.8-flash";
+  returned_model: "gemini-3.8-flash" | null;
+  generation: { max_output_tokens: number; thinking_level: "medium" };
+}
+
 export type IdentificationProvenance =
   | IdentificationProvenanceV1
-  | IdentificationProvenanceV2;
+  | IdentificationProvenanceV2
+  | IdentificationProvenanceV3;
 
 /** Project only the admitted, immutable execution snapshot, never model JSON. */
 export function identificationProvenance(
-  snapshot: GeminiAttemptSnapshot,
+  snapshot: LegacyGeminiAttemptSnapshot,
+  returnedModel?: string | null,
 ): IdentificationProvenanceV1;
 export function identificationProvenance(
+  snapshot: Gemini3AttemptSnapshot,
+  returnedModel?: string | null,
+): IdentificationProvenanceV3;
+export function identificationProvenance(
+  snapshot: GeminiAttemptSnapshot,
+  returnedModel?: string | null,
+): IdentificationProvenanceV1 | IdentificationProvenanceV3;
+export function identificationProvenance(
   snapshot: OpenAIPhotoSnapshot,
+  returnedModel?: string | null,
 ): IdentificationProvenanceV2;
 export function identificationProvenance(
   snapshot: AIAttemptSnapshot,
+  returnedModel?: string | null,
 ): IdentificationProvenance;
 export function identificationProvenance(
   snapshot: AIAttemptSnapshot,
+  returnedModel?: string | null,
 ): IdentificationProvenance {
   if (
     snapshot.task !== "identify" || snapshot.contextKind !== "user_request" ||
@@ -91,6 +123,35 @@ export function identificationProvenance(
         max_output_tokens: snapshot.generation.maxOutputTokens,
         reasoning_effort: snapshot.generation.reasoningEffort,
         image_detail: snapshot.generation.imageDetail,
+      }),
+    });
+  }
+
+  if (snapshot.binding === "gemini_generation3_v1") {
+    if (
+      snapshot.model !== "gemini-3.8-flash" ||
+      snapshot.generation.thinkingLevel !== "medium" ||
+      (returnedModel != null && returnedModel !== snapshot.model)
+    ) throw new Error("identification_provenance_identity_invalid");
+    return Object.freeze({
+      version: 3,
+      provider: "gemini",
+      binding: snapshot.binding,
+      model: snapshot.model,
+      returned_model: returnedModel ?? null,
+      variant: snapshot.variant,
+      operation: snapshot.operation,
+      policy_version: snapshot.policyVersion,
+      prompt: snapshot.prompt,
+      schema: snapshot.schema,
+      confidence: snapshot.confidence,
+      diagnostic_trigger: snapshot.diagnosticTrigger ?? null,
+      prompt_diagnostic_trigger: snapshot.promptDiagnosticTrigger ?? null,
+      safety: snapshot.safety ?? null,
+      timeout_ms: snapshot.timeoutMs,
+      generation: Object.freeze({
+        max_output_tokens: snapshot.generation.maxOutputTokens,
+        thinking_level: "medium",
       }),
     });
   }

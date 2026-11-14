@@ -39,14 +39,27 @@ function resultPolicyKey(snapshot: AIAttemptSnapshot): string {
     ["identify_vision_v1", "identify_text_v1", "identify_blended_v1"].includes(
       snapshot.prompt,
     );
+  const supportedGeneration = snapshot.binding === "gemini_generation3_v1"
+    ? snapshot.model === "gemini-3.8-flash" &&
+      "thinkingLevel" in snapshot.generation &&
+      Object.keys(snapshot.generation).sort().join(",") ===
+        "maxOutputTokens,thinkingLevel" &&
+      snapshot.generation.thinkingLevel === "medium" &&
+      snapshot.generation.maxOutputTokens === 8192 &&
+      snapshot.diagnosticTrigger === PRO_DIAGNOSTIC_TRIGGER
+    : snapshot.binding === "gemini_baseline_v1" &&
+      ["gemini-2.5-flash", "gemini-2.5-pro"].includes(snapshot.model);
   if (
-    snapshot.provider !== "gemini" ||
-    snapshot.binding !== "gemini_baseline_v1" ||
+    !supportedGeneration || snapshot.provider !== "gemini" ||
+    (snapshot.binding !== "gemini_baseline_v1" &&
+      snapshot.binding !== "gemini_generation3_v1") ||
     snapshot.task !== "identify" || snapshot.variant !== "multimodal" ||
     snapshot.contextKind !== "user_request" ||
     snapshot.operation !== "scan_identification" ||
     snapshot.permission !== "google_gemini" ||
-    !["gemini-2.5-flash", "gemini-2.5-pro"].includes(snapshot.model) ||
+    !["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.8-flash"].includes(
+      snapshot.model,
+    ) ||
     (!audio && !visualOrText) ||
     snapshot.safety !== undefined ||
     (snapshot.diagnosticTrigger !== FLASH_DIAGNOSTIC_TRIGGER &&

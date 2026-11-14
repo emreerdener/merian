@@ -246,6 +246,10 @@ Deno.test("photo execution SQL pins the actual prepared classifier policy digest
   f.work.source.byte_count = bytes.length;
   f.work.source.sha256 = await evidenceDigest(bytes);
   const p = await preparePublicationPhotoClassifier(f.work.source, {
+    transport: {
+      beforeTransport: () => Promise.resolve(),
+      recordResponse: () => Promise.resolve(),
+    },
     apiKey: () => "synthetic",
     readSource: () => Promise.resolve(bytes),
   });

@@ -1,4 +1,5 @@
 import { audioUncertaintySystemInstruction } from "../../identify-multimodal/comparison/promptInstruction.ts";
+import type { ThinkingLevel } from "@google/genai";
 import type {
   GenerateContentParameters,
   HarmBlockThreshold,
@@ -93,13 +94,25 @@ export function buildGeminiRequestParameters(
       : content!.contents,
     config: {
       systemInstruction,
-      temperature: options.temperature,
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-      ...(options.topK === undefined ? {} : { topK: options.topK }),
       maxOutputTokens: options.maxOutputTokens,
-      ...(options.thinkingBudget === undefined
-        ? {}
-        : { thinkingConfig: { thinkingBudget: options.thinkingBudget } }),
+      ...("thinkingLevel" in options
+        ? {
+          thinkingConfig: {
+            thinkingLevel: options.thinkingLevel === "medium"
+              ? "MEDIUM" as ThinkingLevel
+              : options.thinkingLevel === "low"
+              ? "LOW" as ThinkingLevel
+              : "MINIMAL" as ThinkingLevel,
+          },
+        }
+        : {
+          temperature: options.temperature,
+          ...(options.seed === undefined ? {} : { seed: options.seed }),
+          ...(options.topK === undefined ? {} : { topK: options.topK }),
+          ...(options.thinkingBudget === undefined
+            ? {}
+            : { thinkingConfig: { thinkingBudget: options.thinkingBudget } }),
+        }),
       responseMimeType: "application/json",
       responseSchema: structuredClone(schema),
       ...(snapshot.safety === "biological_vision_v1"

@@ -6,6 +6,11 @@ networking, and hardware orchestration logic. The repository, Xcode project,
 targets, modules, bundle IDs, persistence, and backend identifiers retain Merian
 as their permanent engineering identity.
 
+The
+[Gemini migration and guarded backend activation](backend-and-data/22-gemini-generation3-release.md)
+contract covers I7/V3 compatibility, durable accounting, the independent legacy
+cutoff, and the authorized deployment-final activation sequence.
+
 ## Identification research
 
 Start with the [research index](research/identification/README.md) for the

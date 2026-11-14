@@ -1,7 +1,15 @@
 import { identificationInputProfile } from "./identificationInput.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { AIRequest, UserRequestAuthority } from "./contracts.ts";
-import { prepareAIExecution } from "./production.ts";
+import { prepareAIExecution as prepareProductionExecution } from "./production.ts";
+const prepareAIExecution: typeof prepareProductionExecution = (
+  request,
+  authority,
+) =>
+  prepareProductionExecution(request, authority, {
+    beforeTransport: () => Promise.resolve(),
+    recordResponse: () => Promise.resolve(),
+  });
 import { resolveAIClaim } from "./registry.ts";
 import { buildGeminiRequest } from "./gemini.ts";
 import { buildVisionAIRequest } from "../../identify/provider.ts";
@@ -250,13 +258,15 @@ Deno.test("multimodal binding requires admitted tier and rejects native video ev
   );
   // Entitlement is not inferred from a model string. Preserve the original
   // caller's independent authority for generation settings and confidence.
-  assertEquals(
-    resolveAIClaim(input, {
-      ...admitted,
-      reservation: { ...admitted.reservation, tier: { effective_tier: "pro" } },
-    }).generation.thinkingBudget,
-    5000,
+  const proSnapshot = resolveAIClaim(input, {
+    ...admitted,
+    reservation: { ...admitted.reservation, tier: { effective_tier: "pro" } },
+  });
+  assert(
+    proSnapshot.provider === "gemini" &&
+      proSnapshot.binding === "gemini_baseline_v1",
   );
+  assertEquals(proSnapshot.generation.thinkingBudget, 5000);
 });
 
 Deno.test("compatibility bindings keep operation and evidence authority distinct", () => {
@@ -466,7 +476,12 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
           );
         });
       }
-      return Promise.resolve(Response.json(response, { status }));
+      return Promise.resolve(
+        Response.json({
+          modelVersion: url.pathname.split("/models/")[1]?.split(":")[0],
+          ...response,
+        }, { status }),
+      );
     };
     const step = async (name: string, run: () => Promise<void>) => {
       await t.step(name, async () => {
@@ -535,6 +550,7 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
             candidateTokens: 20,
             totalTokens: 127,
             thinkingTokens: 7,
+            toolTokens: null,
             cachedTokens: 5,
             modalityBreakdown: {
               prompt: { text: 100 },
@@ -855,7 +871,7 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
       ]
     ) {
       await step(
-        `${canonical.variant} preserves first-part fallback policy`,
+        `${canonical.variant} never exposes thought-marked output`,
         async () => {
           inspect = () => {};
           // The SDK omits thought parts from its text getter. Legacy endpoints
@@ -877,7 +893,7 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
           const result = await prepareAIExecution(canonical, admitted).invoke();
           assertEquals(
             result.kind,
-            canonical.variant === "multimodal" ? "invalid_output" : "draft",
+            "invalid_output",
           );
           if (result.kind === "draft") {
             assertEquals(result.draft, { synthetic: true });
@@ -907,7 +923,7 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
       const result = await prepareAIExecution(request, authority()).invoke();
       assertEquals(result.kind, "invalid_output");
       assertEquals(result.usage, null);
-      assertEquals(result.returnedModel, null);
+      assertEquals(result.returnedModel, "gemini-2.5-flash");
     });
     for (const code of [400, 429, 503]) {
       await step(`HTTP ${code} has no retry`, async () => {

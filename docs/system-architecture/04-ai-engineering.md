@@ -1,3 +1,14 @@
+## Gemini generation 3 migration
+
+The
+[Gemini compatibility and activation contract](../backend-and-data/22-gemini-generation3-release.md)
+adds I7/V3 and candidate Gemini 3.8 Flash / Medium identification on both tiers,
+3.5 Flash-Lite / Low Field Chat, and operation-specific Minimal helpers. The
+existing beta assignment described below remains active until an explicitly
+authorized backend activation release completes. Candidate quality and
+confidence calibration remain unmeasured; display bands do not transfer metric
+qualification.
+
 # 17. AI Engineering & LLMOps
 
 Naturebook's checked-in beta assignment selects OpenAI `gpt-6-sol` with low

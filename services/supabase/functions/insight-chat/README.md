@@ -206,6 +206,16 @@ difference between a general fragrance question and the unobservable scent of a
 particular flower. Field-note summaries and generated prompt chips use a
 separate support instruction without chat-answer examples or response schema.
 
+Ordinary and protected provider replies share a closed application decoder:
+`answer`, `is_refusal`, and `refusal_reason` are required with exact types and
+independent visible limits. Missing, unknown, or invalid fields reject the
+answer instead of manufacturing a successful fallback. Notes and suggested
+questions likewise validate their closed schema and bounds before the existing
+privacy/safety sanitizers run. Provider identity and token facts are saved
+before these checks, and the original owner records a separate immutable
+application outcome; a failed outcome acknowledgement never authorizes another
+model call.
+
 Local deterministic guards refuse or redirect edible/foraging certainty, medical
 or veterinary treatment, dangerous handling, illegal collection,
 pesticide/poison instructions, and human-subject identification.

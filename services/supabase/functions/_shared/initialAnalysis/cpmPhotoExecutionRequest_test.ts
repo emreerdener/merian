@@ -9,7 +9,7 @@ import {
 } from "./resultEvidence.ts";
 import { data as syntheticResult } from "./fixtures/resultEvidence.ts";
 import { cpmCompletionAdmissionFixture } from "./fixtures/cpmCompletionAdmission.ts";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { GoogleGenAI } from "@google/genai";
 import { decodeBase64, encodeBase64 } from "../encoding.ts";
 import { syntheticOriginalPhotoSnapshot as snapshot } from "./fixtures/cpmPhotoExecutionRequest.ts";
@@ -417,6 +417,7 @@ Deno.test("CPM preparation rejects substituted bytes, identity, structure, profi
       signal,
     )
   );
+  assert(f.profile.snapshot.binding === "gemini_baseline_v1");
   const wrongModel = createInitialCpmPhotoRequestPreparer({
     ...f.profile,
     snapshot: { ...f.profile.snapshot, model: "gemini-2.5-flash" },

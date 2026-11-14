@@ -16,11 +16,11 @@ export function parseHistoryPage(
   value: unknown,
   request: HistoryPageRequest,
   ownerID: string,
-  reader: 7 | 8 | 9 | 10 | 11 = 7,
+  reader: 7 | 8 | 9 | 10 | 11 | 13 = 7,
 ) {
   if (
     reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10 &&
-    reader !== 11
+    reader !== 11 && reader !== 13
   ) {
     return invalidHistory();
   }

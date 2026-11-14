@@ -12,8 +12,10 @@ import {
   storedUUID,
 } from "./storedContextContract.ts";
 
-function model(value: unknown): "gemini-2.5-flash" {
-  if (value !== "gemini-2.5-flash") return invalidStoredContext();
+function model(value: unknown): "gemini-2.5-flash" | "gemini-3.5-flash-lite" {
+  if (value !== "gemini-2.5-flash" && value !== "gemini-3.5-flash-lite") {
+    return invalidStoredContext();
+  }
   return value;
 }
 export function parseProtectedChatQuota(value: unknown) {

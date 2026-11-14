@@ -19,10 +19,13 @@ export function identifyResultResponse(
     identificationResultContract(
         envelope.data.identification_provenance?.schema,
       ) === "primary_v1";
-  const supported = requiresPrimaryReader
-    ? (protocol === "5" || protocol === "6")
+  const supported = envelope.data.identification_provenance?.version === 3
+    ? protocol === "7"
+    : requiresPrimaryReader
+    ? (protocol === "5" || (protocol === "6" || protocol === "7"))
     : envelope.data.identification_provenance?.version !== 2 ||
-      protocol === "4" || (protocol === "5" || protocol === "6");
+      protocol === "4" ||
+      (protocol === "5" || (protocol === "6" || protocol === "7"));
   if (!supported && !internalReplay) {
     return publicErrorResponse(
       req,

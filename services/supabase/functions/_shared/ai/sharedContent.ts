@@ -1,3 +1,4 @@
+import { GEMINI_CANDIDATE_PROFILES } from "./geminiProfiles.ts";
 import type {
   AIExecutionAuthority,
   GeminiAttemptSnapshot,
@@ -8,7 +9,8 @@ import type { prepareAIExecution } from "./production.ts";
 type ContentTask = SpeciesContentAIRequest["task"];
 
 // This is an independently reviewed acceptance boundary, not the routing registry.
-// Updating a generation profile must not silently qualify canonical shared writes.
+// Both profiles are explicitly accepted for structured writes. The generation-3
+// rollout accepts unmeasured model quality; this is not biological qualification.
 const qualified = {
   species_overview: {
     operation: "scan_overview_enrichment",
@@ -55,22 +57,30 @@ export function assertSharedSpeciesContentSnapshot(
   task: ContentTask,
 ): asserts snapshot is GeminiAttemptSnapshot {
   const profile = qualified[task];
+  const baseline = record(snapshot) && record(snapshot.generation) &&
+    snapshot.binding === "gemini_baseline_v1" &&
+    snapshot.model === "gemini-2.5-flash" &&
+    exactKeys(snapshot.generation, generationKeys) &&
+    snapshot.generation.temperature === 0.1 &&
+    snapshot.generation.thinkingBudget === 0 &&
+    snapshot.generation.maxOutputTokens === profile?.maxOutputTokens;
+  const candidate = record(snapshot) && record(snapshot.generation) &&
+    snapshot.binding === "gemini_generation3_v1" &&
+    snapshot.model === "gemini-3.5-flash-lite" &&
+    exactKeys(snapshot.generation, ["thinkingLevel", "maxOutputTokens"]) &&
+    snapshot.generation.thinkingLevel === "minimal" &&
+    snapshot.generation.maxOutputTokens ===
+      GEMINI_CANDIDATE_PROFILES[task]?.maxOutputTokens;
   if (
     !Object.hasOwn(qualified, task) || !profile || !record(snapshot) ||
     !exactKeys(snapshot, snapshotKeys) ||
     snapshot.provider !== "gemini" ||
-    snapshot.binding !== "gemini_baseline_v1" ||
+    (!baseline && !candidate) ||
     snapshot.task !== task || snapshot.variant !== "species_content" ||
-    snapshot.model !== "gemini-2.5-flash" ||
     snapshot.operation !== profile.operation ||
     snapshot.prompt !== profile.version ||
     snapshot.schema !== profile.version || snapshot.confidence !== null ||
-    snapshot.timeoutMs !== 90000 ||
-    !record(snapshot.generation) ||
-    !exactKeys(snapshot.generation, generationKeys) ||
-    snapshot.generation.temperature !== 0.1 ||
-    snapshot.generation.thinkingBudget !== 0 ||
-    snapshot.generation.maxOutputTokens !== profile.maxOutputTokens
+    snapshot.timeoutMs !== 90000
   ) throw unavailable();
   const user = snapshot.contextKind === "user_request" &&
     snapshot.permission === "google_gemini" &&
@@ -78,7 +88,7 @@ export function assertSharedSpeciesContentSnapshot(
     Number(snapshot.policyVersion) > 0;
   const service = snapshot.contextKind === "service_job" &&
     snapshot.permission === null &&
-    snapshot.policyVersion === null && snapshot.model === "gemini-2.5-flash";
+    snapshot.policyVersion === null;
   if (!user && !service) throw unavailable();
 }
 

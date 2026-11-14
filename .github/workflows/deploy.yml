@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      gemini_activation_release:
+        description: "Authorized Gemini release manifest JSON; empty retains current routing. Verify exact TestFlight build/group before starting. Includes bounded paid smokes and protective suspension."
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -187,6 +192,7 @@ jobs:
 
     env:
       PROJECT_ID: qlarqavoqhkuwzmevrmf
+      GEMINI_ACTIVATION_RELEASE: ${{ inputs.gemini_activation_release || '' }}
       # CI must not fail an otherwise successful CLI command while PostHog
       # telemetry is flushing during process shutdown.
       SUPABASE_TELEMETRY_DISABLED: "1"
@@ -269,6 +275,13 @@ jobs:
             --candidate-sha "$GITHUB_SHA" \
             --summary "$GITHUB_STEP_SUMMARY"
         if: steps.production-scope.outputs.should_deploy == 'true'
+
+      - name: Check optional authorized Gemini activation prerequisite
+        if: steps.production-scope.outputs.should_deploy == 'true' && github.event_name == 'workflow_dispatch' && inputs.gemini_activation_release != ''
+        run: |
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read --allow-env=GEMINI_ACTIVATION_RELEASE,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_SHA,PROJECT_ID \
+            supabase/scripts/check_gemini_release_input.ts
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
@@ -611,6 +624,12 @@ jobs:
               --output "$final_plan" \
               --status "$FIELD_CHAT_CUTOVER_STATUS"
           )"
+          if [ -n "$GEMINI_ACTIVATION_RELEASE" ]; then
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-read --allow-env=GEMINI_ACTIVATION_RELEASE,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_SHA,PROJECT_ID \
+              supabase/scripts/check_gemini_release_input.ts --functions >> "$final_plan"
+            sort -u -o "$final_plan" "$final_plan"
+          fi
           function_count="$(grep -cve '^[[:space:]]*$' "$final_plan" || true)"
           echo "plan_file=$final_plan" >> "$GITHUB_OUTPUT"
           echo "count=$function_count" >> "$GITHUB_OUTPUT"
@@ -1917,3 +1936,27 @@ jobs:
           unset database_network_scope
           cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
         if: steps.production-scope.outputs.should_deploy == 'true'
+
+      # The final guarded routing mutation is only part of this explicitly
+      # authorized manual release. Ordinary pushes/migrations never activate it.
+      - name: Activate and verify authorized Gemini routing
+        if: steps.production-scope.outputs.should_deploy == 'true' && github.event_name == 'workflow_dispatch' && inputs.gemini_activation_release != ''
+        env:
+          MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
+          SUPABASE_SERVER_API_KEY: ${{ steps.service-role.outputs.key }}
+          GEMINI_REQUIRED_GATES_COMPLETE: 'true'
+          MERIAN_GITHUB_RELEASE_AUDIT_TOKEN: ${{ secrets.MERIAN_GITHUB_RELEASE_AUDIT_TOKEN }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN \
+            --allow-net --allow-read=supabase/release-holds.json \
+            supabase/scripts/verify_production_release_holds.ts \
+            --mode automatic-release --manifest supabase/release-holds.json --candidate-sha "$GITHUB_SHA"
+          database_network_scope="$(bash supabase/scripts/deno_postgres_net_scope.sh)"
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-read --allow-run=git --allow-env=MERIAN_DATABASE_URL,SUPABASE_SERVER_API_KEY,GEMINI_ACTIVATION_RELEASE,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_SHA,PROJECT_ID,GEMINI_REQUIRED_GATES_COMPLETE,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN,GITHUB_REPOSITORY,PG* \
+            --allow-net="$database_network_scope,${PROJECT_ID}.supabase.co,api.github.com" \
+            supabase/scripts/activate_gemini_release.ts

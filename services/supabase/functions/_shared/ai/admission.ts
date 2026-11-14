@@ -7,7 +7,7 @@ import {
 export type IdentificationProviderAssignment = {
   readonly inputProfile: IdentificationInputProfile;
   readonly provider: "gemini";
-  readonly binding: "gemini_baseline_v1";
+  readonly binding: "gemini_baseline_v1" | "gemini_generation3_v1";
   readonly permission: "google_gemini";
 } | {
   readonly inputProfile: "multimodal_photo_v1";
@@ -23,7 +23,8 @@ export function isIdentificationProviderAssignment(
   const assignment = value as Record<string, unknown>;
   return (isIdentificationInputProfile(assignment.inputProfile) &&
     assignment.provider === "gemini" &&
-    assignment.binding === "gemini_baseline_v1" &&
+    (assignment.binding === "gemini_baseline_v1" ||
+      assignment.binding === "gemini_generation3_v1") &&
     assignment.permission === "google_gemini") ||
     (assignment.inputProfile === "multimodal_photo_v1" &&
       assignment.provider === "openai" &&
@@ -37,5 +38,7 @@ export function assignmentMatchesModel(
 ): boolean {
   return assignment.provider === "openai"
     ? model === "gpt-6-sol"
+    : assignment.binding === "gemini_generation3_v1"
+    ? model === "gemini-3.8-flash"
     : model === "gemini-2.5-flash" || model === "gemini-2.5-pro";
 }

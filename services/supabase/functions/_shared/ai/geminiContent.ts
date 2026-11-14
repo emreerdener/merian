@@ -216,3 +216,67 @@ function groupTags(scientificName: string): ContentProjection {
     responseSchema: schema as unknown as Schema,
   };
 }
+
+/** Validate the exact native application schema before accepting shared content. */
+export function assertGeminiContentDraft(
+  value: unknown,
+  schema: Schema,
+  task: SpeciesContentAIRequest["task"],
+): void {
+  const invalid = () => {
+    throw new Error("ai_content_schema_invalid");
+  };
+  const visit = (value: unknown, rule: Schema, key: string): void => {
+    switch (rule.type) {
+      case Type.OBJECT: {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          return invalid();
+        }
+        const row = value as Record<string, unknown>;
+        const properties = rule.properties ?? {};
+        if (
+          Object.keys(row).some((name) => !Object.hasOwn(properties, name)) ||
+          (rule.required ?? []).some((name) => !Object.hasOwn(row, name))
+        ) return invalid();
+        for (const [name, item] of Object.entries(row)) {
+          visit(item, properties[name], name);
+        }
+        return;
+      }
+      case Type.ARRAY: {
+        const maximum = key === "similar_species" || key === "colors" ? 3 : 5;
+        if (!Array.isArray(value) || value.length > maximum || !rule.items) {
+          return invalid();
+        }
+        for (const item of value) visit(item, rule.items, key);
+        return;
+      }
+      case Type.STRING: {
+        const maximum = key === "habitat_description"
+          ? 4000
+          : key === "reason"
+          ? 240
+          : key === "visual_traits" || key === "group_tags"
+          ? 80
+          : 255;
+        if (
+          typeof value !== "string" || value.length > maximum ||
+          (rule.enum && !rule.enum.includes(value))
+        ) return invalid();
+        if (task === "group_tags" && !/^[a-z]+(?:[ -][a-z]+)*$/.test(value)) {
+          return invalid();
+        }
+        return;
+      }
+      case Type.NUMBER:
+        if (
+          typeof value !== "number" || !Number.isFinite(value) ||
+          (key === "confidence" && (value < 0 || value > 1))
+        ) return invalid();
+        return;
+      default:
+        return invalid();
+    }
+  };
+  visit(value, schema, "root");
+}

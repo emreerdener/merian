@@ -1,3 +1,4 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
@@ -627,9 +628,7 @@ export function createAudioHandler(prepare = prepareAIExecution) {
     let responseEnvelope: IdentifySuccessEnvelope;
     try {
       payloadReadyForClient.identification_provenance =
-        identificationProvenance(
-          result.execution,
-        );
+        identificationProvenance(result.execution, result.returnedModel);
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
         data: payloadReadyForClient,
@@ -807,6 +806,7 @@ export function createAudioHandler(prepare = prepareAIExecution) {
             user_id: user.id,
             identification_provenance: identificationProvenance(
               result.execution,
+              result.returnedModel,
             ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
@@ -1034,10 +1034,9 @@ export function createAudioHandler(prepare = prepareAIExecution) {
 const handleAudioRequest = createAudioHandler();
 
 if (import.meta.main) {
-  Deno.serve((req: Request) =>
+  serveGeminiEdge("audio-spec", (req: Request) =>
     withEdgeHandler(
       req,
       (user, supabaseAdmin) => handleAudioRequest(req, user, supabaseAdmin),
-    )
-  );
+    ));
 }

@@ -1,3 +1,13 @@
+## Gemini I7 / V3 compatibility
+
+The additive Gemini protocol, reader-13 inheritance, exact immutable-request
+tuples, response normalization, and requested/returned identity contracts are
+defined in
+[Gemini generation 3 compatibility and activation](./22-gemini-generation3-release.md).
+Reader 12 remains a separate video-evidence capability. Compatibility deployment
+retains current routing; new assignments require the separately authorized
+backend activation release.
+
 ## November 9 — prepared original recovery service reads
 
 The local `20261109154413_prepare_initial_completion_recovery_reads.sql`

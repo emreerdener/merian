@@ -952,12 +952,50 @@ export const identificationProvenanceV2Contract = object(
   },
 );
 
+export const identificationProvenanceV3Contract = object({
+  ...identificationProvenanceV1Contract.fields,
+  version: field(integer(3, 3), true),
+  provider: field(text({ enum: ["gemini"], maxLength: 80 }), true),
+  binding: field(
+    text({ enum: ["gemini_generation3_v1"], maxLength: 80 }),
+    true,
+  ),
+  model: field(text({ enum: ["gemini-3.8-flash"], maxLength: 80 }), true),
+  returned_model: field(
+    text({ enum: ["gemini-3.8-flash"], maxLength: 80, nullable: true }),
+    true,
+  ),
+  generation: field(
+    object({
+      max_output_tokens: field(integer(8192, 8192), true),
+      thinking_level: field(text({ enum: ["medium"], maxLength: 10 }), true),
+    }, {
+      unknownKeys: "reject",
+      swift: {
+        name: "GeminiGeneration",
+        parent: "IdentificationProvenanceV3DTO",
+        declarationOrder: 36,
+        preserveRequiredNulls: true,
+      },
+    }),
+    true,
+  ),
+}, {
+  unknownKeys: "reject",
+  swift: {
+    name: "IdentificationProvenanceV3DTO",
+    declarationOrder: 35,
+    preserveRequiredNulls: true,
+  },
+});
+
 export const identificationProvenanceContract = {
   kind: "union",
   discriminator: "version",
   variants: {
     1: identificationProvenanceV1Contract,
     2: identificationProvenanceV2Contract,
+    3: identificationProvenanceV3Contract,
   },
   swift: { name: "IdentificationProvenanceDTO", declarationOrder: 34 },
 } as const satisfies UnionContract;
@@ -1631,6 +1669,17 @@ export function parseIdentifySuccessEnvelope(
     value,
     "response",
   ) as IdentifySuccessEnvelope;
+  if (
+    parsed.data.identification_provenance?.version === 3 &&
+    (!("returned_model" in parsed.data.identification_provenance) ||
+      parsed.data.identification_provenance.returned_model !==
+        parsed.data.identification_provenance.model)
+  ) {
+    primaryContractError(
+      "identification_provenance.returned_model",
+      "Verified returned model required",
+    );
+  }
   validatePrimaryIdentificationResult(parsed.data);
   return deepFreezeJson(parsed);
 }

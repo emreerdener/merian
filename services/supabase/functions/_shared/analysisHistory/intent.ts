@@ -24,7 +24,9 @@ export function buildObservationAnalysisAdmission(
     "expected_processor_permission",
   ]);
   if (
-    claim.entitlement_protocol !== 3 || claim.identification_protocol !== 6 ||
+    claim.entitlement_protocol !== 3 ||
+    (claim.identification_protocol !== 6 &&
+      claim.identification_protocol !== 7) ||
     claim.history_protocol !== 7 ||
     !["google_gemini", "openai"].includes(
       claim.expected_processor_permission as string,

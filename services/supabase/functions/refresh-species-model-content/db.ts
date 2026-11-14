@@ -5,6 +5,7 @@ import {
   fetchStaticEncyclopedicData,
 } from "../_shared/biology.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
+import { geminiSpeciesTransport } from "../_shared/ai/geminiTransport.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import { prepareSharedSpeciesContent } from "../_shared/ai/sharedContent.ts";
 import type { SpeciesContentAIRequest } from "../_shared/ai/contracts.ts";
@@ -171,17 +172,22 @@ export async function refreshSpeciesModelContentJob(
       supabaseAdmin,
       dependencies,
     );
-    await completeSpeciesEnrichmentJob(
-      job.job_id,
+    const completed = await completeSpeciesEnrichmentJob(
+      job,
       result.status === "refreshed" || result.status === "no_data",
       result.error ?? null,
       supabaseAdmin,
     );
-    return result;
+    return completed ? result : baseResult(
+      job,
+      "failed",
+      result.refreshed,
+      "gemini_species_recovery_pending",
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await completeSpeciesEnrichmentJob(
-      job.job_id,
+      job,
       false,
       message,
       supabaseAdmin,
@@ -213,22 +219,32 @@ async function refreshSpeciesModelContentJobUnchecked(
   }
 }
 
-function prepareClaimedContent(
+async function prepareClaimedContent(
   job: SpeciesModelEnrichmentJobRow,
   request: SpeciesContentAIRequest,
   dependencies: SpeciesModelContentDependencies,
+  client: SupabaseClient,
 ) {
-  return prepareSharedSpeciesContent(request, {
-    kind: "service_job",
-    task: job.content_group === "habitat"
-      ? "species_overview"
-      : job.content_group,
-    purpose: "public_species_facts",
-    jobId: job.job_id,
-    attemptCount: job.attempts,
-    maxAttempts: job.max_attempts,
-    model: "gemini-2.5-flash",
-  }, dependencies.prepareAI ?? prepareAIExecution);
+  const owned = dependencies.prepareAI
+    ? null
+    : await geminiSpeciesTransport(client, job.job_id, job.attempts);
+  return prepareSharedSpeciesContent(
+    request,
+    {
+      kind: "service_job",
+      task: job.content_group === "habitat"
+        ? "species_overview"
+        : job.content_group,
+      purpose: "public_species_facts",
+      jobId: job.job_id,
+      attemptCount: job.attempts,
+      maxAttempts: job.max_attempts,
+      model: owned?.model ?? "gemini-2.5-flash",
+    },
+    dependencies.prepareAI ??
+      ((request, authority) =>
+        prepareAIExecution(request, authority, owned!.transport)),
+  );
 }
 
 async function refreshHabitat(
@@ -236,19 +252,26 @@ async function refreshHabitat(
   supabaseAdmin: SupabaseClient,
   dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult> {
-  const enrichment = await fetchStaticEncyclopedicData(
-    "system:refresh-species-model-content",
-    job.scientific_name,
-    prepareClaimedContent(job, {
+  const execution = await prepareClaimedContent(
+    job,
+    {
       task: "species_overview",
       variant: "species_content",
       scientificName: job.scientific_name,
       locale: "en",
-    }, dependencies),
+    },
+    dependencies,
+    supabaseAdmin,
+  );
+  const enrichment = await fetchStaticEncyclopedicData(
+    "system:refresh-species-model-content",
+    job.scientific_name,
+    execution,
   );
   recordAIUsageBestEffort(supabaseAdmin, {
+    durableGeminiReceipt: true,
     operation: "scan_overview_enrichment",
-    model: "gemini-2.5-flash",
+    model: execution.snapshot.model,
     usage: enrichment.usage,
     metadata: enrichment.execution,
     inputModality: "text",
@@ -286,27 +309,34 @@ async function refreshLookalikes(
     return baseResult(job, "failed", false, "Lookalike taxonomy is not ready.");
   }
 
+  const execution = await prepareClaimedContent(
+    job,
+    {
+      task: "lookalikes",
+      variant: "species_content",
+      scientificName: job.scientific_name,
+      taxonomy: {
+        kingdom: cachedSpecies.kingdom,
+        class: cachedSpecies.class,
+        order: cachedSpecies.order,
+        family: cachedSpecies.family,
+      },
+    },
+    dependencies,
+    supabaseAdmin,
+  );
   const similarResult =
     await (dependencies.fetchSimilarSpecies ?? fetchSimilarSpecies)(
       "system:refresh-species-model-content",
       job.scientific_name,
-      prepareClaimedContent(job, {
-        task: "lookalikes",
-        variant: "species_content",
-        scientificName: job.scientific_name,
-        taxonomy: {
-          kingdom: cachedSpecies.kingdom,
-          class: cachedSpecies.class,
-          order: cachedSpecies.order,
-          family: cachedSpecies.family,
-        },
-      }, dependencies),
+      execution,
     );
 
   if (similarResult?.usage) {
     recordAIUsageBestEffort(supabaseAdmin, {
+      durableGeminiReceipt: true,
       operation: "scan_lookalike_enrichment",
-      model: "gemini-2.5-flash",
+      model: execution.snapshot.model,
       usage: similarResult.usage,
       metadata: similarResult.execution,
       inputModality: "text",
@@ -380,11 +410,16 @@ async function refreshGroupTags(
   const result = await fetchGroupTags(
     "system:refresh-species-model-content",
     job.scientific_name,
-    prepareClaimedContent(job, {
-      task: "group_tags",
-      variant: "species_content",
-      scientificName: job.scientific_name,
-    }, dependencies),
+    await prepareClaimedContent(
+      job,
+      {
+        task: "group_tags",
+        variant: "species_content",
+        scientificName: job.scientific_name,
+      },
+      dependencies,
+      supabaseAdmin,
+    ),
     supabaseAdmin,
   );
   const groupTags = sanitizeGroupTags(result?.group_tags);
@@ -446,15 +481,16 @@ async function refreshModelJobsWithConcurrency(
 }
 
 async function completeSpeciesEnrichmentJob(
-  jobId: string,
+  job: SpeciesModelEnrichmentJobRow,
   succeeded: boolean,
   errorMessage: string | null,
   supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error } = await supabaseAdmin.rpc(
-    "complete_species_enrichment_job",
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "complete_gemini_species_job",
     {
-      target_job_id: jobId,
+      target_job_id: job.job_id,
+      expected_attempt: job.attempts,
       succeeded,
       error_message: errorMessage,
     },
@@ -462,10 +498,11 @@ async function completeSpeciesEnrichmentJob(
   if (error) {
     console.error(JSON.stringify({
       event: "species_model_enrichment_job_completion_failed",
-      job_id: jobId,
+      job_id: job.job_id,
       error: error.message,
     }));
   }
+  return !error && data === true;
 }
 
 function parseLimit(value: unknown): SpeciesModelContentRefreshRequestResult & {

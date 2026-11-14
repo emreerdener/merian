@@ -261,6 +261,7 @@ export async function fetchGroupTags(
       );
       if (supabaseAdmin) {
         recordAIUsageBestEffort(supabaseAdmin, {
+          durableGeminiReceipt: true,
           operation: "scan_group_tag_enrichment",
           model: modelName,
           usage,

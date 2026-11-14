@@ -1,3 +1,3 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { recoverVideoRoute } from "./route.ts";
-serveEdge(recoverVideoRoute);
+serveGeminiEdge("recover-observation-video-analyses", recoverVideoRoute);

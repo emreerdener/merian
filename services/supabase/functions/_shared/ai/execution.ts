@@ -1,3 +1,4 @@
+import type { GeminiTransportHooks } from "./geminiTransport.ts";
 import type {
   AIAdapter,
   AIExecutionOutcome,
@@ -35,11 +36,11 @@ export function createAIExecution<
   let started = false;
   return Object.freeze({
     snapshot,
-    async invoke() {
+    async invoke(hooks?: GeminiTransportHooks) {
       if (started) throw new Error("ai_attempt_already_invoked");
       started = true;
       const start = performance.now();
-      const result = await invoke();
+      const result = await invoke(hooks);
       return {
         ...result,
         execution: {

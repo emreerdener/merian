@@ -32,7 +32,7 @@ Deno.test("analysis admission rejects unsupported readers and media before fundi
     const patch of [
       { history_protocol: 6 },
       { entitlement_protocol: null },
-      { identification_protocol: 7 },
+      { identification_protocol: 8 },
       { expected_processor_permission: "recovery_only" },
       { owner_id: identity.observation_id },
     ]

@@ -1,3 +1,4 @@
+import { geminiReservationTransport } from "../_shared/ai/geminiTransport.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { quotaIpHash } from "../_shared/aiQuota.ts";
 import { resolveTierForUser } from "../_shared/entitlement.ts";
@@ -161,6 +162,13 @@ export async function executeProtectedChatSend(
     buildImmutableChatSystemInstruction(admitted.context),
     buildImmutableChatUserPrompt(admitted.context, turn.messageText),
     quota.model,
+    {
+      transport: geminiReservationTransport(client, turn.ownerId, {
+        id: quota.reservationId,
+        leaseToken: quota.leaseToken,
+        attemptCount: 1,
+      }),
+    },
   );
   if (
     remaining() <

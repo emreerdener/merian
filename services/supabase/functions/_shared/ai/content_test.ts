@@ -161,9 +161,9 @@ function database(
               case "claim_species_model_enrichment_jobs":
                 events.push("claim");
                 return Response.json(options.jobs ?? [job]);
-              case "complete_species_enrichment_job":
+              case "complete_gemini_species_job":
                 events.push("complete");
-                return Response.json(null);
+                return Response.json(true);
               case "persist_species_model_lookalikes":
                 events.push("relations");
                 return Response.json([{
@@ -507,34 +507,7 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
           const usage = db.calls.filter((call) =>
             call.name === "record_ai_usage_event"
           );
-          assertEquals(usage.length, 1);
-          assertEquals(usage[0].args.p_operation, operations[task]);
-          assertEquals(usage[0].args.p_user_id, user.id);
-          assertEquals(usage[0].args.p_model, "gemini-2.5-flash");
-          assertEquals(usage[0].args.p_metadata, {
-            ai_task: task,
-            ai_provider: "gemini",
-            ai_binding: "gemini_baseline_v1",
-            ai_prompt: `${task}_v1`,
-            ai_schema: `${task}_v1`,
-            ai_policy_version: 1,
-            ai_context_kind: "user_request",
-            ai_returned_model: null,
-            ai_provider_duration_ms: 1234,
-            ai_outcome: "draft",
-          });
-          assertEquals([
-            usage[0].args.p_prompt_tokens,
-            usage[0].args.p_candidate_tokens,
-            usage[0].args.p_total_tokens,
-            usage[0].args.p_thinking_tokens,
-            usage[0].args.p_cached_tokens,
-            usage[0].args.p_tool_tokens,
-          ], [12, 8, 25, 3, 2, 2]);
-          assertEquals(
-            usage[0].args.p_prompt_tokens_by_modality,
-            facts.usage.modalityBreakdown,
-          );
+          assertEquals(usage.length, 0); // Durable receipt owns this invocation's accounting.
           const reservation = db.calls.find((call) =>
             call.name === "reserve_ai_quota"
           )!;
@@ -674,18 +647,10 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
           const usage = db.calls.filter((call) =>
             call.name === "record_ai_usage_event"
           );
-          assertEquals(usage.length, 1);
-          assertEquals(usage[0].args.p_user_id, null);
-          assertEquals(usage[0].args.p_model, "gemini-2.5-flash");
-          const metadata = usage[0].args.p_metadata as Record<string, unknown>;
-          assertEquals(metadata.ai_context_kind, "service_job");
-          assertEquals(metadata.ai_policy_version, null);
-          assert(!JSON.stringify(metadata).includes(job.job_id));
-          assert(!JSON.stringify(metadata).includes(scientificName));
+          assertEquals(usage.length, 0); // No duplicate requested-model estimate.
           assertEquals(
-            db.calls.find((call) =>
-              call.name === "complete_species_enrichment_job"
-            )?.args.succeeded,
+            db.calls.find((call) => call.name === "complete_gemini_species_job")
+              ?.args.succeeded,
             true,
           );
           if (content_group === "group_tags") {

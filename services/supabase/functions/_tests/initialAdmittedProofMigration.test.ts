@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assert, assertEquals } from "@std/assert";
 import schema from "../_shared/initialAnalysis/admitted-proof-schema-v1.json" with {
   type: "json",
@@ -20,7 +21,10 @@ const tests = await Deno.readTextFile(
   new URL("../../tests/initial_admitted_proof.sql", import.meta.url),
 );
 Deno.test("complete admitted SQL embeds the same closed schema and complete golden/negative vectors", () => {
-  assertEquals(JSON.parse(sql.match(/\$json\$(.*?)\$json\$/s)![1]), schema);
+  assertEquals(
+    JSON.parse(sql.match(/\$json\$(.*?)\$json\$/s)![1]),
+    historicalI6Schema(schema),
+  );
   assertEquals(
     JSON.parse(tests.match(/\$vectors\$(.*?)\$vectors\$/s)![1]),
     vectors,

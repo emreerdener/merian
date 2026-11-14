@@ -66,8 +66,11 @@ export async function executePublicationPhotoModeration(
   historyUUID(work.media_id);
   if (
     work.source.media_id !== work.media_id ||
-    work.policy_version !== "photo_publication_v1" ||
-    work.provider !== "gemini" || work.model !== "gemini-2.5-flash" ||
+    !((work.policy_version === "photo_publication_v1" &&
+      work.model === "gemini-2.5-flash") ||
+      (work.policy_version === "photo_publication_v2" &&
+        work.model === "gemini-3.5-flash-lite")) ||
+    work.provider !== "gemini" ||
     work.processor_permission !== "google_gemini"
   ) return invalidHistory();
   if (terminal.has(work.state)) return work.state;

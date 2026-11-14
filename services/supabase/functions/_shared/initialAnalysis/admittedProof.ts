@@ -265,11 +265,17 @@ export async function validateAdmittedProof(value: unknown): Promise<{
       assignment.processor_permission
   ) invalidInitialInput();
   if (assignment.provider === "gemini") {
+    const legacy = assignment.binding === "gemini_baseline_v1" &&
+      assignment.provider_model === null &&
+      assignment.minimum_identification_protocol === 0;
+    const generation3 = assignment.binding === "gemini_generation3_v1" &&
+      assignment.provider_model === "gemini-3.8-flash" &&
+      assignment.quota_model === "gemini-3.8-flash" &&
+      assignment.minimum_identification_protocol === 7 &&
+      assignment.accepted_identification_protocol === 7;
     if (
-      assignment.binding !== "gemini_baseline_v1" ||
-      assignment.processor_permission !== "google_gemini" ||
-      assignment.provider_model !== null ||
-      assignment.minimum_identification_protocol !== 0
+      (!legacy && !generation3) ||
+      assignment.processor_permission !== "google_gemini"
     ) invalidInitialInput();
   } else if (assignment.provider === "openai") {
     if (

@@ -21,7 +21,7 @@ struct ObservationReanalysisPreflightRequest: Encodable, Equatable, Sendable {
         try values.encode(analysisID.uuidString.lowercased(), forKey: .analysis_id)
         try values.encode(sourceAnalysisID.uuidString.lowercased(), forKey: .source_analysis_id)
         try values.encode(3, forKey: .entitlement_protocol)
-        try values.encode(6, forKey: .identification_protocol)
+        try values.encode(7, forKey: .identification_protocol)
         try values.encode(8, forKey: .history_protocol)
     }
 
@@ -53,8 +53,9 @@ struct ObservationReanalysisPreflightRequest: Encodable, Equatable, Sendable {
             throw MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#)
         }
         guard ["ready", "permission_required"].contains(decision), minimum <= 3,
-              let identificationMinimum, [0, 4, 5, 6].contains(identificationMinimum),
-              let recipient, recipient != .openAI || [4, 5, 6].contains(identificationMinimum) else {
+              let identificationMinimum, [0, 4, 5, 6, 7].contains(identificationMinimum),
+              let recipient, (recipient == .openAI && [4, 5, 6].contains(identificationMinimum)) ||
+                (recipient == .gemini && [0, 7].contains(identificationMinimum)) else {
             throw MerianError.invalidResponse
         }
         if decision == "permission_required" {

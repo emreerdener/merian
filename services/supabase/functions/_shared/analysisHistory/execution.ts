@@ -102,17 +102,28 @@ export function assertVideoExecutionSnapshot(
       (hasAudioEvidence
         ? "multimodal_video_audio_v1"
         : "multimodal_video_frames_v1") ||
-    q.provider !== "gemini" || q.binding !== "gemini_baseline_v1" ||
+    q.provider !== "gemini" ||
+    !["gemini_baseline_v1", "gemini_generation3_v1"].includes(
+      String(q.binding),
+    ) ||
+    (q.binding === "gemini_generation3_v1" &&
+      input.identification_protocol !== 7) ||
     q.processor_permission !== "google_gemini" || q.attempt_count !== 1 ||
     !Number.isSafeInteger(q.policy_version) ||
     (q.policy_version as number) < 1 ||
     (q.effective_tier !== "free" && q.effective_tier !== "pro") ||
     snapshot.provider !== q.provider || snapshot.binding !== q.binding ||
     q.model !==
-      (q.effective_tier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash") ||
+      (q.binding === "gemini_generation3_v1"
+        ? "gemini-3.8-flash"
+        : q.effective_tier === "pro"
+        ? "gemini-2.5-pro"
+        : "gemini-2.5-flash") ||
     snapshot.model !== q.model || snapshot.policyVersion !== q.policy_version ||
     snapshot.diagnosticTrigger !== diagnosticTriggerForTier(
-        q.effective_tier === "pro" ? "pro" : "flash",
+        q.binding === "gemini_generation3_v1" || q.effective_tier === "pro"
+          ? "pro"
+          : "flash",
       ) ||
     snapshot.prompt !==
       (hasAudioEvidence ? "identify_blended_v1" : "identify_vision_v1")
@@ -129,7 +140,10 @@ function captureOutcome(
   if (
     result.kind === "unknown_execution" || result.kind === "operational_failure"
   ) return null;
-  const provenance = identificationProvenance(result.execution);
+  const provenance = identificationProvenance(
+    result.execution,
+    result.kind === "draft" ? result.returnedModel : null,
+  );
   const usage = identificationUsageFacts(result);
   let outcome: SavedAnalysisOutcome["outcome"];
   if (result.kind !== "draft") outcome = { kind: result.kind };

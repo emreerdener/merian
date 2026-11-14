@@ -1,3 +1,4 @@
+import { historicalI6Schema } from "../_shared/initialAnalysis/fixtures/historicalSchema.ts";
 import { assert, assertEquals } from "@std/assert";
 import assignment from "../_shared/initialAnalysis/media-assignment-schema-v3.json" with {
   type: "json",
@@ -21,11 +22,14 @@ const tests = await Deno.readTextFile(
   new URL("../../tests/initial_qualified_codecs.sql", import.meta.url),
 );
 Deno.test("qualified schemas and vectors are byte-protocol peers in SQL and Deno", () => {
-  assertEquals(JSON.parse(sql.match(/\$json\$(.*?)\$json\$/s)![1]), {
-    ...execution,
-    assignment,
-    ...response,
-  });
+  assertEquals(
+    JSON.parse(sql.match(/\$json\$(.*?)\$json\$/s)![1]),
+    historicalI6Schema({
+      ...execution,
+      assignment,
+      ...response,
+    }),
+  );
   assertEquals(
     JSON.parse(tests.match(/\$vectors\$(.*?)\$vectors\$/s)![1]),
     vectors,

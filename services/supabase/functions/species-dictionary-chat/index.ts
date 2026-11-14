@@ -1,3 +1,8 @@
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
+import {
+  decodeGeminiApplication,
+  type GeminiTransportHooks,
+} from "../_shared/ai/geminiTransport.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { AIQuotaError, reserveAIProviderCall } from "../_shared/aiQuota.ts";
@@ -10,7 +15,7 @@ import { resolveTierForUser } from "../_shared/entitlement.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import {
   buildFieldChatReplyRequest,
-  extractFieldChatReplyJson,
+  parseFieldChatReply,
 } from "../_shared/fieldChat/reply.ts";
 import { countAllFieldChatSendsToday } from "../_shared/fieldChat/dailyUsage.ts";
 import {
@@ -25,7 +30,7 @@ import {
   fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
 } from "../_shared/fieldChat/reservation.ts";
-import { _genAI } from "../_shared/gemini.ts";
+import { generateGeminiContent } from "../_shared/gemini.ts";
 import {
   parseJsonBody,
   publicErrorResponse,
@@ -36,7 +41,6 @@ import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
-  normalizeAssistantAnswer,
   normalizeFeedbackNote,
   normalizeFeedbackRating,
   normalizeUserMessage,
@@ -122,26 +126,20 @@ async function generateAssistantReply(
   systemInstruction: string,
   userPrompt: string,
   model = INSIGHT_CHAT_MODEL,
+  transport?: GeminiTransportHooks,
 ): Promise<ModelChatResult> {
-  const result = await _genAI.models.generateContent({
+  const result = await generateGeminiContent({
     ...buildFieldChatReplyRequest(systemInstruction, userPrompt, model),
-  });
-  const parsed = extractFieldChatReplyJson<{
-    answer?: unknown;
-    is_refusal?: unknown;
-    refusal_reason?: unknown;
-  }>(result.text ?? "");
-  return {
-    answer: normalizeAssistantAnswer(
-      parsed.answer,
-      "I could not produce a useful answer. Please try asking again.",
-    ),
-    isRefusal: parsed.is_refusal === true,
-    refusalReason: typeof parsed.refusal_reason === "string"
-      ? parsed.refusal_reason
-      : null,
-    usage: result.usageMetadata,
-  };
+  }, transport);
+  return decodeGeminiApplication(transport, () => {
+    const parsed = parseFieldChatReply(result.text ?? "");
+    return {
+      answer: parsed.answer,
+      isRefusal: parsed.is_refusal,
+      refusalReason: parsed.refusal_reason,
+      usage: result.usageMetadata,
+    };
+  }, (value) => value.isRefusal ? "refusal" : "success");
 }
 
 export async function handleSpeciesDictionaryChat(
@@ -550,6 +548,7 @@ export async function handleSpeciesDictionaryChat(
         systemInstruction,
         userPrompt,
         quotaLease!.reservation.model,
+        quotaLease!.geminiTransport,
       );
     } catch (error) {
       if (providerAttempted) {
@@ -558,6 +557,7 @@ export async function handleSpeciesDictionaryChat(
         await quotaLease!.refund();
       }
       recordUsage(supabaseAdmin, {
+        durableGeminiReceipt: true,
         operation: "species_dictionary_chat_reply",
         model: quotaLease!.reservation.model,
         effectivePlan: tier.plan,
@@ -614,6 +614,7 @@ export async function handleSpeciesDictionaryChat(
     supabaseAdmin,
   );
   recordUsage(supabaseAdmin, {
+    durableGeminiReceipt: true,
     operation: "species_dictionary_chat_reply",
     model: quotaLease?.reservation.model ?? INSIGHT_CHAT_MODEL,
     usage: assistant.usage,
@@ -666,12 +667,11 @@ export function createSpeciesDictionaryChatHttpHandler(
 }
 
 if (import.meta.main) {
-  Deno.serve((req: Request) =>
+  serveGeminiEdge("species-dictionary-chat", (req: Request) =>
     withEdgeHandler(
       req,
       (user, supabaseAdmin) =>
         handleSpeciesDictionaryChat(req, user, supabaseAdmin),
       { responseHeaders: FIELD_CHAT_RESPONSE_HEADERS },
-    )
-  );
+    ));
 }

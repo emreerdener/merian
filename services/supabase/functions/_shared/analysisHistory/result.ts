@@ -139,11 +139,11 @@ function parseSnapshot(
 /** Validate read-back bytes. Callers retain the original text for exact replay. */
 export function decodeAnalysisResultSnapshot(
   text: unknown,
-  reader: 7 | 8 | 9 | 10 | 11 = 7,
+  reader: 7 | 8 | 9 | 10 | 11 | 13 = 7,
 ) {
   if (
     (reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10 &&
-      reader !== 11) ||
+      reader !== 11 && reader !== 13) ||
     typeof text !== "string" ||
     new TextEncoder().encode(text).length > HISTORY_MAX_RESULT_BYTES
   ) {
@@ -151,10 +151,18 @@ export function decodeAnalysisResultSnapshot(
   }
   try {
     const value = JSON.parse(text);
+    if (
+      value?.result?.identification_provenance?.version === 3 && reader !== 13
+    ) return invalidHistory();
     if (reader >= 9 && value?.schema_version === 3) {
       return parseImportedSnapshot(value);
     }
-    return parseSnapshot(value, reader >= 8, reader >= 10, reader === 11);
+    return parseSnapshot(
+      value,
+      reader >= 8,
+      reader >= 10,
+      reader === 11 || reader === 13,
+    );
   } catch {
     return invalidHistory();
   }

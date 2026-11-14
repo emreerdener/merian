@@ -85,11 +85,7 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
 
   assertEquals(dispatchFiles.sort(), [
     "functions/_shared/ai/gemini.ts",
-    "functions/_shared/audioModeration.ts",
-    "functions/explore-post-chat/index.ts",
-    "functions/insight-chat/index.ts",
-    "functions/species-dictionary-chat/index.ts",
-    "functions/species-discovery-search/provider.ts",
+    "functions/_shared/gemini.ts",
     "scripts/benchmark_ai_boundary.ts",
     "scripts/evaluate_field_chat_answers.ts",
   ]);
@@ -100,6 +96,7 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
   assertEquals(sdkFiles.sort(), [
     "functions/_shared/ai/gemini.ts",
     "functions/_shared/ai/geminiContent.ts",
+    "functions/_shared/ai/geminiProfiles.ts",
     "functions/_shared/ai/geminiRequest.ts",
     "functions/_shared/fieldChat/reply.ts",
     "functions/_shared/gemini.ts",
@@ -534,7 +531,8 @@ Deno.test("group-tag cache misses cannot dispatch an unmetered provider call", a
       "jobId: job.job_id",
       "attemptCount: job.attempts",
       "maxAttempts: job.max_attempts",
-      "dependencies.prepareAI ?? prepareAIExecution",
+      "await geminiSpeciesTransport(client, job.job_id, job.attempts)",
+      "prepareAIExecution(request, authority, owned!.transport)",
     ]
   ) assertStringIncludes(worker, field);
   assert(!worker.includes("reserveAIProviderCall"));

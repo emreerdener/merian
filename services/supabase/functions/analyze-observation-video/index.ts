@@ -1,3 +1,6 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { analyzeVideoRoute } from "./route.ts";
-serveEdge((req: Request) => analyzeVideoRoute(req));
+serveGeminiEdge(
+  "analyze-observation-video",
+  (req: Request) => analyzeVideoRoute(req),
+);

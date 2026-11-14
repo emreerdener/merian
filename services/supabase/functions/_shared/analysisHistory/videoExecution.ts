@@ -78,7 +78,12 @@ export function parseVideoAnalysisWork(
   if (
     q.request_id !== analysis || q.original_analysis_id !== analysis ||
     q.attempt_count !== 1 ||
-    q.provider !== "gemini" || q.binding !== "gemini_baseline_v1" ||
+    q.provider !== "gemini" ||
+    !["gemini_baseline_v1", "gemini_generation3_v1"].includes(
+      String(q.binding),
+    ) ||
+    (q.binding === "gemini_generation3_v1" &&
+      input.identification_protocol !== 7) ||
     q.processor_permission !== "google_gemini" ||
     q.input_profile !==
       (input.evidence_manifest.provenance.audio
@@ -86,7 +91,11 @@ export function parseVideoAnalysisWork(
         : "multimodal_video_frames_v1") ||
     !["free", "pro"].includes(String(q.effective_tier)) ||
     q.model !==
-      (q.effective_tier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash") ||
+      (q.binding === "gemini_generation3_v1"
+        ? "gemini-3.8-flash"
+        : q.effective_tier === "pro"
+        ? "gemini-2.5-pro"
+        : "gemini-2.5-flash") ||
     !Number.isSafeInteger(q.policy_version) || (q.policy_version as number) < 1
   ) return invalidHistory();
   historyUUID(q.reservation_id);

@@ -29,6 +29,8 @@ export type AIInputModality =
   | "unknown";
 
 export interface AIUsageEventInput {
+  /** The owning receipt transaction writes accounting; never insert a duplicate estimate. */
+  durableGeminiReceipt?: true;
   operation: string;
   model: string;
   usage?: GeminiUsageMetadata | null;
@@ -81,6 +83,7 @@ export async function recordAIUsageEvent(
   supabaseAdmin: SupabaseClient,
   input: AIUsageEventInput,
 ): Promise<string | null> {
+  if (input.durableGeminiReceipt) return null;
   const usage = input.usage;
   const { data, error } = await supabaseAdmin.rpc("record_ai_usage_event", {
     p_operation: input.operation,

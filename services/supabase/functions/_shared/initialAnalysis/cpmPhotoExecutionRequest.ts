@@ -76,14 +76,17 @@ export function createInitialCpmPhotoRequestPreparer(
     profile.verification,
   );
   const originalSnapshot = structuredClone(profile.snapshot);
-  const snapshot = Object.freeze({
-    ...originalSnapshot,
-    generation: Object.freeze(originalSnapshot.generation),
-  });
+  const snapshot = Object.freeze(originalSnapshot);
+  Object.freeze(snapshot.generation);
   // Only the existing English Gemini vision serializer is qualified here.
   if (
     snapshot.task !== "identify" || snapshot.provider !== "gemini" ||
-    snapshot.binding !== "gemini_baseline_v1" ||
+    !((snapshot.binding === "gemini_baseline_v1" &&
+      ["gemini-2.5-flash", "gemini-2.5-pro"].includes(snapshot.model)) ||
+      (snapshot.binding === "gemini_generation3_v1" &&
+        snapshot.model === "gemini-3.8-flash" &&
+        snapshot.generation.thinkingLevel === "medium" &&
+        snapshot.generation.maxOutputTokens === 8192)) ||
     snapshot.variant !== "vision_compat" ||
     snapshot.operation !== "scan_identification" ||
     snapshot.contextKind !== "user_request" ||

@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import {
   corsHeaders,
   jsonResponse,
@@ -10,7 +10,7 @@ import { PublicHistoryPhotoStorage } from "../_shared/analysisHistory/publicPhot
 import { publicationPhotoErasureRepository } from "./db.ts";
 import { erasePublicationPhoto } from "./handler.ts";
 
-serveEdge(async (req: Request) => {
+serveGeminiEdge("erase-publication-photos", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

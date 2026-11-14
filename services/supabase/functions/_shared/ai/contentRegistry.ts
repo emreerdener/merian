@@ -3,6 +3,7 @@ import type {
   GeminiAttemptSnapshot,
   SpeciesContentAIRequest,
 } from "./contracts.ts";
+import { GEMINI_CANDIDATE_PROFILES } from "./geminiProfiles.ts";
 
 const profiles = {
   species_overview: {
@@ -60,8 +61,32 @@ export function resolveContentClaim(
       authority.maxAttempts < authority.attemptCount
     ) throw new Error("ai_authority_mismatch");
     model = authority.model;
-    if (model !== "gemini-2.5-flash") throw new Error("ai_model_not_enabled");
+    if (model !== "gemini-2.5-flash" && model !== "gemini-3.5-flash-lite") {
+      throw new Error("ai_model_not_enabled");
+    }
   } else throw new Error("ai_authority_mismatch");
+  if (model === "gemini-3.5-flash-lite") {
+    return Object.freeze({
+      provider: "gemini",
+      binding: "gemini_generation3_v1",
+      task: request.task,
+      variant: request.variant,
+      model,
+      contextKind: authority.kind,
+      operation: profile.operation,
+      policyVersion,
+      permission: authority.kind === "user_request" ? "google_gemini" : null,
+      prompt: profile.version,
+      schema: profile.version,
+      confidence: null,
+      timeoutMs: 90000,
+      generation: Object.freeze({
+        maxOutputTokens:
+          GEMINI_CANDIDATE_PROFILES[request.task].maxOutputTokens,
+        thinkingLevel: "minimal",
+      }),
+    });
+  }
   if (model !== "gemini-2.5-flash" && model !== "gemini-2.5-pro") {
     throw new Error("ai_model_not_enabled");
   }

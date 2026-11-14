@@ -15,7 +15,7 @@ struct ObservationVideoReanalysisRequest: Equatable, Sendable {
         var row: [String: Any] = [
             "schema_version": 4, "observation_id": observationID.uuidString.lowercased(),
             "analysis_id": analysisID.uuidString.lowercased(), "source_analysis_id": sourceAnalysisID.uuidString.lowercased(),
-            "entitlement_protocol": 3, "identification_protocol": 6, "history_protocol": 9,
+            "entitlement_protocol": 3, "identification_protocol": 7, "history_protocol": 9,
             "expected_processor_permission": "google_gemini",
             "evidence_manifest": try JSONSerialization.jsonObject(with: manifest.originalBytes)
         ]
@@ -31,7 +31,7 @@ struct ObservationVideoReanalysisRequest: Equatable, Sendable {
         ])
         guard try ObservationHistoryPage.integer(row["schema_version"]) == 4,
               try ObservationHistoryPage.integer(row["entitlement_protocol"]) == 3,
-              try ObservationHistoryPage.integer(row["identification_protocol"]) == 6,
+              try [6, 7].contains(ObservationHistoryPage.integer(row["identification_protocol"])),
               try ObservationHistoryPage.integer(row["history_protocol"]) == 9,
               row["expected_processor_permission"] as? String == "google_gemini" else { throw MerianError.invalidResponse }
         let observation = try ObservationHistoryPage.uuid(row["observation_id"])

@@ -42,6 +42,13 @@ Deno.test("reader11 video result shared accepted/rejected vectors preserve bytes
         parseHistoryPage(value, request, page.owner_id, 11).items[0].snapshot,
         snapshot,
       );
+      assertEquals(
+        parseHistoryPage(value, request, page.owner_id, 13).items[0].snapshot,
+        snapshot,
+      );
+      assertThrows(() =>
+        parseHistoryPage(value, request, page.owner_id, 12 as 13)
+      );
       const stateRequest = {
         schema_version: 1 as const,
         observation_id: request.observation_id,

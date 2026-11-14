@@ -1,3 +1,8 @@
+import { createServiceRoleClientFromEnvironment } from "../serviceRoleClient.ts";
+import {
+  geminiReservationTransport,
+  type GeminiTransportHooks,
+} from "./geminiTransport.ts";
 import type {
   AIExecutionAuthority,
   AIRequest,
@@ -17,6 +22,7 @@ const OPENAI_PHOTO_DISPATCH_ENABLED: boolean = true;
 export function prepareAIExecution(
   request: AIRequest,
   authority: AIExecutionAuthority,
+  transport?: GeminiTransportHooks,
 ): PreparedAIExecution {
   const snapshot = resolveAIClaim(request, authority);
   if (snapshot.provider === "openai") {
@@ -29,5 +35,27 @@ export function prepareAIExecution(
       snapshot,
     );
   }
-  return createAIExecution(geminiAdapter, request, snapshot);
+  const execution = createAIExecution(geminiAdapter, request, snapshot);
+  return Object.freeze({
+    snapshot: execution.snapshot,
+    invoke: async () => {
+      let hooks = transport;
+      if (
+        !hooks && authority.kind === "user_request" &&
+        authority.reservation.leaseToken
+      ) {
+        hooks = geminiReservationTransport(
+          createServiceRoleClientFromEnvironment(),
+          authority.userId,
+          {
+            id: authority.reservation.id,
+            leaseToken: authority.reservation.leaseToken,
+            attemptCount: authority.reservation.attemptCount,
+          },
+        );
+      }
+      if (!hooks) throw new Error("gemini_transport_authority_required");
+      return await execution.invoke(hooks);
+    },
+  });
 }

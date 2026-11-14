@@ -48,12 +48,12 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
   };
   const overview = {
     taxonomy: {
-      kingdom: null,
-      phylum: null,
-      class: null,
-      order: null,
-      family: null,
-      genus: null,
+      kingdom: "Unknown",
+      phylum: "Unknown",
+      class: "Unknown",
+      order: "Unknown",
+      family: "Unknown",
+      genus: "Unknown",
     },
     iucn_red_list_status: "not_evaluated",
     habitat_description: "Synthetic habitat",
@@ -104,6 +104,10 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
             model: selectedModel,
           },
         },
+      {
+        beforeTransport: () => Promise.resolve(),
+        recordResponse: () => Promise.resolve(),
+      },
     );
   }
   let requests = 0;
@@ -116,6 +120,7 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
     finishReason = "STOP",
   ): Response {
     return Response.json({
+      modelVersion: selectedModel,
       candidates: [{
         content: {
           role: "model",
@@ -246,11 +251,14 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
               scientific_name: "Synthetic lookalike",
               common_name: "",
               reason: "  Shared   markings  ",
-              visual_traits: ["Spots", " spots ", "", 4, " Pale   wings "],
-              confidence: 1.2,
+              visual_traits: ["Spots", " spots ", "", " Pale   wings "],
+              confidence: 1,
             }, {
               scientific_name: "Second synthetic lookalike",
-              confidence: -0.2,
+              common_name: "",
+              reason: "",
+              visual_traits: [],
+              confidence: 0,
             }],
           });
         assertContent(
@@ -318,15 +326,9 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
           ),
           { group_tags: ["animal", "insect"], usage },
         );
-        assertEquals(ledgerCalls.map((call) => call.name), [
-          "record_ai_usage_event",
-        ]);
-        const recorded = ledgerCalls[0].args;
-        assertEquals(recorded.p_operation, "scan_group_tag_enrichment");
-        assertEquals(recorded.p_model, selectedModel);
-        assertEquals(recorded.p_user_id, null);
-        assertEquals(recorded.p_input_modality, "text");
-        assertEquals(recorded.p_total_tokens, usage.totalTokenCount);
+        // Production receipt persistence owns accounting. This legacy helper
+        // must not add another requested-model estimate after the same call.
+        assertEquals(ledgerCalls, []);
       },
     );
 
@@ -431,12 +433,11 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
     console.error = () => {};
     for (const caller of callers) {
       await step(
-        `${caller.name} preserves legacy JSON parsing with non-STOP finish`,
+        `${caller.name} rejects partial JSON with non-STOP finish`,
         async () => {
           inspect = () => {};
           respond = () => reply(caller.draft, true, "MAX_TOKENS");
-          const result = await caller.call();
-          assertEquals(result?.execution?.ai_outcome, "draft");
+          await assertRejects(caller.call, Error, "ai_content_invalid_output");
         },
       );
       await step(
@@ -444,6 +445,7 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
         async () => {
           respond = () =>
             Response.json({
+              modelVersion: selectedModel,
               candidates: [{
                 content: {
                   role: "model",
@@ -465,6 +467,7 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
         async () => {
           respond = () =>
             Response.json({
+              modelVersion: selectedModel,
               candidates: [{
                 content: {
                   role: "model",

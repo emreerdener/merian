@@ -1,7 +1,15 @@
+import { enterGeminiTransport } from "./geminiTransport.ts";
+import type { GeminiTransportHooks } from "./geminiTransport.ts";
 import { ApiError, type GenerateContentParameters } from "@google/genai";
 import { _genAI, extractJson, GEMINI_REQUEST_TIMEOUT_MS } from "../gemini.ts";
-import { geminiUsageModalityBreakdown } from "../aiUsage.ts";
-import { buildGeminiContent } from "./geminiContent.ts";
+import {
+  geminiResponseReceipt,
+  normalizeGeminiEnvelope,
+} from "./geminiEnvelope.ts";
+import {
+  assertGeminiContentDraft,
+  buildGeminiContent,
+} from "./geminiContent.ts";
 import { buildGeminiRequestParameters } from "./geminiRequest.ts";
 import type {
   AIAdapter,
@@ -32,7 +40,8 @@ export const geminiAdapter: AIAdapter<GeminiAttemptSnapshot> = Object.freeze({
     }
     const parameters = buildGeminiRequest(request, snapshot);
     const models = _genAI.models; // Validate local credentials before commitment.
-    return async (): Promise<AIProviderOutcome> => {
+    return async (hooks?: GeminiTransportHooks): Promise<AIProviderOutcome> => {
+      await enterGeminiTransport(hooks, snapshot.model);
       let result;
       const providerStart = performance.now();
       try {
@@ -55,60 +64,59 @@ export const geminiAdapter: AIAdapter<GeminiAttemptSnapshot> = Object.freeze({
       }
       const providerDurationMs = Math.max(0, performance.now() - providerStart);
       const providerCompletedAt = Date.now();
-      const candidate = result.candidates?.[0];
-      const finishReason = candidate?.finishReason ?? null;
-      let text = result.text ?? "";
-      if (
-        !text && request.task === "identify" && request.variant !== "multimodal"
-      ) {
-        const firstPart = candidate?.content?.parts?.[0];
-        if (typeof firstPart?.text === "string") text = firstPart.text;
-      }
-      const usage = result.usageMetadata;
+      const normalized = normalizeGeminiEnvelope(
+        result,
+        snapshot.model,
+        256 * 1024,
+      );
+      await hooks?.recordResponse(geminiResponseReceipt(normalized));
+      const finishReason = normalized.finishReason;
+      const text = normalized.text ?? "";
       const facts: AIResponseFacts = {
         providerDurationMs,
         providerCompletedAt,
-        safetyRatings: candidate?.safetyRatings?.map((rating) => ({
-          probability: rating.probability,
-        })),
-        returnedModel: result.modelVersion &&
-            /^gemini-[a-zA-Z0-9.-]{1,100}$/.test(result.modelVersion)
-          ? result.modelVersion
-          : null,
+        safetyRatings: normalized.safetyRatings,
+        returnedModel: normalized.returnedModel,
         finishReason,
         responseCharacters: text.length,
-        usage: usage
-          ? {
-            promptTokens: usage.promptTokenCount ?? null,
-            candidateTokens: usage.candidatesTokenCount ?? null,
-            totalTokens: usage.totalTokenCount ?? null,
-            thinkingTokens: usage.thoughtsTokenCount ?? null,
-            cachedTokens: usage.cachedContentTokenCount ?? null,
-            ...(usage.toolUsePromptTokenCount === undefined
-              ? {}
-              : { toolTokens: usage.toolUsePromptTokenCount }),
-            modalityBreakdown: geminiUsageModalityBreakdown(usage),
-          }
-          : null,
+        usage: normalized.usage,
       };
-      // Identification has explicit finish-policy guards. Content helpers
-      // historically parse the returned text regardless of finish reason.
-      if (
-        request.task === "identify" &&
-        (finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT")
-      ) {
-        return { ...facts, kind: "refusal" };
+      if (normalized.failure && request.task !== "identify") {
+        await hooks?.recordApplicationOutcome?.("error");
       }
-      if (
-        request.task === "identify" && finishReason &&
-        finishReason !== "STOP" &&
-        finishReason !== "FINISH_REASON_UNSPECIFIED"
-      ) return { ...facts, kind: "invalid_output", reason: "finish" };
+      if (normalized.failure === "identity") {
+        return { ...facts, kind: "invalid_output", reason: "identity" };
+      }
+      if (normalized.failure === "safety") return { ...facts, kind: "refusal" };
+      if (normalized.failure) {
+        return {
+          ...facts,
+          kind: "invalid_output",
+          reason: normalized.failure === "finish" ? "finish" : "json",
+        };
+      }
+      let draft: unknown;
       try {
-        return { ...facts, kind: "draft", draft: extractJson<unknown>(text) };
+        draft = extractJson<unknown>(text);
+        if (request.task !== "identify") {
+          assertGeminiContentDraft(
+            draft,
+            buildGeminiContent(request).responseSchema,
+            request.task,
+          );
+        }
       } catch {
+        if (request.task !== "identify") {
+          await hooks?.recordApplicationOutcome?.("error");
+        }
         return { ...facts, kind: "invalid_output", reason: "json" };
       }
+      // Keep acknowledgement failure outside decoding; accepted facts cannot
+      // be relabelled as a parser failure or trigger another provider call.
+      if (request.task !== "identify") {
+        await hooks?.recordApplicationOutcome?.("success");
+      }
+      return { ...facts, kind: "draft", draft };
     };
   },
 });

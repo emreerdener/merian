@@ -61,7 +61,9 @@ export function parseProtectedChatReply(value: unknown) {
     : storedText(row.refusal_reason, 100);
   if (
     !answer.trim() || answer !== answer.replace(/^ +| +$/g, "") ||
-    row.model !== "gemini-2.5-flash" || typeof row.is_refusal !== "boolean" ||
+    !["gemini-2.5-flash", "gemini-3.5-flash-lite"].includes(
+      String(row.model),
+    ) || typeof row.is_refusal !== "boolean" ||
     (reason !== null &&
       (!reason.trim() || reason !== reason.replace(/^ +| +$/g, ""))) ||
     (!row.is_refusal && reason !== null)
@@ -99,7 +101,7 @@ export function parseProtectedChatReply(value: unknown) {
   }
   return immutableStoredCopy({
     answer,
-    model: "gemini-2.5-flash" as const,
+    model: row.model as "gemini-2.5-flash" | "gemini-3.5-flash-lite",
     is_refusal: row.is_refusal,
     refusal_reason: reason,
     usage,

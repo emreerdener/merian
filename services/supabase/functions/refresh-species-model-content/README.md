@@ -63,10 +63,12 @@ Existing shared content and generic public provenance are not relabeled or
 invalidated; another content provider needs separate task qualification and
 private candidate/promotion rules.
 
-Existing usage writes keep null user attribution and add bounded task,
-provider/version, duration, and outcome metadata. Overview/lookalike writes
-remain in this worker; group tags retain the helper's single write. No job ID,
-scientific name, or provider body is added to that execution metadata.
+Gemini usage is written once from the durable, content-free invocation receipt,
+with null user attribution and separate requested/returned identities. The
+append-only usage row does not claim application success merely because an
+envelope arrived. Successful downstream completion is retained separately on the
+execution; reconciliation joins that fact without repricing the original ledger.
+No scientific name or provider body is retained in this evidence.
 
 Exact GBIF verification and bounded candidate preparation live in
 `../_shared/verifiedSpecies.ts`, shared with authenticated on-open Dictionary
@@ -84,14 +86,17 @@ relation persistence, retry policy, and independent candidate generation.
 - `group_tags`: calls `fetchGroupTags`, normalizes up to five lowercase tags,
   and persists through `updateGroupTags`.
 
-An unresolved identity, provider outage, partial candidate failure, stale
-dictionary identity, or missing taxonomy is retryable and therefore marks the
-job failed. A valid empty model result, a set containing only incompatible or
-reviewed-rejected candidates, and a completed write are terminal outcomes.
-Confirmed empty outcomes set `lookalikes_flash_attempted` so foreground scans do
-not repeat the same model request. A partial result that persists at least one
-valid relation also sets that foreground memo while the queue job remains
-failed/retryable for its unresolved candidates.
+Failures proven to precede invocation retain the existing backoff. Once Gemini
+may have been called, an unresolved identity, provider outage, partial candidate
+failure, stale dictionary identity, or missing taxonomy cannot authorize another
+model call. A received response followed by failed persistence remains owned and
+requires retained-result recovery or explicit reconciliation. A valid empty
+model result, a set containing only incompatible or reviewed-rejected
+candidates, and a completed write are terminal outcomes. Confirmed empty
+outcomes set `lookalikes_flash_attempted` so foreground scans do not repeat the
+same model request. A partial result that persists at least one valid relation
+also sets that foreground memo while the queue job remains pending
+reconciliation for its unresolved candidates.
 
 Migration `20260903163744_recover_species_lookalike_enrichment.sql` gives public
 legacy species with no nonrejected lookalike relation one new versioned attempt
@@ -126,8 +131,14 @@ reopen legacy work by itself, so an older worker cannot consume repaired jobs.
 The new worker requires those routines and writes the recovery version
 atomically when it claims an eligible job.
 
-The provider-boundary extraction adds no migration or runtime rollout.
-Deployment still requires explicit authorization for the operation and target.
+The Gemini compatibility migrations bind every claimed model job to its model,
+revision, attempt, and transport owner. They conservatively classify already
+running older jobs as potentially in flight. Both claim routines and the binding
+trigger reject replacement of dispatch-uncertain or received-but-incomplete
+work. Successful completion atomically marks the execution, permitting a later
+scheduled refresh with a new attempt. A false completion acknowledgement returns
+`gemini_species_recovery_pending`, never reported success. Deployment still
+requires explicit authorization for the operation and target.
 
 Use `dry_run: true` with `content_groups: ["lookalikes"]` to preview the same
 bounded eligibility order without locks, attempts, version markers, provider

@@ -60,11 +60,13 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
     "EdgeResponse",
     "EdgeResponseWrapper",
     "EntitlementSnapshotDTO",
+    "GeminiGeneration",
     "Generation",
     "IdentificationCandidate",
     "IdentificationProvenanceDTO",
     "IdentificationProvenanceV1DTO",
     "IdentificationProvenanceV2DTO",
+    "IdentificationProvenanceV3DTO",
     "ImageQuality",
     "Insight",
     "OpenAIGeneration",
@@ -107,7 +109,7 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(generated, /struct IdentificationCandidate: Codable/);
   assert.strictEqual(
     generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
-    5,
+    7,
     "Provenance versions, generation objects and the primary snapshot reject unknown wire keys",
   );
   assert.match(

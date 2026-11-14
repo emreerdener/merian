@@ -62,7 +62,7 @@ Deno.test("prepared audio admission rejects capability changes and caller author
       { history_protocol: 8 },
       { history_protocol: 10 },
       { entitlement_protocol: 2 },
-      { identification_protocol: 7 },
+      { identification_protocol: 8 },
       { expected_processor_permission: "openai" },
       { expected_processor_permission: null },
       { provider: "google" },

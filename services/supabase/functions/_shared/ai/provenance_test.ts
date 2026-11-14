@@ -133,6 +133,7 @@ Deno.test("provenance explicitly preserves absent generation settings and separa
     ),
   );
   const value = identificationProvenance(main);
+  assert(value.version === 1);
   assertEquals(value.generation.thinking_budget, null);
   assertEquals(value.generation.top_k, null);
   assertEquals(value.safety, null);
@@ -167,7 +168,7 @@ Deno.test("provenance projects a closed shape and never serializes response, aut
       response: "synthetic output",
       userId: "synthetic-owner",
       generation: { ...claim.generation, unreviewed: "synthetic secret" },
-    } as AIAttemptSnapshot,
+    } as unknown as AIAttemptSnapshot,
   );
   const serialized = JSON.stringify(value);
   for (

@@ -115,7 +115,7 @@
     "accepted_identification_protocol": {
       "type": "integer",
       "minimum": 6,
-      "maximum": 6
+      "maximum": 7
     },
     "asset_manifest_digest": {
       "type": "string",
