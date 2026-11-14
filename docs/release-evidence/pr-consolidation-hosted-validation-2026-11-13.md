@@ -285,3 +285,51 @@ actionable issue after the shared helper was added to the source manifest. No
 local simulator or database was used for these repairs. Hosted native
 qualification, complete unit execution and fresh-database backend validation
 remain unproved for the replacement.
+
+## Sixth approved replacement and identity-process output capture
+
+The user approved `306a3a4bfb09a872a3b52c500eece2992ad95cad`, published on
+November 14 at 16:20 UTC after both Vercel holds and Production checks were
+verified again. Exact-SHA manual run 43615068314 passed runtime installation,
+cache preparation, boot and all three identity queries. Its complete unit target
+compiled and is executing at this checkpoint; its UI smokes and Release archive
+passed. Both manual backend run 43615065954 and PR run 43615029156 passed C1 and
+are continuing private-handoff qualification. These partial results do not clear
+the remaining gates.
+
+PR unit job 132508534088 exceeded the first identity query's 30-second deadline.
+A single targeted retry, justified by the independent manual qualification
+success, failed the same query in job 132519075126. Artifacts 14121767267 and
+14123965402 retain the non-passing receipts. Neither PR unit attempt compiled or
+executed the app tests. The receipts do not contain partial query output or
+direct-process status, so they cannot distinguish a running query from a child
+retaining its output pipe. The inherited-pipe explanation remains a hypothesis.
+
+The next local repair captures only the three identity queries in automatically
+removed temporary files and waits for each direct process. A synthetic-process
+test reproduces a child retaining stdout after its parent exits: pipe collection
+times out while direct-process waiting with file capture completes. This proves
+the mitigation handles that failure mode, not that it caused the hosted
+failures. Exit code zero and the exact bounded ASCII identity remain mandatory.
+Missing, wrong, oversized or invalid output, nonzero exit and timeout all fail;
+even exact partial output at timeout cannot qualify the simulator. Timeout
+receipts add only the identity key, process status, output-presence/exact-match
+booleans and cleanup outcome. They never retain raw partial output. Only the
+direct query process is killed, with a five-second reap deadline; no process
+group or simulator service is terminated. Positional reads leave the shared
+output offset unchanged.
+
+The 30-second query deadlines, 25-minute preparation step, 120-minute full unit
+target and 190-minute job remain unchanged. The successful command maxima remain
+1,390 seconds; timeout cleanup adds at most five seconds. No runtime app code,
+SQL, C1 assertion or production limit changes. Portable tests use synthetic
+processes and mocks without touching a local simulator. This local repair needs
+independent review, complete portable validation and explicit replacement-SHA
+approval before publication. Main, beta and both production domains remain
+unchanged; PR 150 and History's work remain separate.
+
+Local validation passed all 26 simulator-qualification tests, the complete
+portable iOS tooling target (302.5 seconds), all 27 workflow-security tests,
+changed Markdown formatting and diff checks. Independent review found no
+actionable defect. The full native target is still running for the published
+`306a3a4` source; no hosted result is claimed for this local replacement.

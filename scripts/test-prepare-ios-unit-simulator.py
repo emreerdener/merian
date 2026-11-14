@@ -5,9 +5,11 @@ import copy
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 from pathlib import Path
 
 
@@ -265,6 +267,146 @@ class QualificationTests(unittest.TestCase):
             self.assertEqual(len(receipt["runtime_cache_diagnostic_tail"]), 8000)
             self.assertTrue(receipt["runtime_cache_diagnostic_tail"].endswith("Preparing runtime cache"))
             self.assertNotIn("boot_diagnostic_tail", receipt)
+
+
+class IdentityProcessTests(unittest.TestCase):
+    arguments = ["xcrun", "simctl", "getenv", DEVICE, "SIMULATOR_RUNTIME_VERSION"]
+
+    def process(self, raw, *, returncode=0, timeout=False, reap=True, running=True):
+        process = Mock()
+        process.poll.return_value = None if running else returncode
+        process.wait.side_effect = (
+            [subprocess.TimeoutExpired(self.arguments, 30),
+             returncode if reap else subprocess.TimeoutExpired(self.arguments, 5)]
+            if timeout else [returncode])
+        def start(arguments, *, stdout):
+            self.assertEqual(arguments, self.arguments)
+            self.assertNotEqual(stdout, subprocess.PIPE)
+            stdout.write(raw)
+            stdout.flush()
+            return process
+        return process, start
+
+    def test_completed_query_requires_zero_exit_and_exact_bounded_output(self):
+        for raw in [b"26.5\n", b" 26.5\r\n"]:
+            process, start = self.process(raw)
+            with patch.object(simulator.subprocess, "Popen", side_effect=start):
+                self.assertEqual(simulator.command(self.arguments, timeout=30), "26.5")
+            process.wait.assert_called_once_with(timeout=30)
+            process.kill.assert_not_called()
+        for raw in [b"", b"wrong", b"\xff", b"26.5" + b" " * 61 + b"sentinel"]:
+            process, start = self.process(raw)
+            with self.subTest(raw=raw), patch.object(simulator.subprocess, "Popen", side_effect=start):
+                with self.assertRaises(ValueError):
+                    simulator.command(self.arguments, timeout=30)
+        process, start = self.process(b"26.5\n", returncode=1)
+        with patch.object(simulator.subprocess, "Popen", side_effect=start):
+            with self.assertRaises(subprocess.CalledProcessError):
+                simulator.command(self.arguments, timeout=30)
+
+    def test_timeout_never_accepts_partial_output_and_cleanup_is_bounded(self):
+        for raw, match in [(b"", False), (b"26.5\n", True), (b"private-sentinel", False)]:
+            for reap in [True, False]:
+                process, start = self.process(raw, timeout=True, reap=reap)
+                with self.subTest(raw=raw, reap=reap), patch.object(
+                        simulator.subprocess, "Popen", side_effect=start):
+                    with self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                        simulator.command(self.arguments, timeout=30)
+                diagnostic = raised.exception.diagnostics
+                self.assertEqual(diagnostic["partial_output_present"], bool(raw))
+                self.assertEqual(diagnostic["partial_output_exact_match"], match)
+                self.assertTrue(diagnostic["direct_process_running_at_timeout"])
+                self.assertEqual(diagnostic["direct_process_reaped"], reap)
+                self.assertEqual(process.wait.call_args_list, [call(timeout=30), call(timeout=5)])
+                process.kill.assert_called_once_with()
+                self.assertNotIn("private-sentinel", str(raised.exception) + json.dumps(diagnostic))
+
+    def test_exit_racing_timeout_still_fails_without_killing_exited_process(self):
+        process, start = self.process(b"26.5\n", timeout=True, running=False)
+        with patch.object(simulator.subprocess, "Popen", side_effect=start):
+            with self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                simulator.command(self.arguments, timeout=30)
+        self.assertFalse(raised.exception.diagnostics["direct_process_running_at_timeout"])
+        self.assertEqual(raised.exception.diagnostics["direct_process_returncode_at_timeout"], 0)
+        process.kill.assert_not_called()
+
+    def test_timeout_receipt_contains_only_flags_not_raw_output(self):
+        process, start = self.process(b"private-sentinel", timeout=True)
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "qualification.json"
+            with patch("sys.argv", ["prepare", "--evidence", str(evidence)]), \
+                    patch.object(simulator.subprocess, "Popen", side_effect=start), \
+                    patch.object(simulator, "prepare", side_effect=lambda: simulator.command(
+                        self.arguments, timeout=30)):
+                with self.assertRaises(simulator.IdentityQueryTimeout):
+                    simulator.main()
+            text = evidence.read_text()
+            receipt = json.loads(text)
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(receipt["status"], "failed")
+            self.assertIn("identity_query_diagnostics", receipt)
+            self.assertNotIn("private-sentinel", text)
+            self.assertNotIn("observed_environment", receipt)
+
+    def test_non_identity_commands_keep_existing_execution_path(self):
+        arguments = ["xcrun", "simctl", "bootstatus", DEVICE, "-b"]
+        with patch.object(simulator.subprocess, "Popen") as popen, \
+                patch.object(simulator.subprocess, "run", return_value=Mock(stdout=" ready\n")) as run:
+            self.assertEqual(simulator.command(arguments, timeout=300), "ready")
+        popen.assert_not_called()
+        run.assert_called_once_with(arguments, check=True, text=True,
+                                    stdout=subprocess.PIPE, timeout=300)
+
+    def test_inherited_stdout_can_hold_pipe_but_not_direct_process_wait(self):
+        real_popen = subprocess.Popen
+        child = ("import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); "
+                 "deadline=time.monotonic()+10\n"
+                 "while not p.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+                 "pathlib.Path(sys.argv[2]).write_text('done')\n")
+        with tempfile.TemporaryDirectory() as directory:
+            for use_file in [False, True]:
+                release = Path(directory) / (str(use_file) + ".release")
+                done = Path(directory) / (str(use_file) + ".done")
+                parent = ("import subprocess,sys\n"
+                          f"subprocess.Popen([sys.executable,'-c',{child!r},{str(release)!r},{str(done)!r}],"
+                          "stdin=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n"
+                          "print('26.5',flush=True)\n")
+                processes = []
+                def start(arguments, *, stdout):
+                    process = real_popen([sys.executable, "-c", parent], stdout=stdout)
+                    processes.append(process)
+                    return process
+                try:
+                    if use_file:
+                        with patch.object(simulator.subprocess, "Popen", side_effect=start):
+                            self.assertEqual(simulator.command(self.arguments, timeout=5), "26.5")
+                    else:
+                        process = start(self.arguments, stdout=subprocess.PIPE)
+                        self.assertEqual(process.wait(timeout=5), 0)
+                        with self.assertRaises(subprocess.TimeoutExpired):
+                            process.communicate(timeout=.05)
+                    self.assertFalse(done.exists(), "Fixture descendant must still hold stdout open")
+                finally:
+                    release.write_text("release")
+                    for process in processes:
+                        process.communicate(timeout=5)
+                    deadline = time.monotonic() + 5
+                    while not done.exists() and time.monotonic() < deadline:
+                        time.sleep(.01)
+                    self.assertTrue(done.exists(), "Owned fixture descendant must finish")
+
+    def test_real_direct_process_timeout_is_killed_and_reaped(self):
+        real_popen = subprocess.Popen
+        processes = []
+        def start(arguments, *, stdout):
+            process = real_popen([sys.executable, "-c", "import time; time.sleep(10)"], stdout=stdout)
+            processes.append(process)
+            return process
+        with patch.object(simulator.subprocess, "Popen", side_effect=start):
+            with self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                simulator.command(self.arguments, timeout=.05)
+        self.assertTrue(raised.exception.diagnostics["direct_process_reaped"])
+        self.assertIsNotNone(processes[0].poll())
 
 
 if __name__ == "__main__":

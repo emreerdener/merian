@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -21,9 +22,73 @@ EXPECTED_ENVIRONMENT = {
     "SIMULATOR_RUNTIME_BUILD_VERSION": BUILD,
     "SIMULATOR_MODEL_IDENTIFIER": MODEL,
 }
+IDENTITY_OUTPUT_LIMIT = 64
+IDENTITY_CLEANUP_TIMEOUT = 5
+
+
+class IdentityQueryTimeout(subprocess.TimeoutExpired):
+    def __init__(self, arguments, timeout, diagnostics):
+        super().__init__(arguments, timeout)
+        self.diagnostics = diagnostics
+
+
+def reap_identity_process(process):
+    try:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=IDENTITY_CLEANUP_TIMEOUT)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def identity_query(arguments, timeout):
+    key = arguments[-1]
+    expected = EXPECTED_ENVIRONMENT[key]
+    # A descendant retaining a PIPE can delay EOF after the query has exited.
+    # Wait for the direct process instead; never use an unbounded context-manager
+    # wait or kill a process group/CoreSimulator service.
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen(arguments, stdout=output)
+        try:
+            returncode = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            returncode = process.poll()
+            try:
+                partial = os.pread(output.fileno(), IDENTITY_OUTPUT_LIMIT + 1, 0)
+            finally:
+                reaped = reap_identity_process(process)
+            diagnostics = {
+                "identity_key": key,
+                "direct_process_running_at_timeout": returncode is None,
+                "direct_process_returncode_at_timeout": returncode,
+                "partial_output_present": bool(partial),
+                "partial_output_exact_match": len(partial) <= IDENTITY_OUTPUT_LIMIT
+                and partial.strip() == expected.encode("ascii"),
+                "direct_process_reaped": reaped,
+            }
+            raise IdentityQueryTimeout(arguments, timeout, diagnostics) from None
+        except BaseException:
+            reap_identity_process(process)
+            raise
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, arguments)
+        raw = os.pread(output.fileno(), IDENTITY_OUTPUT_LIMIT + 1, 0)
+        if len(raw) > IDENTITY_OUTPUT_LIMIT:
+            raise ValueError("Simulator identity query returned oversized output.")
+        try:
+            value = raw.decode("ascii").strip()
+        except UnicodeDecodeError:
+            raise ValueError("Simulator identity query returned invalid output encoding.") from None
+        if value != expected:
+            raise ValueError("Simulator identity query did not return the required value for " + key + ".")
+        return value
 
 
 def command(arguments, *, timeout=60):
+    if (len(arguments) == 5 and arguments[:3] == ["xcrun", "simctl", "getenv"]
+            and arguments[-1] in EXPECTED_ENVIRONMENT):
+        return identity_query(arguments, timeout)
     result = subprocess.run(arguments, check=True, text=True,
                             stdout=subprocess.PIPE, timeout=timeout)
     return result.stdout.strip()
@@ -116,6 +181,8 @@ def main():
         result = prepare()
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         result.update(status="failed", failure=str(error))
+        if isinstance(error, IdentityQueryTimeout):
+            result["identity_query_diagnostics"] = error.diagnostics
         if (isinstance(error, subprocess.TimeoutExpired)
                 and isinstance(error.cmd, list)
                 and error.cmd[:3] == ["xcrun", "simctl", "bootstatus"]

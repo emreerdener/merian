@@ -1746,24 +1746,32 @@ HTTP request is dispatched. See the
    identifier, never `--all`, `--force`, a retry, or warn-and-continue behavior.
    Cache readiness does not qualify the simulator without subsequent boot and
    identity proof. Each of the three sequential identity reads has a 30-second
-   deadline and fails closed without retry on timeout. Helper command maxima
-   total 1,390 seconds within the unchanged 25-minute step; cache or boot
-   timeouts retain bounded command progress in the non-passing failure receipt.
-   UI and startup jobs retain their current simulator selection. The complete
-   unit-test step has a 120-minute limit: the expanded serial suite was still
-   executing cases when the 40-minute deadline stopped run 43551818461. That run
-   also reported a separate consumer-contract failure; a larger budget does not
-   clear a failed assertion. The enclosing job has a 190-minute limit, covering
-   the 10-minute package resolution, 25-minute compilation, 25-minute simulator
-   qualification, and 120-minute unit tests, with 10 minutes reserved for other
-   setup and evidence collection. UI tests run in a separate job so their
-   failures do not wait behind the complete unit suite. The portable workflow
-   contract checks both limits. A timeout still fails the gate; the
-   complete-target selector and result requirements remain unchanged. The result
-   gate fails if Xcode returns success without a `Passed` result, a non-empty
-   test run, zero skipped tests, an exact passed/total count match, and at least
-   one passed test case from each critical concurrency boundary:
-   `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
+   deadline and fails closed without retry on timeout. Each identity query
+   writes to an automatically removed temporary file and waits for the direct
+   process, so a descendant retaining stdout cannot make pipe EOF a
+   prerequisite. Success still requires exit code zero and the exact ASCII
+   identity, with a 64-byte output limit. Timeout diagnostics retain only the
+   key, direct-process status, output-presence/exact-match booleans and cleanup
+   outcome; partial output never qualifies the device. Cleanup kills only the
+   query process and allows at most five seconds to reap it. Helper command
+   maxima total 1,390 seconds, or 1,395 including timeout cleanup, within the
+   unchanged 25-minute step. Cache or boot timeouts retain bounded command
+   progress in the non-passing failure receipt. UI and startup jobs retain their
+   current simulator selection. The complete unit-test step has a 120-minute
+   limit: the expanded serial suite was still executing cases when the 40-minute
+   deadline stopped run 43551818461. That run also reported a separate
+   consumer-contract failure; a larger budget does not clear a failed assertion.
+   The enclosing job has a 190-minute limit, covering the 10-minute package
+   resolution, 25-minute compilation, 25-minute simulator qualification, and
+   120-minute unit tests, with 10 minutes reserved for other setup and evidence
+   collection. UI tests run in a separate job so their failures do not wait
+   behind the complete unit suite. The portable workflow contract checks both
+   limits. A timeout still fails the gate; the complete-target selector and
+   result requirements remain unchanged. The result gate fails if Xcode returns
+   success without a `Passed` result, a non-empty test run, zero skipped tests,
+   an exact passed/total count match, and at least one passed test case from
+   each critical concurrency boundary: `CameraManagerTests`,
+   `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    contains exactly one matching passed suite for each critical boundary and
    reports every named scan-flow regression exactly once under exactly one
