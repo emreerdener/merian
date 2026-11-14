@@ -333,3 +333,76 @@ portable iOS tooling target (302.5 seconds), all 27 workflow-security tests,
 changed Markdown formatting and diff checks. Independent review found no
 actionable defect. The full native target is still running for the published
 `306a3a4` source; no hosted result is claimed for this local replacement.
+
+## Full native timeout and approved isolated-shard recovery
+
+For approved source `306a3a4bfb09a872a3b52c500eece2992ad95cad`, manual backend
+run 43615065954 and PR run 43615029156 both passed all C1/private-handoff and
+readiness stages. The canonical reuse resolver verified manual attempt 1, and
+both required artifact download digests were verified. Exact-SHA web/admin,
+critical UI and Release archive validation passed.
+
+Manual native job 132508670119 in run 43615068314 qualified its simulator and
+compiled the targets, then exceeded the 120-minute full-unit deadline. Its log
+has 2,155 passed-test markers and 91 passed Swift suites with no located
+assertion-failure marker. Those are incomplete observations, not a passing
+result; the interrupted XCResult lacks its final Info.plist. The photo-role
+allocation suite alone completed in 4,428.651 seconds. Failure artifact
+14127495944 and evidence artifact 14127039917 were digest-verified. Both failed
+PR identity-query attempts and the full-target timeout remain retained.
+
+The user explicitly selected isolated CI sharding with complete coverage and
+unchanged assertions. The local implementation builds one portable product and
+inventories the complete target, assigns whole suites to at most sixteen
+isolated runners with four concurrent shard jobs per workflow, and verifies
+selected inventories before serial execution. A new aggregate requires every
+compiled method exactly once, all observed parameter leaves passed and unique,
+zero failures/skips, source/run/attempt/product/plan identity, and unchanged
+critical-case validation over raw trees. A new attempt requires rerunning all
+jobs together; old successful shard artifacts cannot be mixed with new ones.
+
+The build/inventory job allows 95 minutes. Each shard retains 25-minute exact
+simulator preparation, allows 240 minutes for its assigned serial suites, and
+has a 330-minute job limit. Aggregate reconciliation allows fifteen minutes. The
+historical scheduling hints do not establish current runtimes. Native production
+code, SQL, fixtures, assertions, parameter matrices and device resource limits
+remain unchanged. Review found the existing shared-process leases and
+queue-context restoration operate per test; no declared cross-suite state
+dependency requires all suites in one runner. Separate processes lose incidental
+detection of leaks perturbing later suites on a different runner; per-suite
+lifecycle/race assertions and per-shard serial execution remain.
+
+The source already includes the earlier native236 read-checkpoint optimization;
+old native230 profiles cannot identify the current remaining hotspot. Sharding
+makes full validation schedulable but does not fix or qualify Release/device
+responsiveness. History's active composition work and PR150 stay separate. No
+later History changes are imported. The independently reviewed local
+simulator-query repair `9c435bff7` remains part of the unpublished candidate.
+Replacement-SHA approval, both Vercel holds/checks and all new hosted exact-SHA
+prerequisites remain required before publication, merge and deployment.
+
+Local validation passed the complete portable iOS tooling target (311.2
+seconds), the complete Supabase tooling target (287.8 seconds), seventeen
+shard-evidence tests, two workflow-contract tests with adversarial mutations,
+all 26 simulator qualification tests, all 27 workflow-security tests, all 26
+documentation contract tests, recursive Edge formatting and changed Markdown
+checks. The final Supabase gate includes 169 standard TypeScript sources, 73
+standard test files, two isolated DTO test files, one isolated evaluator and 24
+shell test files. The first tooling run stopped at synthetic terminal input in
+the restricted sandbox. The first terminal-capable rerun caught required
+documentation wording removed during triage cleanup; that wording was restored,
+its focused contract passed, and the final complete gate passed. Both failed
+attempts remain retained.
+
+Independent helper/evidence and workflow/contract reviews found no remaining
+actionable defect after correcting aggregate source verification, retaining
+aggregate diagnostics on failure and updating triage ownership. The final
+focused tests also verify the Linux aggregate's different checkout location
+cannot relax source, run, attempt or digest identity. The security timeout
+exception applies only to unit shards; production job caps remain unchanged. No
+local simulator was used. History's later composition migration
+`20261114192749_prepare_composition_source_contract.sql`, native composition
+files and backend candidate-list additions remain excluded. Portable product
+transfer, compiled enumeration/result mapping and the complete shard matrix
+still require new exact-SHA hosted validation; local tests do not establish
+them.

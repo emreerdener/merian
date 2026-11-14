@@ -735,11 +735,11 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
       const job = source.slice(0, definition.index).match(
         /^ {2}[A-Za-z0-9_-]+:$/gm,
       )?.at(-1);
-      // Only the complete serial native unit target has the larger validation
-      // budget. Other iOS jobs and every production job retain the common cap.
+      // Only isolated native unit shards have the larger validation budget.
+      // Compilation, aggregation and every production job retain the common cap.
       const limit = name === "ios-build-and-test.yml" &&
-          job === "  ios-unit-tests:"
-        ? 190
+          job === "  ios-unit-shards:"
+        ? 330
         : 120;
       assert(
         minutes <= limit,

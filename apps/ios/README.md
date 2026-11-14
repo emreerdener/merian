@@ -1582,15 +1582,19 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 [local build storage procedure](../../docs/development-guides/08-testing-strategy.md#local-ios-build-storage)
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
-Hosted **iOS Build and Test** runs the complete unit target, four critical scan
-UI smokes, and the Release archive as three independent jobs after source
-scoping. Each uses the same exact commit and pinned toolchain; Production
-readiness requires all three. Unit and UI jobs build only their respective
-bundles (the unit job also compiles the report-only performance bundle) and keep
-separate evidence artifacts. See the
-[CI contract and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
-for evidence ownership. Full unit coverage and shared-state serialization remain
-required.
+Hosted **iOS Build and Test** compiles and inventories the complete unit target
+once, executes whole suites serially across isolated runner/simulator shards,
+and requires an aggregate proving every inventoried method passed exactly once.
+All parameter rows, durable fixtures, assertions and shared-state guards remain.
+The six critical scan UI smokes and Release archive stay independent. Production
+readiness requires the unit aggregate and both of those gates at the exact
+commit and pinned toolchain. The unit build also compiles the report-only
+performance bundle; sharding does not qualify device performance. See the
+[complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
+for artifact provenance, process-isolation limits and the requirement to rerun
+all jobs together, and
+[CI evidence and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
+for retained diagnostics.
 
 Unit tests should mirror the production owner:
 

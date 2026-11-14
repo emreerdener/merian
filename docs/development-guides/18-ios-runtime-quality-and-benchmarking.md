@@ -265,7 +265,13 @@ fences, response mapping, and recovery. Missing, empty, failed, or skipped
 selected suites fail the phase.
 
 This focused set supplements the complete `merianTests` target. It is not a
-smaller substitute for the required compiled iOS gate.
+smaller substitute for the required compiled iOS gate. The hosted complete gate
+now uses an exact compiled inventory and whole-suite isolated shards with
+aggregate reconciliation. That changes CI scheduling and process isolation, not
+the focused acceptance/benchmark manifest or any runtime assertion. See the
+[complete-unit sharding contract](08-testing-strategy.md#complete-unit-sharding-contract).
+Faster wall-clock CI does not resolve the separate Release/device storage-audit
+responsiveness requirement.
 
 The selected disk-backed acceptance suite composes description admission into a
 private SQLite store, synthetic result finalization, real queue retirement, and

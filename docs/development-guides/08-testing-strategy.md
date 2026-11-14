@@ -1721,27 +1721,30 @@ app-owned local files. The loader fixture verifies rejection happens before an
 HTTP request is dispatched. See the
 [iOS App Transport Security Contract](./17-ios-transport-security.md).
 
-1. **Full iOS unit tests** resolves only locked package versions, validates the
-   generated-project source membership against `project.yml`, compiles the app,
-   unit and performance test bundles with `build-for-testing`, and executes the
-   complete `merianTests` target with `test-without-building`. This prevents a
-   newly added Swift or Objective-C file from escaping compilation when the
-   committed Xcode project was not regenerated. The unit-test selector does not
-   select or skip any suite. Xcode process-level parallel testing is disabled
-   because several hardware, networking, and persistence suites exercise shared
-   singletons. Before compilation, `prepare-ios-unit-simulator.py` prepares the
-   existing measured-transfer qualification: arm64, iOS 26.5 build `23F77`,
-   iPhone 17 Pro model `iPhone18,1`. On a disposable GitHub-hosted runner only,
-   it requests Apple's exact build `23F77` when absent (not the release-number
-   selector `26.5`), independently verifies the installed build and supported
-   device type, waits for Apple's dyld shared-cache preparation for that exact
-   runtime identifier, creates its own simulator, and reads the three identity
-   variables from the booted device. It never injects those values or falls back
-   to the newest runtime. Installation, cache, identity or boot failure blocks
-   the full unit lane; accepted-transfer cases are not skipped and the
-   transport's drain/measurement fence is unchanged. The qualification receipt
-   is retained with the unit-test artifact. The setup step is bounded at 25
-   minutes, including ten minutes for runtime cache completion and the unchanged
+1. **Full iOS unit tests** is the complete-coverage aggregate for a single
+   exact-SHA compiled unit product. A build job resolves only locked package
+   versions, verifies generated-project source membership, and compiles the app,
+   unit and performance bundles into Xcode's portable `.xctestproducts` format.
+   Xcode enumerates the complete `merianTests` target; the planner assigns whole
+   suites to at most sixteen isolated runner/simulator jobs. No handwritten
+   suite allowlist or skip selector can replace that inventory. Each shard runs
+   serially, with Xcode process-level parallel testing disabled. The aggregate
+   reconciles every compiled method exactly once, checks all parameter leaves,
+   and applies the unchanged critical-result validator to the raw shard trees.
+   Before compilation and separately on every shard,
+   `prepare-ios-unit-simulator.py` prepares the existing measured-transfer
+   qualification: arm64, iOS 26.5 build `23F77`, iPhone 17 Pro model
+   `iPhone18,1`. On a disposable GitHub-hosted runner only, it requests Apple's
+   exact build `23F77` when absent (not the release-number selector `26.5`),
+   independently verifies the installed build and supported device type, waits
+   for Apple's dyld shared-cache preparation for that exact runtime identifier,
+   creates its own simulator, and reads the three identity variables from the
+   booted device. It never injects those values or falls back to the newest
+   runtime. Installation, cache, identity or boot failure blocks the full unit
+   lane; accepted-transfer cases are not skipped and the transport's
+   drain/measurement fence is unchanged. The qualification receipt is retained
+   with the unit-test artifact. The setup step is bounded at 25 minutes,
+   including ten minutes for runtime cache completion and the unchanged
    five-minute cold-boot allowance. The cache command uses the verified runtime
    identifier, never `--all`, `--force`, a retry, or warn-and-continue behavior.
    Cache readiness does not qualify the simulator without subsequent boot and
@@ -1757,20 +1760,20 @@ HTTP request is dispatched. See the
    maxima total 1,390 seconds, or 1,395 including timeout cleanup, within the
    unchanged 25-minute step. Cache or boot timeouts retain bounded command
    progress in the non-passing failure receipt. UI and startup jobs retain their
-   current simulator selection. The complete unit-test step has a 120-minute
-   limit: the expanded serial suite was still executing cases when the 40-minute
-   deadline stopped run 43551818461. That run also reported a separate
-   consumer-contract failure; a larger budget does not clear a failed assertion.
-   The enclosing job has a 190-minute limit, covering the 10-minute package
-   resolution, 25-minute compilation, 25-minute simulator qualification, and
-   120-minute unit tests, with 10 minutes reserved for other setup and evidence
-   collection. UI tests run in a separate job so their failures do not wait
-   behind the complete unit suite. The portable workflow contract checks both
-   limits. A timeout still fails the gate; the complete-target selector and
-   result requirements remain unchanged. The result gate fails if Xcode returns
-   success without a `Passed` result, a non-empty test run, zero skipped tests,
-   an exact passed/total count match, and at least one passed test case from
-   each critical concurrency boundary: `CameraManagerTests`,
+   current simulator selection. The build/inventory job has a 95-minute bound;
+   each shard has a 240-minute test step inside a 330-minute job, and aggregate
+   reconciliation has fifteen minutes. The previous single-process 120-minute
+   run 43615068314 timed out while executing cases; a partial log is not a pass.
+   These budgets bound execution rather than assert performance. At most four
+   shards run concurrently per workflow, each with a separate simulator and
+   filesystem. Every suite and parameterized method stays intact, with unchanged
+   fixtures, resource guards and assertions. The
+   [complete-unit sharding contract](#complete-unit-sharding-contract) defines
+   artifact provenance, coverage checks, process-isolation limits and reruns. UI
+   and archive validation remain independent gates. The result gate fails if
+   Xcode returns success without a `Passed` result, a non-empty test run, zero
+   skipped tests, an exact passed/total count match, and at least one passed
+   test case from each critical concurrency boundary: `CameraManagerTests`,
    `InferenceEngineTests`, `OfflineQueueManagerTests`, and
    `SyncStateManagerTests`. It also fails closed unless the structured test tree
    contains exactly one matching passed suite for each critical boundary and
@@ -2062,23 +2065,99 @@ HTTP request is dispatched. See the
    transport-security, dSYM, and shipping-seed exclusion validation—not a
    distributable App Store artifact.
 
-The UI job has a 55-minute limit: 10 minutes for package resolution, 25 for
-compilation, 10 for execution, and 10 for setup and evidence. It restores the
-same exact-key Swift package cache as the other jobs; the unit job remains the
-cache writer. Each job owns separate build output, simulator execution, logs,
-and evidence artifacts. This duplicates app compilation across the unit and UI
-jobs to shorten feedback time; it can consume more runner minutes and needs
-available macOS capacity to overlap. No hosted speedup is claimed until
-measured.
+The UI job has a 70-minute limit: 10 minutes for package resolution, 25 for
+compilation, five for boot, 25 for execution, and five for setup and evidence.
+It restores the same exact-key Swift package cache as the other jobs; the unit
+build job remains the cache writer. Each job owns separate build output,
+simulator execution, logs, and evidence artifacts. This duplicates app
+compilation across the unit and UI jobs to shorten feedback time; it can consume
+more runner minutes and needs available macOS capacity to overlap. No hosted
+speedup is claimed until measured.
 
-The final Production readiness job uses `if: always()` and requires all three
-macOS jobs to succeed whenever scope says the build is relevant. For an
-unrelated change it requires all three to be skipped and reports success.
-Missing or invalid scope output, failed, cancelled, or unexpectedly skipped jobs
-fail the check. The portable workflow contract executes this decision across
-every unit/UI/archive outcome combination and checks that all three jobs depend
-only on scope. Release evidence remains the complete unit target, all six UI
-cases, and the archive on one exact SHA; no smaller test selection replaces it.
+The final Production readiness job uses `if: always()` and requires the unit
+aggregate, UI and archive gates to succeed whenever scope says the build is
+relevant. For an unrelated change it requires all three to be skipped and
+reports success. Missing or invalid scope output, failed, cancelled, or
+unexpectedly skipped jobs fail the check. The portable workflow contract
+executes this decision across every unit/UI/archive outcome combination. UI,
+archive and unit compilation depend directly on scope; the unit pipeline
+continues through the shard matrix and the aggregate, which requires successful
+compilation and every shard. Release evidence remains the complete unit target,
+all six UI cases, and the archive on one exact SHA; no smaller test selection
+replaces it.
+
+### Complete unit sharding contract
+
+The user-approved CI recovery separates whole unit suites across disposable
+GitHub-hosted runners. This revises the former single-process target execution;
+it does not add intra-runner test workers or reduce the target. The source-side
+`SharedProcessStateTestTrait` and `OfflineQueueTestCase` lease shared resources
+and restore queue context per case. They remain unchanged, as do their owning
+architecture tests. Isolation removes concurrent singleton sharing across
+runners. Each test still owns completion of its asynchronous tasks. A task leak
+can no longer perturb a suite on a different runner; that incidental
+cross-suite/process interaction coverage is not equivalent to the former one
+process. No declared cross-suite state dependency was identified in review.
+
+`scripts/ios-unit-shards.py` owns these controls:
+
+- The full compiled inventory comes from Xcode 27's `-enumerate-tests` with flat
+  text identifiers. Empty, malformed, duplicate or foreign-target entries fail.
+  Only exact trailing `()` normalization bridges XCTest result spelling; Swift
+  argument labels remain intact. The first hosted run must prove the actual
+  Xcode enumeration/result mapping; portable parser fixtures cannot.
+- A deterministic, complete, disjoint partition keeps whole suites together.
+  `scripts/config/ios-unit-shard-weights.json` contains historical scheduling
+  hints, including the later measured photo-role suite. These are not comparable
+  performance baselines or pass thresholds. Unknown suites remain mandatory and
+  receive a method-count weight. There are at most sixteen shards and four
+  concurrent shard jobs per workflow. Runtime and runner availability still
+  determine elapsed time; additional simulator startup adds compute overhead.
+- The build emits one `.xctestproducts` archive, a SHA-256-bound transport
+  archive, and a SHA-256-bound plan naming source SHA, workflow run, attempt,
+  toolchain, runtime, configuration and method assignments. Download actions use
+  the build's artifact IDs and fail on digest mismatch. Each shard verifies the
+  plan and product digests before extraction. Extraction rejects escaping paths,
+  link traversal, duplicate entries and special files, while preserving
+  executable files and internal framework links.
+- Source-reading native architecture tests use compiled `#filePath` locations.
+  Every shard checks out the exact source at the same workspace path as the
+  build runner. Product portability does not authorize rewriting those paths or
+  using a different source checkout. The Linux aggregate does not execute the
+  product.
+- Each shard independently proves Xcode `27A266a` and the measured simulator
+  identity, enumerates its selected compiled suites, and compares that inventory
+  to its exact plan assignment before execution. It uses no skip or retry flags.
+  Success requires Xcode exit success, readable structured results, passed
+  nonempty summary, zero failures/skips, exact method-count reconciliation,
+  exactly one occurrence of every assigned method, and only passed tree nodes.
+  Parameterized methods must retain passed, uniquely identified argument leaves
+  bound to their method. Xcode's inventory supplies method identities, not an
+  independent expected count of dynamically generated argument rows; whole-suite
+  selection and unchanged compiled test bodies preserve their parameter inputs.
+- The aggregate requires the build and entire matrix to succeed, then recomputes
+  receipts from every raw summary, tree, qualifier and selected inventory. It
+  rejects missing/extra shard artifacts, changed hashes, stale
+  source/run/attempt, unexpected test nodes, duplicate methods/argument
+  identities and incomplete union coverage. It wraps the raw trees without
+  editing their suites or cases and invokes
+  `validate-ios-critical-test-results.sh` unchanged. Production readiness
+  depends on this aggregate under the existing **Full iOS unit tests** check
+  name, plus the unchanged UI and Release archive gates.
+
+A retry must use **Re-run all jobs** so products, plan and every shard receipt
+belong to one attempt. Rerunning only failed jobs intentionally cannot combine
+old successful shard artifacts with a new attempt. Compiled products are
+retained seven days; plans, compact per-shard/aggregate evidence and available
+failure bundles are retained fourteen days. A timeout, failed qualifier, missing
+artifact or unreadable result remains a failed gate. None of this qualifies
+Release/device responsiveness, changes app runtime behavior, or authorizes
+publication, deployment or distribution.
+
+Portable verification includes adversarial inventory, parameter, provenance,
+archive and workflow tests through `make test-ios-ci-tooling`. Hosted product
+transfer, enumeration compatibility, the full assigned matrix and every
+exact-SHA release prerequisite remain required before merge.
 
 ### Repository Rule Setup
 
@@ -2147,19 +2226,19 @@ make test-ios-ci-tooling
 ```
 
 That portable target tests the fail-closed scope detector, immutable action
-pins, exact-SHA checkout, generated-project source membership, full-target unit
-selectors, merge-queue trigger, unsigned validation-only Release archive,
-embedded source provenance, product/dSYM checks, automatic-signing Organizer
-preflight, exact privacy-manifest declarations, project/archive/IPA manifest
-placement, version-baseline synchronization, rejection of hidden
-`assume-unchanged`/`skip-worktree` source state, generated release-phase
-cardinality and ordering, focused-result validation, and structured failure
-diagnostics. It also proves the retired GitHub signing/upload path remains
-absent. The hosted project-guardrail lane runs this target on Ubuntu without
-booting a simulator. Its Ruby parser is pinned by
-`scripts/ios-tooling/Gemfile.lock`; CI installs the locked bundle and runs
-`bundle exec make test-ios-ci-tooling` with `BUNDLE_GEMFILE` pointing at that
-manifest. The generated-identity test uses the tracked lowercase
+pins, exact-SHA checkout, generated-project source membership, complete compiled
+unit inventory/shard reconciliation, merge-queue trigger, unsigned
+validation-only Release archive, embedded source provenance, product/dSYM
+checks, automatic-signing Organizer preflight, exact privacy-manifest
+declarations, project/archive/IPA manifest placement, version-baseline
+synchronization, rejection of hidden `assume-unchanged`/`skip-worktree` source
+state, generated release-phase cardinality and ordering, focused-result
+validation, and structured failure diagnostics. It also proves the retired
+GitHub signing/upload path remains absent. The hosted project-guardrail lane
+runs this target on Ubuntu without booting a simulator. Its Ruby parser is
+pinned by `scripts/ios-tooling/Gemfile.lock`; CI installs the locked bundle and
+runs `bundle exec make test-ios-ci-tooling` with `BUNDLE_GEMFILE` pointing at
+that manifest. The generated-identity test uses the tracked lowercase
 `merian.xcodeproj` path on case-sensitive runners. This lane does not replace
 compilation, simulator execution, Organizer upload validation, or
 physical-device QA.
@@ -2182,24 +2261,30 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                                               | Artifact or local action                                                                                                                                                   |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.         |
-| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
-| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
-| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
-| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                 |
-| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                 |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so all three macOS jobs run and produce current-SHA evidence.                                                         |
+| Failure                                                               | Artifact or local action                                                                                                                                                                                  |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                |
+| Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-attempt-<attempt>-<index>` coverage receipt. |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; rerun all workflow jobs together. Do not weaken inventory reconciliation or the critical-suite validator.             |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.                                        |
+| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator.                                |
+| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.                                    |
+| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                              |
+| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                  |
 
-For an executed test failure, the summary prints `testFailures` from Xcode's
-structured result summary. If that is unavailable, it prints failed test cases
-and descendant failure messages from the result tree; only then does it inspect
-the raw build log. Do not infer the failed test from arbitrary application
-messages containing `error:`. Negative-path tests intentionally exercise reply
-failures, unreadable stores, cancellation, and network errors while passing.
+For a unit shard failure, inspect Xcode's structured result summary
+(`summary.json`) and result tree (`tests.json`) in its retained coverage
+evidence. If those files are unavailable, use `xcresulttool` on the retained
+shard `.xcresult`; inspect structured `testFailures`, failed test cases and
+descendant failure messages before falling back to the shard execution log. The
+Linux aggregate emits a coverage summary only after successful reconciliation
+and protected-case validation. Its retained aggregate files, when produced,
+remain available even if the protected-case validator fails. Do not infer the
+failed test from arbitrary application messages containing `error:`.
+Negative-path tests intentionally exercise reply failures, unreadable stores,
+cancellation, and network errors while passing.
 
 The hosted run is authoritative for simulator and archive behavior. A local
 source-contract pass cannot substitute for its exact-SHA test and archive
