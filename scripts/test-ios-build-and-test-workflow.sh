@@ -419,7 +419,16 @@ assert_file_count \
 assert_file_before \
   "$project_guardrails_workflow" \
   "run: make validate-ios-event-routing" \
-  "run: make test-ios-ci-tooling"
+  "run: bundle exec make test-ios-ci-tooling"
+assert_file_before \
+  "$project_guardrails_workflow" \
+  "name: Setup locked iOS project parser" \
+  "run: bundle exec make test-ios-ci-tooling"
+assert_file_count "$project_guardrails_workflow" 2 '"scripts/ios-tooling/**"'
+assert_file_contains "$project_guardrails_workflow" 'BUNDLE_GEMFILE: ${{ github.workspace }}/scripts/ios-tooling/Gemfile'
+assert_file_contains "$project_guardrails_workflow" 'bundler-cache: true'
+[[ -f "$repo_root/scripts/ios-tooling/Gemfile.lock" ]] \
+  || fail "The iOS project parser requires a checked-in dependency lock."
 assert_count 2 "bash scripts/check-ios-project-source-membership.sh"
 assert_count 2 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"

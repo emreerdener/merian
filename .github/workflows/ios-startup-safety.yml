@@ -21,7 +21,7 @@ permissions:
 jobs:
   startup-store-recovery:
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 65
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -129,7 +129,7 @@ jobs:
 
       - name: Build startup safety test bundle
         if: steps.startup-scope.outputs.should_run == 'true'
-        timeout-minutes: 18
+        timeout-minutes: 35
         env:
           XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
           XCODE_DERIVED_DATA: ${{ runner.temp }}/startup-safety-derived-data

@@ -2105,6 +2105,10 @@ fourteen days; failed runs also retain the raw `.xcresult`, package-resolution
 log, and `xcodebuild` log. The validation archive must never be exported or
 uploaded to App Store Connect.
 
+The startup-safety lane permits a 35-minute cold build within a 65-minute job;
+its selected runtime tests retain their separate 12-minute limit. A build
+timeout does not count as test execution or success.
+
 The cheap workflow contracts run with:
 
 ```bash
@@ -2121,8 +2125,13 @@ placement, version-baseline synchronization, rejection of hidden
 cardinality and ordering, focused-result validation, and structured failure
 diagnostics. It also proves the retired GitHub signing/upload path remains
 absent. The hosted project-guardrail lane runs this target on Ubuntu without
-booting a simulator; it does not replace compilation, simulator execution,
-Organizer upload validation, or physical-device QA.
+booting a simulator. Its Ruby parser is pinned by
+`scripts/ios-tooling/Gemfile.lock`; CI installs the locked bundle and runs
+`bundle exec make test-ios-ci-tooling` with `BUNDLE_GEMFILE` pointing at that
+manifest. The generated-identity test uses the tracked lowercase
+`merian.xcodeproj` path on case-sensitive runners. This lane does not replace
+compilation, simulator execution, Organizer upload validation, or
+physical-device QA.
 
 The membership implementation and its adversarial missing, unexpected, and
 orphan-source fixtures run in the macOS unit job. They can also be run locally

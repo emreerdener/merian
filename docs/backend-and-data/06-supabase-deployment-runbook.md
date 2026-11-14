@@ -8159,7 +8159,10 @@ deployment workflow does not substitute for this admin gate. Main accepts direct
 pushes. The separate admin Vercel project must require
 `Naturebook Admin Quality / test` as a Deployment Check. Workflow YAML alone
 does not block a merge, direct deployment, Force Promote, or manual deployment.
-Verify Vercel is releasing the exact checked commit.
+Verify Vercel is releasing the exact checked commit. The web and admin workflows
+use distinct explicit job names, `Naturebook Web Quality / test` and
+`Naturebook Admin Quality / test`. Import those exact names for their respective
+projects; the unqualified job name `test` is ambiguous across workflows.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin

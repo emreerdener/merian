@@ -512,6 +512,12 @@ provider details are logged privately and never returned.
 
 ## Vercel Deployment
 
+Require the exact commit's `Naturebook Web Quality / test` GitHub check as a
+Vercel Deployment Check. The explicit job name distinguishes it from the admin
+workflow; a bare `test` check is ambiguous and must not be imported. Keep
+automatic production domain assignment disabled during coordinated backend
+releases, and promote only after backend readback and this check pass.
+
 Configure the Vercel project as a monorepo app:
 
 - **Root Directory**: `apps/web`

@@ -136,6 +136,10 @@ reviewed
 [uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
 The current lockfile resolves 7.1.6.
 
+The workflow explicitly names its job `Naturebook Admin Quality / test` so
+Vercel can distinguish it from public web quality. Never import a bare `test`
+check: that name can resolve to the other package.
+
 The Vercel deployment controls must require `Naturebook Admin Quality / test`
 before a commit reaches the production project. Main pushes and PRs do not
 require this check before entering the branch. The workflow file creates the

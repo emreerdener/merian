@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
+      - "scripts/ios-tooling/**"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
       - ".github/workflows/ios-runtime-audit.yml"
@@ -81,6 +82,7 @@ on:
     paths:
       - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
+      - "scripts/ios-tooling/**"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
       - ".github/workflows/ios-runtime-audit.yml"
@@ -164,6 +166,8 @@ jobs:
   validate-generated-project:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/scripts/ios-tooling/Gemfile
 
     steps:
       - name: Checkout repository
@@ -171,6 +175,12 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Setup locked iOS project parser
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
+        with:
+          ruby-version: "3.3.12"
+          bundler-cache: true
 
       - name: Setup Deno
         uses: ./.github/actions/setup-deno
@@ -202,4 +212,4 @@ jobs:
         run: bash services/supabase/scripts/validate_edge_dto_contract.sh
 
       - name: Test iOS CI tooling contracts
-        run: make test-ios-ci-tooling
+        run: bundle exec make test-ios-ci-tooling

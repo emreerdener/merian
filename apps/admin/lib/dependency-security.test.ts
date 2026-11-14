@@ -209,3 +209,10 @@ test("all Sharp native artifacts retain the patched SVG decoder floor", () => {
     );
   }
 });
+
+test("Vercel imports the package-specific quality check identity", () => {
+  assert.match(
+    adminQualityWorkflow,
+    /\n  test:\n    name: Naturebook Admin Quality \/ test\n/,
+  );
+});

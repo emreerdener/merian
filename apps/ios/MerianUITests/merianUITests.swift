@@ -1537,7 +1537,7 @@ final class merianUITests: XCTestCase {
             "The live Insight did not dismiss after its queued handoff"
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
         XCTAssertTrue(
@@ -1554,7 +1554,7 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedQueuedRetryPresentationFlow"]
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
 
@@ -1627,7 +1627,7 @@ final class merianUITests: XCTestCase {
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
         scansButton.tap()
 

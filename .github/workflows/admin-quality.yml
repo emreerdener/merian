@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   test:
+    name: Naturebook Admin Quality / test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
