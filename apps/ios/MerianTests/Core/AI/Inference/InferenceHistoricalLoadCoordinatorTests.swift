@@ -7,6 +7,27 @@ import Testing
 @MainActor
 @Suite("Inference Historical Load Coordinator")
 struct InferenceHistoricalLoadCoordinatorTests {
+    @Test func retainedDisplayPublishesWithFreshResultAndSurvivesHydration() async throws {
+        let gate = HistoricalLoadOperationGate()
+        let harness = InferenceHistoricalLoadHarness(decodeDeferredContent: { projection in
+            await gate.wait()
+            return await InferenceHistoricalRecordProjection.decodeDeferredContent(projection.deferredContent)
+        })
+        let record = try makeRecord(scanId: "retained-display", candidate: "Danaus gilippus")
+        let media = ActiveScanMedia(items: [.retainedDisplayImage(id: UUID(), data: Data([1, 2])),
+            .description(ObservationContext(freeText: "Original prompt"))])
+        harness.subject.load(from: record, retainedDisplayMedia: media)
+        #expect(harness.lifecycle.state.activeMedia == media)
+        #expect(harness.lifecycle.state.speciesData?.scanId == record.id)
+        await gate.waitUntilStarted(); await gate.release()
+        await harness.lifecycle.hydration.awaitCurrentTask(in: .historic)
+        // Reference hydration is independent of the immutable submitted media.
+        #expect(harness.lifecycle.state.activeMedia.items == media.items)
+        #expect(harness.lifecycle.state.activeMedia.focusRegionsBySourceIndex == media.focusRegionsBySourceIndex)
+        #expect(harness.lifecycle.state.activeMedia.referenceState == .loaded(["https://example.com/reference.jpg"]))
+        #expect(record.capturedMediaJSON == nil)
+    }
+
     @Test func publishesProjectionBeforeDeferredHydrationCompletes()
         async throws {
         let gate = HistoricalLoadOperationGate()
@@ -261,8 +282,8 @@ private final class InferenceHistoricalLoadHarness {
             ),
             snapshotService: InferenceReviewSnapshotService { _, _ in nil },
             dependencies: .init(
-                beginOverride: { _, _, _ in },
-                persistReview: { _, _ in },
+                beginOverride: { _, _, _, _ in true },
+                persistReview: { _, _, _ in true },
                 clearFlag: { _, _ in },
                 persistSpeciesPatch: { _, _, _ in },
                 sharedPostID: { _ in nil },

@@ -42,6 +42,27 @@ struct ObservationHistoryPhotoTests {
         #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
         #expect(scan.userConfirmedIdentification)
     }
+    @Test func sharedDescriptionWhitespacePreservesExactHistorySnapshot() throws {
+        let base = try fixture(), item = try #require((base["items"] as? [[String: Any]])?.first)
+        let snapshotText = try #require(item["snapshot"] as? String)
+        let snapshot = try #require(JSONSerialization.jsonObject(with: Data(snapshotText.utf8)) as? [String: Any])
+        let manifest = try #require(snapshot["evidence_manifest"] as? [String: Any])
+        let photo = try #require((manifest["items"] as? [[String: Any]])?.first { $0["kind"] as? String == "image" })
+        for (text, valid) in try ObservationReanalysisRequestTests.descriptionVectors() {
+            var changed = snapshot
+            changed["evidence_manifest"] = ["schema_version": 2, "items": [photo, ["kind": "description", "text": text]]]
+            let exact = try support.bytes(changed)
+            var page = base; page["items"] = [["ordinal": 2, "snapshot": try #require(String(bytes: exact, encoding: .utf8))]]
+            let request = ObservationHistoryPageRequest(observation_id: support.observation, before_ordinal: nil, limit: 20)
+            if !valid {
+                #expect(throws: (any Error).self) { try ObservationHistoryPage.decode(support.bytes(page), request: request, ownerID: support.owner) }
+                continue
+            }
+            let decoded = try ObservationHistoryPage.decode(support.bytes(page), request: request, ownerID: support.owner)
+            #expect(decoded.results.first?.bytes == exact)
+        }
+    }
+
     @Test func protectedManifestRejectsLeaksDuplicatesAndUnknownVersions() throws {
         let base = try fixture(), original = try #require((base["items"] as? [[String: Any]])?.first)
         let snapshot = try #require(JSONSerialization.jsonObject(with: Data((original["snapshot"] as! String).utf8)) as? [String: Any])
@@ -56,7 +77,7 @@ struct ObservationHistoryPhotoTests {
             ["schema_version": 3, "items": items]
         ] {
             var changed = snapshot; changed["evidence_manifest"] = invalid
-            var page = base; page["items"] = [["ordinal": 2, "snapshot": String(decoding: try support.bytes(changed), as: UTF8.self)]]
+            var page = base; page["items"] = [["ordinal": 2, "snapshot": try #require(String(bytes: support.bytes(changed), encoding: .utf8))]]
             #expect(throws: (any Error).self) {
                 try ObservationHistoryPage.decode(support.bytes(page), request: .init(observation_id: support.observation, before_ordinal: nil, limit: 20), ownerID: support.owner)
             }

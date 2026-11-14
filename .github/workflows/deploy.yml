@@ -271,7 +271,7 @@ jobs:
         if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
           version: 2.109.1
         if: steps.production-scope.outputs.should_deploy == 'true'
@@ -1687,6 +1687,27 @@ jobs:
                 ;;
             esac
 
+            explore_pagination_denied_response="$RUNNER_TEMP/public-web-explore-pagination-rpc-denied-${index}.json"
+            explore_pagination_denied_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                --max-filesize 1048576 \
+                -o "$explore_pagination_denied_response" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/rest/v1/rpc/get_public_web_explore_posts_page" \
+                "${public_headers[@]}" \
+                --data '{"p_max_limit":1,"p_before_shared_at":null,"p_before_post_id":null}'
+            )"
+            case "$explore_pagination_denied_status" in
+              401 | 403 | 404)
+                ;;
+              *)
+                echo "A public Supabase API credential unexpectedly executed the server-only public-web Explore projection (HTTP ${explore_pagination_denied_status})."
+                exit 1
+                ;;
+            esac
+
             explore_page_denied_response="$RUNNER_TEMP/public-web-explore-page-rpc-denied-${index}.json"
             explore_page_denied_status="$(
               curl -sS \
@@ -1816,6 +1837,24 @@ jobs:
           echo "$public_web_explore_response" | jq -e '
             type == "array"
             and length <= 1
+            and all(
+              .[];
+              (.post_id | type) == "string"
+              and (.scan_id | type) == "string"
+              and .like_count == 0
+              and .comment_count == 0
+              and .viewer_has_liked == false
+              and .is_owned_by_viewer == false
+            )
+          '
+          public_web_explore_pagination_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_public_web_explore_posts_page" \
+              '{"p_max_limit":1,"p_before_shared_at":null,"p_before_post_id":null}'
+          )"
+          echo "$public_web_explore_pagination_response" | jq -e '
+            type == "array"
+            and length <= 2
             and all(
               .[];
               (.post_id | type) == "string"

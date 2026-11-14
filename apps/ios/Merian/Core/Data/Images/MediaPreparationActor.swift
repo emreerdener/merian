@@ -77,18 +77,20 @@ actor MediaPreparationActor {
         return types
     }()
 
-    func prepareStillImage(fileURL: URL, isPro: Bool) throws -> PreparedStillImage {
+    func prepareStillImage(fileURL: URL, isPro: Bool, encoding: ImagePreparationPolicy.Encoding = .preferred) throws -> PreparedStillImage {
         try prepareStillImage(
             fileURL: fileURL,
             inferenceMaxSize: ImagePreparationPolicy.inferenceMaxDimension(isProActive: isPro),
-            displayMaxSize: ImagePreparationPolicy.displayMaxDimension
+            displayMaxSize: ImagePreparationPolicy.displayMaxDimension,
+            encoding: encoding
         )
     }
 
     func prepareStillImage(
         fileURL: URL,
         inferenceMaxSize: CGFloat,
-        displayMaxSize: CGFloat
+        displayMaxSize: CGFloat,
+        encoding: ImagePreparationPolicy.Encoding = .preferred
     ) throws -> PreparedStillImage {
         guard let inferenceCGImage = ImageDownsampler.downsample(
             url: fileURL,
@@ -97,7 +99,7 @@ actor MediaPreparationActor {
             throw MediaPreparationError.unreadableImage
         }
 
-        guard let inferenceData = Self.encode(inferenceCGImage), !inferenceData.isEmpty else {
+        guard let inferenceData = Self.encode(inferenceCGImage, encoding: encoding), !inferenceData.isEmpty else {
             throw MediaPreparationError.encodingFailed
         }
 
@@ -108,7 +110,7 @@ actor MediaPreparationActor {
             throw MediaPreparationError.unreadableImage
         }
 
-        guard let displayData = Self.encode(displayCGImage), !displayData.isEmpty else {
+        guard let displayData = Self.encode(displayCGImage, encoding: encoding), !displayData.isEmpty else {
             throw MediaPreparationError.encodingFailed
         }
 
@@ -153,10 +155,10 @@ actor MediaPreparationActor {
         return Int64(fileSize)
     }
 
-    private static func encode(_ cgImage: CGImage) -> Data? {
+    private static func encode(_ cgImage: CGImage, encoding: ImagePreparationPolicy.Encoding) -> Data? {
         autoreleasepool {
             let renderData = NSMutableData()
-            guard let destination = makeImageDestination(renderData) else { return nil }
+            guard let destination = makeImageDestination(renderData, encoding: encoding) else { return nil }
             let options: [CFString: Any] = [
                 kCGImageDestinationLossyCompressionQuality: ImagePreparationPolicy.compressionQuality
             ]
@@ -166,8 +168,9 @@ actor MediaPreparationActor {
         }
     }
 
-    private static func makeImageDestination(_ renderData: NSMutableData) -> CGImageDestination? {
-        for type in destinationTypePreferences {
+    private static func makeImageDestination(_ renderData: NSMutableData, encoding: ImagePreparationPolicy.Encoding) -> CGImageDestination? {
+        let types = encoding == .jpeg ? [UTType.jpeg.identifier] : destinationTypePreferences
+        for type in types {
             if let destination = CGImageDestinationCreateWithData(
                 renderData as CFMutableData,
                 type as CFString,

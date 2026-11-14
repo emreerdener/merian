@@ -89,10 +89,12 @@ final class CandidateReviewViewModel {
     func confirmOriginal(
         subject: IdentificationReviewSubject,
         inferenceEngine: InferenceEngine,
-        modelContext: ModelContext
+        modelContext: ModelContext, expectedReview: LocalAIIdentificationReview? = nil
     ) async -> Bool {
         guard isCurrent(subject, in: inferenceEngine),
-              inferenceEngine.speciesData?.aiReview.isUnresolved != true else { return false }
+              let displayedReview = inferenceEngine.speciesData?.aiReview,
+              !displayedReview.isUnresolved,
+              expectedReview == nil || displayedReview == expectedReview else { return false }
         guard confirmingSubject == nil else { return false }
         confirmationMessage = nil
         guard inferenceEngine.speciesData?.aiReview.pending?.action != .confirmPrimary else {
@@ -104,7 +106,8 @@ final class CandidateReviewViewModel {
         await dependencies.confirmOriginal(
             inferenceEngine,
             subject.scanId,
-            modelContext
+            modelContext,
+            expectedReview ?? displayedReview
         )
         guard isCurrent(subject, in: inferenceEngine) else { return false }
         guard let species = inferenceEngine.speciesData,
@@ -124,14 +127,16 @@ final class CandidateReviewViewModel {
         scientificName: String,
         subject: IdentificationReviewSubject,
         inferenceEngine: InferenceEngine,
-        modelContext: ModelContext
+        modelContext: ModelContext, expectedReview: LocalAIIdentificationReview? = nil
     ) async {
-        guard isCurrent(subject, in: inferenceEngine) else { return }
+        guard isCurrent(subject, in: inferenceEngine), let displayedReview = inferenceEngine.speciesData?.aiReview,
+              expectedReview == nil || displayedReview == expectedReview else { return }
         await dependencies.applyOverride(
             inferenceEngine,
             scientificName,
             subject.scanId,
-            modelContext
+            modelContext,
+            expectedReview ?? displayedReview
         )
     }
 

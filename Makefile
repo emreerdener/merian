@@ -2,7 +2,7 @@
 
 SUPABASE_WORKDIR := services
 
-.PHONY: ios-local-build ios-build-storage ios-clean-build-cache test-ios-local-build
+.PHONY: ios-local-build ios-build-storage ios-clean-build-cache test-ios-local-build ios-fast-preflight test-ios-fast-preflight
 
 help:
 	@printf "Available targets:\n"
@@ -47,6 +47,12 @@ help:
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
 
+ios-fast-preflight:
+	python3 -B scripts/check-ios-fast-preflight.py $(ARGS)
+
+test-ios-fast-preflight:
+	python3 -B scripts/test-ios-fast-preflight.py --swift-parity
+
 ios-local-build:
 	python3 scripts/local-ios-build.py $(if $(filter audit,$(firstword $(ARGS))),,run) $(ARGS)
 
@@ -61,6 +67,23 @@ test-ios-local-build:
 
 validate-markdown-format:
 	bash scripts/check-changed-markdown-format.sh
+
+.PHONY: test-initial-preparation test-initial-preparation-retained-inputs
+
+test-initial-preparation:
+	python3 -B scripts/initial-preparation/test_preparation_reference.py
+	python3 -B scripts/initial-preparation/test_artifact.py
+	python3 -B scripts/initial-preparation/test_owner_protocol.py
+	python3 -B scripts/initial-preparation/test_owner_process.py
+	python3 -B scripts/initial-preparation/test_bootstrap.py
+	python3 -B scripts/initial-preparation/test_wav_validation_bootstrap.py
+	deno test --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/wav-validation-bootstrap_test.ts scripts/initial-preparation/owner-exchange_test.ts
+	deno fmt --check scripts/initial-preparation
+	deno check --no-config --no-lock --no-remote --no-npm scripts/initial-preparation/*.ts
+	deno lint --no-config scripts/initial-preparation/*.ts
+
+test-initial-preparation-retained-inputs:
+	python3 -B scripts/initial-preparation/test_local_inputs.py
 
 test-markdown-format-tooling:
 	bash scripts/test-check-changed-markdown-format.sh
@@ -133,6 +156,10 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-ios-unit-shards.py
+	python3 -B scripts/test-prepare-ios-unit-simulator.py
+	python3 -B scripts/test-ios-fast-preflight.py
+	python3 -B scripts/test-ios-device-review-schemes.py
 	python3 -B scripts/test-ios-runtime-audit.py
 	python3 -B scripts/test-local-ios-build.py
 	bash scripts/test-check-ios-project-resources.sh

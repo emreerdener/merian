@@ -91,8 +91,9 @@ Use the narrowest owner that fits:
 [`Core/README.md`](Merian/Core/README.md) defines the root and cross-domain
 guardrails. The Core root contains only dependency composition and logging;
 domain READMEs and architecture suites own the detailed boundaries. The
-Core-wide audit tracks the one residual production file above 600 lines instead
-of treating its current size as a permanent exemption.
+Core-wide audit tracks an explicit oversized inventory, including generated wire
+DTOs and the two individually capped native storage owners. These entries do not
+permit unreviewed growth or weaken the general 600-line review ceiling.
 
 Examples:
 
@@ -1552,6 +1553,14 @@ to be part of one explicit inventory:
 - `Core/Network/SupabaseManager.swift` is the measured residual facade. Further
   extraction is paused unless it fixes a correctness boundary or produces a
   net-negative affected production delta.
+- `Core/AI/InferenceEdgeDTOs.swift` is the generator-owned versioned wire
+  contract.
+- `Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift` and
+  `SharedMediaNativeStorageRepository.swift` keep private capability
+  construction and validation fences together, capped at 610 and 622 physical
+  lines. Both app-wide and Core inventory suites enforce these non-growth
+  budgets.
+- `Models/Schema/SchemaV51Snapshots.swift` is the immutable V51 model snapshot.
 - `Models/SchemaVersions.swift` is the ordered migration registry kept cohesive
   so version and stage sequencing remain compiler-reviewed in one place.
 
@@ -1573,15 +1582,19 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 [local build storage procedure](../../docs/development-guides/08-testing-strategy.md#local-ios-build-storage)
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
-Hosted **iOS Build and Test** runs the complete unit target, four critical scan
-UI smokes, and the Release archive as three independent jobs after source
-scoping. Each uses the same exact commit and pinned toolchain; Production
-readiness requires all three. Unit and UI jobs build only their respective
-bundles (the unit job also compiles the report-only performance bundle) and keep
-separate evidence artifacts. See the
-[CI contract and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
-for evidence ownership. Full unit coverage and shared-state serialization remain
-required.
+Hosted **iOS Build and Test** compiles and inventories the complete unit target
+once, executes whole suites serially across isolated runner/simulator shards,
+and requires an aggregate proving every inventoried method passed exactly once.
+All parameter rows, durable fixtures, assertions and shared-state guards remain.
+The six critical scan UI smokes and Release archive stay independent. Production
+readiness requires the unit aggregate and both of those gates at the exact
+commit and pinned toolchain. The unit build also compiles the report-only
+performance bundle; sharding does not qualify device performance. See the
+[complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
+for artifact provenance, process-isolation limits and the requirement to rerun
+all jobs together, and
+[CI evidence and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
+for retained diagnostics.
 
 Unit tests should mirror the production owner:
 
@@ -1721,3 +1734,28 @@ Undo.
 
 In the confidence sheet, the incorrect-state card replaces the standalone gray
 Undo button. Menu and completed candidate-review Undo actions remain available.
+
+## Synthetic video/audio test fixtures
+
+`TestSupport/VideoAudioFixture.swift` serializes complete synthetic preparation
+across test suites: H.264 writing, AAC preparation and composition export.
+Ownership lasts until preparation completes or error cleanup finishes; an
+incomplete writer is cancelled before release. Cancellation while queued is
+checked after admission, before starting the next writer. The fixture retains
+all 30 frames and the one-second media range, with bounded readiness waits and
+frame/status diagnostics. This test-only gate does not serialize production
+capture or change extraction behavior.
+
+## Native warning checks
+
+The generated Xcode build phase runs `swiftlint lint --strict --no-cache` with
+the repository configuration. New lint warnings fail that phase when SwiftLint
+is installed; the missing-tool warning remains explicit. Run
+`swiftlint lint --strict --no-cache` before handoff. Declaration-level
+exceptions document intentional domain names, private state namespaces and
+cohesive lookup results; they do not relax concurrency checks or the global rule
+configuration.
+
+Unassigned app-icon source artwork belongs in `AppStore/SourceArtwork`, outside
+the compiled asset catalog. `AppIcon.appiconset` contains only its assigned
+light, dark and tinted icon images.

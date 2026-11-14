@@ -419,6 +419,10 @@ V1 card behavior:
 
 The Explore detail page is a fuller public reading surface for a shared post.
 
+The native sheet shows a persistent centered inline **Observation** navigation
+title, matching Profile. The species name remains below the hero while
+scrolling.
+
 It should contain:
 
 - The same privacy-safe author identity used on the feed
@@ -436,6 +440,8 @@ It should contain:
 
 Interaction model:
 
+- Owned feed cards and post detail use **View your scan** for the menu action
+  that opens the viewer's existing account scan in Insight.
 - Feed cards and post detail keep Edit post in their overflow menu. Their edit
   sheet exposes a top-right Post options menu containing destructive red
   Unpublish post. Confirmation preserves the original scan and removes only the

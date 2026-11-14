@@ -3,48 +3,94 @@ import os
 import SwiftData
 
 enum ModelContainerBootstrapper {
+    @MainActor
     static func bootstrap() -> ModelContainerBootstrapOutcome {
+        bootstrap(isTesting: TestExecutionCoordinator.isRunningTests,
+                  preserveExistingStore: MerianEnvironment.preservesExistingLibrary,
+                  makeSession: PersistentStoreBootstrapSession.production)
+    }
+
+    @MainActor
+    private static func bootstrap(
+        isTesting: Bool,
+        preserveExistingStore: Bool,
+        makeSession: () throws -> PersistentStoreBootstrapSession
+    ) -> ModelContainerBootstrapOutcome {
+        // Before diagnostics, metadata or any production path/fence access.
+        if isTesting {
+            do {
+                return ModelContainerBootstrapOutcome(
+                    container: try ModelContainerFactory.makeInMemoryContainer(),
+                    startupStoreState: .normal, startupNotice: nil, telemetryEvent: nil
+                )
+            } catch {
+                return fallbackInMemoryBootstrap(reason: "The test library could not be opened.")
+            }
+        }
+        do {
+            let session = try makeSession()
+            return try bootstrap(session: session, preserveExistingStore: preserveExistingStore)
+        } catch {
+            return fallbackInMemoryBootstrap(
+                reason: "Naturebook could not safely open the local library. Restart the app to try again.",
+                telemetryReason: "persistent_store_boundary_unavailable"
+            )
+        }
+    }
+
+    #if DEBUG
+    @MainActor
+    static func fixtureBootstrap(
+        isTesting: Bool = false,
+        preserveExistingStore: Bool = false,
+        makeSession: () throws -> PersistentStoreBootstrapSession
+    ) -> ModelContainerBootstrapOutcome {
+        guard TestExecutionCoordinator.isRunningTests else {
+            return fallbackInMemoryBootstrap(reason: "Fixture bootstrap is unavailable.")
+        }
+        return bootstrap(isTesting: isTesting, preserveExistingStore: preserveExistingStore, makeSession: makeSession)
+    }
+    #endif
+
+    @MainActor
+    private static func bootstrap(session: PersistentStoreBootstrapSession, preserveExistingStore: Bool) throws -> ModelContainerBootstrapOutcome {
+        try session.check()
         logBootstrapDiagnostics()
-        let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()
+        let storeURL = session.storeURL
         let decision = ModelStoreRecoveryCoordinator.migrationDecision(
             at: storeURL,
             currentSchemaMajor: CurrentSchema.versionIdentifier.major
         )
+        try session.check()
         var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
             storeURL: storeURL,
             currentSchemaMajor: CurrentSchema.versionIdentifier.major,
-            migrationSchemas:
-                ModelContainerFactory.migrationSchemaVersionSummary(),
-            migrationStages:
-                ModelContainerFactory.migrationStageVersionSummary(),
+            migrationSchemas: ModelContainerFactory.migrationSchemaVersionSummary(),
+            migrationStages: ModelContainerFactory.migrationStageVersionSummary(),
             decision: decision
         )
-
+        let factory = ModelContainerFactory.Persistent(session: session)
         do {
-            let container = try ModelContainerFactory
-                .makePersistentContainerUsingStoreAwarePlan(
-                    decision: decision,
-                    diagnostic: &diagnostic
-                )
-            diagnostic.recordFinalOutcome("normal", reason: nil)
-            ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(
-                diagnostic
+            let opened = try factory.makePersistentContainerUsingStoreAwarePlan(
+                decision: decision, diagnostic: &diagnostic
             )
+            let admission = opened.disposition == .firstSuccess
+                ? try session.admission(for: opened.container) : nil
+            diagnostic.recordFinalOutcome("normal", reason: nil)
+            ModelStoreRecoveryCoordinator.recordLatestStartupDiagnostic(diagnostic)
+            try session.check()
             return ModelContainerBootstrapOutcome(
-                container: container,
-                startupStoreState: .normal,
-                startupNotice: nil,
-                telemetryEvent: nil
+                container: opened.container, startupStoreState: .normal,
+                startupNotice: nil, telemetryEvent: nil, nativeReleaseAdmission: admission
             )
         } catch {
+            try session.requireRecoverable(error)
             MerianLog.general.error(
                 "CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)"
             )
             return recoverFromPersistentStoreFailure(
-                error,
-                decision: decision,
-                storeURL: storeURL,
-                diagnostic: diagnostic
+                error, decision: decision, storeURL: storeURL,
+                diagnostic: diagnostic, session: session, preserveExistingStore: preserveExistingStore
             )
         }
     }
@@ -117,12 +163,21 @@ enum ModelContainerBootstrapper {
         }
     }
 
+    @MainActor
     private static func recoverFromPersistentStoreFailure(
         _ error: Error,
         decision: ModelStoreRecoveryCoordinator.StoreMigrationDecision,
         storeURL: URL,
-        diagnostic: StartupStoreDiagnostic
+        diagnostic: StartupStoreDiagnostic,
+        session: PersistentStoreBootstrapSession,
+        preserveExistingStore: Bool
     ) -> ModelContainerBootstrapOutcome {
+        guard !preserveExistingStore else {
+            return fallbackInMemoryBootstrap(
+                reason: "The existing library could not be opened. It has been preserved; stop testing and review the startup failure before continuing.",
+                telemetryReason: "existing_store_preserved", startupDiagnostic: diagnostic
+            )
+        }
         var diagnostic = diagnostic
         if ModelStoreRecoveryCoordinator.shouldQuarantineStore(
             for: error,
@@ -131,7 +186,7 @@ enum ModelContainerBootstrapper {
             return recoverAfterQuarantine(
                 error,
                 storeURL: storeURL,
-                diagnostic: &diagnostic
+                diagnostic: &diagnostic, session: session
             )
         }
 
@@ -143,7 +198,7 @@ enum ModelContainerBootstrapper {
             return recoverAfterLegacyMigrationFailure(
                 error,
                 storeURL: storeURL,
-                diagnostic: &diagnostic
+                diagnostic: &diagnostic, session: session
             )
         }
 
@@ -160,15 +215,18 @@ enum ModelContainerBootstrapper {
         )
     }
 
+    @MainActor
     private static func recoverAfterQuarantine(
         _ error: Error,
         storeURL: URL,
-        diagnostic: inout StartupStoreDiagnostic
+        diagnostic: inout StartupStoreDiagnostic,
+        session: PersistentStoreBootstrapSession
     ) -> ModelContainerBootstrapOutcome {
         do {
-            let quarantineDirectory = try ModelStoreRecoveryCoordinator
-                .quarantineStoreArtifacts(at: storeURL, for: error)
-            let recoveredContainer = try ModelContainerFactory
+            let quarantineDirectory = try session.recover {
+                try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(at: storeURL, for: error)
+            }
+            let recoveredContainer = try ModelContainerFactory.Persistent(session: session)
                 .makePersistentContainerWithoutMigrationPlan(
                     named: "post-quarantine-current-store",
                     diagnostic: &diagnostic
@@ -217,20 +275,22 @@ enum ModelContainerBootstrapper {
         }
     }
 
+    @MainActor
     private static func recoverAfterLegacyMigrationFailure(
         _ error: Error,
         storeURL: URL,
-        diagnostic: inout StartupStoreDiagnostic
+        diagnostic: inout StartupStoreDiagnostic,
+        session: PersistentStoreBootstrapSession
     ) -> ModelContainerBootstrapOutcome {
         var rescuePerformed = false
         do {
-            let rescueDirectory = try ModelStoreRecoveryCoordinator
-                .rescueStoreArtifactsAfterMigrationFailure(
-                    at: storeURL,
-                    for: error
+            let rescueDirectory = try session.recover {
+                try ModelStoreRecoveryCoordinator.rescueStoreArtifactsAfterMigrationFailure(
+                    at: storeURL, for: error
                 )
+            }
             rescuePerformed = true
-            let recoveredContainer = try ModelContainerFactory
+            let recoveredContainer = try ModelContainerFactory.Persistent(session: session)
                 .makePersistentContainerWithoutMigrationPlan(
                     named: "post-migration-rescue-current-store",
                     diagnostic: &diagnostic

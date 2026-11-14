@@ -1,0 +1,27 @@
+// Public, inactive qualification configuration; never contains approvals or credentials.
+#include "Config.xcconfig"
+MERIAN_HISTORY_QUALIFICATION = 1
+MERIAN_HISTORY_APPROVAL_ID =
+MERIAN_HISTORY_APPROVED_PROJECT =
+MERIAN_HISTORY_APPROVED_HOST =
+MERIAN_HISTORY_ACCOUNT_FINGERPRINTS =
+MERIAN_HISTORY_OPERATION_SCOPE = capture-history-v1
+MERIAN_AUTH_NAMESPACE = Merian.HistoryQualification.Auth
+REVENUECAT_API_KEY =
+POSTHOG_API_KEY =
+// Dormant evidence references; empty public defaults do not verify hosted state.
+MERIAN_HISTORY_IDENTITY_APPROVAL_ID =
+MERIAN_HISTORY_IDENTITY_HOST =
+MERIAN_HISTORY_IDENTITY_PROVIDER =
+MERIAN_HISTORY_IDENTITY_ACCOUNT_FINGERPRINT =
+MERIAN_HISTORY_IDENTITY_SUBJECT_FINGERPRINT =
+MERIAN_HISTORY_IDENTITY_MAPPING_EVIDENCE_DIGEST =
+MERIAN_HISTORY_IDENTITY_REFUSAL_EVIDENCE_DIGEST =
+MERIAN_HISTORY_IDENTITY_MAPPING_OBSERVED_AT =
+MERIAN_HISTORY_IDENTITY_MAPPING_EXPIRES_AT =
+MERIAN_HISTORY_IDENTITY_REFUSAL_OBSERVED_AT =
+MERIAN_HISTORY_IDENTITY_REFUSAL_EXPIRES_AT =
+// Inherit the primary app's public Google registration from Config.xcconfig.
+// Provider exchange still requires the reviewed existing-account evidence.
+// A private packet may constrain an explicitly authorized build; it grants no authority.
+#include? "HistoryQualificationApproval.xcconfig"

@@ -1,0 +1,331 @@
+import Foundation
+import SwiftData
+
+/// Exact ordinary-photo receiving set. No scheduler, legacy queue helper, or
+/// relationship repair is called here. The owning transaction supplies all IDs.
+@MainActor
+enum SharedMediaNativeReceivingRows {
+    struct Set {
+        let consumer: SharedMediaConsumerRecord
+        let queue: OfflineQueuedScan
+        let job: OfflineJobRecord
+        let event: OfflineQueueEvent
+        var identities: Swift.Set<PersistentIdentifier> {
+            [consumer.persistentModelID, queue.persistentModelID, job.persistentModelID, event.persistentModelID]
+        }
+    }
+    static func insert(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext) throws -> Set {
+        let value = r.cohort, commit = r.freeze.commit
+        let consumer = SharedMediaConsumerRecord(id: value.bindingID, kindRaw: "queue", consumerID: value.originQueueID,
+            originQueueID: value.originQueueID, observationID: value.observationID, inventoryID: commit.inventoryID,
+            inventoryGeneration: commit.inventoryGeneration, ownerID: r.profile.ownerID, packageID: r.package.id,
+            draftGeneration: r.package.generation, frozenPackageRevision: try commit.packageRevision,
+            contractVersion: value.format.rawValue, digestVersion: 1, cohortSHA256: try value.digest(),
+            executionKindRaw: value.executionKind, inferenceGeneration: value.inferenceGeneration)
+        consumer.cohortData = try value.encoded()
+        let queue = OfflineQueuedScan(id: value.originQueueID, timestamp: r.timestamp,
+            scanState: .pending, queueUpdatedAt: r.timestamp, queueNeedsAttention: true)
+        queue.mediaAuthorityRaw = value.queueAuthority; queue.sharedMediaConsumerID = value.bindingID
+        let job = OfflineJobRecord(id: r.jobID, kind: .scanIngestion, subjectId: value.originQueueID,
+            priority: 0, status: .needsAttention, createdAt: r.timestamp, updatedAt: r.timestamp,
+            requiresUnconstrainedNetwork: false, allowsCellular: false, approximateBytes: r.package.allocated,
+            metadataJSON: r.metadata)
+        let event = OfflineQueueEvent(id: r.eventID, jobId: r.jobID, scanId: value.originQueueID,
+            kind: .needsAttention, createdAt: r.timestamp, metadataJSON: r.metadata)
+        c.insert(consumer); c.insert(queue); c.insert(job); c.insert(event)
+        return Set(consumer: consumer, queue: queue, job: job, event: event)
+    }
+
+    /// Descriptive collision keys cannot construct an executable receiving request.
+    struct CollisionKey {
+        let packageID: UUID, bindingID: UUID
+        let queueID: String, observationID: String, eventID: String
+        init(_ prepared: SharedMediaNativeReceivingIntent.Prepared) {
+            packageID = prepared.package.id; bindingID = prepared.bindingID
+            queueID = prepared.queueID.uuidString.lowercased()
+            observationID = prepared.observationID.uuidString.lowercased()
+            eventID = prepared.eventID.uuidString.lowercased()
+        }
+        init(_ abandoned: SharedMediaNativeReceivingIntent.Abandoned) {
+            packageID = abandoned.package.id; bindingID = abandoned.bindingID
+            queueID = abandoned.queueID.uuidString.lowercased()
+            observationID = abandoned.observationID.uuidString.lowercased()
+            eventID = abandoned.eventID.uuidString.lowercased()
+        }
+        init(_ plan: SharedMediaNativeReceivingReleaseValues.Plan) {
+            packageID = plan.package.id; bindingID = plan.bindingID
+            queueID = plan.queueID.uuidString.lowercased()
+            observationID = plan.observationID.uuidString.lowercased()
+            eventID = plan.eventID.uuidString.lowercased()
+        }
+        fileprivate init(_ request: SharedMediaNativeReceivingIntent.Transaction) {
+            packageID = request.package.id; bindingID = request.cohort.bindingID
+            queueID = request.cohort.originQueueID; observationID = request.cohort.observationID
+            eventID = request.eventID
+        }
+    }
+    private struct Matches {
+        let consumers: [SharedMediaConsumerRecord], queues: [OfflineQueuedScan]
+        let jobs: [OfflineJobRecord], events: [OfflineQueueEvent]
+        var isEmpty: Bool { consumers.isEmpty && queues.isEmpty && jobs.isEmpty && events.isEmpty }
+    }
+    static func requireAbsent(_ key: CollisionKey, in context: ModelContext) throws {
+        guard try matches(key, in: context).isEmpty else { throw SharedMediaStorageFailure.conflict }
+    }
+    /// Collision checks include canonical aliases and every reverse identity join.
+    private static func matches(_ key: CollisionKey, in c: ModelContext, applied: SharedMediaNativeReceivingIntent.Prepared? = nil, enrollmentRecovery: ObservationHistoryEnrollmentIntent.Receipt? = nil) throws -> Matches {
+        let identities = Array(Swift.Set([key.queueID, key.observationID].flatMap { [$0, $0.uppercased()] }))
+        let bindingID = key.bindingID, packageID = key.packageID
+        let jobIDs = identities.map { "scan-ingestion:" + $0 } + (applied == nil ? [] : [ObservationHistorySelectionIntent.jobID(key.observationID)])
+        let eventIDs = [key.eventID, key.eventID.uppercased()]
+        // Optional equality is supported on iOS 26; predicate force unwrap is not.
+        // Keep both queue and observation aliases, which may be distinct.
+        // Match optional operand types explicitly: repeated implicit promotion
+        // in this macro exceeds Swift's type-checking budget.
+        let queue: String? = key.queueID, queueUpper: String? = key.queueID.uppercased()
+        let observation: String? = key.observationID, observationUpper: String? = key.observationID.uppercased()
+        let queueJob: String? = "scan-ingestion:" + key.queueID
+        let queueUpperJob: String? = "scan-ingestion:" + key.queueID.uppercased()
+        let observationJob: String? = "scan-ingestion:" + key.observationID
+        let observationUpperJob: String? = "scan-ingestion:" + key.observationID.uppercased()
+        let consumers = try fetch(c, FetchDescriptor<SharedMediaConsumerRecord>(predicate: #Predicate {
+            $0.id == bindingID || $0.packageID == packageID || identities.contains($0.consumerID) ||
+                identities.contains($0.originQueueID) || identities.contains($0.observationID)
+        }))
+        let queues = try queueMatches(key, in: c)
+        var jobQuery = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate {
+            jobIDs.contains($0.id) || $0.subjectId == queue || $0.subjectId == queueUpper ||
+                $0.subjectId == observation || $0.subjectId == observationUpper
+        })
+        // At most two proved History rows can be excluded below. Inspect one
+        // more so neither accepted row can hide a competing subject/alias.
+        jobQuery.fetchLimit = applied == nil ? 2 : 3
+        jobQuery.includePendingChanges = true
+        var jobs = try c.fetch(jobQuery)
+        let events = try fetch(c, FetchDescriptor<OfflineQueueEvent>(predicate: #Predicate {
+            eventIDs.contains($0.id) ||
+                (($0.scanId == queue || $0.scanId == queueUpper) ||
+                 ($0.scanId == observation || $0.scanId == observationUpper)) ||
+                (($0.jobId == queueJob || $0.jobId == queueUpperJob) ||
+                 ($0.jobId == observationJob || $0.jobId == observationUpperJob))
+        }))
+        let scans = try fetch(c, FetchDescriptor<LocalScanRecord>(predicate: #Predicate {
+            identities.contains($0.id) || $0.sharedMediaConsumerID == bindingID
+        }))
+        if let applied {
+            let appliedOwner = applied.profile.ownerID
+            guard scans.count == 1, let scan = scans.first, scan.id == key.observationID,
+                  try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw,
+                    consumerID: scan.sharedMediaConsumerID, record: .scan) == .nativeInitial(bindingID),
+                  scan.analysisOwnerAccountID == nil || scan.analysisOwnerAccountID == appliedOwner.uuidString.lowercased(),
+                  try fetch(c, FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate {
+                    identities.contains($0.scanId)
+                  })).isEmpty,
+                  try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
+                    $0.sharedMediaConsumerID == bindingID
+                  })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+            if let recovery = enrollmentRecovery {
+                guard recovery.observationID.uuidString.lowercased() == key.observationID,
+                      recovery.ownerID == appliedOwner,
+                      try ObservationHistoryEnrollmentIntent.existing(observationID: recovery.observationID,
+                        ownerID: recovery.ownerID, context: c) == recovery else { throw SharedMediaStorageFailure.conflict }
+                jobs.removeAll { $0.id == ObservationHistoryEnrollmentIntent.jobID(key.observationID) }
+            }
+            // Exclude only proved closed History metadata. Unknown or active jobs still collide.
+            guard let observationID = UUID(uuidString: key.observationID) else { throw SharedMediaStorageFailure.conflict }
+            if try ObservationHistoryEnrollmentIntent.baseline(observationID: observationID, ownerID: appliedOwner, context: c) != nil {
+                guard enrollmentRecovery == nil else { throw SharedMediaStorageFailure.conflict }
+                let baselineID = ObservationHistoryEnrollmentIntent.baselineJobID(key.observationID)
+                jobs.removeAll { $0.id == baselineID }
+                let selectionID = ObservationHistorySelectionIntent.jobID(key.observationID)
+                if jobs.contains(where: { $0.id == selectionID }) {
+                    try requireHistoricalSelection(applied, consumers: consumers, context: c)
+                    jobs.removeAll { $0.id == selectionID }
+                }
+            }
+            // Later enrolled analyses and selections may exist. They cannot
+            // acquire this original scan's exclusive native consumer binding.
+        } else {
+            guard scans.isEmpty,
+                  try fetch(c, FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate {
+                    identities.contains($0.id) || identities.contains($0.observationID) || $0.sharedMediaConsumerID == bindingID
+                  })).isEmpty else { throw SharedMediaStorageFailure.conflict }
+        }
+        return .init(consumers: consumers, queues: queues, jobs: jobs, events: events)
+    }
+
+    /// A completed selection or rejection stays as History metadata. It never
+    /// supplies media ownership. A local selection can settle between the
+    /// History enrollment save and the later native handoff acknowledgement.
+    private static func requireHistoricalSelection(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                                   consumers: [SharedMediaConsumerRecord], context: ModelContext) throws {
+        let id = prepared.observationID.uuidString.lowercased()
+        guard let entry = try ObservationHistorySelectionIntent.load(id, context: context),
+              entry.owner == prepared.profile.ownerID.uuidString.lowercased(),
+              entry.receipt != nil || entry.rejection != nil,
+              let baseline = try NativeInitialHistoryBaseline.read(prepared, context: context),
+              consumers.count == 1, let consumer = consumers.first, consumer.id == prepared.bindingID else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let cohort = try SharedMediaNativeConsumerCohort.AppliedInitial.decode(consumer.cohortData)
+        guard cohort.receipt.ownerID == prepared.profile.ownerID, cohort.receipt.observationID == prepared.observationID,
+              cohort.receipt.bindingID == prepared.bindingID, cohort.historyBaseline == nil || cohort.historyBaseline == baseline.association else {
+            throw SharedMediaStorageFailure.conflict
+        }
+    }
+    /// Bounded reverse joins for an already applied original. This does not
+    /// establish the receipt, package, inventory or current session fence.
+    static func appliedConsumer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                in context: ModelContext) throws -> SharedMediaConsumerRecord {
+        let found = try matches(.init(prepared), in: context, applied: prepared)
+        guard found.consumers.count == 1, let consumer = found.consumers.first,
+              consumer.id == prepared.bindingID, found.queues.isEmpty, found.jobs.isEmpty, found.events.isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return consumer
+    }
+    /// Enrollment-only metadata verification. Never used by media or save authority.
+    static func enrollmentRecoveryConsumer(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
+                                           receipt: ObservationHistoryEnrollmentIntent.Receipt, context: ModelContext) throws -> SharedMediaConsumerRecord {
+        let found = try matches(.init(prepared), in: context, applied: prepared, enrollmentRecovery: receipt)
+        guard found.consumers.count == 1, let consumer = found.consumers.first,
+              consumer.id == prepared.bindingID, found.queues.isEmpty, found.jobs.isEmpty, found.events.isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return consumer
+    }
+    /// Freshness only, after the caller's full graph validation. Reuse the exact
+    /// collision predicate, including pending aliases and reverse bindings.
+    static func requireRecoveryPresentation(_ expected: Data?, request: SharedMediaNativeReceivingIntent.Transaction,
+                                            in context: ModelContext) throws {
+        guard try recoveryPresentationBytes(request: request, in: context) == expected else { throw SharedMediaStorageFailure.stale }
+    }
+
+    /// A present queue with nil bytes is distinct from a missing queue. This
+    /// bounded descriptive read never replaces full receiving validation.
+    static func recoveryPresentationBytes(request: SharedMediaNativeReceivingIntent.Transaction,
+                                          in context: ModelContext) throws -> Data? {
+        let found = try queueMatches(.init(request), in: context)
+        guard found.count == 1, let queue = found.first,
+              queue.id == request.cohort.originQueueID,
+              queue.sharedMediaConsumerID == request.cohort.bindingID else { throw SharedMediaStorageFailure.stale }
+        return queue.recoveryPresentationData
+    }
+
+    private static func queueMatches(_ key: CollisionKey, in context: ModelContext) throws -> [OfflineQueuedScan] {
+        let identities = Array(Swift.Set([key.queueID, key.observationID].flatMap { [$0, $0.uppercased()] }))
+        let bindingID = key.bindingID
+        return try fetch(context, FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
+            identities.contains($0.id) || $0.sharedMediaConsumerID == bindingID
+        }))
+    }
+
+    static func read(_ r: SharedMediaNativeAppReceivingRequest, in c: ModelContext, absent: Bool) throws -> Set? {
+        try read(.init(r), in: c, absent: absent)
+    }
+    static func read(_ r: SharedMediaNativeReceivingIntent.Transaction, in c: ModelContext, absent: Bool) throws -> Set? {
+        let found = try matches(.init(r), in: c)
+        if absent {
+            guard found.isEmpty else { throw SharedMediaStorageFailure.conflict }
+            return nil
+        }
+        let rows = try exact(found)
+        try validate(rows, request: r)
+        return rows
+    }
+
+    /// Descriptive accepted state for the complete native graph. This does not
+    /// reconstruct a live reservation or grant execution/release authority.
+    static func readObserved(_ r: SharedMediaNativeReceivingIntent.Transaction, in c: ModelContext) throws -> Set {
+        let rows = try exact(matches(.init(r), in: c))
+        try validateFields(rows, request: r)
+        guard let observationID = UUID(uuidString: r.cohort.observationID),
+              observationID.uuidString.lowercased() == r.cohort.observationID else { throw SharedMediaStorageFailure.conflict }
+        _ = try AnalysisRecoveryPresentation.storageLiability(rows.queue.recoveryPresentationData,
+            identity: .init(ownerID: r.profile.ownerID, observationID: observationID, operationID: r.freeze.commit.operationID))
+        return rows
+    }
+
+    private static func exact(_ found: Matches) throws -> Set {
+        guard found.consumers.count == 1, found.queues.count == 1, found.jobs.count == 1, found.events.count == 1,
+              let consumer = found.consumers.first, let queue = found.queues.first,
+              let job = found.jobs.first, let event = found.events.first else { throw SharedMediaStorageFailure.conflict }
+        return Set(consumer: consumer, queue: queue, job: job, event: event)
+    }
+
+    /// A typed transaction proof preserves the complete canonical nil baseline
+    /// while admitting only its exact presentation predecessor/successor. The
+    /// ordinary read/validate entry points above remain nil-only. This quartet
+    /// reader alone does not establish current slot/inventory/account authority;
+    /// callers use the proof's checked predecessor/successor entry points.
+    static func readPresentation(in context: ModelContext, proof: SharedMediaNativeRecoveryPresentationPoststate) throws -> Set {
+        let found = try matches(.init(proof.transaction), in: context)
+        guard found.consumers.count == 1, found.queues.count == 1, found.jobs.count == 1, found.events.count == 1,
+              let consumer = found.consumers.first, let queue = found.queues.first,
+              let job = found.jobs.first, let event = found.events.first else { throw SharedMediaStorageFailure.conflict }
+        let rows = Set(consumer: consumer, queue: queue, job: job, event: event)
+        try proof.requireRows(rows)
+        return rows
+    }
+
+    static func validate(_ rows: Set, request r: SharedMediaNativeAppReceivingRequest) throws {
+        try validate(rows, request: SharedMediaNativeReceivingIntent.Transaction(r))
+    }
+    static func validate(_ rows: Set, request r: SharedMediaNativeReceivingIntent.Transaction) throws {
+        guard rows.queue.recoveryPresentationData == nil else { throw SharedMediaStorageFailure.conflict }
+        try validateFields(rows, request: r)
+    }
+    private static func validateFields(_ rows: Set, request r: SharedMediaNativeReceivingIntent.Transaction) throws {
+        let consumer = rows.consumer, queue = rows.queue, job = rows.job, event = rows.event, value = r.cohort
+        guard consumer.id == value.bindingID, consumer.cursorKey == value.bindingID.uuidString.lowercased(),
+              consumer.kindRaw == "queue", consumer.consumerID == value.originQueueID,
+              consumer.originQueueID == value.originQueueID, consumer.observationID == value.observationID,
+              consumer.inventoryID == r.profile.inventoryID, consumer.inventoryGeneration == r.profile.generation,
+              consumer.ownerID == r.profile.ownerID, consumer.packageID == r.package.id,
+              consumer.draftGeneration == r.package.generation, consumer.frozenPackageRevision == (try r.freeze.commit.packageRevision),
+              consumer.contractVersion == value.format.rawValue, consumer.digestVersion == 1,
+              consumer.cohortData == (try value.encoded()), consumer.cohortSHA256 == (try value.digest()),
+              consumer.executionKindRaw == "ordinaryV1", consumer.inferenceGeneration == value.inferenceGeneration,
+              consumer.retirementID == nil, consumer.lifecycleRaw == "active", consumer.revision == 0 else { throw SharedMediaStorageFailure.conflict }
+        guard queue.id == value.originQueueID, queue.timestamp == r.timestamp, queue.queueUpdatedAt == r.timestamp,
+              queue.mediaAuthorityRaw == value.queueAuthority, queue.sharedMediaConsumerID == value.bindingID,
+              queue.workKindRaw == "ordinary", queue.parentObservationID == nil, queue.sourceAnalysisID == nil,
+              queue.reanalysisOwnerAccountID == nil, queue.scanStateRaw == ScanQueueState.pending.rawValue,
+              queue.queueNeedsAttention, queue.queueAttemptCount == 0, queue.queueSchemaRepairGeneration == 1,
+              queue.capturedMediaJSON == nil, queue.capturedMediaEntries?.isEmpty != false,
+              queue.coverImagePath == nil, queue.inferenceImagePaths == nil, queue.visualMediaItemsJSON == nil,
+              queue.fieldNotes == nil, queue.stagedR2Keys == nil, queue.queueLastAttemptAt == nil,
+              queue.queueNextRetryAt == nil, queue.queueLastErrorCode == nil, queue.queueLastErrorMessage == nil,
+              queue.queueLastHTTPStatus == nil, queue.queueLastServerStatus == nil, queue.queueLastServerStage == nil,
+              queue.queueLastServerRetryAfter == nil, queue.gpsLatitude == nil, queue.gpsLongitude == nil,
+              queue.gpsElevation == nil, queue.weatherCondition == nil, queue.weatherTemperatureF == nil,
+              queue.blurScore == nil, queue.subjectDistanceInMeters == nil, queue.locationName == nil,
+              queue.isFlashFired == nil, queue.cameraPitchDegrees == nil, queue.compassHeading == nil,
+              queue.relativeHumidity == nil, queue.uvIndex == nil, queue.zoomFactor == nil else { throw SharedMediaStorageFailure.conflict }
+        guard job.id == r.jobID, job.kindRaw == OfflineJobKind.scanIngestion.rawValue, job.subjectId == value.originQueueID,
+              job.priority == 0, job.statusRaw == OfflineJobStatus.needsAttention.rawValue,
+              job.createdAt == r.timestamp, job.updatedAt == r.timestamp, job.lastAttemptAt == nil,
+              job.nextRunAt == nil, job.attemptCount == 0, job.lastErrorCode == nil, job.lastErrorMessage == nil,
+              job.lastHTTPStatus == nil, job.serverStatus == nil, job.serverStage == nil, job.serverRetryAfter == nil,
+              !job.requiresUnconstrainedNetwork, !job.allowsCellular, job.approximateBytes == r.package.allocated,
+              job.metadataJSON == r.metadata else { throw SharedMediaStorageFailure.conflict }
+        guard event.id == r.eventID, event.jobId == r.jobID, event.scanId == value.originQueueID,
+              event.kindRaw == OfflineQueueEventKind.needsAttention.rawValue, event.createdAt == r.timestamp,
+              event.message == nil, event.errorCode == nil, event.httpStatus == nil, event.metadataJSON == r.metadata else {
+            throw SharedMediaStorageFailure.conflict
+        }
+    }
+    /// Descriptive companion only. Callers still validate the complete receiving
+    /// set; this never relaxes the nil-only admission guard above.
+    nonisolated static func recoveryPresentation(_ data: Data?, prepared: SharedMediaNativeReceivingIntent.Prepared) throws
+        -> AnalysisRecoveryPresentation.StorageLiability {
+        try AnalysisRecoveryPresentation.storageLiability(data, identity: .init(
+            ownerID: prepared.profile.ownerID, observationID: prepared.observationID,
+            operationID: prepared.operationID))
+    }
+
+    private static func fetch<T: PersistentModel>(_ c: ModelContext, _ descriptor: FetchDescriptor<T>) throws -> [T] {
+        var query = descriptor; query.fetchLimit = 2; query.includePendingChanges = true
+        return try c.fetch(query)
+    }
+}

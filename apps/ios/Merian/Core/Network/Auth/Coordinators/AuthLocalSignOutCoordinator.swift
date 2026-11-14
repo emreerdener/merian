@@ -55,8 +55,10 @@ final class AuthLocalSignOutCoordinator {
 
     func signOut(
         ownedBy transition: AuthTransitionToken,
-        dependencies: AuthLocalSignOutDependencies
+        dependencies: AuthLocalSignOutDependencies,
+        preservePrimaryData: Bool = MerianEnvironment.isHistoryQualificationBuild
     ) async {
+        guard !MerianEnvironment.isHistoryQualificationBuild, !preservePrimaryData else { return }
         guard dependencies.transition.owns(transition),
               await dependencies.transition.awaitAccountWorkQuiescence(),
               dependencies.transition.owns(transition) else {
@@ -94,6 +96,7 @@ final class AuthLocalSignOutCoordinator {
                 dependencies.diagnose(.sdkSignOutFailed, error)
             }
 
+            guard dependencies.transition.owns(transition) else { return }
             await dependencies.operations.finishExternalSignOut()
             dependencies.diagnose(.completed, nil)
         }

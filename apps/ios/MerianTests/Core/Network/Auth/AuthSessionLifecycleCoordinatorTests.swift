@@ -3,6 +3,35 @@ import XCTest
 
 @MainActor
 final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
+    func testMediaRenewalFailureOrStaleCompletionStopsDependentWork() async {
+        for outcome in ["failed", "generation", "transition"] {
+            let harness = AuthSessionLifecycleCoordinatorHarness()
+            var renewals = 0
+            harness.renewMediaLifetime = {
+                renewals += 1
+                if outcome == "generation" { harness.currentAuthGeneration &+= 1 }
+                if outcome == "transition" { harness.hasActiveTransition = true }
+                return outcome != "failed"
+            }
+            await AuthSessionLifecycleCoordinator(dependencies: harness.dependencies()).handle(harness.event())
+            XCTAssertEqual(renewals, 1)
+            XCTAssertFalse(harness.events.contains("resume-cloud-deletions"))
+            XCTAssertFalse(harness.events.contains("schedule-historical-sync"))
+        }
+    }
+
+    func testUnstableOrSignedOutSessionNeverRenewsMedia() async {
+        for reason in ["transition", "deletion", "stale", "signedOut"] {
+            let harness = AuthSessionLifecycleCoordinatorHarness()
+            harness.hasActiveTransition = reason == "transition"
+            harness.accountDeletionCleanupPending = reason == "deletion"
+            harness.advanceGenerationAfterEntitlement = reason == "stale"
+            harness.renewMediaLifetime = { XCTFail("Unstable session renewed media"); return false }
+            await AuthSessionLifecycleCoordinator(dependencies: harness.dependencies()).handle(
+                harness.event(adoption: reason == "signedOut" ? .signedOut : nil))
+        }
+    }
+
     func testDeletionCleanupBarrierStopsBeforeDurableOrSessionEffects() async {
         let harness = AuthSessionLifecycleCoordinatorHarness()
         harness.accountDeletionCleanupPending = true
@@ -154,11 +183,37 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
                 "validate-current-session",
                 "begin-entitlement",
                 "validate-current-session",
+                "validate-current-session",
                 "resume-cloud-deletions",
-                "validate-current-session"
+                "validate-current-session",
+                "schedule-historical-sync"
             ]
         )
         XCTAssertEqual(harness.diagnostics.last, .processed)
+    }
+
+    func testAlreadyLinkedOAuthSessionStillSchedulesLibraryRestoration() async {
+        let harness = AuthSessionLifecycleCoordinatorHarness()
+        harness.telemetryResults = [false]
+        let coordinator = AuthSessionLifecycleCoordinator(dependencies: harness.dependencies())
+
+        await coordinator.handle(harness.event(origin: .runtimeTransition))
+
+        XCTAssertEqual(harness.events.filter { $0 == "schedule-historical-sync" }.count, 1)
+        XCTAssertEqual(harness.events.suffix(3), [
+            "resume-cloud-deletions", "validate-current-session", "schedule-historical-sync"
+        ])
+    }
+
+    func testPendingPurchaseHandoffStillDefersLibraryRestoration() async {
+        let harness = AuthSessionLifecycleCoordinatorHarness()
+        harness.pendingPurchaseIdentityHandoff = true
+        harness.telemetryResults = [false, false]
+        let coordinator = AuthSessionLifecycleCoordinator(dependencies: harness.dependencies())
+
+        await coordinator.handle(harness.event(origin: .runtimeTransition))
+
+        XCTAssertFalse(harness.events.contains("schedule-historical-sync"))
     }
 
     func testIdentityChangeResetsIdentityStateBeforePublication() async {
@@ -212,6 +267,7 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
                 "ensure-telemetry",
                 "validate-current-session",
                 "begin-entitlement",
+                "validate-current-session",
                 "validate-current-session",
                 "resume-cloud-deletions",
                 "validate-current-session",

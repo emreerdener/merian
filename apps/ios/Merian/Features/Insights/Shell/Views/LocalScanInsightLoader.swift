@@ -12,6 +12,7 @@ struct LocalScanInsightLoader<Content: View>: View {
         case unavailable
     }
 
+    @Environment(AppDIContainer.self) private var diContainer
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
 
@@ -55,6 +56,7 @@ struct LocalScanInsightLoader<Content: View>: View {
     @MainActor
     private func loadRecord() async {
         phase = .loading
+        let generation = inferenceEngine.scanPresentationGeneration
 
         // Commit the sheet or navigation destination before touching SwiftData
         // or the inference engine so the originating surface stays responsive.
@@ -67,12 +69,35 @@ struct LocalScanInsightLoader<Content: View>: View {
         )
         descriptor.fetchLimit = 1
 
-        guard let record = (try? modelContext.fetch(descriptor))?.first else {
-            phase = .unavailable
-            return
+        do {
+            // Return only scalar ownership from this scope; never retain the
+            // managed record across native media I/O.
+            let authority: SharedMediaConsumerAuthority = try {
+                guard let record = try modelContext.fetch(descriptor).first else { throw SharedMediaStorageFailure.stale }
+                return try SharedMediaConsumerAuthority.classify(raw: record.mediaAuthorityRaw,
+                    consumerID: record.sharedMediaConsumerID, record: .scan)
+            }()
+            if case .nativeInitial(let bindingID) = authority {
+                let container = modelContext.container
+                try await NativeInitialInsightMedia.app(scanID: requestedScanId, bindingID: bindingID,
+                    container: container, di: diContainer,
+                    isPresentedCurrent: { !Task.isCancelled && inferenceEngine.scanPresentationGeneration == generation },
+                    publish: { media in
+                        guard try NativeInitialInsightMedia.binding(scanID: requestedScanId, container: container) == bindingID else {
+                            throw SharedMediaStorageFailure.stale
+                        }
+                        let freshContext = ModelContext(container)
+                        guard let fresh = try freshContext.fetch(descriptor).first else { throw SharedMediaStorageFailure.stale }
+                        inferenceEngine.load(from: fresh, retainedDisplayMedia: media)
+                    })
+            } else {
+                guard let record = try modelContext.fetch(descriptor).first else { throw SharedMediaStorageFailure.stale }
+                inferenceEngine.load(from: record)
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            phase = .unavailable; return
         }
-
-        inferenceEngine.load(from: record)
         guard !Task.isCancelled else { return }
         phase = .loaded
     }

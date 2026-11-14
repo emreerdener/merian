@@ -144,8 +144,13 @@ struct StagedPreviewAudioBoostTests {
         )
         defer { playback.stop() }
         await playback.start()
+        try await waitUntil { playback.player.currentItem?.status == .readyToPlay }
         playback.player.pause()
-        #expect(await playback.player.seek(to: CMTime(seconds: 0.4, preferredTimescale: 600)))
+        #expect(await playback.player.seek(
+            to: CMTime(seconds: 0.4, preferredTimescale: 600),
+            toleranceBefore: .zero, toleranceAfter: .zero
+        ))
+        #expect(abs(playback.player.currentTime().seconds - 0.4) < 0.05)
         playback.toggleBoost()
         try await waitUntil { !playback.isPreparing }
         #expect(playback.isBoostEnabled)
@@ -182,8 +187,13 @@ struct StagedPreviewAudioBoostTests {
         )
         defer { playback.stop() }
         await playback.start()
+        try await waitUntil { playback.player.currentItem?.status == .readyToPlay }
         playback.player.pause()
-        #expect(await playback.player.seek(to: CMTime(seconds: 0.4, preferredTimescale: 600)))
+        #expect(await playback.player.seek(
+            to: CMTime(seconds: 0.4, preferredTimescale: 600),
+            toleranceBefore: .zero, toleranceAfter: .zero
+        ))
+        #expect(abs(playback.player.currentTime().seconds - 0.4) < 0.05)
         let original = playback.player.currentItem
         playback.toggleBoost()
         try await waitUntil { !playback.isPreparing }

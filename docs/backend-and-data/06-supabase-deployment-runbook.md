@@ -71,21 +71,13 @@ or deployed function compatibility.
 The standalone inspection publication includes the active
 `identification_history_integration_hold` in
 `services/supabase/release-holds.json`. It blocks the full Supabase production
-mutation job while permitting this read-only inspection. Inspection approval
-never clears it; a later hold-clearing revision requires separate exact backend
-release authorization under the proposed November 9 beta decision below. Do not
-dispatch the existing deployment workflow to obtain this report: it has no
-read-only inspection mode. Inspection approval does not authorize merging or
-deploying the broader History/PR116 candidate.
+mutation job while permitting this read-only inspection. Keep that hold active;
+removing it requires separate backend release authorization. Do not dispatch the
+existing deployment workflow to obtain this report: it has no read-only
+inspection mode. Inspection approval does not authorize merging or deploying the
+broader History/PR116 candidate.
 
 ## Observation analysis history activation hold
-
-> **Proposed beta backend release:** The
-> [November 9 decision](../release-evidence/history-beta-release-decision-2026-11-09.md)
-> prepares an exact-SHA clearance of the integration deployment hold for the
-> existing beta. This isolated revision must not be published without the
-> owner's exact target/operation approval. It does not clear the runtime feature
-> activation gates or mark unfinished native/manual acceptance complete.
 
 Function source/configuration is not excluded from the normal main-branch deploy
 workflow. In particular, a `services/supabase/config.toml` change selects the
@@ -155,6 +147,19 @@ Empty erasure markers must survive forever under the dedicated
 conditional-writer contract; this is not platform-enforced Object Lock. Require
 a real authorized nonproduction R2 race/HEAD/read-expiry test. No private bucket
 was provisioned or hosted policy verified in local validation.
+
+The later audio-cohort checkpoint `20261007154709` adds
+`prepared_audio_evidence_enabled`, also default false. Keep it closed. The
+separate binary upload endpoint and gated audio execution are now prepared;
+neither is deployed or activated. `20261007171421` adds the independent false
+`audio_analysis_enabled` gate. Keep it closed until native reader 10, mutation
+RPC compatibility and durable audio production/delivery are accepted. Existing
+photo replay remains unchanged. The shared private-erasure worker can retire
+matching expired unbound audio receipts while retaining their
+cohort/object/deadline; this adds no schedule. Future audio activation requires
+coordinated binary validation, provider profile, native persistence and reader
+compatibility plus the same storage/erasure qualification. See the
+[audio cohort contract](05-api-contracts.md#prepared-audio-cohort-rpcs).
 
 The seventh migration, `20261003054717`, prepares description-only funded child
 intents. Keep `admission_enabled` and `dispatch_enabled` false. Its private
@@ -448,6 +453,16 @@ custom approval gates. The production concurrency lock applies only to the
 mutation job, so validation-only pushes do not replace pending production work.
 Scheduled health monitors are unchanged.
 
+The locally approved October 13 history integration candidate adds active
+`identification_history_integration_hold` in
+`services/supabase/release-holds.json`. It holds the entire Supabase production
+job, including unrelated releases, without changing the inactive Field Chat
+exception. It is not yet published or installed on main. The
+[approved integration plan](../rfcs/client-prepared-media-approved-local-plan-2026-10-13.md)
+requires a separate exact-SHA/target release decision before clearing this hold;
+activation flags do not replace it. Older running jobs and external deployment
+integrations require their own verification before any later merge decision.
+
 The Field Chat source hold is inactive under the owner-authorized beta decision
 linked above. The unfinished full-release checklist remains an owner obligation;
 it is not a machine-enforced backend hold or an automatic expiry. Ordinary
@@ -503,31 +518,46 @@ required. When upgrading the CLI, review its bundler image pin with this helper.
 
 The production push first runs `scripts/plan_database_migration_push.ts` against
 read-only migration-version metadata. Ordinary forward migrations use the normal
-push. Two specific delayed-order scenarios are supported: the single
-`20260927220537_hide_reported_explore_posts.sql` gap at tip
-`20260927230801_account_identification_invocations.sql`, and the eight exact
-`HISTORY_RECOVERY_MIGRATIONS` at tip
-`20261003063950_restore_gemini_beta_photo_identification.sql`. The planner owns
-the complete filename and SHA-256 allowlist and verifies the reviewed tip and
-all missing earlier migrations before allowing `--include-all`. Remote-only
-versions, duplicate or malformed history, any unreviewed gap or tip, and changed
-recovery SQL fail closed. An already-recovered database returns to normal push
-behavior. No migration is renamed and no history entry is repaired.
+push. Two digest-pinned recoveries are reviewed:
+
+- The missing `20260927220537_hide_reported_explore_posts.sql` when the remote
+  tip is exactly `20260927230801_account_identification_invocations.sql`.
+- The eight observation-history migrations from `20261002213257` through
+  `20261003063309` when the remote tip is exactly
+  `20261003063950_restore_gemini_beta_photo_identification.sql`. Successful
+  [deployment #1860](https://github.com/emreerdener/merian/actions/runs/37105971469)
+  applied that Gemini migration before the earlier history migrations merged.
+  [Deployment #1861](https://github.com/emreerdener/merian/actions/runs/37237878028)
+  passed candidate validation but rejected those unreviewed gaps. This recovery
+  changes no historical SQL and leaves the history rollout switches closed.
+
+The planner verifies every reviewed candidate SQL file name and SHA-256 digest,
+including the file corresponding to the remote tip, before allowing
+`--include-all`. Remote metadata supplies versions, not deployed SQL bytes. An
+interrupted recovery may resume only after a contiguous earliest prefix of the
+reviewed migrations was applied; the remaining gaps must be the ordered suffix.
+Every file in the approved set must still match. Remote-only versions, duplicate
+or malformed history, another gap, a later remote tip with gaps still open, or
+changed recovery SQL fail closed. An already-recovered database returns to
+normal push behavior. No migration is renamed and no history entry is repaired.
+
+Failures report a closed reason code such as `unreviewed_history_gap` or
+`reviewed_content_changed`. Unexpected connection/runtime errors remain
+`database_or_runtime_failure`; raw exception messages, causes, connection URLs,
+and credentials are never emitted. Candidate success cannot detect every
+production migration-history divergence.
 
 The workflow runs `db push --dry-run` with the selected mode before applying it,
 under the existing Production concurrency lock and exact-current-main controls.
-The missing migration patches Explore report visibility; the later migration
-adds identification invocation accounting without replacing those readers.
-`test_migration_recovery_replay.sh` proves that specific delayed order in a
-private disposable database: replay through the reviewed tip without the missing
-migration, verify the ordinary push refuses it, apply the reviewed gap, then run
-report-visibility, invocation-accounting, and privileged-routine catalog tests.
-The same script also reconstructs the history tip without its eight gaps, then
-applies the full pending history and checks Gemini assignment, history readers,
-append, evidence, funding, protection and privileged-routine catalogs. Candidate
-Validation runs both scenarios in addition to chronological replay and the
-complete catalog suite. These synthetic replays do not establish live data
-contents or hosted mixed-version execution.
+`test_migration_recovery_replay.sh` independently reconstructs both reviewed
+histories in private disposable databases, verifies that ordinary push refuses
+the gaps, applies the approved recovery, and checks normal mode afterward. The
+Explore scenario runs report-visibility, invocation-accounting, and privileged
+routine catalogs. The history scenario runs Gemini assignment, history, reader,
+append, evidence, funding, protected-analysis, and privileged-routine catalogs
+to prove the delayed order preserves the deployed photo policy and closed
+rollout defaults. Candidate Validation runs both regressions in addition to
+normal chronological replay and the complete catalog suite.
 
 A superseded candidate skips deployment at the source hold gate; use the newest
 validated candidate instead of retrying an older SHA. If main advances after
@@ -4922,7 +4952,7 @@ the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
-fleet uses one exact `@supabase/supabase-js@2.117.2` dependency for both
+fleet uses one exact `@supabase/supabase-js@2.119.0` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
@@ -8129,7 +8159,10 @@ deployment workflow does not substitute for this admin gate. Main accepts direct
 pushes. The separate admin Vercel project must require
 `Naturebook Admin Quality / test` as a Deployment Check. Workflow YAML alone
 does not block a merge, direct deployment, Force Promote, or manual deployment.
-Verify Vercel is releasing the exact checked commit.
+Verify Vercel is releasing the exact checked commit. The web and admin workflows
+use distinct explicit job names, `Naturebook Web Quality / test` and
+`Naturebook Admin Quality / test`. Import those exact names for their respective
+projects; the unqualified job name `test` is ambiguous across workflows.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin
@@ -8851,7 +8884,41 @@ review/community writers, public/credit authority, privacy/deletion integration
 and the complete activation matrix still gate rollout. See the
 [prepared UI contract](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).
 
+### Prepared analysis execution retirement hold
+
+`retire-observation-analysis` is authenticated prepared source, registered with
+`verify_jwt=false` because `withEdgeHandler` validates JWTs. It calls only the
+service-only retirement RPC introduced by migration
+`20261007115940_prepare_analysis_execution_retirement.sql`. Any separately
+authorized deployment must apply the reviewed migration before deploying this
+function. Keep `execution_retirement_api_enabled=false` and the independently
+prepared `execution_status_api_enabled=false`; registration is not activation.
+The route is included in the future authenticated-denial smoke list, which must
+not create a retirement request or open a gate.
+
+A configured endpoint enters ordinary function discovery on a future authorized
+deployment; default-off runtime controls do not exclude it from that inventory.
+No deployment, scheduling or gate change is authorized by implementation or
+local tests. Native retained retirement delivery and explicit status actions are
+prepared behind the disabled App installation gate. Unknown-admission sealing
+and remaining device/hosted/privacy qualifications remain separate. A timeout or
+absent status cannot authorize a successor or refund; only exact permanent
+retirement proof can establish this admitted-only terminal outcome.
+
 ## Private cleanup dispatch correlation rollout
+
+**November 12 status:** Both the UUID receipt correlation and legacy-acquisition
+fence are deployed on beta `qlarqavoqhkuwzmevrmf` at
+`c435ea80f5bace1d28b6fc383f290c264c73d3d9` by successful
+[deployment1869](https://github.com/emreerdener/merian/actions/runs/43261123588),
+reusing CI537. The original-cutoff drain observation passed independent
+verification. The separately authorized exact-slot recovery/resumption then
+completed with acknowledged commits and a new UUID-matched receipt followed by
+exact owner settlement. Cleanup is enabled; the other 51 History gates remain
+closed. Actual-byte qualification and the attended phone flow remain pending.
+Neither deployment nor this observation enables History or installs the phone
+app. Earlier local/frozen-candidate descriptions below record the prior stages;
+current execution evidence is in the History continuation/acceptance records.
 
 The
 [correlation incident](../incidents/2026-11-private-evidence-dispatch-correlation.md)

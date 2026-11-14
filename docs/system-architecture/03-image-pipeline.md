@@ -46,6 +46,17 @@ for byte count and pixel dimensions. Callers receive only bounded inference
 bytes, bounded display bytes, and a sendable preview `CGImage`; they do not
 receive the original file bytes or a full-resolution `UIImage`.
 
+The inactive native CPM path explicitly selects
+`ImagePreparationPolicy.Encoding.jpeg` in `SharedMediaNativePhotoProcessor` for
+ordinary file preparation, manual crop export and camera square crops. Both
+AI/display derivatives are encoded once by the existing owners as JPEG, matching
+CPM admission. Default callers retain the WebP-first/JPEG-fallback preference;
+quality, dimensions and byte budgets are unchanged. This option changes neither
+saved original bytes nor already-published derivative bytes, types or digests.
+Cold recovery reads the exact saved pair; it does not regenerate older WebP
+pairs. Wider original formats and full app admission remain unqualified; see the
+[scan integration status](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-30--native-jpeg-preparation-local-qualification).
+
 After downsampling, a **composing-zone-aware square crop** is applied to both
 payloads before WebP encoding. The crop geometry is calculated from the
 on-screen UI layout: `CaptureWorkspaceView` measures the vertical center of the
@@ -83,17 +94,22 @@ capture or gallery pick (consolidated into
 
 ### Automatic focus metadata
 
-Capture Shared's `Services/ImageFocusRegionDetector.swift` runs
+Core/Media's `ImageFocusEngine` runs
 `VNGenerateObjectnessBasedSaliencyImageRequest` revision 2 off the main actor
 against a 512 px derivative of the final inference image. The request has a 300
 ms deadline. Selection uses a 0.50 confidence floor, center proximity only as a
 near-confidence tie-break, 12% subject-relative padding, a 3–70% accepted area
 range, and ambiguity rejection for spatially separate near-confidence
 candidates. Failure, timeout, a broad scene, or no clear subject produces `nil`;
-no synthetic fallback rectangle is created.
+no synthetic fallback rectangle is created. Capture consumes that outcome at the
+existing deadline. Native durable preparation additionally awaits positive
+worker termination through `detectAndDrain`; timeout and cancellation do not
+release account, file or reservation ownership. The immutable nil outcome
+survives a late Vision result. Core performs no telemetry or Capture work.
 
-The detector records only outcome, duration, and a coarse area bucket in
-diagnostics and telemetry. It never records image content or region coordinates.
+Capture Shared’s `ImageFocusRegionDetector` façade records only outcome,
+duration, and a coarse area bucket in diagnostics and telemetry. It never
+records image content or region coordinates.
 
 An accepted region has passed the client confidence, ambiguity, area, and
 geometry checks only. It has not been semantically verified as the user's
@@ -410,17 +426,23 @@ queue acceptance so durable queue/live persistence retains media ownership.
 
 **Video-preparation cancellation boundary**: sampled-frame, playback-export, and
 companion-WAV work run as three bounded concurrent child operations over the
-finished recording. They observe parent cancellation through `DetachedWork` and
-explicit stage checks. Playback and audio results retain their file leases until
-the join succeeds, so an early frame failure cannot leak a concurrently
+finished recording. They observe parent cancellation through their worker owners
+and explicit stage checks. Playback and audio results retain their file leases
+until the join succeeds, so an early frame failure cannot leak a concurrently
 completed export. Newly created WAV and compressed-playback files stay in
 temporary leases until the prepared result is accepted for staging. A failed,
 cancelled, timed-out, superseded, or otherwise unconsumed result therefore
 deletes its files even when an AVFoundation operation completes after the
-timeout winner. Accepted paths transfer to the staged-media cleanup contract
-above. Once staging commits, Scan finalizes the recording generation and hides
-its cancel UI before awaiting the optional Camera Roll write; PhotoKit still
-retains the original recording until that write finishes.
+timeout winner. The join and timeout owners drain all children and explicitly
+discard successful late leases before returning the original error; actor
+release timing is only a fallback. Cleanup failure is reported privately and
+leaves the lease non-accepting and retryable. Borrowed original playback is
+excluded from discard. The audio owner observes its detached worker's result
+before applying cancellation, then explicitly removes every unreturned export.
+Accepted paths transfer to the staged-media cleanup contract above. Once staging
+commits, Scan finalizes the recording generation and hides its cancel UI before
+awaiting the optional Camera Roll write; PhotoKit still retains the original
+recording until that write finishes.
 
 The video companion-audio writer retains valid sample buffers through encoding.
 Its WAVE_EXTENSIBLE exports are normalized through the shared bounded
@@ -1165,7 +1187,7 @@ destination is retained as a user-attention failure rather than submitted.
 | Component                   | Location                                | Responsibility                                                                                                                         |
 | --------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `ImageDownsampler`          | `Core/Data/Images/`                     | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool                                |
-| `ImageFocusRegionDetector`  | `Features/Capture/Shared/Services/`     | Capture-only bounded Vision objectness request, deadline/cancellation bridge, and candidate-resolution policy                          |
+| `ImageFocusRegionDetector`  | `Features/Capture/Shared/Services/`     | Capture telemetry façade over the Core focus engine; unchanged optional deadline outcome                                               |
 | `SizeEstimator`             | `Features/Capture/Submission/Services/` | Optional Capture telemetry projection from LiDAR distance and a bounded Vision objectness result                                       |
 | `ExternalImageImportStore`  | `Core/Data/Images/`                     | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and EXIF extraction |
 | `MediaPreparationActor`     | `Core/Data/Images/`                     | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                |
@@ -1179,3 +1201,40 @@ destination is retained as a user-attention failure rather than submitted.
 | `CloudScanImageRepairActor` | `Core/Data/Images/Services/`            | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
 | `ImageCache`                | `Core/Data/Images/`                     | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
 | `ArchiveManager`            | `Core/Data/Images/`                     | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |
+
+## Prepared private reanalysis evidence
+
+The disabled identification-history producer has a separate immutable-evidence
+boundary. Original V2 JPEG/PNG bytes are verified and retained exactly; they do
+not pass through the ordinary WebP preparation path. Explicitly added or edited
+photos use `ObservationReanalysisPhotoPreparation`: one-frame ImageIO input,
+existing 1024-pixel maximum inference raster and 0.85 quality policy, explicit
+JPEG output without copied metadata. Five-photo and 5 MiB aggregate input/output
+bounds apply before durable child admission. The producer saves a held
+`files_pending` identity and exact manifest before writing private files, then
+uses a locked compare-and-save to make the draft ready. Parent deletion retains
+a durable namespace cleanup receipt. A local worker now removes the entire child
+namespace's file contents under the preparation lock and durably acknowledges
+completion; failures retain the receipt for lifecycle recovery. Targeted local
+recovery can adopt a complete existing cohort under the same locks only after
+verifying the saved source fingerprint, exact file set and all ordered photo
+lengths, digests and containers. It preserves the child identity and selection;
+incomplete evidence stays held. Full-account purge awaits complete namespace
+erasure under an exclusive Documents root lock before preferences and runtime
+state reset; failure retains the account cleanup barrier. Automatic restart
+delivery remains an integration prerequisite. Unsupported or oversized originals
+require explicit remediation; they are never silently dropped or reidentified as
+the original after conversion. The
+[private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
+owns file durability, source/owner fences and integration status. Ordinary
+capture remains on its existing image pipeline.
+
+The protected Capture preparation owner now accepts an explicit subset of the
+frozen source's V2 photos, preserving exact descriptions and mixed-evidence
+order. It returns an all-or-nothing staged value after account, generation,
+source, digest and container checks, using bounded previews with original-byte
+provenance. A retained session mints one child/media plan before preparation and
+rejects changed retry input; a late account loss withholds the response without
+rolling back durable success. The normal Capture route, chooser and submission
+branch remain integration prerequisites. See the
+[Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).

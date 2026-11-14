@@ -11,6 +11,7 @@ struct OnboardingDependencies {
     let currentSessionUserID: @MainActor () -> UUID?
     let trackCompletion: @MainActor () -> Void
     let resumeConsentBlockedScan: @MainActor (_ accountID: UUID) -> Void
+    let resumeSubmittedReanalyses: @MainActor (UUID) -> Void
     let isAmbientAnimationEnabled: @MainActor () -> Bool
 
     init(
@@ -29,6 +30,7 @@ struct OnboardingDependencies {
         resumeConsentBlockedScan: @escaping @MainActor (
             _ accountID: UUID
         ) -> Void = { _ in },
+        resumeSubmittedReanalyses: @escaping @MainActor (UUID) -> Void = { _ in },
         isAmbientAnimationEnabled: @escaping @MainActor () -> Bool = {
             true
         }
@@ -40,6 +42,7 @@ struct OnboardingDependencies {
         self.currentSessionUserID = currentSessionUserID
         self.trackCompletion = trackCompletion
         self.resumeConsentBlockedScan = resumeConsentBlockedScan
+        self.resumeSubmittedReanalyses = resumeSubmittedReanalyses
         self.isAmbientAnimationEnabled = isAmbientAnimationEnabled
     }
 
@@ -89,6 +92,7 @@ struct OnboardingDependencies {
                         )
                 }
             },
+            resumeSubmittedReanalyses: { resolvedOfflineQueueManager.requestReanalysisAdmissionRecovery(.consentGranted($0)) },
             isAmbientAnimationEnabled: {
                 resolvedHardwareOrchestrator.isAnimationEnabled
             }

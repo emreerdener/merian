@@ -34,6 +34,9 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
         let expectedOwners = [
             ("enum ModelStoreRecoveryCoordinator {", "ModelStoreRecoveryCoordinator.swift"),
             ("enum ModelContainerFactory {", "ModelContainerFactory.swift"),
+            ("struct Persistent {", "ModelContainerFactory+Persistent.swift"),
+            ("final class PersistentStoreBootstrapSession {", "PersistentStoreBootstrapSession.swift"),
+            ("struct NativeReleaseStartupAdmission {", "PersistentStoreBootstrapSession.swift"),
             ("enum ModelContainerBootstrapper {", "ModelContainerBootstrapper.swift"),
             ("enum RecentSourceSchema:", "StoreMigrationModels.swift"),
             ("struct StoreMigrationDecision:", "StoreMigrationModels.swift"),
@@ -107,7 +110,9 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
         let expectedTestFiles = [
             "ModelContainerBootstrapperTests.swift",
             "ModelStoreRecoveryCoordinatorTests.swift",
+            "PersistentStoreBootstrapSessionTests.swift",
             "StartupStoreDiagnosticTests.swift",
+            "StartupStoreFenceTests.swift",
             "StoreRecoveryArchitectureTests.swift",
             "StoreRecoveryArtifactArchiverTests.swift",
             "StoreRecoveryTestSupport.swift"

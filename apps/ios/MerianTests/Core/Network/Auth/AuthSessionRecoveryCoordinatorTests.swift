@@ -3,6 +3,37 @@ import XCTest
 
 @MainActor
 final class AuthSessionRecoveryCoordinatorTests: XCTestCase {
+    func testQualificationAuthFailurePreservesPrimaryStateForEveryCleanupEntry() async {
+        for entry in ["unowned", "owned", "cancelled-mutated"] {
+            let harness = AuthSessionRecoveryCoordinatorHarness()
+            harness.activeTransition = entry == "unowned" ? nil : harness.recovery
+            harness.expectedSession = harness.source
+            harness.sdkSession = harness.source
+            harness.publishedSession = harness.source
+            let coordinator = harness.makeCoordinator(preservePrimaryData: true)
+            let outcome: AuthSessionLocalClearOutcome
+            if entry == "unowned" {
+                outcome = await coordinator.clearLocalSessionAfterAuthFailure()
+            } else if entry == "owned" {
+                outcome = await coordinator.clearLocalSessionAfterAuthFailure(ownedBy: harness.recovery)
+            } else {
+                outcome = await Task { @MainActor in
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return await coordinator.clearLocalSessionAfterAuthFailure(
+                        ownedBy: harness.recovery, entryPolicy: .completeMutatedOAuthSession)
+                }.value
+            }
+            XCTAssertEqual(outcome, .rejected)
+            XCTAssertTrue(harness.events.isEmpty)
+            XCTAssertEqual(harness.sdkSession, harness.source)
+            XCTAssertEqual(harness.publishedSession, harness.source)
+            XCTAssertEqual(harness.localStateClearCount, 0)
+            XCTAssertEqual(harness.purchaseSignOutCount, 0)
+            XCTAssertEqual(harness.beginCount, 0)
+            XCTAssertEqual(harness.finishCount, 0)
+        }
+    }
+
     func testOrdinaryRefreshPublishesBeforePurchaseReadiness() async {
         let harness = AuthSessionRecoveryCoordinatorHarness()
         harness.expectedSession = harness.source

@@ -3,28 +3,32 @@ import SwiftUI
 /// Curated highlights for the upcoming build, separate from the full changelog.
 struct WhatsNewSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var showsChangelog = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 36) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("What’s new in\nNaturebook")
+                        Text("What’s new")
                             .font(.largeTitle.bold())
                             .accessibilityIdentifier("WhatsNew_Title")
                             .accessibilityAddTraits(.isHeader)
-
-                        Text("New and improved!")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
                     }
                     .padding(.top, 16)
 
                     VStack(alignment: .leading, spacing: 32) {
+                        // Reserved for the next release; omit from this announcement.
+                        // highlight(
+                        //     symbol: "viewfinder",
+                        //     title: "Scan status at a glance",
+                        //     detail: "Queue scans and keep discovering. Follow their progress with the new activity indicator and get notified when identifications are ready."
+                        // )
+
                         highlight(
-                            symbol: "magnifyingglass",
-                            title: "Find places on the map",
-                            detail: "Search for a location and jump straight to it in your Scans and Explore maps."
+                            symbol: "map",
+                            title: "Improved maps",
+                            detail: "Explore maps with terrain view by default, location search, improved zoom controls, and a distance scale."
                         )
 
                         highlight(
@@ -34,9 +38,9 @@ struct WhatsNewSheet: View {
                         )
 
                         highlight(
-                            symbol: "xmark.circle",
-                            title: "Mark as incorrect",
-                            detail: "Flag an AI identification when it doesn’t match what you found."
+                            symbol: "face.smiling",
+                            title: "React with emojis",
+                            detail: "Add emoji reactions to Explore posts to celebrate discoveries and share how you feel."
                         )
 
                         highlight(
@@ -46,16 +50,42 @@ struct WhatsNewSheet: View {
                         )
 
                         highlight(
-                            symbol: "face.smiling",
-                            title: "React with emojis",
-                            detail: "Add emoji reactions to Explore posts to celebrate discoveries and share how you feel."
-                        )
-
-                        highlight(
                             symbol: "speaker.wave.2",
                             title: "Boost audio",
                             detail: "Make quiet bird calls and other sounds easier to hear when listening to your recordings."
                         )
+
+                        highlight(
+                            symbol: "xmark.circle",
+                            title: "Mark as incorrect",
+                            detail: "Flag an AI identification when you know it doesn’t match what you found."
+                        )
+                    }
+
+                    VStack(spacing: 24) {
+                        Button {
+                            showsChangelog = true
+                        } label: {
+                            Text("View more")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityIdentifier("WhatsNew_ViewMore")
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tint)
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("Continue")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .accessibilityIdentifier("WhatsNew_Continue")
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.large)
                     }
                 }
                 .frame(maxWidth: 560, alignment: .leading)
@@ -63,23 +93,9 @@ struct WhatsNewSheet: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Button {
-                    dismiss()
-                } label: {
-                    Text("Continue")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                }
-                .accessibilityIdentifier("WhatsNew_Continue")
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .frame(maxWidth: 560)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
-                .background(.background)
+            .accessibilityIdentifier("WhatsNew_Content")
+            .navigationDestination(isPresented: $showsChangelog) {
+                ChangelogView()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

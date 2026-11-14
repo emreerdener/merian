@@ -27,7 +27,9 @@ for the Profile tab.
 - **Changelog** owns bundled release-note models and presentation, plus the
   curated `WhatsNewSheet` shared with App launch. Settings → Resources → What’s
   new reopens it without changing launch acknowledgement. `SettingsTabView`
-  serializes its modal destinations through one item-based sheet host.
+  serializes its modal destinations through one item-based sheet host. The
+  highlights end with a secondary **View more** link to the full changelog and a
+  primary **Continue** button, both inside the scrolling content.
 
 ## Ownership boundaries
 
@@ -74,6 +76,14 @@ purchase-identity readiness. It does not initiate a purchase or restore.
 scan and synchronization retries, and an observable restoration snapshot. Both
 the app overlay and Settings route use this adapter; their views resolve no
 repository, queue, scheduler, or application-container singleton.
+
+`LibraryAccountAccessView` presents account recovery inside private destinations
+in `CameraSheetRouter`, including Scans and Profile. It does not mount private
+content while access is blocked, and its Close button returns to Capture.
+Initial Auth delivery/refresh shows progress there before recovery is confirmed.
+Ordinary account recovery never covers or disables the camera.
+`LibraryTransitionPresentation` retains the separate committed sign-out and
+pending-transfer barriers plus transition alerts and retries.
 
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
@@ -484,3 +494,11 @@ saved scan for an explicit eligible retry. The existing dormant sheet alone does
 not satisfy that future requirement. Expected-owner validation, causal evidence
 and unsaved-error handling remain in the
 [consent owner](../../../Core/Security/Consent/README.md).
+
+Account-deletion purge callbacks receive the required recovery scope from Auth.
+`AccountLocalDataDependencies` checks that scope against the supplied model
+container at each repository purge boundary. The sheet forwards the scope and
+its original environment context; it cannot construct deletion authority. See
+the
+[account-deletion contract](../../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
+for sequencing and qualification limits.

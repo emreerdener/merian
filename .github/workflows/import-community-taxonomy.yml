@@ -161,7 +161,7 @@ jobs:
           cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload import summary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: community-taxonomy-import-summary-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
@@ -172,7 +172,7 @@ jobs:
 
       - name: Upload checklist candidate
         if: ${{ github.event_name == 'schedule' || (inputs.dry_run != true && inputs.update_checklist == true) }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: community-taxonomy-checklist-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: docs/backend-and-data/07-community-taxonomy-import-checklist.md

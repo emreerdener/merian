@@ -16,6 +16,26 @@ struct ObservationHistoryEnrollmentProtectionTests {
         try context.save()
     }
 
+    @Test(arguments: [false, true])
+    func queuedLegacyActorWritesCannotChangeHeldOrEnrolledScan(acknowledged: Bool) async throws {
+        let container = try support.container()
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        if acknowledged { _ = try await support.run(support.service(), container) } else { try hold(container) }
+        let before = try #require(ModelContext(container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let originalName = before.commonName, originalOverride = before.userIdentificationOverride
+        let originalConfirmed = before.userConfirmedIdentification, originalFlag = before.isFlagged
+        await actor.beginScanIdentificationOverride(scanId: before.id, scientificName: "Forbidden override")
+        await actor.updateScanWithOverride(scanId: before.id, override: "Forbidden override", confirmed: false,
+            newConfirmedSpeciesId: nil, userReviewState: .userOverridden)
+        await actor.updateScanAsUnflagged(scanId: before.id)
+        await actor.updateScanWithOverrideSpeciesData(scanId: before.id, commonName: "Forbidden name", hazardType: "none",
+            wikipediaOverview: nil, wikipediaUrl: nil, referenceImageUrl: nil, iucnRedListStatus: nil,
+            habitatDescription: nil, gbifTaxonKey: nil, taxonomy: nil, replacingSpeciesIdentity: true)
+        let after = try #require(ModelContext(container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(after.commonName == originalName && after.userIdentificationOverride == originalOverride)
+        #expect(after.userConfirmedIdentification == originalConfirmed && after.isFlagged == originalFlag)
+    }
+
     @Test func delayedReplacementCannotDeleteHeldOrAcknowledgedOriginalThroughStaleContext() async throws {
         let container = try support.container(), stale = ModelContext(container)
         let original = try #require(stale.fetch(FetchDescriptor<LocalScanRecord>()).first)

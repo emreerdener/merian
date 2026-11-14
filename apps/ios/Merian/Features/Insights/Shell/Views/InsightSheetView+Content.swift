@@ -6,7 +6,10 @@ extension InsightSheetView {
         InsightContentView(
             viewModel: viewModel,
             queuedScan: queuedScan,
-            onOpenFieldTripOverview: openFieldTripOverview
+            onOpenFieldTripOverview: openFieldTripOverview,
+            prepareCommunityConsent: communityConsentPreparation,
+            prepareSavedReanalysis: savedReanalysisPreparation,
+            confidenceReviewControls: confidenceReviewControls
         )
             .merianSystemFeedback(
                 toast: $viewModel.state.toastMessage,

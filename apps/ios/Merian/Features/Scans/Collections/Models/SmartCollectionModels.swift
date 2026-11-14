@@ -7,7 +7,6 @@ struct SmartCollectionDefinition: Identifiable, Equatable {
         case recentFinds
         case shared
         case location(String)
-        case taxonomy(SearchCategoryBucket)
         case invasive
         case hazards
     }

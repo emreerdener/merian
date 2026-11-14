@@ -74,6 +74,13 @@ extension SpeciesData {
             && (aiReview.pending == nil || aiReview.pending?.action == .reject)
     }
 
+    var canConfirmReanalysisProposal: Bool {
+        aiReview.state == .awaitingAcceptance && !aiReview.needsAttention
+            && aiReview.pending == nil && isBiological && !isHumanSubject
+            && legacyIdentificationPresentation.hasSpeciesLevelIdentification
+            && userIdentificationOverride == nil
+    }
+
     var canMarkIdentificationIncorrect: Bool {
         isBiological && !isHumanSubject && hasResolvedBiologicalIdentification
             && !aiReview.isUnresolved && aiReview.community == nil

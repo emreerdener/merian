@@ -455,7 +455,12 @@ owner and IP identity, while a third uses the other installed synthetic owner
 and a different IP identity. Its fixture rebinds only the connection-local media
 helper. Actual service-role cancellation checks independently derived
 quota-counter postimages, 19-relation peer preservation and exact replay. This
-is sequential accounting coverage; contention remains a separate suite.
+is sequential accounting coverage; contention remains a separate suite. Before
+the first admission it establishes the bounded same-window precondition
+described below, shared with `counter-order` through
+`initial_atomic_admission_counter_window.py`. Precondition failure closes the
+fixture without admitting any scan. All three admissions and the original
+counter-topology/postimage assertions must still pass.
 
 The `counter-order` suite runs public C1 cancellation against the trusted
 synthetic admission actor in both orders. The fixture installs at most four
@@ -468,20 +473,21 @@ relation access and actual same-IP key/window equality provide bounded wait
 attribution; no third lock scheduler is used. This does not qualify public
 admission, production timing or all possible lock graphs.
 
-Before either admission in each order, the fixture reads the selected
-complimentary policy and verifies its 60-second user/IP windows and daily
-counter. A fresh database clock sample must leave at least 50 seconds in the
-minute/day; at most one wait and one resample are allowed, with a 55-second
-total wait budget. Sample calls use at most five seconds of the remaining budget
-and a two-second SQL statement limit; their measured latency is deducted from
-the available runway. A planned sleep that exceeds the remaining budget is
-rejected. This establishes the same-window scheduling precondition without
-retrying admissions or changing clocks, policies or execution deadlines. The
-original exact counter assertions and observed shared-counter lock dependency
-remain mandatory; an order that crosses the boundary still fails. Sanitized
-counter diagnostics retain only scope/owner labels, window/count/timestamp
-metadata, equality and staging count before asserting. Full counter and peer
-images remain in memory. The deterministic precondition tests run through
+Before the first admission in `counter-images`, and before either admission in
+each `counter-order` order, the fixture reads the selected complimentary policy
+and verifies its 60-second user/IP windows and daily counter. A fresh database
+clock sample must leave at least 50 seconds in the minute/day; at most one wait
+and one resample are allowed, with a 55-second total wait budget. Sample calls
+use at most five seconds of the remaining budget and a two-second SQL statement
+limit; their measured latency is deducted from the available runway. A planned
+sleep that exceeds the remaining budget is rejected. This establishes the
+same-window scheduling precondition without retrying admissions or changing
+clocks, policies or execution deadlines. The original exact counter assertions
+and the `counter-order` observed shared-counter lock dependency remain
+mandatory; a fixture that crosses the boundary still fails. Sanitized counter
+diagnostics retain only scope/owner labels, window/count/timestamp metadata,
+equality and staging count before asserting. Full counter and peer images remain
+in memory. The deterministic precondition tests run through
 `initial_counter_window_test.sh` in the normal tooling gate. A forced rollover
 reproduced the old assertion's susceptibility; it does not establish the cause
 of the original CI515 failure, whose counter images were not retained.
@@ -1082,7 +1088,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.117.2` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.119.0` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -1807,7 +1813,7 @@ moderation exclusion. The complete production negative-state matrix and
 exact-SHA evidence are tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
-The additive `20261108062742_public_web_explore_pagination.sql` migration adds
+The additive `20261113222833_public_web_explore_pagination.sql` migration adds
 `get_public_web_explore_posts_page(integer,timestamptz,uuid)` for the public
 Explore canvas. It keeps the canonical anonymous projection, paired keyset
 cursor, limit 1–48 plus one lookahead row, service-role guard and
@@ -3043,9 +3049,9 @@ schema. After an intentional media-wire change, run
 `make validate-edge-dto-contract`.
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
-archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.117.2 version
+archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.119.0 version
 across the Edge fleet. Public web and internal admin own their pins in their
-package manifests. JOSE 6.2.12 uses the Deno WebCrypto runtime for Apple RS256
+package manifests. JOSE 6.2.15 uses the Deno WebCrypto runtime for Apple RS256
 identity verification and ES256 Apple client-secret/APNs signing. Real-crypto
 tests retain fixed algorithm, issuer, audience, signature, expiry, and
 safe-error behavior using only generated keys and synthetic JWKS responses.
@@ -4092,7 +4098,7 @@ false. See the
 
 ### Prepared public website quarantine
 
-`20261108185855_quarantine_public_web_explore.sql` adds website-only
+`20261113222835_quarantine_public_web_explore.sql` adds website-only
 pending-review filtering to existing public readers and a service-only 128-ID
 eligibility RPC. Open website pages consume scoped visibility snapshots without
 accessing report records. Apply this migration through the separately authorized

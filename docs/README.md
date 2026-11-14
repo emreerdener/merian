@@ -31,7 +31,8 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV57`. The
+active SwiftData source schema is `MerianSchemaV67`; the inactive NCO-1
+original-photo owner is undergoing local validation. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -54,6 +55,19 @@ controls.** The
 owns the verdict. Internal test builds may continue; that does not authorize
 production submission or public release.
 
+- [Current 1.1.0 release checklist](./release-evidence/identification-history-release-checklist-2026-11-13.md)
+  consolidates remaining functional acceptance and distribution checks, with
+  scoped evidence and explicit blockers. Historical checkpoints are preserved.
+- [Identification-history integrated review plan](./rfcs/identification-history-integrated-review-plan-2026-10-07.md)
+  defines the final cross-surface review, evidence ledger and completion
+  criteria. The
+  [integrated review results](./rfcs/identification-history-integrated-review-results-2026-10-07.md)
+  record findings, repairs, validation and remaining qualification.
+- [Identification-history device review](./development-guides/24-identification-history-device-review.md)
+  provides Xcode launch profiles, guided fixture steps and a concise result
+  template, plus the planned existing-beta qualification environment. The
+  [cumulative functional audit](./rfcs/identification-history-alpha-readiness-2026-10-11.md#october-29--cumulative-functional-qualification-agreement)
+  owns whole-candidate acceptance and evidence mapping before later milestones.
 - [Testing strategy](./development-guides/08-testing-strategy.md) owns the
   compiled **iOS Build and Test** gate and **Supabase Candidate Validation**.
   Candidate validation uses a disposable database without production secrets or
@@ -77,10 +91,14 @@ production submission or public release.
 ### Cross-Surface Contracts
 
 - [Scan ingestion and recovery](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md):
-  fresh multimodal success awaits moderation, required media promotion, primary
-  species resolution, scan creation, owner read-back, and canonical media
-  verification. Marked same-UUID replay may reconstruct from the exact owner row
-  while reconciliation remains retryable, without a second provider call.
+  start with the
+  [initial-photo journey](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md#current-initial-photo-integration-entry-point--october-28)
+  for the inactive CPM owners and qualification gaps. In the separate legacy
+  joined flow, fresh multimodal success awaits moderation, required media
+  promotion, primary species resolution, scan creation, owner read-back, and
+  canonical media verification. Marked same-UUID replay may reconstruct from the
+  exact owner row while reconciliation remains retryable, without a second
+  provider call.
 - [Server credentials and database safety](./backend-and-data/13-server-credentials-and-database-release-safety.md):
   header classification, RLS/grants, migration ownership, and replay safety.
 - [Scientific-observation retention](./backend-and-data/17-scientific-observation-retention.md):
@@ -107,24 +125,40 @@ production submission or public release.
 
 ## Planned work
 
+- [Unresolved analysis: recovery and replacement](./rfcs/unresolved-analysis-recovery-and-replacement-2026-10-18.md)
+  records approved planning: bounded recovery UX belongs to current native
+  integration acceptance; explicit replacement remains a separate gated
+  follow-up after the existing deletion/export and redesign sequence.
+  Implementation and qualification remain open; release controls are unchanged.
+
 - [Reversible reanalysis and identification history](./rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
   defines the agreed stable-observation model, full analysis history, revisioned
-  restoration, funding and deletion boundaries, and staged acceptance gates. A
-  private backend foundation, native legacy-deletion refusal holds, and the
-  [V57 authority/display storage](./backend-and-data/04-database-schema.md#v57-per-analysis-authority-and-display-storage),
-  protocol-9 native admission, private photo resolution, saved-baseline import,
-  explicit previews, device-local saved-display capture, prepared native
-  enrollment admission with durable interruption/deletion protection, durable
-  native selection/Undo requests, owner selection transport with durable
-  conflict recovery, and funded child-analysis recovery are prepared locally. A
-  bounded native history list with preview, explicit selection and receipt-bound
-  Undo is also prepared behind injected access. Reader, append, enrollment and
-  selection gates remain disabled. Normal app access still uses replacement
-  reanalysis; the
-  [history sheet](./features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
-  is available only through the explicit Debug UI-test fixture. See the
+  restoration, funding and deletion boundaries, and staged acceptance gates. The
+  gated implementation now includes immutable append-only reanalysis, durable
+  enrollment/selection/review recovery, explicit private-photo publication
+  consent and immutable Field Chat. Durable confirmation Undo supports exact
+  primary/name receipts, including server eligibility recovery after reinstall;
+  it preserves selection and never restores an earlier rejection. The
+  [integrated review and Undo addendum](./rfcs/identification-history-integrated-review-results-2026-10-07.md#undo-confirmation-addendum--october-7-2026)
+  record candidate evidence without implying production readiness. Ordinary app
+  history access remains disabled; existing guided Debug profiles cover selected
+  prepared workflows, not every implemented action. The
+  [Undo verification matrix](./development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+  records direct primary/name Undo UI and joined-presentation cancellation
+  coverage, with stale/imported UI and external qualification kept explicit.
+  Recovered rejection Undo, immutable candidate correction and evidence-based
+  retirement/outcome checks are implemented behind the same disabled access. The
+  [capability checkpoint](./rfcs/identification-history-integrated-review-results-2026-10-07.md#capability-checkpoint-through-e5bbb1783)
+  separates that work from the remaining audio/video integration. The
+  [prepared audio contract](./backend-and-data/05-api-contracts.md#prepared-audio-metadata-generation)
+  now includes gated backend upload/admission/execution and a prepared native V4
+  decoder/cache. Reader-10 action compatibility and durable native audio
+  input/execution are prepared, with real-persistence Debug UI recovery
+  coverage. Ordinary fresh entry remains held on the planned
+  [source-occupancy recovery contract](./rfcs/analysis-source-occupancy-contract-2026-10-08.md);
+  all activation gates remain false. See the
   [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
-  [verification scope](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation),
+  [device checklist](./development-guides/24-identification-history-device-review.md)
   and
   [activation hold](./backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
 
@@ -177,6 +211,9 @@ production submission or public release.
 - **[`/incidents/README.md`](./incidents/README.md)** — Incident authority,
   privacy, status, naming, and maintenance rules, plus the canonical new-record
   template.
+- **[OAuth library restoration](./incidents/2026-11-oauth-library-restoration.md)**
+  records the already-linked identity scheduling defect and distinguishes the
+  source correction from pending simulator/data recovery verification.
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
   — Bounded pre-queue admission fallback, required first-failure **Queued for
   later** behavior, the durable-owner versus local-presentation ownership
@@ -665,6 +702,11 @@ production submission or public release.
 
 ### Features & Hardware
 
+- **[Capture tools and review plan](./product/capture-review-plan.md)** —
+  Proposed consolidated capture/review journey, supporting-details session,
+  shared draft toolbar, media editors, and implementation dependency handoff.
+  Not a shipped behavior or qualification claim.
+
 - **[Staged capture review and shared Describe](./features-and-hardware/29-staged-capture-review.md)**
   — Current capture lifecycle: default review, opt-in Auto-submit, separate
   media/note budgets, the single Describe editor, protected discard, readiness,
@@ -803,6 +845,14 @@ production submission or public release.
   clustering, private Insight routing, exact-coordinate privacy boundaries,
   sensitive-reset and stale-completion fencing, accessibility, verification, and
   candidate release status.
+- **[Initial analysis and reanalysis lifecycle hardening](./rfcs/main-analysis-lifecycle-hardening-2026-10-10.md)**
+  — Proposed end-to-end reliability audit of both paths, four implementation
+  slices, permanent execution and cleanup fences, and future scan-token
+  integration boundaries.
+- **[Trace a scan from Capture to History](./development-guides/25-scan-to-history.md)**
+  — Contributor entry point for media ownership, durable submission, admission,
+  dispatch, immutable results, completion, history/reanalysis and interruption
+  recovery, including current inactive boundaries and qualification commands.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

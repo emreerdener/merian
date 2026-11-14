@@ -12,7 +12,8 @@ extension OfflineQueueManager {
         preservePreferredGoalHint: Bool = false,
         inferenceExpectation: InferenceGenerationExpectation? = nil,
         foregroundInferenceExpectation: ForegroundInferenceGenerationExpectation? = nil,
-        serverPollTokenToPreserve: UUID? = nil
+        serverPollTokenToPreserve: UUID? = nil,
+        enumerateBackgroundTasks: (() async -> [URLSessionTask])? = nil
     ) async -> Bool {
         await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
         guard !Task.isCancelled,
@@ -26,7 +27,8 @@ extension OfflineQueueManager {
             preservePreferredGoalHint: preservePreferredGoalHint,
             inferenceExpectation: inferenceExpectation,
             foregroundInferenceExpectation: foregroundInferenceExpectation,
-            serverPollTokenToPreserve: serverPollTokenToPreserve
+            serverPollTokenToPreserve: serverPollTokenToPreserve,
+            enumerateBackgroundTasks: enumerateBackgroundTasks
         )
         await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
         return didDelete
@@ -38,8 +40,11 @@ extension OfflineQueueManager {
         preservePreferredGoalHint: Bool,
         inferenceExpectation: InferenceGenerationExpectation?,
         foregroundInferenceExpectation: ForegroundInferenceGenerationExpectation?,
-        serverPollTokenToPreserve: UUID?
+        serverPollTokenToPreserve: UUID?,
+        enumerateBackgroundTasks: (() async -> [URLSessionTask])?
     ) async -> Bool {
+        guard let container = modelContext?.container,
+              SharedMediaLegacyQueueAccess.permitsFresh(container, scanID: scanId) else { return false }
         let completedInference =
             inferenceExpectation != nil ||
             foregroundInferenceExpectation != nil
@@ -111,8 +116,11 @@ extension OfflineQueueManager {
             }
         }
 
+        guard SharedMediaLegacyQueueAccess.permitsFresh(container, scanID: scanId) else { return false }
+
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
-        let allTasks = await backgroundSession.allTasks
+        let allTasks: [URLSessionTask]
+        if let enumerateBackgroundTasks { allTasks = await enumerateBackgroundTasks() } else { allTasks = await backgroundSession.allTasks }
         if let foregroundInferenceExpectation {
             guard !Task.isCancelled,
                   foregroundInferenceGenerations[scanId]
@@ -164,6 +172,8 @@ extension OfflineQueueManager {
                 return false
             }
         }
+
+        guard SharedMediaLegacyQueueAccess.permitsFresh(container, scanID: scanId) else { return false }
 
         // Clear in-process ownership only after the suspension point above has
         // revalidated the caller. A stale delete must not cancel replacement work.
@@ -418,8 +428,10 @@ extension OfflineQueueManager {
             let failedScans = try context.fetch(descriptor)
             guard !failedScans.isEmpty else { return }
             var pathsToDelete: [String] = []
-            for scan in failedScans {
+            for scan in failedScans where scan.permitsOrdinaryInference {
                 let scanId = scan.id
+                guard SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: scanId),
+                      try SharedMediaLegacyQueueAccess.permits(context, scanID: scanId) else { continue }
                 for item in scan.capturedMediaSnapshot.items {
                     switch item {
                     case .image(let reference), .audio(let reference):

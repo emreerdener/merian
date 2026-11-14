@@ -15,16 +15,21 @@ struct CaptureSubmissionAdmissionDependencies {
     let preview: @MainActor @Sendable (
         _ flashFallbackEligible: Bool
     ) async -> ScanAdmissionPreviewResult
+    var accountID: @MainActor @Sendable () -> UUID? = { nil }
+    var isLibraryAccessBlocked: @MainActor @Sendable () -> Bool = { false }
 }
 
 struct CaptureSubmissionDependencies {
     let context: CaptureSubmissionContextDependencies
     let admission: CaptureSubmissionAdmissionDependencies
     let deferredContext: CaptureSubmissionDeferredContextService
+    var nativePhotoDraftFactory: (@MainActor (UUID) -> CaptureNativePhotoDraftSession)?
+    var nativePhotoSubmission: CaptureNativePhotoSubmissionSession?
+    var nativeRecoveryFactory: (@MainActor (UUID) -> CaptureNativeRecoveryModel?)?
 
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {
-        Self(
+        var dependencies = Self(
             context: CaptureSubmissionContextDependencies(
                 lastKnownLocation: {
                     diContainer.environmentContextManager.lastKnownLocation
@@ -53,11 +58,30 @@ struct CaptureSubmissionDependencies {
                     await diContainer.scanAdmissionManager.preview(
                         flashFallbackEligible: flashFallbackEligible
                     )
+                },
+                accountID: {
+                    let manager = diContainer.supabaseManager
+                    _ = manager.authSessionGeneration
+                    // Retain a draft through transient refresh of the same cached
+                    // identity. This is local ownership, never request authority.
+                    return manager.currentUser?.id ?? manager.client.auth.currentSession?.user.id
+                },
+                isLibraryAccessBlocked: {
+                    let manager = diContainer.supabaseManager
+                    return manager.libraryAccountRecoveryRequired
+                        || manager.librarySignOutRecoveryPending
+                        || (manager.libraryTransferResult != .completed && !manager.isGuestUser)
                 }
             ),
             deferredContext: .live(
                 offlineQueueManager: diContainer.offlineQueueManager
             )
         )
+        if PreparedHistoryReanalysisComposition.isAppInstallationQualified {
+            dependencies.nativeRecoveryFactory = { ownerID in
+                CaptureNativeRecoveryModel.app(ownerID: ownerID, diContainer: diContainer)
+            }
+        }
+        return dependencies
     }
 }

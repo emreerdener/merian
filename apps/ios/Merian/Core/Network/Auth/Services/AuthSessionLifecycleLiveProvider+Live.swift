@@ -2,7 +2,7 @@ import Supabase
 
 extension AuthSessionLifecycleLiveProvider {
     static func live(client: SupabaseClient) -> Self {
-        Self(
+        let provider = Self(
             startListening: { handler in
                 let authStateChanges = client.auth.authStateChanges
                 return Task { @MainActor in
@@ -30,5 +30,11 @@ extension AuthSessionLifecycleLiveProvider {
                 )
             }
         )
+#if DEBUG
+        if TestExecutionCoordinator.isRunningUITests {
+            liveProviderForUITesting = provider
+        }
+#endif
+        return provider
     }
 }

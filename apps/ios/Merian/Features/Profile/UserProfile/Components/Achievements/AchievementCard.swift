@@ -6,13 +6,14 @@ struct AchievementCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 20) {
-            AchievementIconView(award: award)
             AchievementMetricsView(award: award)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            AchievementIconView(award: award)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }

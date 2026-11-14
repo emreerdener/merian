@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct MapGlassCapsule: ViewModifier {
@@ -11,6 +12,7 @@ struct MapGlassCapsule: ViewModifier {
 }
 
 struct MapNavigationToolbar: View {
+    let mapScope: Namespace.ID
     let appearance: MapAppearance
     let isLocating: Bool
     let identifierPrefix: String
@@ -19,39 +21,46 @@ struct MapNavigationToolbar: View {
     let onLocate: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onToggleStyle) {
-                Image(systemName: appearance == .satellite ? "map" : "globe.americas.fill")
-                    .frame(width: 48, height: 48)
-            }
-            .accessibilityLabel(appearance == .satellite ? "Show standard map" : "Show satellite map")
-            .accessibilityValue(appearance == .satellite ? "Satellite" : "Standard")
-            .accessibilityIdentifier(identifierPrefix + "Style")
+        VStack(alignment: .trailing, spacing: 16) {
+            MapScaleView(anchorEdge: .trailing, scope: mapScope)
+                .mapControlVisibility(.visible)
+                .fixedSize()
+                .allowsHitTesting(false)
 
-            Button(action: onSearch) {
-                Image(systemName: "magnifyingglass").frame(width: 48, height: 48)
-            }
-            .accessibilityLabel("Search locations")
-            .accessibilityIdentifier(identifierPrefix + "Search")
-
-            Button(action: onLocate) {
-                Group {
-                    if isLocating {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "location")
-                    }
+            HStack(spacing: 0) {
+                Button(action: onToggleStyle) {
+                    Image(systemName: appearance == .satellite ? "map" : "globe.americas.fill")
+                        .frame(width: 48, height: 48)
                 }
-                .frame(width: 48, height: 48)
+                .accessibilityLabel(appearance == .satellite ? "Show standard map" : "Show satellite map")
+                .accessibilityValue(appearance == .satellite ? "Satellite" : "Standard")
+                .accessibilityIdentifier(identifierPrefix + "Style")
+
+                Button(action: onSearch) {
+                    Image(systemName: "magnifyingglass").frame(width: 48, height: 48)
+                }
+                .accessibilityLabel("Search locations")
+                .accessibilityIdentifier(identifierPrefix + "Search")
+
+                Button(action: onLocate) {
+                    Group {
+                        if isLocating {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "location")
+                        }
+                    }
+                    .frame(width: 48, height: 48)
+                }
+                .disabled(isLocating)
+                .accessibilityLabel("Locate me")
+                .accessibilityIdentifier(identifierPrefix + "Locate")
             }
-            .disabled(isLocating)
-            .accessibilityLabel("Locate me")
-            .accessibilityIdentifier(identifierPrefix + "Locate")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.primary)
+            .buttonStyle(.plain)
+            .modifier(MapGlassCapsule())
         }
-        .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(.primary)
-        .buttonStyle(.plain)
-        .modifier(MapGlassCapsule())
     }
 }
 
@@ -92,7 +101,7 @@ struct MapBottomControlRow<Count: View, Controls: View>: View {
                 controls()
             }
         } else {
-            HStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
                 count()
                 Spacer(minLength: 0)
                 controls().fixedSize()

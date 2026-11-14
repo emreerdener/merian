@@ -3,6 +3,46 @@ import Foundation
 extension CaptureWorkspaceViewModel {
     var isDraftMutationLocked: Bool {
         isQueueingStagedCapture || isCheckingScanAdmission || discardConfirmationGeneration != nil
+            || nativePhotoImportTask != nil || nativePhotoDispositionTask != nil
+            || (nativePhotoDraftSession.map { !$0.canEdit } ?? (stagedCapture.nativePhotoDraft != nil))
+    }
+
+    var isDraftAccountCurrent: Bool {
+        draftSession.allowsAccount(dependencies.submission.admission.accountID())
+    }
+
+    /// A real identity replacement retires old private staging. An unresolved
+    /// fresh capture remains unowned; a same-account token refresh preserves it.
+    func handleDraftAccountChange() {
+        if nativeRecoveryModel?.isCurrent == false || dependencies.submission.admission.isLibraryAccessBlocked() {
+            dismissNativeRecovery()
+        }
+        guard !isDraftAccountCurrent else { return }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            nativePhotoImportTask?.cancel()
+            nativePhotoDraftSession?.clearPrivatePreviews()
+            clearNativePhotoPresentation()
+            offlineToastMessage = .information("Your local photo draft is retained while account access is resolved.")
+            return
+        }
+        if let access = dependencies.photoOriginalPreparation {
+            Task { _ = await access.owner.invalidateAndAwaitForAccountTransition() }
+            offlineToastMessage = .information("Your local photo draft is retained while account access is resolved.")
+            return
+        }
+        diContainer.audioCaptureManager.reset()
+        diContainer.speechManager.stopDictation()
+        cancelRefinementStaging()
+        clearStagedCaptureAndCropState(
+            discardStagedMediaFiles: !isQueueingStagedCapture,
+            allowingPendingQueue: true
+        )
+        baseRefinementContext = nil
+        refinementSubjectId = nil
+        selectedPhotoItems.removeAll()
+        preFetchTask?.cancel()
+        preFetchTask = nil
+        offlineToastMessage = .information("Draft cleared after the account changed.")
     }
 
     /// Also used after admission, when the admission lock is already held.
@@ -15,29 +55,41 @@ extension CaptureWorkspaceViewModel {
 
     var canSubmitDraft: Bool {
         isDraftReadyForSubmission && !isCheckingScanAdmission && !stagedCapture.isEmpty
+            && nativePhotoImportTask == nil && nativePhotoDispositionTask == nil
+            && (nativePhotoDraftSession.map { $0.canEdit || $0.prepared != nil } ?? true)
     }
 
     var photoPickerSelectionLimit: Int {
-        let freshAutomaticCapture = diContainer.appSettings.autoSubmitScans
+        let freshAutomaticCapture = !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans
             && stagedCapture.isEmpty && descriptionDraft.isEmpty && baseRefinementContext == nil
         return freshAutomaticCapture ? 1 : max(1, availableStagedCaptureSlots)
     }
 
-    func beginDraftOperation() -> CaptureDraftSession.Operation? {
+    func beginDraftOperation(nativePhoto: Bool = false) -> CaptureDraftSession.Operation? {
+        guard nativePhoto || !usesNativePhotoComposition else { return nil }
         guard !isDraftMutationLocked, !draftSession.hasUnresolvedWork else { return nil }
+        if let access = dependencies.photoOriginalPreparation {
+            guard dependencies.submission.admission.accountID() == access.owner.account.ownerID,
+                  !dependencies.submission.admission.isLibraryAccessBlocked() else { return nil }
+        }
+        guard bindDraftToCurrentAccount() else { return nil }
         automaticPreferenceRevision = diContainer.appSettings.autoSubmitRevision
         return draftSession.begin(
-            autoSubmit: diContainer.appSettings.autoSubmitScans,
+            autoSubmit: !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans,
             compositionIsEmpty: stagedCapture.isEmpty && descriptionDraft.isEmpty,
             isRefining: baseRefinementContext != nil
         )
     }
 
-    func completeDraftOperation(_ operation: CaptureDraftSession.Operation, succeeded: Bool) {
+    func completeDraftOperation(_ operation: CaptureDraftSession.Operation, succeeded: Bool, preservingRestoredContext: Bool = false) {
         guard draftSession.finish(operation, succeeded: succeeded) else { return }
         if succeeded {
             isReviewActive = true
-            synchronizeSharedDescription()
+            if !preservingRestoredContext { synchronizeSharedDescription() }
+            if dependencies.submission.admission.isLibraryAccessBlocked() {
+                revokeAutomaticSubmission()
+                return
+            }
             beginAutomaticStagedSubmissionIfEligible()
         } else {
             finishAutomaticStagedSubmissionAttempt()
@@ -61,7 +113,7 @@ extension CaptureWorkspaceViewModel {
         }
         guard let operation = audioDraftOperation,
               operation.id == recorder.recordingID,
-              draftSession.contains(operation) else {
+              draftSession.contains(operation), isDraftAccountCurrent else {
             if let operation = audioDraftOperation, operation.id == recorder.recordingID {
                 completeDraftOperation(operation, succeeded: false)
                 audioDraftOperation = nil
@@ -85,12 +137,13 @@ extension CaptureWorkspaceViewModel {
     }
 
     func updateDescriptionDraft(_ context: ObservationContext) {
-        guard !isDraftMutationLocked else { return }
+        guard !isDraftMutationLocked, bindDraftToCurrentAccount() else { return }
         descriptionDraft = context
         revokeAutomaticSubmission()
         if isReviewActive || !stagedCapture.isEmpty || baseRefinementContext != nil {
             synchronizeSharedDescription()
         }
+        schedulePhotoPreparationPersistence()
         resetReviewIfEmpty()
     }
 
@@ -119,6 +172,10 @@ extension CaptureWorkspaceViewModel {
 
     func requestDraftDiscard() {
         guard !isQueueingStagedCapture, !isCheckingScanAdmission else { return }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            guard nativePhotoDraftSession?.canDiscard == true, !draftSession.hasUnresolvedWork,
+                  nativePhotoImportTask == nil, nativePhotoDispositionTask == nil else { return }
+        }
         discardConfirmationGeneration = draftSession.generation
     }
 
@@ -126,6 +183,10 @@ extension CaptureWorkspaceViewModel {
     func confirmDraftDiscard(generation: UUID) -> Bool {
         guard generation == draftSession.generation,
               !isQueueingStagedCapture, !isCheckingScanAdmission else { return false }
+        if nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil {
+            guard nativePhotoDraftSession?.canDiscard == true, !draftSession.hasUnresolvedWork,
+                  nativePhotoImportTask == nil, nativePhotoDispositionTask == nil else { return false }
+        }
         discardConfirmationGeneration = nil
         restoreRefinementInsightAfterCancellation()
         clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
@@ -141,5 +202,18 @@ extension CaptureWorkspaceViewModel {
             descriptions: max(stagedCapture.observationContexts.count, descriptionDraft.isEmpty ? 0 : 1),
             videos: stagedCapture.videos.count
         )
+    }
+
+    func bindDraftToCurrentAccount() -> Bool {
+        let admission = dependencies.submission.admission
+        // A fresh subject captured during recovery belongs to no library yet,
+        // even if the SDK currently holds a different account's credentials.
+        if draftSession.ownership == .unowned, admission.isLibraryAccessBlocked() { return true }
+        guard draftSession.bindAccount(admission.accountID()) else {
+            revokeAutomaticSubmission()
+            offlineToastMessage = .information("This draft belongs to another account. Restore it in Profile or discard the draft.")
+            return false
+        }
+        return true
     }
 }

@@ -75,7 +75,7 @@
       "active": false,
       "scope": "supabase_production",
       "owner": "History release owner",
-      "reason": "Proposed beta release decision for qlarqavoqhkuwzmevrmf. This inactive manifest already clears the source gate; this reason and retained exit criteria are documentation, not an executable pending-approval or one-run restriction. Keep this revision unpublished until the owner explicitly authorizes its exact SHA, protected-main publication and backend operation. See docs/release-evidence/history-beta-release-decision-2026-11-09.md for the reviewed upgrade plan, deferred acceptance and repair limits. Exact-SHA Candidate Validation, current-main/live controls, data/account/funding fences and ordered workflow checks remain mandatory. The proposed operation includes existing retry-bounded maintenance/export smokes and guarded legacy Field Chat activation as documented; new History/protected-media/erasure activation, paid test inference and device distribution remain separate.",
+      "reason": "Prepared source consolidation proposes retiring the October 13 integration freeze; this local candidate is not approved for publication or deployment. The exact-SHA merge and beta deployment request in docs/release-evidence/pr-consolidation-preparation-2026-11-13.md must be approved before external execution. Required CI, migration inventory, production controls, and postdeployment verification remain mandatory. Known native audio reanalysis and all-media acceptance gaps remain open; this is not App Store or TestFlight qualification. Existing History activation settings are preserved.",
       "exit_criteria": [
         {
           "id": "history_exact_target_release_approval",

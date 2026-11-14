@@ -6,6 +6,27 @@ import Testing
 @MainActor
 @Suite("Account deletion local cleanup store")
 struct AccountDeletionLocalCleanupStoreTests {
+    @Test func recoveryScopeSeparatesRuntimeJoinFromAcceptedPurge() throws {
+        let container = NSObject(), foreign = NSObject()
+        for state: AccountDeletionLocalRecoveryState? in [nil, .intakePending, .capabilityPreparationPending,
+            .capabilityPreparedPending, .capabilityIntakePending, .cleanupPending, .capabilityCleanupPending,
+            .capabilityRetirementPending, .capabilityRejectionRetirementPending, .capabilityLookupPending] {
+            let store = AccountDeletionSecureStoreStub().makeCapabilityStore()
+            let proof = state?.requiresRecoveryCapability == true ? try store.prepare() : nil
+            var current = true
+            let scope = AccountDeletionLocalCleanupStore.RecoveryScope(expectedState: state, expectedCapability: proof,
+                capabilityStore: store, readState: { state }, validateSession: { current },
+                validateLibrary: { $0 == nil || $0 === container })
+            let accepted = state == .cleanupPending || state == .capabilityCleanupPending || state == .capabilityRetirementPending
+            #expect(scope.permitsRuntimeDrain == (state == nil || state?.isIntakePending == true || accepted))
+            #expect(scope.permitsLibraryPurge(in: container) == accepted)
+            #expect(!scope.permitsLibraryPurge(in: foreign))
+            current = false
+            #expect(!scope.permitsRuntimeDrain)
+            #expect(!scope.permitsLibraryPurge(in: container))
+        }
+    }
+
     @Test func persistenceContractValuesRemainStable() {
         #expect(
             UserDefaultsKeys.pendingManualAppleRevocationNotice ==

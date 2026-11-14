@@ -316,7 +316,7 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
   );
   assertStringIncludes(
     source,
-    "try await self.supabaseAuthSessionService.installSession( using: credentials )",
+    "try await self.supabaseAuthSessionService.installSession(using: credentials)",
   );
   assertStringIncludes(
     authSessionService,
@@ -328,7 +328,7 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
   );
   assertStringIncludes(
     authSessionLiveService,
-    "try await client.auth.signInWithIdToken( credentials: credentials )",
+    "try await client.auth.signInWithIdToken(credentials: credentials)",
   );
   assert(
     !source.includes("client.auth.linkIdentityWithIdToken(") &&
@@ -1083,7 +1083,7 @@ Deno.test("OAuth replacement suppresses analytics and reconciles every dispositi
   assertStringIncludes(models, "case installed");
   assertStringIncludes(models, "case failed");
   assertStringIncludes(models, "case cancelled");
-  assertStringIncludes(source, "case .cancelled:");
+  assertStringIncludes(source, "case .failed, .cancelled:");
   assertStringIncludes(source, "== sourceSession");
   assertStringIncludes(
     cancellationTests,

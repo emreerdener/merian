@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Testing
 
 @testable import Merian
@@ -86,6 +87,93 @@ struct IdentificationPreflightTransportTests {
                 onProviderDispatchReady: { Issue.record("Stale attempt released upload") })
         }
     }
+    @Test(arguments: [IdentificationRecipientExpectation.gemini, .openAI])
+    func nativePhotoAdmissionSynchronizesConsentBeforeShapeRead(_ recipient: IdentificationRecipientExpectation) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let input = try IdentificationPreflightInput(nativePhotoObservationID: UUID(), photoCount: 1, contexts: [])
+        let events = OSAllocatedUnfairLock(initialState: [String]())
+        fixture.client.overridingInferenceConsentCheck = { events.withLock { $0.append("consent") } }
+        fixture.transport.register(path: "/get_my_identification_preflight") { wire in
+            #expect(events.withLock { $0 } == ["consent"])
+            events.withLock { $0.append("preflight") }
+            let body = try #require(MockURLProtocol.bodyData(for: wire))
+            #expect(try NetworkEndpointTestSupport.canonicalRequestJSON(body)
+                == NetworkEndpointTestSupport.canonicalRequestJSON(JSONEncoder().encode(input)))
+            return try NetworkEndpointTestSupport.response(to: wire, json:
+                "[{\"input_profile\":\"multimodal_photo_v1\",\"decision\":\"ready\",\"processor_permission\":\"\(recipient.rawValue)\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(recipient == .openAI ? 5 : 0)}]")
+        }
+        let authorization = try await fixture.client.prepareNativePhotoAdmissionAuthorization(
+            input: input, expectedAuthUserID: owner, validateAttempt: {})
+        #expect(authorization.recipient == recipient)
+        try authorization.validate()
+        #expect(events.withLock { $0 } == ["consent", "preflight"])
+    }
+
+    @Test(arguments: ["owner", "consent", "stale-before", "stale-after", "owner-after"])
+    func nativePhotoAdmissionStopsBeforeReadWhenConsentOrAttemptChanges(_ reason: String) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let input = try IdentificationPreflightInput(nativePhotoObservationID: UUID(), photoCount: 2, contexts: [])
+        let synced = OSAllocatedUnfairLock(initialState: false), sends = OSAllocatedUnfairLock(initialState: 0)
+        fixture.client.overridingInferenceConsentCheck = {
+            synced.withLock { $0 = true }
+            if reason == "consent" { throw MerianError.aiConsentRequired }
+            if reason == "owner-after" { await MainActor.run { fixture.client.overridingAuthUserID = UUID() } }
+        }
+        fixture.transport.register(path: "/get_my_identification_preflight") { wire in
+            sends.withLock { $0 += 1 }
+            return try NetworkEndpointTestSupport.readyGeminiPreflight(wire)
+        }
+        await #expect(throws: (any Error).self) {
+            try await fixture.client.prepareNativePhotoAdmissionAuthorization(input: input,
+                expectedAuthUserID: reason == "owner" ? UUID() : owner, validateAttempt: {
+                    if reason == "stale-before" || (reason == "stale-after" && synced.withLock({ $0 })) {
+                        throw CancellationError()
+                    }
+                })
+        }
+        #expect(sends.withLock { $0 } == 0)
+        if ["owner", "stale-before"].contains(reason) { #expect(!synced.withLock { $0 }) }
+    }
+
+    @Test func nativePhotoAdmissionRechecksAttemptAfterReadAndAtSave() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let input = try IdentificationPreflightInput(nativePhotoObservationID: UUID(), photoCount: 1, contexts: [])
+        let stale = OSAllocatedUnfairLock(initialState: false)
+        fixture.client.overridingInferenceConsentCheck = {}
+        let validate: @MainActor @Sendable () throws -> Void = {
+            if stale.withLock({ $0 }) { throw CancellationError() }
+        }
+        let authorization = try await fixture.client.prepareNativePhotoAdmissionAuthorization(
+            input: input, expectedAuthUserID: owner, validateAttempt: validate)
+        stale.withLock { $0 = true }
+        #expect(throws: CancellationError.self) { try authorization.validate() }
+        stale.withLock { $0 = false }
+        fixture.transport.register(path: "/get_my_identification_preflight") { wire in
+            stale.withLock { $0 = true }
+            return try NetworkEndpointTestSupport.readyGeminiPreflight(wire)
+        }
+        await #expect(throws: CancellationError.self) {
+            try await fixture.client.prepareNativePhotoAdmissionAuthorization(
+                input: input, expectedAuthUserID: owner, validateAttempt: validate)
+        }
+    }
+
+    @Test func nativePhotoAdmissionRejectsNonPhotoShapeBeforeConsent() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let input = try IdentificationPreflightInput(body: JSONSerialization.data(withJSONObject:
+            ["client_scan_id": UUID().uuidString, "observation_contexts": [["freeText": "synthetic leaf"]]]),
+            function: "identify-multimodal")
+        fixture.client.overridingInferenceConsentCheck = { Issue.record("Non-photo shape reached consent") }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await fixture.client.prepareNativePhotoAdmissionAuthorization(
+                input: input, expectedAuthUserID: owner, validateAttempt: {})
+        }
+    }
+
     private func telemetry() -> CaptureTelemetry {
         CaptureTelemetry(subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil,
                          gpsElevation: nil, locationName: nil, weatherCondition: nil,

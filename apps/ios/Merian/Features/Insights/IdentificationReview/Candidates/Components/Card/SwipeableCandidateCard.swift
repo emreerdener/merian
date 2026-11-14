@@ -8,6 +8,7 @@ struct SwipeableCandidateCard: View {
     let isSwipingRight: Bool
     let isSwipingLeft: Bool
     let feedback: IdentificationReviewFeedbackDependencies
+    let protectedReview: AnalysisCandidateReviewModel?
 
     // Uses the Species Reference fallback loader for ordered Wikipedia/GBIF imagery.
     @State private var imageFetcher: SimilarSpeciesImageFetcher
@@ -22,7 +23,8 @@ struct SwipeableCandidateCard: View {
         isSwipingRight: Bool,
         isSwipingLeft: Bool,
         imageDependencies: SimilarSpeciesImageDependencies,
-        feedback: IdentificationReviewFeedbackDependencies
+        feedback: IdentificationReviewFeedbackDependencies,
+        protectedReview: AnalysisCandidateReviewModel? = nil
     ) {
         self.candidate = candidate
         self.isDragging = isDragging
@@ -30,6 +32,7 @@ struct SwipeableCandidateCard: View {
         self.isSwipingRight = isSwipingRight
         self.isSwipingLeft = isSwipingLeft
         self.feedback = feedback
+        self.protectedReview = protectedReview
         self._imageFetcher = State(
             initialValue: SimilarSpeciesImageFetcher(
                 dependencies: imageDependencies
@@ -165,7 +168,7 @@ struct SwipeableCandidateCard: View {
             // Species info bottom bar
             VStack(alignment: .leading, spacing: 8) {
                 // Confidence score
-                Text(inferenceEngine.speciesData?.identificationConfidenceBands != nil
+                Text(protectedReview.map { $0.review.ticket.candidateConfidenceQualified } ?? (inferenceEngine.speciesData?.identificationConfidenceBands != nil)
                      ? "\(Int(candidate.confidenceScore * 100))% match"
                      : "Alternative suggestion")
                     .font(.caption.weight(.bold))
@@ -181,7 +184,7 @@ struct SwipeableCandidateCard: View {
                     )
 
                 // Common name and scientific name
-                let _common = (imageFetcher.commonName ?? candidate.commonName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let _common = ((protectedReview == nil ? imageFetcher.commonName : nil) ?? candidate.commonName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if !_common.isEmpty && _common.lowercased() != candidate.scientificName.lowercased() {
                     Text(_common.capitalized)
                         .font(.system(.title, design: .serif).weight(.bold))
@@ -224,7 +227,11 @@ struct SwipeableCandidateCard: View {
                     Button {
                         beginPresentation(.originalImage)
                     } label: {
-                        OriginalCapturePiPView()
+                        Group {
+                            if let protectedReview {
+                                if let image = protectedReview.evidencePhoto { Image(uiImage: image).resizable().scaledToFill() } else { Image(systemName: "photo.slash").frame(maxWidth: .infinity, maxHeight: .infinity).background(.ultraThinMaterial) }
+                            } else { OriginalCapturePiPView() }
+                        }
                             .frame(width: 58, height: 76)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay(
@@ -235,6 +242,9 @@ struct SwipeableCandidateCard: View {
                             .contentShape(Rectangle()) // Ensures tap registers on whole frame
                     }
                     .buttonStyle(.plain)
+                    .disabled(protectedReview != nil && protectedReview?.evidencePhoto == nil)
+                    .accessibilityLabel(protectedReview == nil || protectedReview?.evidencePhoto != nil
+                        ? "View original evidence" : "Original evidence unavailable for this identification")
                     .padding(.trailing, 20)
                     .padding(.bottom, 20)
                 }
@@ -252,11 +262,16 @@ struct SwipeableCandidateCard: View {
         .sheet(item: $activePresentation) { presentation in
             switch presentation {
             case .originalImage:
-                OriginalCaptureExpandedView()
-                    .environment(inferenceEngine)
-                    .presentationDragIndicator(.visible)
-                    .presentationDetents([.fraction(0.85), .large])
-                    .presentationCornerRadius(32)
+                Group {
+                    if let protectedReview {
+                        if let image = protectedReview.evidencePhoto {
+                            Image(uiImage: image).resizable().scaledToFit().accessibilityLabel("Evidence used for this identification")
+                        } else { Text("Original evidence is unavailable for this identification.") }
+                    } else { OriginalCaptureExpandedView().environment(inferenceEngine) }
+                }
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationCornerRadius(32)
 
             case .candidateImages:
                 if !imageFetcher.images.isEmpty {

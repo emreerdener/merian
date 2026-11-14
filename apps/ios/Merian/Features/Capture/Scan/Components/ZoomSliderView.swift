@@ -19,22 +19,19 @@ struct ZoomSliderView: View {
     private let componentWidth: CGFloat = 52
     private let tickCount: Int = 32
     private let shortTickWidth: CGFloat = 14
-    private let dotRightOffset: CGFloat = 18   // white dot distance from trailing edge
+    private let dotRightOffset: CGFloat = 18
+    private let settledDotRightOffset: CGFloat = 8
     private let opticalTickInset: CGFloat = 4  // extra gap between dot and its tick
     // Aligns indicator center with tick positions: rulerView padding(11) + canvas y-start(4) − half indicator height(10) = 5
     private let indicatorTickOffset: CGFloat = 5
-    private let zoomYellow = Color(red: 1.0, green: 204.0 / 255.0, blue: 0.0)
 
     // MARK: - State
     @State private var isActivelyZooming: Bool = false
-    @State private var showInitialLabel: Bool = true
     @State private var zoomIdleTask: Task<Void, Never>?
     @State private var lastHapticTick: Int?
     @State private var dragStartFactor: CGFloat = 1.0
     @State private var isDragging: Bool = false
-    /// Drives the tick-elongation effect in `rulerView`. Animated 0→1 when zooming
-    /// starts and 1→0 when the idle timer fires; the Canvas re-draws on every frame
-    /// of both the gesture and the collapse animation.
+    /// Shared progress for tick length, dot inset, and the current zoom indicator.
     @State private var zoomActivityStrength: CGFloat = 0
 
     init(
@@ -47,7 +44,7 @@ struct ZoomSliderView: View {
 
     var body: some View {
         Group {
-            if camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible {
+            if isVisible {
                 sliderBody
                     .scaleEffect(x: appSettings.zoomSideLeft ? -1 : 1, y: 1)
                     .transition(
@@ -56,37 +53,47 @@ struct ZoomSliderView: View {
                     )
             }
         }
-        .animation(.easeOut(duration: 0.4), value: camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible)
-        .task {
-            do {
-                try await Task.sleep(for: .seconds(2))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            showInitialLabel = false
-        }
+        .animation(.easeOut(duration: 0.4), value: isVisible)
         .onChange(of: camera.zoomFactor) { _, newValue in
+            guard isVisible else { return }
             isActivelyZooming = true
             withAnimation(.easeOut(duration: 0.12)) { zoomActivityStrength = 1.0 }
             triggerHapticIfNeeded(factor: newValue)
             zoomIdleTask?.cancel()
-            zoomIdleTask = Task {
-                try? await Task.sleep(for: .seconds(1.5))
+            zoomIdleTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .seconds(0.8))
+                } catch {
+                    return
+                }
                 guard !Task.isCancelled else { return }
-                await MainActor.run { isActivelyZooming = false }
+                isActivelyZooming = false
             }
         }
-        // Collapse the tick-extension effect when zoom settles. Kept in a synchronous
-        // onChange rather than inside the async Task so withAnimation is guaranteed to
-        // run within SwiftUI's update cycle and actually interpolates the Canvas redraws.
+        // Apply the same settling transaction to both animatable renderers.
         .onChange(of: isActivelyZooming) { _, isActive in
-            guard !isActive else { return }
+            guard !isActive, isVisible else { return }
             withAnimation(.easeOut(duration: 0.5)) { zoomActivityStrength = 0.0 }
         }
-        .onDisappear {
-            zoomIdleTask?.cancel()
-            zoomIdleTask = nil
+        .onChange(of: isVisible) { _, visible in
+            if !visible { resetPresentation() }
+        }
+        .onDisappear(perform: resetPresentation)
+    }
+
+    private var isVisible: Bool {
+        camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible
+    }
+
+    private func resetPresentation() {
+        zoomIdleTask?.cancel()
+        zoomIdleTask = nil
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isActivelyZooming = false
+            zoomActivityStrength = 0
+            isDragging = false
         }
     }
 
@@ -101,8 +108,9 @@ struct ZoomSliderView: View {
             rulerView
                 .padding(.top, 11)
             currentZoomIndicator
-                .offset(y: indicatorY)
-                .animation(isDragging ? nil : .easeOut(duration: 0.25), value: indicatorY)
+                .animation(isDragging ? nil : .easeOut(duration: 0.25)) { indicator in
+                    indicator.offset(y: indicatorY)
+                }
         }
         .frame(width: componentWidth, height: trackHeight + 22)
         .contentShape(Rectangle())
@@ -141,6 +149,7 @@ struct ZoomSliderView: View {
             shortTickWidth: shortTickWidth,
             opticalTickInset: opticalTickInset,
             dotRightOffset: dotRightOffset,
+            settledDotRightOffset: settledDotRightOffset,
             componentWidth: componentWidth,
             invertZoomDirection: appSettings.invertZoomDirection,
             stops: stops,
@@ -152,38 +161,15 @@ struct ZoomSliderView: View {
     // MARK: - Current zoom indicator
 
     private var currentZoomIndicator: some View {
-        let showText = isActivelyZooming || showInitialLabel
-
-        return HStack(spacing: 0) {
-            Spacer(minLength: 0)
-
-            if showText {
-                Text(zoomLabel(for: camera.zoomFactor))
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.black)
-                    .contentTransition(.numericText())
-                    .scaleEffect(x: appSettings.zoomSideLeft ? -1 : 1, y: 1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(zoomYellow))
-                    .fixedSize()
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
-            } else {
-                Circle()
-                    .fill(zoomYellow)
-                    .frame(width: 4, height: 4)
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
-            }
-
-            // Hair-line connector to the ruler ticks — subtler when showing the dot.
-            // Width switches between shortTickWidth (pill) and dotRightOffset (dot) so that
-            // the dot center lands at the same x as the Canvas optical-stop dots.
-            Color.white
-                .frame(width: showText ? shortTickWidth : dotRightOffset - 2, height: showText ? 1.5 : 0.5)
-                .opacity(showText ? 0.7 : 0.15)
-        }
-        .frame(width: componentWidth, height: 20)
-        .animation(.easeOut(duration: 0.3), value: showText)
+        ZoomActivityIndicator(
+            label: zoomLabel(for: camera.zoomFactor),
+            mirrored: appSettings.zoomSideLeft,
+            componentWidth: componentWidth,
+            connectorWidth: shortTickWidth,
+            dotRightOffset: dotRightOffset,
+            settledDotRightOffset: settledDotRightOffset,
+            activityStrength: zoomActivityStrength
+        )
     }
 
     // MARK: - Math
@@ -233,6 +219,58 @@ struct ZoomSliderView: View {
     }
 }
 
+/// Interpolates indicator geometry with the same progress as the ruler Canvas.
+private struct ZoomActivityIndicator: View, Animatable {
+    var label: String
+    var mirrored: Bool
+    var componentWidth: CGFloat
+    var connectorWidth: CGFloat
+    var dotRightOffset: CGFloat
+    var settledDotRightOffset: CGFloat
+    var activityStrength: CGFloat
+
+    var animatableData: CGFloat {
+        get { activityStrength }
+        set { activityStrength = newValue }
+    }
+
+    var body: some View {
+        let progress = min(max(activityStrength, 0), 1)
+        let dotInset = settledDotRightOffset + (dotRightOffset - settledDotRightOffset) * progress
+        let yellow = Color(red: 1.0, green: 204.0 / 255.0, blue: 0.0)
+
+        ZStack(alignment: .trailing) {
+            Circle()
+                .fill(yellow)
+                .frame(width: 4, height: 4)
+                .opacity(1 - progress)
+                .padding(.trailing, dotInset - 2)
+
+            if progress > 0 {
+                Color.white
+                    .frame(width: connectorWidth * progress, height: 1.5)
+                    .opacity(0.7 * progress)
+                    .transition(.identity)
+
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.black)
+                    .contentTransition(.numericText())
+                    .scaleEffect(x: mirrored ? -1 : 1, y: 1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(yellow))
+                    .fixedSize()
+                    .scaleEffect(0.7 + 0.3 * progress, anchor: .trailing)
+                    .opacity(progress)
+                    .padding(.trailing, (settledDotRightOffset - 2) * (1 - progress) + connectorWidth * progress)
+                    .transition(.identity)
+            }
+        }
+        .frame(width: componentWidth, height: 20, alignment: .trailing)
+    }
+}
+
 /// A dedicated canvas for drawing the tick marks in the zoom ruler.
 ///
 /// This view is extracted from `ZoomSliderView` to explicitly conform to `Animatable`.
@@ -247,6 +285,7 @@ private struct TickRulerCanvas: View, Animatable {
     var shortTickWidth: CGFloat
     var opticalTickInset: CGFloat
     var dotRightOffset: CGFloat
+    var settledDotRightOffset: CGFloat
     var componentWidth: CGFloat
     var invertZoomDirection: Bool
     var stops: [CGFloat]
@@ -275,6 +314,8 @@ private struct TickRulerCanvas: View, Animatable {
         Canvas { ctx, size in
             guard maxZoom > 1.0 else { return }
             let spacing = trackHeight / CGFloat(tickCount - 1)
+            let progress = min(max(activityStrength, 0), 1)
+            let dotInset = settledDotRightOffset + (dotRightOffset - settledDotRightOffset) * progress
 
             // Draw normal ticks
             for i in 0..<tickCount {
@@ -293,20 +334,22 @@ private struct TickRulerCanvas: View, Animatable {
 
                 // Gaussian falloff centered on the current zoom fraction
                 let d = tickFraction - currentFraction
-                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
+                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * progress
                 let extraLength: CGFloat = influence * 8
 
                 var line = Path()
-                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
+                let x0 = size.width - (shortTickWidth - opticalTickInset) * progress - extraLength
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
                 let tickColor: Color = isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
-                ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
+                if progress > 0 {
+                    ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
+                }
 
                 if isMaxZoom || isMinZoom {
                     let dotSize: CGFloat = 4
-                    let dotX = size.width - dotRightOffset - dotSize / 2
+                    let dotX = size.width - dotInset - dotSize / 2
                     ctx.fill(
                         Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
                         with: .color(.white.opacity(0.9))
@@ -325,18 +368,20 @@ private struct TickRulerCanvas: View, Animatable {
                 let y = 4.0 + exactT * trackHeight
 
                 let d = stopFraction - currentFraction
-                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
+                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * progress
                 let extraLength: CGFloat = influence * 8
 
                 var line = Path()
-                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
+                let x0 = size.width - (shortTickWidth - opticalTickInset) * progress - extraLength
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
-                ctx.stroke(line, with: .color(.white.opacity(0.8)), lineWidth: 0.5)
+                if progress > 0 {
+                    ctx.stroke(line, with: .color(.white.opacity(0.8)), lineWidth: 0.5)
+                }
 
                 let dotSize: CGFloat = 4
-                let dotX = size.width - dotRightOffset - dotSize / 2
+                let dotX = size.width - dotInset - dotSize / 2
                 ctx.fill(
                     Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
                     with: .color(.white.opacity(0.9))

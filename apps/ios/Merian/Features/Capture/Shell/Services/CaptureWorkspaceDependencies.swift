@@ -26,6 +26,9 @@ struct CaptureWorkspaceDependencies {
         _ completion: @escaping (Bool) -> Void
     ) -> Void
     let feedback: CaptureWorkspaceFeedback
+    var photoOriginalPreparation: CapturePhotoOriginalPreparationAccess?
+    var reanalysis: CaptureReanalysisAccess?
+    var claimViewfinderIntroduction: @MainActor () -> Bool = { false }
 
     @MainActor
     static func live(
@@ -96,7 +99,8 @@ struct CaptureWorkspaceDependencies {
                 error: {
                     diContainer.hapticManager.triggerErrorThump()
                 }
-            )
+            ),
+            claimViewfinderIntroduction: diContainer.viewfinderHintLaunchState.claimIntroduction
         )
     }
 

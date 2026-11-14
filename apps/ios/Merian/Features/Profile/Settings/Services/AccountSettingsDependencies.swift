@@ -4,15 +4,17 @@ import SwiftData
 struct AccountLocalDataDependencies {
     let purgeAllData: @MainActor (
         _ modelContext: ModelContext,
-        _ resetDerivedState: @MainActor () -> Void
-    ) -> Bool
+        _ resetDerivedState: @MainActor () -> Void,
+        _ scope: AccountDeletionLocalCleanupStore.RecoveryScope
+    ) async -> Bool
 
     static var live: Self {
         Self(
-            purgeAllData: { modelContext, resetDerivedState in
-                ScanRepository.shared.purgeAllData(
+            purgeAllData: { modelContext, resetDerivedState, scope in
+                await ScanRepository.shared.purgeAllData(
                     modelContext: modelContext,
-                    resetDerivedState: resetDerivedState
+                    resetDerivedState: resetDerivedState,
+                    validateAuthorization: { scope.permitsLibraryPurge(in: modelContext.container) }
                 )
             }
         )
@@ -25,10 +27,10 @@ struct AccountDeletionDependencies {
     let hasPendingPurchaseContinuityFailClosed: @MainActor () -> Bool
     let isRecoveryPending: @MainActor () -> Bool
     let deleteAccount: @MainActor (
-        _ purgeLocalData: @MainActor @escaping () -> Bool
+        _ purgeLocalData: @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async throws -> Void
     let resumeDeletion: @MainActor (
-        _ purgeLocalData: @MainActor @escaping () -> Bool
+        _ purgeLocalData: @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async -> Bool
     let stableErrorCode: @MainActor (_ error: Error) -> String?
     let logFailure: @MainActor (_ error: Error) -> Void

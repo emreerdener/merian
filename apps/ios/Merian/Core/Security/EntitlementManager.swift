@@ -130,24 +130,24 @@ import Supabase
         fundingReservations[key] = reservation
     }
 
-    func restoreLegacyPotentialBlocker(scanId: String, createdAt: Date) {
+    func restoreLegacyPotentialBlocker(scanId: String, createdAt: Date, unresolvedOwnership: Bool = false) {
         let key = scanId.lowercased()
+        if unresolvedOwnership {
+            complimentaryStates[key] = nil
+            pendingTerminalSettlementRefreshScanIds.remove(key)
+        }
         if complimentaryStates[key] == .consumed ||
             complimentaryStates[key] == .released {
             return
         }
-        legacyPotentialBlockers[key] = min(
-            legacyPotentialBlockers[key] ?? createdAt,
-            createdAt
-        )
+        legacyPotentialBlockers[key] = min(legacyPotentialBlockers[key] ?? createdAt, createdAt)
     }
 
     /// Releases only admissions proven not to have reached server dispatch.
     /// Ambiguous outcomes deliberately retain their reservation.
     func releaseFundingAfterProvenLocalFailure(scanId: String) {
         let key = scanId.lowercased()
-        let releasedComplimentaryBlocker =
-            fundingReservations[key]?.source == .complimentaryPro ||
+        let releasedComplimentaryBlocker = fundingReservations[key]?.source == .complimentaryPro ||
             legacyPotentialBlockers[key] != nil
         fundingReservations[key] = nil
         legacyPotentialBlockers[key] = nil
@@ -159,8 +159,7 @@ import Supabase
 
     func fundingAllowsDispatch(scanId: String) -> Bool {
         let key = scanId.lowercased()
-        return fundingReservation(scanId: key)?.allowsDispatch ??
-            true
+        return fundingReservation(scanId: key)?.allowsDispatch ?? true
     }
 
     func fundingAllowsForegroundInference(scanId: String) -> Bool {
@@ -227,30 +226,37 @@ import Supabase
     /// Clears terminal consumed blockers only after get_my_entitlement has
     /// succeeded after the status proof. This prevents a pre-hold snapshot from
     /// reopening complimentary capacity during the refresh suspension.
-    func confirmTerminalSettlementsAfterEntitlementRefresh() {
-        for key in pendingTerminalSettlementRefreshScanIds
+    var fundingCandidateScanIDs: Set<String> {
+        Set(fundingReservations.keys).union(legacyPotentialBlockers.keys)
+            .union(fundingBlockerScanIds).union(pendingTerminalSettlementRefreshScanIds)
+    }
+
+    func confirmTerminalSettlementsAfterEntitlementRefresh(eligibleLegacyScanIDs: Set<String>) {
+        for key in pendingTerminalSettlementRefreshScanIds.intersection(eligibleLegacyScanIDs)
         where complimentaryStates[key] == .consumed {
             fundingReservations[key] = nil
             legacyPotentialBlockers[key] = nil
         }
-        pendingTerminalSettlementRefreshScanIds.removeAll()
+        pendingTerminalSettlementRefreshScanIds.subtract(eligibleLegacyScanIDs)
     }
 
-    var hasReleasedDeferredBlocker: Bool {
-        deferredFundingReservations.contains { reservation in
-            reservation.blockerScanIds.contains {
-                complimentaryStates[$0.lowercased()] == .released
+    func needsLegacyFundingRefresh(eligibleLegacyScanIDs ids: Set<String>) -> Bool {
+        !pendingTerminalSettlementRefreshScanIds.isDisjoint(with: ids) ||
+            deferredFundingReservations.contains { reservation in
+                ids.contains(reservation.scanId) && reservation.blockerScanIds.allSatisfy(ids.contains) &&
+                    reservation.blockerScanIds.contains { complimentaryStates[$0.lowercased()] == .released }
             }
-        }
     }
 
     /// Reclassifies deferred work after blocker states and, when needed, a
     /// fresh entitlement snapshot have been installed. The caller persists
     /// each returned reservation back into the job metadata.
-    func resolveDeferredFunding() -> [ScanFundingReservation] {
+    func resolveDeferredFunding(eligibleLegacyScanIDs: Set<String>) -> [ScanFundingReservation] {
         var changes: [ScanFundingReservation] = []
         for current in deferredFundingReservations {
             let key = current.scanId.lowercased()
+            guard eligibleLegacyScanIDs.contains(key),
+                  current.blockerScanIds.allSatisfy({ eligibleLegacyScanIDs.contains($0.lowercased()) }) else { continue }
             let states = current.blockerScanIds.map {
                 complimentaryStates[$0.lowercased()]
             }
@@ -294,8 +300,7 @@ import Supabase
         scanId: String
     ) {
         let key = scanId.lowercased()
-        let wasComplimentaryBlocker =
-            fundingReservations[key]?.source == .complimentaryPro ||
+        let wasComplimentaryBlocker = fundingReservations[key]?.source == .complimentaryPro ||
             legacyPotentialBlockers[key] != nil
         if planUsed == "pro_complimentary" && creditConsumed {
             complimentaryStates[key] = .consumed

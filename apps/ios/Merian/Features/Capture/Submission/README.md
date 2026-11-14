@@ -1,3 +1,494 @@
+## November 9 — observation-only status source
+
+The qualification status action now uses the strict `observe-v1` transport and
+labels only literal server-row presence. It does not confirm an original result
+or invoke legacy repair. Existing exact immutable admission/completion proof is
+still required by the separate History continuation. Native integration tests
+are pending; see the
+[current end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#november-9--explicit-observation-only-recovery-status).
+
+## November 9 — native pending original-photo preview candidate
+
+The pending-submission view can request one indexed original-photo raster
+through the existing native receiving locks and accounting owner. The complete
+frozen original cohort is hashed and sealed before the selected image is
+downsampled to 2048 pixels; no original URL or raw bytes reach the feature. A
+fresh local scope check reuses the physical seals without decoding or hashing
+again. Closing, backgrounding, refreshing or changing account discards the image
+and drains pending reads before releasing presentation lifetime. This adds no
+preparation, retry, admission, funding, History selection or legacy-proof
+backfill.
+
+Completion279 native02 passed 46 methods/109 expanded cases, zero
+failures/skips, with 4,183 unchanged inputs. Engine independently verified
+source and runtime; the first lint failure remains retained. Legacy absence
+remains unavailable. This is local synthetic receiving/readback/presentation
+evidence; Vision quality, measured timing/memory budgets,
+physical-device/accessibility and whole-candidate acceptance remain open.
+
+## November 8 — current focused qualification
+
+Shared startup-fence borrowing passed native241: 55 methods / 118 expanded
+cases, including both durable-input/native opening orders. Bounded cold input
+cleanup and actual-exit joins passed native242: 63 methods / 127 cases, followed
+by the strengthened populated foreign-container method's four passing cases.
+Every run matched 4,157 source pins with zero failures/skips. Independent Engine
+review verified the combined evidence. Cleanup preserves foreign receipt/file
+length; the foreign fixture does not claim byte-for-byte equality.
+
+Native243 qualified exact journal progression (54 methods). Native244 qualified
+scoped library-sign-out runtime drain and complete-purge acknowledgement: 100
+methods / 129 expanded cases, followed by 18 methods / 21 cases for the reviewed
+repository-completion race fix and affected regressions. Passing runs had zero
+failures/skips; the failed compilation and the review-discovered race remain in
+the findings record with verified fixes. Independent Engine review confirmed the
+combined evidence. This is component qualification; full live SDK composition
+remains unverified.
+
+HQ241 account-deletion-stage authority, pre-stable-Auth cold startup and
+explicit later-lifetime renewal remain open. Installation stays false.
+All-media, device and cumulative acceptance remain incomplete. Earlier dated
+candidate notes below record their historical checkpoint state.
+
+## November 8 — shared startup-fence borrowing candidate
+
+The existing `SharedMediaNativeOriginalDrain` now retains the original startup
+fence for bounded local consumers and native discovery. Prepared input remains
+bound to its exact account runtime; local erasure has a separate registration
+without former-account authority. Registered consumers must join actual work
+before shutdown releases the fence. Sealing denies new work while permitting
+already-owned cleanup. The video composition injects this borrow through access,
+session and durable input; native discovery consumes the same fence and retains
+its existing profile checks. No profile or native operation grant is exposed to
+local consumers. Both-order integration and shutdown/failure tests are pending.
+Cold erasure routing and exact destructive-journal Auth handling remain open;
+installation remains false.
+
+## November 8 — focused durable-input integration verified
+
+Native239-03 passed 69 methods / 115 expanded cases, zero failures/skips, all 11
+selected suites/methods and all 4,157 source pins. Independent Engine review
+verified the four requested failure/concurrency/text regressions and the exact
+review delta. Retain the two preceding test-compilation failures. This qualifies
+the focused local integration, including real startup admission and
+optional-text initial audio/video-to-History fixtures.
+
+Combined lifetime acceptance remains blocked by HQ247: native dispatch retains
+the exclusive startup fence, while video input independently acquires it. Both
+orderings require validated borrowing at the existing App lifetime, with
+actual-consumer registration and joined shutdown. No native profile adoption,
+weakened locks or terminal-owner restart merely to switch features is permitted.
+HQ241 exact destructive-journal handling and bounded cold recovery remain open.
+The host owner now distinguishes cleaned storage, runtime-quiescent retained
+storage and blocked work; ordinary Boolean drain still requires cleaned storage.
+Audio input preparation is joined through actual cleanup even without an account
+lease. Combined native240-01/02 evidence independently qualifies this focused
+drain change: 50 unchanged passing methods plus the corrected fixture method,
+zero skips and 4,157 matching pins per run. The original fixture failure remains
+retained. Installation remains false; manual/device/cumulative acceptance is not
+claimed.
+
+## November 8 — durable current-video input integration candidate
+
+The inactive video session retains its frozen input owner before bootstrap,
+reservation or copying. It supplies the existing preparation owner and
+FileStore, plus the original exact-container startup admission injected through
+Capture access. The source/choice/text digest and durable receipt preserve one
+child; uncertain copying permits existing copied-receipt recovery only. Cleanup
+can retain unresolved storage after actual runtime exit. Focused integration
+validation and the account-journal/recovery work remain pending; ordinary
+installation remains false. See the
+[scan-to-History checkpoint](../../../../../../docs/development-guides/25-scan-to-history.md#bounded-input-ownership-implementation-checkpoint).
+
+## Fresh initial photo: first original upload
+
+In the inactive native photo path, the Capture submit caller can be given an
+explicit first-transfer configuration. A newly received local submission and
+fresh backend-bound allocation are both required. With them, Capture can send
+the first frozen original to its assigned destination once. It checks the
+current draft, account and processor permission again before sending. A later
+selection stays visible; a lost reply or a reopened submission cannot recreate
+this in-memory opportunity. Ordinary app composition does not supply it. The
+local simulator verified a single intercepted original PUT and zero PUTs after
+an intervening receive, lost receipt/allocation acknowledgement, changed draft,
+or revoked permission (including revocation just before task start).
+
+If an attempt is already recorded, inspect its
+[original role and status](../../../Core/Data/SharedMediaStorage/README.md#initial-photo-checking-progress-for-one-uploaded-role).
+Do not repeat the upload. A successful PUT does not verify the stored original,
+make another role eligible, or start identification. The upload task rejects
+background sessions; task completion alone does not establish that all temporary
+copies are gone.
+
+The measured simulator path also completed the assigned original, AI and display
+uploads for one and two photos. A positive final seal can enter the optional
+whole-roster admission configuration once. Capture checks the same draft, owner
+and permission through receipt readback and pinning. After an interruption,
+recover the original admission through the existing status owner. See the
+[cohort contract](../../../../../../docs/backend-and-data/05-api-contracts.md#dormant-authenticated-photo-transfer-facade--october-30)
+for the private request and its scope.
+
+## November 4 — native status adapter candidate
+
+The205 inactive app factory now uses the existing native owner for status
+reservation, one-way interval settlement and quiet cold retirement. Exact live
+registrations prevent overlap and successful shutdown before quiescence. Every
+attempted transition remains retained across uncertain acknowledgement; explicit
+status reads do not remint clocks or reuse consumed predecessors. The full
+presentation charge survives cold retirement until atomic completion removes the
+queue. Settled204 handoff/receipt qualification passed3methods/4cases;205 source
+review and focused9method/16case validation passed after the uncertainty fix.
+Installation remains false. See the
+[current end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md#settled-status-tracking-and-initial-completion-candidate).
+
+## November 4 — explicit initial History continuation candidate
+
+The existing recovery model now has a distinct explicit “Add result to History”
+action and cancellation/drain task. Availability checking and discovery still
+perform no completion. The inactive app composition rereads the full frozen
+candidate, recovers only its saved initial result, applies it, uses the existing
+enrollment owner, and acknowledges the authoritative baseline. Applied work
+skips initial recovery/application; acknowledged work skips network and saves.
+Missing legacy associations and uncertain enrollment remain held.
+
+A targeted resume validates an explicitly selected saved candidate after
+application removes it from the pending list. The202 inactive composition adds
+separate bounded restart-discovery pages for retained initial results and
+interrupted History enrollment. Each page inspects at most128 keys and retains
+only full candidate identities; Next advances over skipped rows as well. An
+unresolved enrollment hold intentionally blocks the ordinary retained reader;
+its target is available through metadata-only enrollment discovery even when
+pending discovery is unavailable. Discovery and selection never start network
+work or completion. The203 candidate adds a separate explicit Open result action
+after acknowledgement. No package-ID-only lookup substitutes for exact
+operation/revision/content identity. The ordinary installation guard remains
+false. Source preflight and independent boundary review passed for202; its
+native202-02 passed13methods/30cases. The203 skipped-page/routing checks
+passed13methods/29cases plus the corrected XCTest route method, with independent
+evidence review. Native201-04 passed 19methods/29expanded cases with zero
+failures/skips, covering explicit continuation, owner reopen, no-write
+acknowledged replay, exact-intent recovery and close/hidden/account draining.
+Earlier compile failures remain retained. See the
+[end-to-end contract](../../../../../../docs/development-guides/25-scan-to-history.md).
+
+The Open result action uses the existing `AppRouteCoordinator` scan route with
+an internal user-action envelope and the observation ID only. It checks the
+captured account, auth generation, exact container and library-access fences;
+the existing route coordinator also rejects stale queued envelopes. Completion
+itself never navigates. Opening reads the current saved scan without selecting
+the acknowledgement's baseline analysis or writing history state. Closing the
+recovery presentation prevents duplicate taps. This is an inactive candidate,
+not installed UI or complete functional qualification.
+
+## October 31 — allocated submissions stay in Pending submissions
+
+The existing local discovery and exact-selection model now retain allocated and
+transfer-held received submissions in the list. Their identity remains stable
+across allocation/status progress and cold discovery. This supersedes the older
+scope that projected only generic received rows; it adds no remote action,
+editable reconstruction or cleanup authority. The factory remains disabled.
+App/test-target compilation and bounded independent source review passed. HQ-019
+still blocks the seven new and 27 extended runtime cases. The
+[current scan contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-31--allocated-submissions-remain-visible-in-recovery)
+records the owning projection and remaining acceptance work.
+
+## October 29 — inactive v2 allocation composition
+
+The existing app composition now selects v2 through the qualified durable
+allocation owner and authenticated adapter. Shared access preserves the same
+exact-selection/attempt fences for both legacy and role projections. This
+composition passed focused native qualification: 9 methods / 22 cases. Engine
+cleared production; the corrected test-macro failure remains retained. The
+ordinary factory remains disabled. The
+[scan transport contract](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--native-v2-transport-integration-candidate)
+owns current implementation, qualification and remaining transfer work. The
+earlier caller checkpoint below records its original v1 qualification.
+
+## October 29 — inactive Capture allocation caller candidate
+
+The native submission session keeps `submit` as the local receipt boundary and
+adds an explicit `allocate` phase. Its existing inactive app factories compose
+the bounded allocation adapter; the native Capture caller invokes that phase
+only after its current account, generation and exact-selection checks. Ordinary
+factory installation remains disabled. Legacy nil-admission submissions and
+sessions without allocation composition remain local-only. Allocation is not an
+identification request, upload or funding action.
+
+Typed submission discovery uses the clean receiving graph to recover the exact
+Prepared, local receipt and optional allocation. Generic receiving readers still
+reject allocation sidecars. Saved allocations select status through the existing
+owner and never rerun recipient discovery. Later visible text/media cannot
+retarget submitted work or be overwritten by its completion.
+
+Before a new claim, the retained owner releases receiving locks for a current
+permission check against the already-bound processor. It then reacquires locks,
+rebuilds audited state and checks permission immediately before saving the
+claim. The create transport checks permission again after Auth awaits, before
+sending; status and response settlement use account/store/claim checks without
+renewed inference consent. Revocation after claim save leaves that immutable
+claim held for status-only recovery. A concurrent saved claim selects status. No
+missing, expired or cancelled status grants replacement or release authority.
+
+This caller increment passed compilation, independent Engine source review and
+focused runtime qualification: 10 methods / 34 cases, with all 3,048
+native/project pins unchanged and no structured runtime warnings. The first
+test-macro compilation failure remains retained. The allocation writer's
+preceding 192-method / 439-case and Release evidence belongs to checkpoint
+`6276b2651`; no new Release or full-journey acceptance is claimed here. The
+unrelated Auth size-gate failure and full photo, reanalysis/recovery,
+audio/video and RUX acceptance remain open. See the
+[canonical journey](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+## October 28 — live preflight wiring qualified, activation still held
+
+The inactive native draft factory now carries the existing network preflight
+dependency into the submission session created after preparation. The separate
+submission factory uses the same composition. Fresh submission synchronizes
+required consent and checks the initiating account before shape-only recipient
+discovery, retaining the original owner across the await. The session supplies
+its frozen-selection validator through consent, discovery and immutable save.
+Saved submissions, including legacy nil expectations, skip fresh discovery.
+
+Engine source review and focused Debug validation passed: 23 methods / 46 cases
+with all 3,035 native/project pins unchanged and no structured runtime warnings.
+The preceding qualified injected seam remains historical evidence; full initial
+result/history, reanalysis and recovery qualification remain open. The
+installation gate stays closed, and local receipt still does not request
+identification. Current cross-system status is in the
+[photo content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md).
+
+## Retained photo preflight — locally qualified checkpoint
+
+`CaptureNativePhotoSubmissionSession` accepts a narrow injected preflight for
+native photo submissions. It derives shape from the frozen selection using the
+receiving owner's observation identity, retains exact supporting/media values
+across the await, and supplies current authorization validation through the
+immutable staging save. Saved prepared/received work bypasses fresh discovery.
+
+Ordinary app composition still supplies no preflight and remains inactive. The
+live dependency must synchronize current required consent before recipient
+discovery; this increment does not install a network caller. Focused local Debug
+qualification passed 36 methods / 62 cases. Full initial
+execution/result/history and reanalysis/recovery remain open. The
+[photo content contract](../../../../../../docs/rfcs/client-prepared-photo-content-contract-2026-10-27.md)
+owns the cross-surface rules.
+
+## October 27 — inactive local recovery host integration
+
+Capture now has a dependency-gated Pending submissions entry in the existing
+workspace and sheet router. It presents the native received-candidate model,
+requires explicit exact selection and offers local-status refresh and Close.
+Ordinary composition keeps the factory nil under the existing installation
+qualification gate. This is functional status wiring, not the Capture visual
+redesign or activation.
+
+The app factory captures the current account, Auth generation and exact nonnil
+model-container identity without creating a lease or opening storage. Explicit
+reads resolve the existing AppDI native owner, with presentation checks before
+and after admission and the existing native grant/profile checks during audit.
+Same-account Auth changes, account/container replacement, library recovery,
+route invalidation, dismissal and disappearance refuse or close presentation.
+Close does not shut down the native lifetime or change durable work. Pending
+reads cannot restore a closed sheet; current draft text and identification stay
+unchanged.
+
+The sheet only reports local receipt status. It neither reconstructs an editable
+draft nor offers remote result checking, saved-media access, retry or
+replacement. Empty discovery cannot establish completion or permit another
+execution. Complete RUX-1–RUX-6 and photo/audio/video initial/reanalysis
+journeys remain open. Focused Debug qualification passed 27 methods / 41 cases,
+with zero structured runtime warnings and no drift across 3,031 source/project
+pins. The first compile failure remains retained; its corrected run passed.
+Generic Simulator Release passed after Journal's separate rollback: zero errors,
+366 warnings and no drift across 3,028 source/project pins. The Debug result
+belongs to the preserved pre-rollback tree. Safe generated-cache cleanup met the
+unchanged storage limits; all diagnostics and test evidence remain retained.
+Installed UI, VoiceOver/Dynamic Type and actual process-relaunch evidence remain
+open.
+
+## October 27 — received-identity discovery qualified locally
+
+The inactive native owner exposes bounded received-candidate discovery through
+its existing dispatch operation. It runs the complete scoped audit before fresh
+release-aware CleanGraph reads and retains grant/profile/header checks. Only
+generic received identities are projected; prepared, staged, releasing and
+historical released work is excluded. An empty result does not prove that
+durable work is absent or authorize resubmission. No schema, execution owner,
+funding rule or provider authority changes.
+
+CaptureNativeRecoveryModel presents noneditable local holding identities. All
+candidates remain unselected until explicit exact selection and a fresh read.
+Changed identities and late account/container/presentation results refuse; Close
+changes presentation only. The model neither reconstructs an editable submission
+nor proves original-media availability. No production Capture caller is wired to
+this model yet: host/current-scope binding, actual process-relaunch UI, remote
+Check status, RUX recovery presentation and complete photo/audio/video initial
+and reanalysis journeys remain open. Ordinary composition stays inactive.
+
+Local qualification covers 56 unique methods / 101 cases: corrected tests03
+passed 24 methods / 28 cases, composed with 32 unchanged methods / 73 cases
+independently reviewed from retained passing results. The first focused run's
+pause-hook/selector failure and regression01's owner-size failure remain failed
+and retained. The correction reuses the existing private operation wrapper and
+keeps the 600-line boundary unchanged. Generic Simulator Release passed with
+zero errors and 365 warnings; all 3,027 source/project pins matched. These are
+local discovery/replay and architecture results, not full-target,
+isolated-source, installed UI, device or provider acceptance. Release and
+deployment holds remain.
+
+## Inactive native camera-photo composition
+
+The optional native photo draft factory now routes the actual shutter through
+`CaptureNativePhotoDraftSession.acquire(kind: .camera)` and the registered
+native original owner. Its exact acquisition request precedes the single
+hardware call. The shutter-time composing center and preparation tier are
+retained in a local `nativeCameraStillV1` recipe. Verified original bytes
+produce both bounded, orientation-normalized square crops; previews never supply
+evidence. Existing `nativeStillImageV1` recipes omit the new optional center
+field and keep their canonical encoding. Mixed editor/camera recipes and unknown
+formats refuse.
+
+A camera photo stages with its original reference, bounded presentation and
+empty derivative payloads. Context enrichment remains inside the retained
+capture operation before staging, with account/generation checks after awaits;
+its snapshot preserves the shutter date and locked location. Photo-library save
+uses the existing client only after current-account/generation checks. Opening
+or cancelling recrop preserves initial framing; explicit confirmation replaces
+the camera recipe with editor geometry. Explicit Identify freezes all media,
+context and optional text through the existing native preparation/receiving
+owners. Cancellation or uncertain acquisition retains the request and prevents
+automatic repeat shutter or legacy fallback.
+
+Capture capacity and preparation tier use the same injected Pro-eligibility
+closure; its live implementation retains the existing RevenueCat funding
+predicate. Free capture keeps its one-media limit, while eligible multi-media
+drafts retain ordered camera/picker combinations without global entitlement
+mutation.
+
+October 27 local qualification covers 57 methods / 99 cases: the corrected
+camera/dependency/architecture retry passed 22 methods / 34 cases, with 35
+methods / 65 unchanged passing cases retained from the prior attempt. That prior
+attempt remains failed because its multi-camera fixture incorrectly expected two
+captures under free one-slot eligibility. The corrected retry has no failures,
+skips, structured runtime warnings, or source drift. The managed generic iOS
+Simulator Release build passed with zero errors and no source drift; its 365
+warnings and simulator console diagnostics remain retained, including three new
+capture/style warnings. This is local source qualification. Ordinary factory
+remains nil; physical camera, installed UI, restart reconstruction and full
+photo/audio/video initial-analysis and reanalysis journeys remain unqualified.
+PR116 and deployment holds remain unchanged.
+
+## October 26 — native PhotosPicker integration qualified locally
+
+The optional `nativePhotoDraftFactory` routes the actual PhotosPicker caller
+through `CaptureNativePhotoDraftSession`. Ordinary live composition remains nil.
+The native marker precedes acquisition; ordered picker inputs and original
+requests remain retained through ambiguity. A bounded current-process preview
+supports crop editing, while inference and display payloads stay empty until
+explicit Identify freezes all ordered references, crop recipes, presentation and
+optional text. Existing native metadata, preparation and readback operations
+supply the immutable submission session. No preview bytes become evidence.
+
+Crop cancellation, explicit photo removal and draft discard await native
+acknowledgements. Concurrent import, editing and disposition are excluded. An
+error before acquisition is entered can remove purely provisional local state;
+after entry, uncertainty retains ownership and never reloads the picker item.
+Partial preparation remains held for remediation because the public owner API
+cannot discover a pair identity lost during preparation. No automatic processing
+retry, fake recovery action or fresh attempt bypass is offered. Account changes
+clear private presentation without claiming durable cancellation. Camera,
+external inbox, audio/video and reanalysis refuse in this bounded photo-only
+composition. Their full native journeys and restart reconstruction remain open.
+
+Independent and Engine source/execution review cleared this bounded candidate.
+Managed Debug qualification passed 92 methods / 120 cases with no failures,
+skips, structured runtime warnings or source drift across 3020 pins. The tests
+exercise injected picker inputs through the actual import/crop/submission caller
+and local receipt, including partial failures and account changes. They do not
+establish real PhotosPicker interaction, restart recovery or provider execution.
+The managed generic iOS Simulator Release build passed with zero errors and no
+drift across the same 3020 source pins. Its 362 warnings remain retained. The
+corrected run met the 25 GiB launch and 20 GiB final storage floors; the earlier
+below-floor compilation remains diagnostic only. PR116 is frozen, activation is
+false, and the deployment hold is unchanged.
+
+## October 26 — mutable prepared-photo readback qualified locally
+
+Native selection-aware snapshots keep saved presentation focus separate from
+focus derived by native processing. Only presentation focus is read from the
+retained selection, uniquely matched by original reference; current inference
+focus is checked against the prepared intent. Every other presentation value and
+optional context still comes from the visible draft and must match exactly. The
+initial and post-await checks use the same selection, preserving immutable
+supporting bytes during recovery. Managed Debug qualification passed 19 methods
+/ 37 cases, including nonnil focus, exact ambiguous recovery, and rejection of
+stale caller presentation. The managed generic iOS Simulator Release build also
+passed, with no source drift across 3017 pins and no errors; its 358 build
+warnings remain recorded. Camera/picker integration and full native journeys
+remain open.
+
+`currentAppMetadata` preserves the persisted metadata bytes without editing or
+saving. `readPreparedAppPhotos` uses the existing app-dispatch and preparation
+owners to return one or two exact ordered ready pairs, immutable original
+references and bounded AI/display bytes. It checks both complete cohort budgets
+before reading, seals each actual-byte read with the same physical completion
+proof, and rechecks the whole persisted selection and every completion after the
+final suspension. Cancellation, account changes, metadata drift, replacement
+files and Prepared/received slots refuse without returning a partial projection.
+
+No path or file capability escapes. Original decoding/cropping stays native;
+display bytes are never substitute originals. This read performs no processing,
+save, recovery, queue, funding or provider action. Capture's submit fixture now
+uses this producer. Camera/picker/editor binding, frozen restart reconstruction
+and full media journeys remain open; ordinary activation remains disabled. The
+readback, Capture submission and affected metadata, preparation, lifecycle,
+pending-cleanup and architecture checks passed the managed Debug qualification:
+50 methods / 103 cases, no failures or skips, no structured runtime warnings and
+no drift across 3017 source pins. The earlier two owner-inventory failures
+remain retained; consolidating identical dispatch validation in the same private
+owner corrected them without changing visibility or limits.
+
+## October 26 — inactive native prepared-photo submit bridge
+
+The separately injected `CaptureNativePhotoSubmissionSession` connects the
+actual Capture submit caller to the retained native owner. Ordinary live
+dependencies leave it nil. `StagedCapture.nativePhotoDraft` independently marks
+native ownership and survives UI clearing: missing access refuses before legacy
+admission, enqueue or inference. The bridge accepts only an explicit manual
+submission of one or two already native-prepared photos, with optional persisted
+text. It does not acquire originals from preview bytes or substitute the legacy
+preparation owner.
+
+The selection validates exact ordered pair identities, original references,
+inference/display hashes, focus, presentation and supporting text before the
+first await. Native staging compares the expected package, membership and
+envelope under the existing save seals, so a changed persisted selection cannot
+silently replace the submitted input. Busy ownership lasts until the operation
+exits. Snapshot, admitted owner and acknowledged Prepared survive cancellation
+or an uncertain acknowledgement. Explicit retry discovers the existing raw slot
+first; a received slot returns its saved cohort read-only, an absent known
+intent or an abandoned/releasing slot refuses, and no automatic retry is
+scheduled.
+
+The actual caller checks account, draft generation, refinement and full visible
+snapshot after suspension. Late durable receipt remains held while stale UI gets
+no success callback or draft clearing. Success means local receipt only: queue
+attention remains set and funding/provider execution is not invoked. Camera and
+picker acquisition, native derivative preview/editor binding, reconstruction of
+feature selection after app restart, audio/video and full initial/reanalysis
+journeys remain unqualified integration work. The ordinary feature gate remains
+false; PR116 and the deployment hold remain unchanged.
+
+Focused source review is clear. The managed Debug run passed 60 methods / 81
+cases across this bridge and the affected receiving, recovery, capability and
+Capture architecture checks, with no failures, skips, structured runtime
+warnings or source drift. The original expected-count record omitted six
+existing extension methods; a separately reviewed strict inventory
+reconciliation qualified the same retained result without rerunning tests. The
+original inventory mismatch and earlier test-target compiler failure remain
+retained. Prior owner-checkpoint Release results do not qualify these new
+sources; this increment has no new Release or full-journey qualification.
+
 # Capture Submission
 
 The `Submission` directory owns admission and durable dispatch after a staged
@@ -229,16 +720,29 @@ refinement, and other Pro-only entry points open the soft paywall when
 unavailable. One photo/audio plus an optional note does not itself require Pro
 funding.
 
-Before a camera shutter, audio recorder, or staged submission can begin work,
-online Capture calls the authenticated, caller-scoped
+Physical camera and audio capture stage locally before authentication or quota
+checks so a subject is not lost while the session loads. Before a staged
+submission can begin work, online Capture calls the authenticated, caller-scoped
 `get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access denial
 opens the existing root paywall immediately and leaves staged input untouched;
-Capture does not start hardware, create a queue row, open Insight, or invoke
-inference. `IdentificationEvidenceAllowance` permits one ordinary photo or
-standalone audio plus an optional note, or one description alone, for Flash.
-Additional physical media, video-derived evidence, multiple descriptions, and
-refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
-preview, not a reservation.
+Capture does not create a queue row, open Insight, or invoke inference after
+denial. Library recovery retains the draft for review and directs an explicit
+Identify attempt to Library or Profile without opening sign-in over the camera.
+Automatic submission is revoked while recovery is pending. Draft account binding
+is checked before and after preview suspension; existing durable queue and
+exact-session funding fences remain authoritative.
+`IdentificationEvidenceAllowance` permits one ordinary photo or standalone audio
+plus an optional note, or one description alone, for Flash. Additional physical
+media, video-derived evidence, multiple descriptions, and refinement preflight
+as Pro-only. The RPC is a short-lived, read-only UX preview, not a reservation.
+
+Legacy refinement also rechecks original-observation enrollment before
+requesting this preview and after it returns, before enqueue. A protected or
+unreadable parent leaves the draft intact and cannot enter legacy submission.
+The visual path retains the same parent across that suspension. Ordinary new
+captures have no replacement parent and keep their existing admission behavior.
+A previously dispatched legacy child is not canceled or refunded by this local
+guard.
 
 Before taking the preview's account-work lease, iOS joins or retries eligible
 first-launch session setup through the existing Auth bootstrap coordinator. A
@@ -452,3 +956,152 @@ chosen count before file loading, using the already-registered draft operation.
 This preserves exhausted-Pro/remaining-Free access to one photo with an optional
 note while rejecting an unfunded second photo. Final submission still rechecks
 its serialized composition and durable admission.
+
+## Refinement evidence identity
+
+`CaptureSubmissionAdmissionSnapshot` includes image provenance, focus regions
+and chronological insertion times as well as IDs and inference bytes. A crop
+that retains the same bytes, a late focus update or a reordered timeline
+therefore invalidates suspended admission. Staging owns the distinction between
+a newly added photo, verified original history media and an edited derivative.
+The prepared
+[history source boundary](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source)
+freezes the identification separately from these photo choices.
+`CaptureReanalysisPreparation` maps the final staged timeline into the immutable
+producer plan, preserving removals, order and crop lineage while rejecting
+unsupported modalities. The prepared producer verifies child-owned files and
+saves a held draft. The protected Shell editor connects preparation behind a
+closed access boundary; ordinary submission and dedicated execution remain
+disconnected.
+
+### Protected Capture preparation
+
+`CaptureReanalysisEvidenceSelection` accepts an explicit set of original V2
+photo identities and preserves their relative position among the source's exact
+descriptions. It never chooses the first two or five photographs. The prepared
+boundary accepts up to five JPEG/PNG photos within 5 MiB, independently of the
+ordinary two-item Capture capacity. Unsupported originals and over-budget
+selections fail before downloads; the future chooser must offer explicit
+remediation. V1/V3 sources contribute no inherited photos or descriptions. An
+empty photo selection is allowed while composing, but final preparation requires
+at least one original, edited or newly added photo.
+
+The November 4 native-baseline candidate separately offers retained AI photos
+through the existing chooser and evidence loader. It does not populate V3's
+protected manifest. `ObservationReanalysisRetainedInput` carries the exact local
+origin through staged edits, final plan freeze and the first durable child
+insert. The loader holds the existing account lease and publishes only a fully
+validated selection; failed discovery permits explicit new photos without
+borrowing parent media. See the
+[frozen refinement contract](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source).
+The app installation gate remains closed. Focused native validation passed
+34methods/43expanded cases with independent verification; full execution and
+functional qualification remain separate.
+
+`CaptureReanalysisEvidenceLoader` holds an owner lease, verifies the source and
+foreground generation around every suspension, and returns a complete staged
+value only after every selected photo passes length, digest and actual-container
+checks. A failure cannot commit a partial selection. Original inference bytes
+remain exact, previews are downsampled to 1024 pixels, and every original
+carries its historical analysis/photo provenance. No parent cover, note,
+location or legacy public URL is a fallback. Description text and mixed-evidence
+ordering are preserved in the final preparation plan.
+
+`CaptureReanalysisSession` retains the frozen source and draft generation. Its
+first explicit preparation freezes the input snapshot and mints one plan; exact
+retry reuses its child and media identities. Changed input or a changed
+generation is rejected. Its dedicated `stage` method invokes only the private
+producer, with single-flight ownership and a final foreground fence. It freezes
+the requested held/submit disposition with the plan before awaiting file work; a
+different retry action conflicts. Explicit submit produces durable submission
+intent before private writes and retains it through verified file recovery.
+Default staging and the existing editor still produce held-only drafts. See the
+[submission-intent contract](../../../Core/Data/AnalysisHistory/README.md#submission-intent-before-private-writes).
+An ambiguous response leaves the same plan and action retained. Explicit
+`discard` obtains an owner lease and retires only the same unbound, unattempted
+child through the transactional erasure receipt. It makes this session terminal
+only after that commit; failure retains the plan. A caller must wake local
+erasure recovery before releasing the session. Account teardown invalidates
+private presentation separately and cannot claim durable cancellation.
+
+These owners are compiled and covered by `CaptureReanalysisSessionTests`. The
+prepared protected editor now connects explicit selection and held submission,
+while normal entry stays disabled. It does not enable inference, ordinary scan
+admission, funding, provider retry or automatic selection. All activation gates
+remain closed.
+
+The prepared protected root route now composes these owners through the
+[separate Shell editor](../Shell/README.md#protected-reanalysis-editor). Its
+explicit save creates only a held draft; execution and normal entry remain
+disabled. It bypasses ordinary admission and funding. The editor keeps its
+session after ambiguous save failures and uses the transactional discard
+boundary before allowing replacement. Legacy Capture submission is unchanged.
+
+### Frozen audio reanalysis submission
+
+`CaptureAudioReanalysisPlan` freezes one canonical WAV, ordered descriptions and
+new child/media IDs from an explicit historical source. The synchronous
+`CaptureAudioReanalysisSession.freeze` call belongs at the actual submit tap,
+before scheduling asynchronous work. Changed input or presentation generation
+cannot replace that plan. WAV container and coarse input bounds are checked at
+freeze; hashing and strict manifest validation run off-main from the retained
+bytes. No parent notes, media, selected-result lookup or new preprocessing is a
+fallback.
+
+The session keeps its original container, source, generation and verified proof.
+Submission requires producer and binder to share the retained preparation owner.
+A strict admission read precedes the file producer: exact bound work bypasses
+files and consent; unbound work prepares the original file, requires
+`admission_pending`, then uses retained binding. Account scope governs those
+durable operations. Presentation scope is checked separately after awaits and
+before handoff; losing it withholds UI/queue handoff without claiming that a
+committed binding was cancelled. A fresh exact snapshot comparison precedes the
+synchronous injected queue start. Queue lifetime must use common account scope,
+never the presentation predicate.
+
+A throwing bind save returns no start, including commit-then-throw. A later
+explicit retry preserves the plan and recovers its exact binding. Unavailable
+queue admission also retains the original plan and request. The session never
+discards work, remints an identity, selects the child or authorizes a second
+provider call. The audio-only source proof accepts exact V4 authority and
+rejects reuse of its media ID in the new evidence. It never inherits the source
+WAV or descriptions; the plan requires explicit input. Photo source capture and
+photo preparation continue to reject V4. These owners are prepared only: no
+ordinary Capture dependency, router, editor or alternatives-card layout is
+changed.
+
+### Explicit caller-file audio input
+
+`CaptureAudioInputPreparer` accepts an explicitly supplied local URL and an
+injected temporary directory. It holds any acquired security scope through
+normalization, bounded reading and cleanup, using only
+`InferenceAudioPreparer.prepareLocalFile`. It never resolves historical media or
+reads parent notes. The output must be a regular, nonsymlink file inside its
+unique owned directory. Reading is capped at the inference limit plus one byte,
+requires EOF and passes `ObservationAudioContainer` validation. Success includes
+removal of the temporary directory before returning canonical bytes. Errors and
+cancellation attempt the same cleanup and return no input.
+
+The adapter creates no analysis/media identity, account lease, queue record or
+execution authority. Its random temporary directory identifies only local
+scratch storage. Caller files are preserved. A filesystem cleanup failure
+withholds success; it does not qualify device file-provider behavior.
+
+### Separate source-based audio submission
+
+`CaptureAudioReanalysisSession.submitSource` uses the same synchronously frozen
+plan with `ObservationAudioSourcePreparation`. Its tagged result distinguishes
+source reservation from an already bound execution. Presentation cancellation
+withholds handoff while preserving committed durable work. A stage failure
+retains the plan; a later explicit retry recovers the same saved UUID. This
+method cannot invoke the legacy binder. Existing `submit` behavior is unchanged.
+
+## Inactive original-photo ownership (NCO-1)
+
+Explicit qualification composition may supply `photoOriginalPreparation`;
+`.live` leaves it nil. Its local branch retains original bytes before draft
+release, stores AI/display assets separately and freezes only into
+`preparedHeld`. It cannot request funding, upload or AI work. Original handles
+travel only in local staging, not ordinary admission/queue payloads. Failures
+retain the draft and block submission. This candidate is under native
+validation; capture-tools layout and later redesign remain separate.

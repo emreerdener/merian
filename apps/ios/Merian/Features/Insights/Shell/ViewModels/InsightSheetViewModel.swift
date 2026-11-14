@@ -109,7 +109,9 @@ final class InsightSheetViewModel {
     /// identity. This deliberately survives same-scan queue/live/result routing
     /// generations and is cleared when the sheet view model resets.
     var focusOverlayInteractionState = FocusOverlayInteractionState()
-    @ObservationIgnored var scanBoundActionGeneration: UInt64 = 0
+    // Rendered controls capture this generation. Appearance reset and same-scan
+    // handoffs must refresh those callbacks even when scan/media stay equal.
+    var scanBoundActionGeneration: UInt64 = 0
     @ObservationIgnored private(set) var presentationSessionIsActive = false
     @ObservationIgnored let sharingOperations = InsightSharingOperationState()
     @ObservationIgnored var boundFieldNotesScanId: String?

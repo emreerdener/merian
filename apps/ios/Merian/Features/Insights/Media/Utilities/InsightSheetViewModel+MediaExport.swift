@@ -16,7 +16,7 @@ extension InsightSheetViewModel {
         expectedGeneration: UInt64,
         inferenceEngine: InferenceEngine
     ) {
-        guard isPresentingLocalRecord(
+        guard !activeMedia.hasRetainedDisplayImages, isPresentingLocalRecord(
             scanId: expectedScanId,
             generation: expectedGeneration
         ),
@@ -74,7 +74,7 @@ extension InsightSheetViewModel {
         expectedGeneration: UInt64,
         inferenceEngine: InferenceEngine
     ) {
-        guard isPresentingLocalRecord(
+        guard !activeMedia.hasRetainedDisplayImages, isPresentingLocalRecord(
             scanId: expectedScanId,
             generation: expectedGeneration
         ),

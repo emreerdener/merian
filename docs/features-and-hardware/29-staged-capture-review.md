@@ -8,6 +8,15 @@ validation results, and outstanding distribution evidence. The
 [adaptive-toolbar follow-up](../rfcs/adaptive-staged-toolbar-2026-09-27.md)
 records the later layout changes and their local validation separately.
 
+## Planned successor (2026-10-18)
+
+The [consolidated capture plan](../product/capture-review-plan.md) joins the
+proposed Scan/Record simplification, Add details sheet, default media review,
+combined photo editor, video/audio review, and shared draft toolbar. It is a
+planning document, not an activation or completion claim. Existing behavior
+below remains distinct; shared media/submission work requires its own explicit
+handoff and qualification before this redesign is implemented.
+
 ## Capacity and settings
 
 | Composition      | Physical media                            | Shared text                                         |
@@ -127,19 +136,21 @@ horizontal media viewport or hidden discard gesture.
 
 Compact layout places the media-only glass capsule between the independently
 floating Discard and Identify/Analyze buttons, with a 16 pt gap on each side.
-Both circular action controls use 48 pt diameters in compact and expanded
-layouts, centered alongside the media capsule. The capsule retains 8 pt internal
-padding and the toolbar retains 16 pt outer horizontal margins. Expanded layout
-retains that padding and those outer margins, with 8 pt between complete media
-rows and between the media container and action row. Both layouts keep 24 pt
-bottom padding. Selection is based on actual available width and ideal content
-sizes, not a node-count or device-model threshold.
+Both circular action controls use 52 pt diameters in compact and expanded
+layouts, with 24 pt semibold icons, centered alongside the media capsule. The
+capsule retains 8 pt internal padding and the toolbar retains 16 pt outer
+horizontal margins. Expanded layout retains that padding and those outer
+margins, with 8 pt between complete media rows and between the media container
+and action row. Both layouts share the main navigation bar's bottom anchor
+without additional bottom padding; expanded content grows upward. Selection is
+based on actual available width and ideal content sizes, not a node-count or
+device-model threshold.
 
 On iOS 26+, the tray and circular discard control use native Liquid Glass.
 Earlier iOS uses material; Reduce Transparency or the existing
 Expedition/thermal effect policy selects an opaque adaptive background. The tray
 follows the app's color scheme consistently across Scan, Record, and Describe.
-**Identify** and **Analyze** both use a white up arrow in a 48 pt primary accent
+**Identify** and **Analyze** both use a white up arrow in a 52 pt primary accent
 blue circle, matching Share’s blue and Discard’s diameter. Both retain their
 context-specific accessibility label and submission hint, disabled behavior, and
 Large Content Viewer label. Once per install, a full physical-media tray shows
@@ -147,20 +158,24 @@ Large Content Viewer label. Once per install, a full physical-media tray shows
 submit button for four seconds. It waits for submission readiness and for the
 note tooltip to finish, and disappears if the tray becomes incomplete or locked.
 The optional note is not required to trigger it. The once-per-install note
-tooltip remains. Action controls remain 48 pt at accessibility text sizes, while
+tooltip remains. Action controls remain 52 pt at accessibility text sizes, while
 note-tooltip text can wrap. Media icons retain their meanings. Both the note and
 audio-review nodes have a visible circular border. Empty note and add-media
 nodes share a dashed border and transparent background. Populated notes, audio,
 historical text, and photo/video thumbnail backing use opaque primary system
 backgrounds (white in light appearance) and solid borders. Empty nodes reveal
 the tray beneath, including its reduced-transparency or reduced-effect fallback.
-Audio uses a primary-contrast waveform; its appearance does not imply a disabled
+Add-media plus icons, including the Pro upgrade placeholder, and note icons use
+the same adaptive primary color (white in dark appearance, dark in light
+appearance), while their dashed borders remain subdued. Note content changes the
+bubble from outlined to filled rather than changing its foreground color. Audio
+uses a primary-contrast waveform; its appearance does not imply a disabled
 state. It remains a playback-review button, subject to the shared
 draft/admission locks.
 
-Only the staging tray reports its rendered height (including bottom padding) to
-Shell. `CaptureChromeLayout` retains the baseline 124 pt capture-control inset,
-or uses the tray height plus 16 pt when larger. Describe's content reservation,
+Only the staging tray reports its rendered height to Shell.
+`CaptureChromeLayout` retains the baseline 124 pt capture-control inset, or uses
+the tray height plus 16 pt when larger. Describe's content reservation,
 camera/audio overlay clearance, and composing center follow this same increment.
 Capture controls and UIKit-hosted Describe never report heights back into this
 calculation. Compact layouts preserve ordinary positions; expanded layouts
@@ -189,7 +204,16 @@ work cannot be discarded.
 
 ## Readiness and automatic capture attempts
 
-`CaptureDraftSession` owns the generation and unresolved-operation tokens.
+`CaptureDraftSession` owns the generation and unresolved-operation tokens. It
+also tracks explicit unowned/account-bound staging. Fresh physical captures made
+before Auth resolves may bind to the first resolved account; an owned draft
+cannot be rebound to another account. Same-account cached-session refresh
+preserves staging. A real identity replacement retires private staging and
+fences late photo/video/audio callbacks. If a queue write is already copying
+files, its existing completion owns source cleanup after presentation clears.
+Recovery suppresses automatic submission and leaves a new unowned draft for
+manual review. Explicit Identify explains that library access must be restored
+in Library/Profile; it never opens sign-in over Capture or bypasses queue gates.
 Register photo, audio, video, and import work before asynchronous execution.
 `isDraftReadyForSubmission` is shared by UI and submission entry points and is
 rechecked after admission and before enqueue. Recording, capture, import,
@@ -201,10 +225,12 @@ revokes automatic eligibility, and retains existing content for manual review.
 Automatic eligibility is minted at capture entry only when Auto-submit is on,
 the entire composition including pending text is empty, and no reanalysis is
 active. It follows that attempt through recording/preparation and the initial
-required crop; video may submit after preparation. Completion may consume this
-eligibility but cannot create it. Turning the preference off revokes it even
-across an off/on cycle. Turning it on, recropping, removing content, or adding
-context never arms an existing attempt. Reanalysis is always manual.
+required crop; its button reads **Crop and submit** while that automatic attempt
+remains eligible, otherwise **Confirm crop**. Video may submit after
+preparation. Completion may consume this eligibility but cannot create it.
+Turning the preference off revokes it even across an off/on cycle. Turning it
+on, recropping, removing content, or adding context never arms an existing
+attempt. Reanalysis is always manual.
 
 Fresh automatic gallery selection is limited to one photo. Pending text makes
 the composition manual and retains its normal physical-media budget. Picker
@@ -260,3 +286,29 @@ The
 [verification matrix](../development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation)
 contains exact suite and UI selectors. The dated implementation record preserves
 completed local checks and remaining device, database, and release evidence.
+
+## Inactive NCO-1 original-photo qualification
+
+An explicitly injected `CapturePhotoOriginalPreparationAccess` uses a dedicated
+private file root, disk container and synthetic account. Normal `.live` access
+is nil. This seam retains the exact delivered still-image bytes before releasing
+a source, gives originals/AI inputs/displays separate identities, and persists
+crop presentation and ordered supporting context in a versioned bounded local
+envelope. Reopening restores committed context without applying the empty
+shared-description draft over it. Failed persistence retains the edit as
+unsaved; missing media or incomplete intent blocks submission and preserves
+recovery authority. It never falls back to text-only identification.
+
+Manual and automatic submission stop at a local `preparedHeld` receipt; no
+ordinary admission, token funding, upload or provider invocation is available
+through this branch. Background dismissal preserves the durable package. Removal
+and discard use the photo owner rather than legacy `draftOwnedFiles` cleanup. An
+interrupted inbox transfer remains charged until exact source-owner retention or
+release is acknowledged; cancellation alone does not transfer ownership.
+
+The
+[NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md)
+owns limits, scope and exact validation status. Local simulator validation is
+separate from installed PhotoKit/camera/file-protection qualification. No
+capture tools, Add details, toolbar or later Identification/History redesign is
+activated by this checkpoint.

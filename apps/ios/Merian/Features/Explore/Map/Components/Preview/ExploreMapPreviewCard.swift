@@ -19,17 +19,18 @@ struct ExploreMapPreviewCard: View {
     @State private var showUnpublishConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if stacksImageAboveContent {
-                imageButton
-                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-            }
-            header
-            actions
-            openButton
-        }
-        .modifier(ExploreMapPreviewCardSurface(usesGlass: usesGlassBackground))
+        ScanPreviewCard(
+            usesGlassBackground: usesGlassBackground,
+            stacksImageAboveContent: stacksImageAboveContent,
+            openTitle: post.hasAudioMedia && !post.hasVideoMedia ? "Listen to discovery" : "View discovery",
+            onOpen: {
+                HapticManager.shared.triggerSelectionPulse()
+                onOpen()
+            },
+            media: { imageButton },
+            header: { header },
+            actions: { actions }
+        )
         .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Unpublish", role: .destructive, action: onUnshare)
@@ -137,26 +138,6 @@ struct ExploreMapPreviewCard: View {
             onReaction: onReaction, onLoadMore: onLoadMoreReactions)
     }
 
-    private var openButton: some View {
-        Button {
-            HapticManager.shared.triggerSelectionPulse()
-            onOpen()
-        } label: {
-            Text(post.hasAudioMedia && !post.hasVideoMedia ? "Listen to discovery" : "View discovery")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.accentColor)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
     private func actionPill(
         title: String,
         systemImage: String,
@@ -185,19 +166,5 @@ struct ExploreMapPreviewCard: View {
             .clipShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct ExploreMapPreviewCardSurface: ViewModifier {
-    let usesGlass: Bool
-
-    func body(content: Content) -> some View {
-        if usesGlass, #available(iOS 26.0, *) {
-            content
-                .padding(20)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-        } else {
-            content.card()
-        }
     }
 }

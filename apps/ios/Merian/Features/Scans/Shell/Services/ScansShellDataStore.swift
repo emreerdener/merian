@@ -65,7 +65,7 @@ struct ScansShellDataStore {
         }
 
         let visibleQueuedScans = fetched.filter {
-            !completedIDs.contains($0.id)
+            $0.permitsOrdinaryInference && !completedIDs.contains($0.id)
         }
         let snapshots = visibleQueuedScans.map(Self.snapshot)
 

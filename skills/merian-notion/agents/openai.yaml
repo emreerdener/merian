@@ -1,0 +1,4 @@
+interface:
+  display_name: "Naturebook Notion"
+  short_description: "Maintain Naturebook knowledge and project records"
+  default_prompt: "Use $merian-notion to consult Naturebook requirements and reconcile or update the authorized documentation and project records with source evidence."

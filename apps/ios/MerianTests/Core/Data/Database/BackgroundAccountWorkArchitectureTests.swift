@@ -110,11 +110,39 @@ struct BackgroundAccountWorkArchitectureTests {
                 }
                 return source.relativePath
             }.sorted()
+            let fixtureConsumers = entry.call == ".activateBackgroundAccountWork("
+                ? consumers.filter { $0 == Self.initialMediaHistoryFixturePath }
+                : []
+            let productionConsumers = consumers.filter { !fixtureConsumers.contains($0) }
             #expect(
-                consumers == entry.expected.sorted(),
+                productionConsumers == entry.expected.sorted(),
                 "\(entry.call) must remain Offline Sync orchestration owned"
             )
+            if entry.call == ".activateBackgroundAccountWork(" {
+                #expect(fixtureConsumers == [Self.initialMediaHistoryFixturePath])
+            }
         }
+    }
+
+    @Test func initialMediaHistoryActivationStaysBehindDebugAndLaunchGuards() throws {
+        let fixture = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "apps/ios/Merian/" + Self.initialMediaHistoryFixturePath
+        )
+        let gate = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "apps/ios/Merian/App/UITesting/InitialMediaHistoryUIFixture.swift"
+        )
+        for source in [fixture, gate] {
+            #expect(source.hasPrefix("#if DEBUG\n") && source.hasSuffix("#endif\n"))
+        }
+        let guardRange = try #require(fixture.range(of:
+            "guard UITestSeedCoordinator.initialMediaHistoryEnabled else { throw MerianError.invalidResponse }"
+        ))
+        let activationRange = try #require(fixture.range(of: ".activateBackgroundAccountWork("))
+        #expect(guardRange.upperBound < activationRange.lowerBound)
+        #expect(fixture.components(separatedBy: ".activateBackgroundAccountWork(").count == 2)
+        #expect(gate.contains(
+            "isEnabled && ProcessInfo.processInfo.arguments.contains(\"-seedInitialMediaHistory\")"
+        ))
     }
 
     @Test func focusedTestsMirrorTheExtractedOwner() throws {
@@ -158,6 +186,9 @@ struct BackgroundAccountWorkArchitectureTests {
 
     private static let productionRelativePath =
         "Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift"
+
+    private static let initialMediaHistoryFixturePath =
+        "App/UITesting/InitialMediaHistoryUISubmission.swift"
 
     private static let behaviorTestsPath =
         "apps/ios/MerianTests/Core/Data/Database/BackgroundAccountWorkPersistenceTests.swift"

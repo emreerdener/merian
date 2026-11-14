@@ -78,9 +78,12 @@ extension BackgroundDatabaseActor {
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
         videoFilePaths: [String]?,
-        capturedMediaJSON: String?
+        capturedMediaJSON: String?,
+        originalCompletion: OrdinaryInferenceCompletion? = nil,
+        originalOwnership: BackgroundAccountWorkOwnership? = nil
     ) async throws {
         if let existing = try localScanRecord(id: recordId) {
+            _ = try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext)
             try validatePrimaryCompletion(mappedData, existing: existing)
             return
         }
@@ -99,13 +102,20 @@ extension BackgroundDatabaseActor {
                 ))
         }
 
+        try await originalCompletion?.account.validate()
         try Task.checkCancellation()
+        if let originalOwnership, originalCompletion != nil {
+            guard backgroundAccountWorkIsCurrent(scanId: recordId, ownership: originalOwnership) else {
+                throw OrdinaryInferenceCompletion.Invalid.evidence
+            }
+        }
         if let existing = try localScanRecord(id: recordId) {
+            _ = try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext)
             try validatePrimaryCompletion(mappedData, existing: existing)
             return
         }
 
-        modelContext.insert(LocalScanRecordFactory.makeRecord(
+        let record = LocalScanRecordFactory.makeRecord(
             from: mappedData,
             recordId: recordId,
             speciesId: speciesId,
@@ -115,7 +125,9 @@ extension BackgroundDatabaseActor {
             coverImagePath: originalImagePaths.first,
             isLiveCapture: mappedData.isLiveCapture,
             fieldNotes: try preservedScanRecordFieldNotes(scanId: recordId)
-        ))
+        )
+        try originalCompletion?.retain(on: record, context: modelContext, backgroundOwnership: originalOwnership)
+        modelContext.insert(record)
     }
 
     func insertReplacingLocalScanRecord(
@@ -127,15 +139,18 @@ extension BackgroundDatabaseActor {
         capturedMediaJSON: String?,
         coverImagePath: String?,
         isLiveCapture: Bool,
-        fieldNotes: String?
+        fieldNotes: String?,
+        originalCompletion: OrdinaryInferenceCompletion? = nil
     ) throws {
         try validatePrimaryCompletion(mappedData, existing: nil)
-        if let existing = try localScanRecord(id: recordId) {
+        let existing = try localScanRecord(id: recordId)
+        if let existing {
+            if try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext) { return }
             try validatePrimaryCompletion(mappedData, existing: existing)
             if existing.primaryIdentification != nil { return }
             modelContext.delete(existing)
         }
-        modelContext.insert(LocalScanRecordFactory.makeRecord(
+        let record = LocalScanRecordFactory.makeRecord(
             from: mappedData,
             recordId: recordId,
             speciesId: speciesId,
@@ -145,7 +160,9 @@ extension BackgroundDatabaseActor {
             coverImagePath: coverImagePath,
             isLiveCapture: isLiveCapture,
             fieldNotes: fieldNotes
-        ))
+        )
+        if existing == nil { try originalCompletion?.retain(on: record, context: modelContext) }
+        modelContext.insert(record)
     }
 
     func validatePrimaryCompletion(_ data: SpeciesData, existing: LocalScanRecord?) throws {

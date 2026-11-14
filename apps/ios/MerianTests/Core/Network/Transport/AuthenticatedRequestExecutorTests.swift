@@ -20,6 +20,7 @@ struct AuthenticatedRequestExecutorTests {
         _ = try await makeExecutor(probe: probe).execute(request)
         #expect(probe.attempts.count == 2)
         for attempt in probe.attempts {
+            #expect(attempt.request.value(forHTTPHeaderField: "Content-Type") == "application/json")
             #expect(attempt.request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
             #expect(attempt.identificationAuthorization?.recipient == .openAI)
             #expect(attempt.request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "6")

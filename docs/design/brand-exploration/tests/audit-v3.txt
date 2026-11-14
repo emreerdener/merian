@@ -1,0 +1,21 @@
+
+=== a-living-n.svg  (468 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 17
+margins L42.0 R42.0 T39.3 B39.3 · bbox fill 0.466
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== b-fieldfold.svg  (448 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 16
+margins L35.8 R36.8 T43.3 B46.7 · bbox fill 0.464
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== c-clearing.svg  (466 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 12
+margins L36.7 R38.1 T34.8 B39.4 · bbox fill 0.503
+✔ no issues found
+production-readiness score: 100/100 (heuristic)

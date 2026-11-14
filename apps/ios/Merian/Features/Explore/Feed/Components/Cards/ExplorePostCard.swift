@@ -252,7 +252,7 @@ struct ExplorePostCard: View {
             if post.isOwnedByViewer {
                 if let onOpenInsight {
                     Button(action: onOpenInsight) {
-                        Label("View insight", systemImage: "sparkles")
+                        Label("View your scan", systemImage: "sparkles.2")
                     }
                 }
 

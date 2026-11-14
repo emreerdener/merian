@@ -10,8 +10,21 @@ and the staged cleanup history and residual owners are recorded in the
 
 ## Ownership boundaries
 
+`Data/AnalysisHistory/ObservationConfirmationUndoEligibility` validates exact
+local or recovered confirmation associations. Its retained lookup owner is
+injected from Offline Queue, bounds concurrent scopes to four, and drains leases
+before Auth transitions. Review admission remains the fresh transactional
+boundary; presentation cannot manufacture receipts or bypass current authority.
+The
+[History owner guide](../Features/Insights/History/README.md#durable-confirmation-undo)
+owns UI lifetime and uncertain-save recovery.
+
 - The Core root contains only `AppDIContainer.swift`, which composes live
   dependencies, and `MerianLog.swift`, which defines logging categories.
+  `injectAppDependencies` supplies both the owning container and its individual
+  managers to SwiftUI descendants. Saved-scan detail loaders require the typed
+  container environment; injecting only managers leaves that route unable to
+  mount.
 - Each domain directory owns its local contract in a `README.md`. New code
   belongs in the narrowest domain; a generic utility is appropriate only when
   its semantics are genuinely mechanical and cross-domain.
@@ -31,10 +44,14 @@ and the staged cleanup history and residual owners are recorded in the
 
 ## Residual large owners
 
-The post-refactor integration guard intentionally tracks the remaining Core
-production file above the 600-line review ceiling:
+The post-refactor integration guard intentionally tracks the reviewed Core
+production files above the 600-line review ceiling:
 
 - `Network/SupabaseManager.swift`
+- `AI/InferenceEdgeDTOs.swift` (generated versioned wire contract)
+- `Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift` (610-line cap)
+- `Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift` (622-line
+  cap)
 
 This is a residual inventory, not an exemption for new growth or an automatic
 instruction to create another owner. The macro extraction audit pauses further
@@ -43,10 +60,13 @@ correctness boundary or demonstrate a net-negative affected production delta.
 Prefer consolidation and deletion, update the inventory in the same change, and
 keep wire DTOs separate from UI policy.
 
-`IOSHygieneClosureArchitectureTests` also records `SupabaseManager.swift` as the
-only oversized Core owner. The Core Network architecture suite retains the
-stricter facade and aggregate non-growth budgets below; the global inventory
-does not replace them.
+`IOSHygieneClosureArchitectureTests` records the same Core inventory. Both
+inventory suites enforce the native owners' individual non-growth caps. Their
+private constructors, file-local capability minting and fences remain together;
+line-count-only extraction must not widen those access boundaries. The generated
+DTO remains validated by its generator contract. The Core Network architecture
+suite retains the stricter facade and aggregate non-growth budgets below; the
+global inventory does not replace them.
 
 The current Auth/Purchase Identity extraction leaves `SupabaseManager.swift` at
 3,461 lines. The Core Network architecture guard caps Auth at 7,734 production

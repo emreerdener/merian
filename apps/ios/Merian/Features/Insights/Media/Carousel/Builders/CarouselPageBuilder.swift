@@ -24,6 +24,24 @@ struct CarouselPageBuilder {
 
         for item in activeMedia.items {
             switch item {
+            case .retainedDisplayImage(let identity, let data):
+                let sourceIndex = stillImageSourceIndex
+                let focusRegion = activeMedia.focusRegionsBySourceIndex[sourceIndex]
+                stillImageSourceIndex += 1
+                let pageID = "retainedDisplay-\(identity.uuidString.lowercased())"
+                pages.append(CarouselPageItem(
+                    id: pageID,
+                    mediaKind: .visual,
+                    view: AnyView(LiveCapturePageView(data: data)),
+                    imageOrigin: .user,
+                    galleryItem: MediaGalleryItem(
+                        id: pageID,
+                        source: .liveImage(data),
+                        referenceAttributionLabel: nil
+                    ),
+                    stillImageSourceIndex: sourceIndex,
+                    focusRegion: focusRegion
+                ))
             case .liveImage(let data):
                 let sourceIndex = stillImageSourceIndex
                 let focusRegion = activeMedia.focusRegionsBySourceIndex[sourceIndex]

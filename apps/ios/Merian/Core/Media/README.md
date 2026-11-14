@@ -1,8 +1,14 @@
 # Core Media
 
-The `Media` directory owns reusable, bounded audio/video processing and
+The `Media` directory owns reusable, bounded image/audio/video processing and
 player-lifecycle infrastructure. It does not own feature navigation, global UI
 feedback, or durable scan state.
+
+`ImageCropProcessor` owns crop geometry and single-pass image encoding. Its
+optional `ImagePreparationPolicy.Encoding` retains the preferred format by
+default; native CPM preparation selects JPEG explicitly. See the canonical
+[image pipeline](../../../../../docs/system-architecture/03-image-pipeline.md#2-dual-path-preparation-mediapreparationactor--imagedownsampler)
+for dimensions, format policy and preservation of saved originals/derivatives.
 
 ## Playback dependency boundary
 
@@ -39,6 +45,12 @@ async `activatePlaybackAudio` closure remains the narrow admission seam for
 unmuted `AVPlayer` video; the live closure delegates to the token-aware
 coordinator rather than configuring `AVAudioSession` itself. Feature adapters
 otherwise remain limited to source, boost, telemetry, and feedback policy.
+
+Saved-request audio can pass its verified bounded WAV bytes to the same driver.
+The data initializer creates no temporary file, does not activate playback on
+load, and retains the bytes only for the driver lifetime. The saved-request
+presentation validates the original child before playback and retires the player
+and its exact session lease on closure or scope loss.
 
 `AudioPlaybackFilePlayer` projects scalar playback state to the carousel while
 `AudioPlaybackFileDriver` confines the AVAudioPlayer, including construction,
@@ -174,3 +186,56 @@ See
 [Event and Presentation Routing](../../../../../docs/system-architecture/10-event-and-presentation-routing.md#media-notification-lifetime)
 and
 [Zero-OOM and Concurrency](../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md).
+
+## Immutable history audio validation
+
+`ObservationAudioContainer.isValid` mirrors the protected backend's
+`analysisHistory/audioContainer.ts` byte contract. It accepts only a complete
+46–2,700,000-byte mono 44.1 kHz PCM16 WAV, with exact RIFF and data lengths,
+consistent rate/alignment, and an optional single zero-filled `FLLR` chunk of
+1–4,096 bytes including zero alignment padding. It neither copies nor transforms
+the payload. This is a byte-only prerequisite, not evidence of ownership, digest
+equality, readiness or permission to execute.
+
+The validator is prepared infrastructure; protected native audio upload and
+queue integration remain separate work. Existing `InferenceAudioPreparer` legacy
+eligibility remains unchanged. `ObservationAudioContainerTests` exercises actual
+prepared Core Audio output and unchanged sample bytes, sliced Data, header
+corruption, truncation, trailing bytes, padding and size limits. Device capture
+and durable audio restart are not established by these tests.
+
+## Image focus ownership
+
+`ImageFocusEngine` owns the Vision objectness worker and
+`ImageFocusRegionResolver` owns its unchanged selection policy. Core emits no
+telemetry. The Capture `ImageFocusRegionDetector` façade records the existing
+diagnostics and consumes an optional outcome at the unchanged 300 ms deadline.
+Native preparation uses `detectAndDrain`: timeout/cancellation fixes the outcome
+but does not prove the worker stopped. A separate nonthrowing wait completes
+only after the worker closure and its autorelease pool finish on the serial
+worker queue. Late success cannot replace a timed-out outcome. No new native
+processing can release its account/file/reservation ownership while this wait
+remains pending.
+
+`ImageFocusEngineTests` exercises blocked workers, timeout, cancellation before
+dispatch, cancelled drain waiters and multiple waiters using a DEBUG-only worker
+seam. `ImageFocusRegionResolverTests` retains the existing geometry cases.
+
+## Verified in-memory video candidate
+
+`MemoryVideoAsset` serves an already verified, bounded MP4 through a private
+custom-scheme AV asset. Its delegate runs only on the configured main queue; it
+retains at most 12 MiB and responds in at most 256 KiB chunks with checked byte
+ranges. External media references are explicitly forbidden by the AV asset
+policy. It exposes no filesystem URL or network fallback. The 12 MiB source
+limit is not a decoder/total-memory budget. Closure drops the bytes and cancels
+loading. The caller owns account and request validation, explicit playback
+admission, player detachment and the asset lifetime.
+
+Saved-video preview uses the existing `AudioPlaybackSessionController` and
+`MediaCoverVideoPlayer` layer. It has explicit Play/Stop controls, retains no
+boost derivative, and stops on background, scope loss or close. Native27803
+passes focused local tests including real-frame decoding, exact asset policy,
+byte ranges and lifecycle fences (34 methods/59 cases in six suites, zero
+skips). Audible/physical playback and decoder/total-heap qualification remain
+open.

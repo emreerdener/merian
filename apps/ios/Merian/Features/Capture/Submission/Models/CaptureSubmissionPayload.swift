@@ -3,6 +3,9 @@ import Foundation
 struct CaptureSubmissionAdmissionSnapshot: Equatable {
     let imageIDs: [UUID]
     let imagePayloads: [Data]
+    let imageAddedAt: [Date]
+    let imageProvenance: [StagedImage.ReanalysisProvenance]
+    let imageFocusRegions: [NormalizedImageFocusRegion?]
     let audioFilePaths: [String]
     let audioAddedAt: [Date]
     let videoFilePaths: [String]
@@ -16,6 +19,9 @@ struct CaptureSubmissionAdmissionSnapshot: Equatable {
     init(_ stagedCapture: StagedCapture) {
         imageIDs = stagedCapture.images.map(\.original.id)
         imagePayloads = stagedCapture.images.map(\.compressedData)
+        imageAddedAt = stagedCapture.images.map(\.addedAt)
+        imageProvenance = stagedCapture.images.map(\.reanalysisProvenance)
+        imageFocusRegions = stagedCapture.images.map(\.focusRegion)
         audioFilePaths = stagedCapture.audios.map(\.filePath)
         audioAddedAt = stagedCapture.audios.map(\.addedAt)
         videoFilePaths = stagedCapture.videos.map(\.filePath)

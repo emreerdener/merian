@@ -1,5 +1,5 @@
-@testable import Merian
 import Foundation
+@testable import Merian
 import Testing
 
 private enum OnboardingDependencyTestError: Error {
@@ -20,6 +20,7 @@ struct OnboardingDependencyTests {
                     events.append("gate")
                     isCompleted = value
                 },
+                hasCurrentRequiredConsent: { isCompleted },
                 recordCurrentConsent: { analyticsEnabled in
                     #expect(analyticsEnabled)
                     events.append("consent")
@@ -32,6 +33,10 @@ struct OnboardingDependencyTests {
                     #expect(receivedAccountID == accountID)
                     #expect(isCompleted)
                     events.append("resume")
+                },
+                resumeSubmittedReanalyses: { owner in
+                    #expect(owner == accountID && isCompleted)
+                    events.append("admission")
                 }
             )
         )
@@ -39,7 +44,7 @@ struct OnboardingDependencyTests {
         try viewModel.completeOnboarding(analyticsEnabled: true)
 
         #expect(isCompleted)
-        #expect(events == ["consent", "telemetry", "gate", "resume"])
+        #expect(events == ["consent", "telemetry", "gate", "resume", "admission"])
     }
 
     @Test func failedConsentWriteLeavesEveryDownstreamEffectClosed() {
@@ -54,7 +59,8 @@ struct OnboardingDependencyTests {
                 },
                 currentSessionUserID: { UUID() },
                 trackCompletion: { downstreamEffects += 1 },
-                resumeConsentBlockedScan: { _ in downstreamEffects += 1 }
+                resumeConsentBlockedScan: { _ in downstreamEffects += 1 },
+                resumeSubmittedReanalyses: { _ in downstreamEffects += 1 }
             )
         )
 

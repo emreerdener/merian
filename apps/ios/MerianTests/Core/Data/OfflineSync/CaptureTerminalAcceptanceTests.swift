@@ -57,7 +57,8 @@ struct CaptureTerminalAcceptanceTests {
             for path in files {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(path))
             }
-            try? FileManager.default.removeItem(at: root)
+            // Core Data can retain SQLite/WAL handles beyond ModelContainer scope.
+            // Keep the unique store until test-process exit, as migration fixtures do.
         }
         let di = AppDIContainer.preview
         let workspace = makeWorkspace(di: di)
@@ -212,7 +213,95 @@ struct CaptureTerminalAcceptanceTests {
         insight.endPresentationSession()
     }
 
-    private func makeWorkspace(di: AppDIContainer) -> CaptureWorkspaceViewModel {
+    @Test(arguments: [false, true])
+    func initialPhotoRetainsSubmittedContentThroughRecoveryAndHistory(withText: Bool) async throws {
+        try await initialMediaRetainsSubmittedBytesAndTextThroughCompletion(withText: withText, kind: .photo)
+    }
+
+    @Test(arguments: [false, true])
+    func initialAudioRetainsSubmittedBytesAndTextThroughCompletion(withText: Bool) async throws {
+        try await initialMediaRetainsSubmittedBytesAndTextThroughCompletion(withText: withText, kind: .audio)
+    }
+
+    @Test(arguments: [false, true])
+    func initialVideoRetainsPreparedCohortThroughCompletionAndHistory(withText: Bool) async throws {
+        try await initialMediaRetainsSubmittedBytesAndTextThroughCompletion(withText: withText, kind: .video)
+    }
+
+    func recoverAudioChild(source: ObservationReanalysisSource, container: ModelContainer,
+                                   cloud: ObservationHistoryCloudClient, baselineState: [String: Any],
+                                   withText: Bool) async throws {
+        var phase = "preparing fresh audio child"
+        defer { if phase != "complete" { print("Initial audio History join stopped at " + phase) } }
+        let root = try ObservationReanalysisFileStoreTests().directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let child = UUID()
+        let wav = makeInferenceTestPCM16WAVData(sampleRate: 44_100, frameCount: 64, sampleAt: { -Int16($0) })
+        let upload = try ObservationAudioEvidenceUpload(observationID: source.observationID,
+            analysisID: child, mediaID: UUID(), bytes: wav).prepare()
+        let evidence: [ObservationAudioReanalysisRequest.Evidence] = withText
+            ? [.description("  Child e\u{301} 🐾\n"), .audio(upload.reference), .description("After\u{0}")]
+            : [.audio(upload.reference)]
+        let preparation = try ObservationAudioPreparation(identity: .init(observationID: source.observationID,
+            sourceAnalysisID: source.analysisID, analysisID: child, ownerID: source.ownerID),
+            evidence: evidence, source: source, action: .submit)
+        let ownership = ObservationReanalysisPreparationOwner()
+        let producer = ObservationAudioPreparationProducer(files: .init(documents: root), ownership: ownership, account: cloud)
+        _ = try await producer.prepare(preparation, source: source, bytes: wav, container: container, isCurrent: { true })
+        let proof = try preparation.verified(source: source)
+        var authorizations = 0
+        let binding = ObservationAudioSubmissionBinding(ownership: ownership, account: cloud, authorize: { owner, validate in
+            try validate(); #expect(owner == source.ownerID); authorizations += 1
+            return IdentificationDispatchAuthorization(recipient: .gemini, validate: validate)
+        })
+        phase = "binding fresh audio child"
+        let saved = try await binding.bind(proof, container: container, isCurrent: { true })
+        #expect(saved.work.intent.request.evidence == evidence)
+        let seed = ObservationAudioPreparationTests.Seed(container: container, source: source,
+            preparation: preparation, bytes: wav, root: root)
+        let boundary = try ObservationAudioExecutionServiceTests.Boundary(seed)
+        let fixtureBytes = try #require(boundary.bytes)
+        var result = try #require(JSONSerialization.jsonObject(with: fixtureBytes) as? [String: Any])
+        var identification = try #require(result["result"] as? [String: Any])
+        identification["scan_id"] = source.observationID.uuidString.lowercased()
+        result["result"] = identification
+        let resultBytes = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+        boundary.bytes = resultBytes
+        _ = try ObservationReanalysisResult.decode(resultBytes, matching: saved.work.intent.request)
+        boundary.hook = { phase in
+            if phase == "analyze" { throw URLError(.networkConnectionLost) }
+        }
+        phase = "executing fresh audio child"
+        try await ObservationAudioInterruptionTests().owned(saved, seed: seed) { scope, _ in
+            #expect(await boundary.service.run(saved, proof: proof, container: container,
+                scope: scope, cleanup: boundary.cleanup) == .held)
+        }
+        let held = try ObservationAudioExecutionStore.read(proof, container: container, isCurrent: { true })
+        #expect(held.work.consumedAttempt == 1 && held.work.intent == saved.work.intent)
+        phase = "recovering consumed audio child"
+        let recovered = try await binding.bind(proof, container: container, isCurrent: { true })
+        #expect(recovered == held && authorizations == 1)
+        try await ObservationAudioInterruptionTests().owned(recovered, seed: seed) { scope, _ in
+            #expect(await boundary.service.run(recovered, proof: proof, container: container,
+                scope: scope, cleanup: boundary.cleanup) == .completed)
+        }
+        #expect(boundary.events == ["read", "upload", "authorize", "analyze", "outcome", "cleanup"])
+        let snapshots = [source.analysisID.uuidString.lowercased(): source.snapshot,
+                         child.uuidString.lowercased(): resultBytes]
+        let fresh = ModelContext(container)
+        let parent = try #require(fresh.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == source.analysisID.uuidString.lowercased())
+        #expect(try Dictionary(uniqueKeysWithValues: fresh.fetch(FetchDescriptor<LocalAnalysisRecord>())
+            .map { ($0.id, $0.resultSnapshotData) }) == snapshots)
+        phase = "reviewing recovered audio child"
+        try await exerciseCompletedChildActions(source: source, child: child, resultBytes: resultBytes,
+            container: container, cloud: cloud, baselineState: baselineState)
+        #expect(try await ObservationReanalysisFileStore(documents: root).readAudio(preparation: preparation,
+            validateBeforeRead: {}, validateBeforeReturn: {}) == wav)
+        phase = "complete"
+    }
+
+    func makeWorkspace(di: AppDIContainer) -> CaptureWorkspaceViewModel {
         let base = CaptureWorkspaceDependencies.live(diContainer: di)
         let submission = CaptureSubmissionDependencies(
             context: .init(lastKnownLocation: { nil }, fetchDeferredContext: { _ in EnvironmentContext(location: nil) }),

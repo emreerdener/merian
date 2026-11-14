@@ -5,7 +5,11 @@ public enum OfflineJobKind: String, Codable, Sendable, CaseIterable {
     case scanIngestion
     case cloudDeletion
     case identificationReviewSync
+    case observationAnalysisReviewSync
+    case protectedInsightChatSync
     case observationPublicationSync
+    case observationReanalysisErasure
+    case observationReanalysisSync
     case collectionSync
     case speciesPreferenceSync
     case future

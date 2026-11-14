@@ -11,6 +11,21 @@ tested, ordinary access and remaining integrations incomplete; no deployment\
 Scope: iOS, SwiftData, inference and funding, Supabase, media, identification
 review, Field Trips, Explore, Field Chat, and deletion
 
+Selected-name UI addendum (6 October 2026): The prepared selected-result menu
+now opens an explicit species-name form when immutable primary evidence permits
+named confirmation but not direct species confirmation. The existing retained
+review owns exact request admission and uncertain-save retry; closing the form
+never discards that request. No operation is created on opening or typing, and
+the final tap retains the original authority and presentation checks. The
+[canonical selected-review contract](../features-and-hardware/05-insight-sheet.md#prepared-selected-result-review-baseline)
+owns the current behavior. Ordinary access and every activation gate remain
+false. The final local milestone passed 5,285 tests (5,276 unit tests and nine
+UI smokes), zero failures or skips, with critical-result validation. Focused
+name-form/host tests, strict lint, source guards, tooling, exact indexed target
+membership and documentation checks also passed. Earlier fixture and test-macro
+failures were corrected before the final full rerun. This does not qualify
+hosted operations or enable rollout.
+
 Confirmation addendum (4 October 2026): Analysis-bound confirmation now has a
 separate default-off endpoint, immutable intent/query admission before
 dictionary verification, and completion guarded by both current revisions.
@@ -2632,3 +2647,981 @@ This slice does not connect a network drain or UI. Exact account leases around
 awaits, status-first lost-response recovery, durable retry/permanent-failure
 classification and bounded polling remain the next execution slice. Activation
 and production scheduling remain disabled.
+
+### Native delivery checkpoint — October 4, 2026
+
+The prepared native publication outbox now has an account-bound delivery owner
+and scheduler integration. It durably claims the existing immutable operation,
+recovers status first, and only replays original consent on the precise
+owner-visible not-found response. Acknowledged operations cannot re-admit.
+Monotonic attempt identity fences late acknowledgements and retries even when
+the saved consent is unchanged. Interrupted work retains a fixed recovery
+deadline; failed saves also request a bounded process wake. Terminal receipts
+remain complete, while proven local delivery conflicts require attention without
+inventing a server terminal result. Connectivity cancellation and awaited Auth
+quiescence retain task/lease ownership. Ordinary UI enqueue and every activation
+gate remain disabled. Validation evidence belongs to the candidate checkpoint;
+this implementation note does not assert production qualification or deployment.
+
+### October 4 update: dedicated consent preflight
+
+Prepared owner-authenticated consent preflight now projects an explicit
+analysis's current revisions, active taxonomy, fixed-null initial taxon and
+ordered immutable V2 photo candidates under shared locked eligibility. It
+creates no operation and promises no ready media or publication authority.
+Existing exact consent admission retains its receipt and revision checks; closed
+generic history/status readers are unchanged. Native consent production and UI
+remain next, with all activation gates false. The current contract is
+[documented here](../backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+
+### October 4 update: native consent wire boundary
+
+Prepared native preflight now has a strict, separately bounded 32 KiB decoder
+and expected-account transport, preserving the existing 4 KiB admission/status
+contracts. It returns all ordered candidate metadata without selecting a cohort,
+minting an operation or inferring ready media. Explicit foreground consent
+production and UI remain next, with every activation gate closed. See the
+[current API contract](../backend-and-data/05-api-contracts.md#native-consent-preflight-transport).
+
+### October 4 update: completion integration priority
+
+The remaining work is grouped into integrated milestones: append-only live and
+queued reanalysis; ordinary enrollment/history/restore wiring; analysis-bound
+review and explicit community photo consent; and final account-deletion,
+legacy-compatibility and runtime qualification. The current production
+reanalysis replacement path is the highest-priority integration gap. The
+prepared native consent service now persists explicit ordered photo consent
+before waking durable delivery, with historical retry and per-analysis revision
+fences. Ordinary UI and rollout remain closed.
+
+Focused checks accompany implementation. Full affected-surface validation runs
+at integrated milestones and on the final candidate; intermediate GitHub Actions
+runs do not block further implementation. This changes verification cadence, not
+the final acceptance or release-authorization requirements.
+
+### October 5: private reanalysis upload integration
+
+The prepared owner-authenticated `upload-observation-evidence` route now accepts
+bounded raw photo bytes and computes their digests before atomically reserving
+the complete ordered cohort. Immutable cohort metadata survives abandoned
+receipt cleanup, preserving the child analysis identity and fixed expiry. V2
+admission preserves the image subsequence; cleaned photo identities cannot be
+rebound to description-only work. Conditional private storage writes and
+completion share a deadline and recheck deletion. The response contains only V2
+content references. See the
+[current API contract](../backend-and-data/05-api-contracts.md#private-reanalysis-photo-upload).
+
+This closes the missing authenticated private write boundary. Native binary
+transport, durable capture/queue identities and append-only completion still
+need integration before the user-facing reanalysis path is complete. All
+activation gates remain disabled, and private-bucket/erasure qualification is
+still required. Implementation does not authorize deployment or scheduling.
+
+### October 5: native private upload and immutable request values
+
+The native upload transport now sends the exact binary cohort under an expected
+account lease, suppresses automatic ambiguous retries and session refresh, and
+validates receipt identities, order, byte counts and hashes against submitted
+bytes. Prepared photo reanalysis values preserve explicit source identity,
+processor expectation and complete request bytes with a checked fingerprint;
+execution receipts carry no result or selection authority. These boundaries have
+no ordinary capture producer yet. The next integration persists stable
+child/media identities in the existing scan-ingestion metadata, dispatches
+through the existing consent/funding owners, and recovers authoritative child
+history before queue completion. Existing SwiftData model shapes and rollout
+gates remain unchanged.
+
+The queue integration review also requires a persisted discriminator and parent
+observation linkage in a new SwiftData schema. Job JSON alone is insufficient:
+missing metadata can otherwise enter ordinary identification, parent deletion
+cannot find the child queue row, and the library can show a duplicate scan.
+Immutable request/media payloads may still use the existing job envelope, but
+routing and erasure must not depend solely on decoding that payload. Frozen
+queue snapshots must remain unchanged; the discriminator needs explicit forward
+migration and damaged-metadata, deletion and library-projection coverage.
+
+### October 5: qualified queue storage boundary
+
+V57 was frozen and compiled before adding the V58 queue discriminator and
+nullable parent/source/owner fields. Existing queue IDs remain child analysis
+identities; legacy rows migrate to ordinary work with nil linkage. All forward
+plans and startup recovery routes advance through V58. The queue classifier and
+legacy upload, replay, account, retry and finalization guards fail closed
+independently of job JSON. An absent row cannot be recreated by a late offline
+completion.
+
+This is storage preparation, with no qualified capture producer enabled. The
+next integration must connect parent-linked atomic erasure and
+observation-attached progress before exact private upload/analysis delivery and
+append-only recovery. The canonical current contract is the
+[V58 storage section](../backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage).
+
+### October 5 implementation: atomic queued-child erasure
+
+Direct and explicit non-biological parent deletion now erase exact parent-linked
+queue rows, ingestion jobs and preferred-goal hints within the parent
+transaction, including damaged kind/owner/source/job data. Post-commit
+cancellation refetches child absence and retains the original model-container
+boundary. File cleanup is restricted to the dedicated child namespace; shared
+parent/library paths are never inferred to be owned. Rollback, damaged linkage,
+unrelated-parent isolation, namespace traversal and both deletion entry points
+have focused coverage. Qualified production admission remains disabled; detached
+progress, recipient preflight, funding, durable execution and append-only
+completion are still pending.
+
+### Owner-bound reanalysis preflight — October 5, 2026
+
+The dedicated authenticated photo preflight now binds parent, historical source
+and proposed child before reading current recipient policy. Existing exact
+intents return recovery-only across all lifecycle states; legacy identities
+conflict. The native request/decoder and consent authorization path are prepared
+without enabling UI or execution. Funding remains inside atomic server
+admission; native must not create a legacy complimentary hold first. The
+existing exact owner-state reader already supports targeted completed-child
+recovery independently of pagination. Qualified durable production,
+upload/recovery orchestration and append-only local completion remain the next
+integration work. See the
+[current API contract](../backend-and-data/05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+
+### October 5: prepared atomic native reanalysis staging
+
+The native persistence boundary now stores the exact owner-bound request and
+qualified V58 child/job pair atomically, with immutable child-owned photo paths.
+Restart and same-ID replay preserve bytes and terminal state; damaged metadata,
+identity collisions, account changes and parent deletion fail closed. Ordinary
+scheduler deadlines no longer wake unserviceable qualified or orphan ingestion
+work. Dedicated execution and the ordinary UI producer remain pending; this
+prepared stage stays held and changes no selection or funding. All activation
+gates remain disabled.
+
+The completion decoder now binds a structurally valid V2 result to the saved
+child/source/request digest and complete ordered evidence, including private
+descriptions. It retains exact result bytes and has no persistence side effects.
+The dedicated execution owner must still supply account/deletion/claim fences
+and perform append-only admission.
+
+### October 5: exact native analysis transport
+
+Prepared native admission/recovery now transmits immutable saved request bytes
+through a closed account-bound route without automatic retry or 401 refresh.
+Current dispatch authorization must match the saved processor; recovery-only
+preflight cannot authorize admitted work that may still dispatch. The response
+remains execution state only. Durable draft production, execution integration,
+ordinary UI and activation remain separate work.
+
+### October 5: offline draft and one-time request binding
+
+Prepared native persistence now retains child identity and ordered evidence
+before recipient preflight, with no invented processor. The versioned local
+draft binds once to the exact request under the existing account/source/deletion
+transaction. Replays preserve bound terminal work; changed evidence or recipient
+conflicts, and recovery-only cannot reconstruct an unbound request.
+Verified-file production, dedicated execution and ordinary UI remain
+unconnected; all gates remain closed. No persisted model field or retired
+snapshot changes.
+
+### October 5: frozen source and staged photo provenance
+
+Prepared native source capture now retains the exact owner, observation,
+historical analysis and immutable snapshot, revalidating membership and deletion
+without retargeting to a later selection. Imported V3 and legacy V1 analyses
+remain eligible identification anchors but cannot automatically supply protected
+photo references. Only V2 references authorize verified original-photo loading.
+Staged crop provenance and admission snapshots distinguish original evidence
+from edited or added photos, including chronological changes. Capture entry,
+verified-file production and dedicated execution remain unconnected; this
+checkpoint does not enable reanalysis or change the closed activation gates.
+
+### October 5: prepared verified-file producer
+
+The native producer now maps explicit ordered evidence into fresh child media
+identities, verifies original private bytes, normalizes added/cropped photos to
+bounded JPEG, and durably writes immutable child files before the held queue
+save. Account, generation and frozen source checks guard the handoff. Exclusive
+filesystem ownership spans the synchronous save; rollback cannot overwrite or
+remove an earlier attempt's files. Capture entry, execution and ordinary UI are
+still unconnected, and all activation gates remain false. Pre-save crash orphan
+maintenance, full account namespace erasure, and durable individual-parent
+attribution/cleanup before photo I/O remain mandatory activation prerequisites.
+Maintenance must acquire filesystem ownership before a fresh database lookup;
+deletion must commit its database fence before file cleanup, without holding the
+shared database lock while waiting for a file lock.
+
+### October 5: durable ownership before private file I/O
+
+The prepared producer now persists an immutable `files_pending` envelope before
+writing private photos. It binds the exact draft to the frozen source snapshot
+SHA-256, separately from recipient binding. Locked pre-write validation and a
+fresh pending-to-ready compare-and-save prevent deletion from reinserting child
+work. Pending metadata is rejected by ordinary draft/request decoders.
+
+Parent removal atomically retains a minimal canonical namespace erasure receipt,
+even when child job metadata is damaged. All reanalysis staging rejects that
+receipt; the local erasure kind cannot drive network scheduler wakes. This
+closes the unindexed pre-save ownership gap in the October 5 producer
+checkpoint, but does not yet execute namespace cleanup or restart recovery.
+Those owners and full-account purge remain required before capture entry is
+connected. All activation gates remain false.
+
+### October 5: local durable reanalysis file cleanup
+
+A local cleanup owner now runs after parent deletion and from startup/foreground
+recovery without network or AI consent admission. It checks exact durable
+receipts and child absence under the preparation filesystem lock, removes child
+files without following symlinks, and acknowledges completion while retaining a
+minimal identity tombstone. Failed acknowledgement after file erasure remains
+recoverable; failed/malformed entries do not block later discovery pages.
+Generic observation file deletion no longer receives child paths.
+
+Writers and cleanup share a lock on the trusted Documents root to support the
+future exclusive full-account namespace purge. That purge and verified
+complete-cohort pending recovery still precede live capture integration. All
+activation gates remain false.
+
+### October 5: prepared complete-cohort recovery
+
+Targeted native recovery now verifies a saved `files_pending` cohort before
+advancing that same child to a ready draft. It opens only existing files, checks
+the immutable source fingerprint and ordered photo evidence, and retains the
+filesystem fence through fresh database validation. Incomplete or changed
+cohorts remain held; terminal replay cannot revive work. This does not yet wire
+restart delivery or provider execution. Full-account namespace purge was the
+next local privacy boundary at this checkpoint; the following entry records its
+implementation. The
+[current producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
+owns the implementation details; all activation gates remain disabled.
+
+### October 5: full-account private reanalysis purge
+
+Account deletion and library-clearing sign-out now await private reanalysis
+namespace erasure after row deletion and before preferences/runtime reset or
+recovery-marker retirement. The purge drains local receipt work and holds the
+exclusive Documents root lock against writers, recovery and child cleanup. It
+includes orphaned preparation files, never follows symlinks, and leaves
+unrelated Documents content alone. Failure keeps the existing cleanup barrier
+for retry. The
+[current data contract](../../apps/ios/Merian/Core/Data/README.md) owns this
+boundary. Capture/execution integration and feature activation remain
+outstanding.
+
+### October 5: exact Capture evidence and retained preparation identity
+
+Prepared native Capture owners now preserve the complete immutable V2 evidence
+timeline, require explicit original-photo selection and load that selection
+atomically with verified bytes and historical provenance. V1/V3 inherit no
+mutable observation media or notes. A session retains one plan and child/media
+identity across an ambiguous preparation response and rejects changed input. The
+producer now fences private result delivery after durable file completion; late
+account/generation loss cannot roll back that durable success. Ordinary Capture
+entry, the chooser, submission wiring and dedicated execution remain
+unconnected, with every activation gate disabled. Current ownership and tests
+are documented in the
+[Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).
+
+### October 5: explicit unbound preparation discard
+
+The prepared Capture session can now retire its exact local preparation before
+UI discard. A single database transaction records the permanent erasure receipt
+and removes only that unbound child/job; siblings and the current identification
+remain unchanged. Bound, attempted, ambiguous or colliding completed work
+requires reconciliation. Cancellation before the first write also fences the
+child identity, while exact receipt replay survives parent deletion. The session
+becomes terminal only after successful retirement. Filesystem cleanup remains
+owned by the existing local receipt worker after commit. Native route/chooser
+integration remains next and all activation gates remain disabled. See the
+[local discard contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#explicit-local-preparation-discard).
+
+### October 5: protected Capture editor integration
+
+The prepared owner-qualified route now opens a separate reanalysis editor using
+an explicit historical analysis and frozen source. Original photos require
+explicit selection and verified loading; the editor supports added photos and
+note edits/removals without inheriting mutable parent media. Its five-photo
+budget does not alter ordinary Capture's two-item capacity. Saving retains one
+immutable session plan and creates only a held local child, preserving the
+selected identification. Discard uses exact transactional child retirement;
+account teardown clears private presentation without asserting cancellation. The
+live access dependency remains nil. Dedicated execution, the ordinary history
+action and complete UI/runtime qualification are still outstanding; all
+activation gates remain closed. Current ownership is documented in the
+[protected Shell contract](../../apps/ios/Merian/Features/Capture/Shell/README.md#protected-reanalysis-editor).
+
+## October 5: prepared scientific detachment allowlist
+
+The enrolled-observation account-deletion boundary now has a forward migration
+that retains the canonical original scientific facts and separately materializes
+the acknowledged selected interpretation into the existing restricted scan row.
+It does not copy private result JSON. Owner-first deletion locks, exact stored
+projection comparison, whole-row allowlist guards and immutable detached markers
+protect selection/review races and post-cascade writes. No selected result uses
+an explicit absence marker; selected legacy, unreviewed, rejected, confirmed,
+community-resolved, withdrawn, broader and non-biological outcomes retain their
+actual interpretation. Legacy detachment is unchanged.
+
+The complete column classification and scalar schema are normative in
+[scientific retention](../backend-and-data/17-scientific-observation-retention.md).
+This resolves the source-level allowlist/materializer gap recorded in earlier
+progress entries; ordinary feature access, deployment/rollout qualification,
+independent erasure operations and CPU/heap/CDN evidence remain outstanding. All
+activation gates remain disabled.
+
+## October 5: prepared native account composition
+
+An inert App composition now assembles existing History, status and historical
+Capture accesses from one supplied cloud/auth context and shared queue
+preparation owner. History listing, private photo preview, editor evidence
+loading and original-photo preparation no longer fall back to another global
+client in this path. Exact child admission and erasure callbacks return to the
+supplied queue; account/session/generation fences remain active.
+
+This change introduces no ordinary entry, implicit enrollment, consent prompt,
+provider execution or rollout activation. Explicit enrollment admission and
+integrated runtime qualification remain outstanding.
+
+### October 5: explicit native enrollment task ownership
+
+The prepared enrollment service now has a QueueManager-retained owner for
+explicit requests. It coalesces the same parent/account/generation/container,
+bounds active parents to four, and retains cancelled operations through actual
+transport completion. Cancelling a waiting caller does not cancel shared work.
+Auth awaits retained tasks before lease drain; committed repository deletion
+cancels the matching operation without removing its durable intent. Lost
+responses preserve the original same-owner explicit retry. No enrollment timer,
+ordinary caller, inference-consent requirement or activation was added. The
+first-result entry and legacy added-photo editor regression remain separate
+integration work. Current semantics live in the
+[native enrollment contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment).
+
+### October 5: tap-specific enrollment and imported-editor qualification
+
+Enrollment now accepts an exact local review/display ticket captured before the
+caller suspends. Coalescing and initial staging require the same ticket, while
+the existing final check protects the commit. A caller that saw a different
+correction cannot inherit an older operation, including A → B → A changes.
+Capturing eligibility is read-only; ordinary entry remains disconnected.
+
+The V3 editor regression exercises Continue into empty editing, refusal of empty
+submission, explicit new photo addition and durable submission with unchanged
+selection. It cannot resolve original photos or inherit mutable parent media.
+This qualifies the older-scan editor path before the first-result UI connection;
+it does not activate the feature.
+
+### October 5: protected first-result menu entry
+
+The inert App composition now supplies an optional saved-result Reanalyze
+capability with the shared account/cloud/container and retained enrollment
+owners. The existing menu action gives that capability precedence over legacy
+refinement, without duplicate items or a legacy Pro lock. It captures the
+visible correction before suspension, uses the exact enrollment receipt's
+analysis ID, and validates the frozen source and authority immediately before
+routing. Shell cancellation discards only its waiter. A protected failure never
+falls back to replacement. History/status remain read-only and ordinary live
+access remains nil; this is preparation for qualification, not activation.
+
+### October 5: prepared child-presentation entry coverage
+
+Protected reanalysis now prepares at the explicit tap in chat, guidance,
+candidate and confidence entry paths. One parent-owned handoff retains the
+request; child sheets carry revocable tickets across dismissal, including nested
+candidate/confidence layers. Local and engine presentation generations remain
+distinct fences. No protected failure uses legacy refinement, and no child
+ticket can revive or cancel a newer operation. Ordinary activation stays
+disabled. Analysis-bound review, publication consent UI and integrated rollout
+qualification remain separate work.
+
+### October 5: default-off atomic App installation
+
+One App-retained optional composition now supplies the exact Capture dependency
+before workspace initialization and a grouped feature-owned Insight overlay
+across all hosts. Explicit fixture injection remains authoritative. A fixed
+false source qualification gate prevents even constructing the bundle during
+ordinary launches. This connects the future installation boundary without
+authorizing activation. Analysis-bound review, immutable publication consent and
+integrated operational qualification remain open.
+
+### October 5: prepared native review delivery and foreground admission
+
+Native analysis-bound review now has immutable request/receipt persistence,
+phase-specific claims, exact replay, atomic paired target/selected
+reconciliation and a bounded retained queue owner with awaited Auth
+cancellation. These prepared owners preserve selection and never redispatch
+received operations. Ordinary review controls remain unconnected and all
+activation gates stay false.
+
+Foreground admission now uses an immutable displayed ticket containing owner,
+observation, analysis, selection, both revisions and result/authority digests.
+The actual tap must retain one exact request before asynchronous work. New local
+staging verifies the whole ticket, idle selection and settled legacy review;
+existing operation replay retains its original identity. Minimal local status
+checks owner, parent and exact child linkage. Undo requires a completed applied
+same-target Reject receipt and the current rejection association/review
+revision, not merely a rejected label. Confirmation capabilities follow explicit
+immutable primary evidence; a biological imported result is not categorically
+excluded from Reject. The canonical native README and API contracts own these
+current rules; earlier dated addenda retain their historical validation and
+remaining-work facts.
+
+The next connection is the gated history review UI, followed by selected-Insight
+review and immutable publication consent. Runtime, CPU, heap, CDN and
+independent erasure operations/monitoring qualification remain open;
+implementation and local validation authorize no deployment or activation.
+
+### October 6: prepared history review presentation
+
+The gated historical-result preview connects immutable-ticket admission to
+native confirmation, incorrect-mark and receipt-backed Undo controls. Exact
+requests are persisted synchronously before queue wake and retained across
+uncertain saves. Queue pass exit triggers scoped local status refresh; terminal
+conflicts require a new preview even at an unchanged local revision. Parent
+teardown invalidates nested controls and unfinished review blocks selection and
+reanalysis. Confirmation labels come from immutable primary evidence. Ordinary
+installation remains disabled. Selected-Insight review, immutable publication
+consent and integrated operational qualification remain open.
+
+### October 6: selected-review presentation baseline
+
+Prepared selected-result review now shares the history Session and exact review
+admission owner. The Shell captures a frozen owner, selected analysis and global
+revision only after a successful historical presentation load. Same-ID metadata
+refresh and collection changes preserve the displayed baseline; a fresh matching
+immutable ticket is required before opening the capability. Account, deletion,
+selection and authority changes prevent new admission; an unchanged owner scope
+can still read a completed receipt. This is inert preparation; selected
+toolbar/nested action wiring, publication consent UI and operational
+qualification remain open, and all activation gates remain false.
+
+### October 6: retained selected review controls
+
+The prepared selected-result toolbar now retains its review model across
+rerenders and uncertain saves. Exact displayed authority gates a new decision;
+owner scope gates receipt recovery. Applied receipts refresh only the reconciled
+parent once, and negative terminal outcomes require a new presentation. Binding
+tokens invalidate delayed dialogs after reopening. Fresh enrollment guards also
+withhold legacy nested review and reject delayed mutation callbacks. Ordinary
+access and activation remain disabled. Explicit publication consent and runtime,
+CPU, heap, CDN and independent erasure qualification remain open.
+
+### October 6: explicit community-consent admission fencing
+
+Native consent preparation now requires the immutable displayed ticket, rejects
+newer returned revisions and retains the full ticket through final admission.
+Pending or held native analysis reviews block new consent alongside existing
+legacy review, selection and account/deletion fences. Received reviews remain
+blocking until paired reconciliation completes. The lock-local check preserves
+review recovery and exact already-saved publication replay. No HTTP payload or
+activation gate changed; the remaining consent presentation and lifetime owners
+are still separate implementation work.
+
+### October 6: exact local community-help operation status
+
+Prepared native status reads now require the exact owner, observation, analysis
+and saved operation under a fresh locked scope. Only exact job absence inside a
+valid parent/child scope returns nil; corruption and deletion fail closed.
+Pending, acknowledged reconciliation, local attention and terminal receipt
+phases expose no private consent or visibility claim. Shared structural
+validation protects discovery and direct claims too: a damaged running deadline
+cannot authorize another dispatch, while legitimate acknowledgement without a
+dispatch claim remains recoverable. Storage-read failures reach bounded retry.
+This adds no schema, network contract or activation change. Foreground consent
+preparation lifetime and the explicit consent presentation remain unfinished.
+
+### October 6: retained community-help preflight ownership
+
+A queue-retained foreground owner now coalesces exact immutable ticket, Auth
+session, generation and container scopes with a four-request bound. It retains
+cancelled tasks through actual lease release and is awaited before Auth drain.
+Stale or cancelled waiters cannot receive private prepared snapshots; exact
+scope cancellation cannot retire a newer presentation. This creates no durable
+operation, automatic retry or idle lease. Explicit App composition and consent
+UI remain open, and all activation gates remain disabled.
+
+### October 6: inert consent access composition
+
+The existing prepared History session now carries explicitly injected consent
+preparation, synchronous acceptance persistence and exact local operation
+status. The App composition supplies its cloud/account owner, fixed endpoint
+fetch, queue-retained preparation owner, wake and pass-exit generation. Shared
+work uses common account/session/container validity while each presentation
+checks itself after completion, so dismissing one joined sheet cannot poison
+another. This adds no shell slot, idle polling or automatic publication;
+explicit consent UI and rollout qualification remain open and every activation
+gate stays false.
+
+### October 6: observation-wide publication admission recovery
+
+A forward database guard now prevents competing operation UUIDs for one
+observation while retaining exact-request replay first. Community publication is
+scan-wide, so switching historical analyses cannot bypass the guard. All
+retained states, including terminal needs-action, require recovery rather than
+automatic replacement. Existing duplicate admissions remain recoverable by exact
+ID; a new service-only target lookup conflicts on multiple rows instead of
+guessing the latest. Missing/deleted ownership never looks vacant. Catalogs and
+real lock races cover competing IDs, target discovery during admission, deletion
+and historical replay. Native staging mirrors the guard after exact replay, and
+strict local target lookup detects ambiguous or damaged linkage without exposing
+consent. A separate owner-authenticated HTTP target reader now exposes vacancy
+or historical status without admission effects. Native target transport now uses
+strict bounded null-or-status decoding and a fixed owner-bound route with no
+automatic transient, 401 or missing-route retry. Retained recovery presentation
+and consent UI remain open; activation gates remain false.
+
+The target RPC uses an explicit non-null versioned envelope, unwrapped only
+after validation. A real-route regression reproduced the SDK's
+empty-success-to-null ambiguity; empty 200/204 replies now fail closed rather
+than imply vacancy. The public HTTP shape remains null or exact historical
+status.
+
+### October 6: retained publication target recovery
+
+An injected read-only recovery service and queue-retained owner now preserve
+separate local and remote historical status. Exact observation/account/session/
+generation/container scopes coalesce up to four active reads, independent of
+individual waiter presentation. Cancellation remains retained through lease
+release and is awaited before Auth drain. Strict local scope validation
+surrounds remote I/O and is repeated before presentation. A locally held losing
+request is never rebound to a different remote winner, acknowledged, retried or
+replaced. Explicit remote null and failure do not authorize a successor. No
+polling, idle lease, consent construction, delivery wake or activation was
+added. Recovery presentation and explicit ordered photo consent UI remain next.
+
+### October 6: prepared History photo consent UI
+
+The prepared History preview now resolves local and remote observation-wide
+publication occupancy before consent preflight. A vacant, freshly validated
+historical ticket can explicitly select one to six ordered photos from all
+immutable candidates and preview one exact private image at a time. Final
+confirmation retains a single Acceptance before synchronous staging; uncertain
+saving retries the same request.
+
+The parent Insight presentation retains unresolved choices across nested History
+dismissal, reopening and authority refresh. It also retains a minimal
+settled-operation marker after saving succeeds, preventing another already-open
+chooser from minting a second request. Observation/account/container fences
+prevent replacement across scopes. No remote receipt synthesizes local consent,
+no private parent notes/media are substituted and no selection is changed.
+Ordinary access remains disabled. Selected Insight community entry, dedicated
+photo-consent UI automation and integrated operational qualification remain
+separate work.
+
+### October 6: prepared selected Insight community entry
+
+The selected review session now supplies its optional publication capability and
+exact private-photo loader to the same photo-consent model used by History.
+Toolbar and nested confidence/candidate handoffs capture the displayed target
+before dismissal and resume only under the original binding token and scope. The
+parent retains ambiguous acceptance across both entry points. No new session,
+selection substitution, operation replacement or legacy fallback is introduced
+for protected scans. Ordinary access and all activation gates remain disabled;
+dedicated consent UI automation and operational qualification remain open.
+
+### October 6: dedicated photo-consent UI regression
+
+A Debug-only fixture now seeds decoded V2 history and selected authority through
+production storage helpers. Its synthetic external boundaries feed the real
+consent preparation, private-photo verification and durable staging paths. The
+focused UI case passed with explicit reverse-order selection, disabled empty
+consent, an exact private preview and one persisted request. Reopening from both
+selected Insight and another historical result displays the original pending
+request without permitting replacement. A retained screenshot confirms the
+historical pending state. The runtime audit lists this selector, and the Release
+binary audit excludes its launch marker. This evidence does not activate the
+feature or replace the remaining operational qualification.
+
+### October 6: deny protected-to-legacy reanalysis fallback
+
+An audit found that absent prepared reanalysis access could still leave a Pro
+user's enrolled observation eligible for the legacy refinement route. The
+Capture route now checks fresh enrollment protection before any staging or
+paywall, while Insight construction and delayed callbacks independently deny
+legacy actions for staged, acknowledged or unreadable protection. The dedicated
+historical route remains separate. Ordinary unenrolled refinement is preserved.
+Regression coverage includes damaged holds, missing rows/context, protection
+committed after presentation and the real enrolled menu. Activation stays off.
+
+Submission repeats the fence before and after asynchronous admission and keeps
+its original refinement target. Cancellation or retargeting preserves the draft
+without enqueue. Completion checks protection again before copying metadata.
+Previously dispatched legacy children are not canceled/refunded; the old
+protocol has no server-verifiable parent linkage. Final local validation passed
+5,290 tests (5,281 unit tests and nine UI smokes), with zero failures/skips and
+critical-result validation. Focused 118 tests, strict lint, source guards, exact
+indexed project membership and 26 documentation tests also passed. Independent
+review is clear. Hosted/runtime qualification and immutable admitted Field Chat
+context remain open; no activation is authorized by these results.
+
+### October 6: prepared immutable Field Chat admission
+
+A forward migration prepares atomic question-and-context storage under the
+existing message identity and conversation/daily admission rules. The private
+snapshot uses exact selected evidence/authority and displayed revisions, a
+bounded dictionary projection and the last 12 ordered messages. Message-only
+ownership preserves account merge and deletion cascades. Same-ID recovery never
+adopts newer context; preexisting uncontexted questions remain held. Explicit
+nested allowlists exclude private media and raw library notes. Imported missing
+encounter fields remain unavailable.
+
+This is a default-off storage boundary. HTTP execution, native displayed-ticket
+wiring and recovery integration remain next; no provider behavior or activation
+changes in this slice. Existing prepared reanalysis and publication execution
+owners remain implemented and gated; earlier implementation-gap notes are dated
+history, not instructions to recreate those owners.
+
+Storage validation passed 2,768 backend tests (425 steps), 104 SQL catalogs
+(1,564 assertions), four real-session context concurrency cases, 409 migration
+contracts, all 116 endpoint deployment configurations, full Supabase tooling and
+26 documentation tests. Database lint and privileged-routine audit passed with
+zero violations; advisor error gates passed without new context findings.
+Independent contract review is clear. Earlier fixture cleanup/cutover isolation
+and SQL function-volatility issues were corrected before the final full run. The
+next boundary is a read-only exact-context resolver, distinct from new-send
+admission, so entitlement, eligibility or quota denial cannot consume a chat
+slot.
+
+### October 6: prepared exact Field Chat recovery
+
+A service-only read-only resolver now distinguishes a missing turn from an
+existing immutable context and an old uncontexted message. It pins current
+message ownership, preserves original text/ticket association across authority
+changes and account merge, and lets deletion win. It never admits a message or
+consumes a daily/conversation slot. Closed TypeScript decoding bounds the whole
+response, strips no missing evidence into invented defaults, and returns a
+detached frozen context. The fixed RPC adapter respects cancellation and a
+five-second deadline, disables retries, and never interprets malformed output or
+a missing route as permission for new work.
+
+Live handler/native integration remains unconnected. The next fresh-turn
+boundary must share current immutable ticket/scan derivation with final
+admission, without reading or reserving conversation history. Only final atomic
+admission freezes the prior-message prefix. Existing eligibility, Pro and quota
+ordering remains; ambiguous admission replies require exact recovery and cannot
+become unconditional refunds or new provider operations. All activation gates
+remain false.
+
+Recovery validation passed 2,782 backend tests (425 steps), 105 SQL catalogs
+(1,582 assertions), three real admission/recovery/deletion concurrency cases,
+410 migration contracts, full Supabase tooling, all 116 isolated endpoint
+configurations and 26 documentation tests. Database lint and the 316-routine
+privilege audit passed without violations; advisor error gates passed with no
+new context findings. Independent review is clear. Initial merge/cutover
+fixture, SQL qualification and driver error-code assertions were corrected
+before the final fresh-reset full run. No Swift changed in this slice; the
+previous 5,290 native milestone remains the applicable local evidence.
+
+### October 6: prepared fresh Field Chat preflight
+
+A separate service-only read now derives current immutable ticket, source and
+scan/dictionary context without reading a conversation or consuming a send. Its
+private helper is shared with final atomic admission, so a stale preflight
+cannot bypass an authority change. Final admission alone freezes prior-message
+context; its explicit final size check returns a stable denial and rolls back
+the question and daily slot when the complete snapshot exceeds 128 KiB. Exact
+replay remains first, and SQL-null legacy tickets work consistently across the
+prepared protocol.
+
+A closed TypeScript adapter preserves the original request and missing
+historical fields, rejects unexpected prefix/message fields, and uses one
+bounded request with cancellation and retries disabled. Live handler/native
+integration and semantic prompt/eligibility adaptation remain next. These reads
+are advisory and confer no provider execution or quota rights. All activation
+gates remain false.
+
+Final preflight validation passed 2,794 backend tests (425 steps), 106 SQL
+catalogs (1,606 assertions), four real authority/admission/deletion concurrency
+cases, 412 migration contracts, full Supabase tooling, all 116 endpoint
+configuration checks, DTO contract checks and 26 documentation tests. Database
+lint passed without warnings after removing an unused refactor variable; the
+final fresh-reset full run includes that correction. The 317-routine privilege
+audit had zero violations, and advisor error gates found no new preflight
+issues. Independent review is clear. No Swift changed; the prior native
+milestone remains applicable. Pure immutable prompt/eligibility adaptation, live
+HTTP/native wiring and qualification remain open.
+
+### October 6: prepared immutable Field Chat semantics
+
+The pure eligibility/prompt adapter now consumes decoded immutable context,
+shares existing identification and human/biological policy, and excludes
+operational IDs and provider configuration from prompt data. Missing encounter
+fields stay unavailable; stored conversation prefixes retain original role/text
+order. Handler and native dispatch integration remains pending.
+
+Review found two sanitizer losses before integration: null candidates became
+empty arrays and candidate rank was dropped, invalidating legitimate primary
+results; removing unknown provenance keys could also falsely qualify metrics. A
+forward private-projector correction preserves candidate semantics and records
+qualification against untouched source metadata. Existing contexts are not
+rewritten and omit scores without the new optional marker. Descriptive
+alternatives remain usable even when scores are unqualified. All activation
+gates remain false.
+
+Final semantic validation passed 2,802 backend tests (425 steps), 107 SQL
+catalogs (1,622 assertions), 413 migration contracts, all 116 isolated endpoint
+checks, full Supabase tooling, DTO checks, lint/format and 26 documentation
+tests. The 317-routine privilege audit had zero violations; schema lint and
+advisor error gates passed with no new projector findings. Independent review is
+clear. The initial stale generated Field Chat bundle fingerprint was regenerated
+before the final tooling run. Review also removed replay-time metric
+requalification; the final fresh-reset runtime run uses the saved decision
+alone. No Swift changed, so the preceding native milestone remains applicable.
+
+### October 6: prepared exact chat admission and uncertainty recovery
+
+A narrow adapter now validates the atomic admission response against the
+original owner, observation, text, retry key, displayed ticket and returned
+conversation. Only message identity/text and immutable context survive its
+projection. Its one bounded RPC disables transparent retry. A separate
+coordinator follows an uncertain reply with one read-only recovery, never a
+second write. Missing or failed recovery cannot prove that a timed-out
+transaction did not commit. Rejected transaction status does not authorize
+refunding earlier work; these owners perform no quota or provider transitions.
+HTTP composition and native durable ticket delivery remain open. Gates stay
+false.
+
+Independent execution tracing found that legacy same-ID quota recovery can
+reopen failed, refunded or expired reservations and turn stale committed work
+into a new metered attempt. Protected HTTP composition must first add a durable
+reservation fence that prevents a successor after uncertain execution, including
+after quota-row pruning. The adapter does not change legacy funding and does not
+claim to provide provider-dispatch authority.
+
+Final admission validation passed 2,813 backend tests (425 steps), 107 catalogs
+(1,622 assertions), full Supabase tooling, all 116 endpoint configurations,
+checks of the two prepared modules with their own deployment configuration, DTO
+checks, lint/format and 26 documentation tests. The real database fixture
+decodes fresh and replay results, preserving original context after the gate
+closes and mutable scan content changes. Ten focused tests cover strict linkage,
+no transparent retry, ambiguous recovery and cancellation. Independent review is
+clear. No SQL schema or Swift source changed in this slice.
+
+### Protected chat quota lifecycle preparation — October 6, 2026
+
+A forward migration prepares first-attempt-only quota admission before immutable
+message admission. A scan-owned fingerprint and original quota reference survive
+expiry, refunds, terminal pruning and message erasure. Exact replay yields held
+state without a token; final context admission binds the original message
+atomically. Different accounts retain separate UUID scopes, while same-owner
+cross-observation reuse conflicts. Account merge preserves nonduplicate context
+and retires colliding quota records without restoring committed charges.
+
+This resolves the generic quota-reopening gap at admission/storage. The new
+execution gate stays false. Dedicated dispatch admission, protected HTTP wiring,
+native durable send tickets and runtime qualification remain; generic idempotent
+finalization is not a provider-dispatch capability. See the canonical
+[schema](../backend-and-data/04-database-schema.md#prepared-protected-field-chat-execution-fence)
+and
+[API contract](../backend-and-data/05-api-contracts.md#prepared-protected-insight-quota-and-context-admission).
+
+Final local validation passed 2,819 backend tests with 425 steps, 108 SQL
+catalogs with 1,662 assertions, three real concurrency cases, 416 migration
+contracts, full Supabase tooling, DTO21, documentation26, recursive lint/format
+and Markdown checks. Independent review is clear. The final fresh-reset rerun
+includes the corrected SQL volatility declaration; schema lint is clean and all
+319 privileged routines pass the allowlist audit. Advisor error gates pass with
+no new fence findings (the existing 103 security and 79 performance warnings
+remain). Earlier synthetic fixture errors were corrected before the complete
+run. No Swift or deployed endpoint runtime changed in this slice.
+
+### One-time protected chat dispatch preparation — October 6, 2026
+
+A forward migration adds immutable dispatch consumption to the existing
+scan-owned execution fence. The fresh service call validates original saved
+context, current consent/deletion and quota lease, then records the marker and
+commits quota atomically. Subsequent calls are held, including after quota
+pruning or message erasure. A fixed TypeScript adapter rejects broad quota
+payloads and disables retry; a lost grant reply cannot become permission for
+another provider call. HTTP/native integration and runtime qualification remain
+open, with every activation gate false.
+
+Final validation passed 2,833 backend tests (425 steps), 109 SQL catalogs (1,685
+assertions), six execution-fence concurrency cases, 419 migration contracts,
+full Supabase tooling, the prepared module's own deployment-config check, DTO21,
+docs26, recursive lint/format and Markdown. Independent review is clear. Schema
+lint is clean, all 320 privileged routines pass the allowlist audit, and advisor
+error gates pass with no new findings (existing 103 security and 79 performance
+warnings remain). The initial catalog fixture expected the wrong consent error
+and a test fetch closure needed its redundant async removed; both were corrected
+before the final complete run. No Swift or deployed handler import changed.
+
+### Protected chat routing and legacy race closure — October 6, 2026
+
+The funded context adapter now freezes original request/reservation identities,
+distinguishes returned replay, and permits only exact read recovery after an
+unknown write. Server-owned routing precedes mutable send work and holds
+immutable-required sends until bounded execution is connected. SQL fences old
+admission, quota commit and stale rescue independently of handler version.
+Enrollment waits for exact assistant evidence for already-committed legacy
+attempts; it does not invent historical prompt snapshots.
+
+The implementation keeps private generic cores inaccessible to API roles and
+retains public signatures. Unknown route/recovery cannot select legacy
+execution, refund or a successor. All activation gates stay false. Atomic
+deterministic refusal and exact completion recovery, bounded provider execution,
+native durable send tickets and integrated qualification remain open.
+
+Validation passed 2,853 backend tests / 425 steps, 110 SQL catalogs / 1,705
+assertions, 422 migration contracts and three new enrollment/dispatch
+concurrency cases. The final focused rerun also proves SQL/TypeScript
+deterministic assistant UUID parity. Full Supabase tooling, all 116 isolated
+endpoint configurations, DTO21, docs26, lint/format and Markdown passed. Schema
+lint is clean and the 321-routine privilege audit has zero violations. Advisor
+error gates pass with no new chat findings. Independent review is clear. One
+catalog's old deletion error expectation was corrected for the earlier subject
+fence before the final fresh-reset complete run. No Swift changed; native tests
+were not repeated.
+
+### Exact chat reply and atomic local refusal — October 6, 2026
+
+Service-only completion now binds original owner, observation, request, saved
+question and conversation before returning the deterministic assistant receipt.
+Current authority cannot rebase it; missing or incompatible context stays held.
+Local safety refusal now persists the daily admission, question, immutable
+context and fixed answer atomically without provider quota. Replay cannot fill
+an incomplete/provider turn or reuse an operation on another scan. Strict
+prepared TypeScript transports never retry uncertain writes. Recovery
+orchestration and bounded protected HTTP/native sends remain open; activation
+gates stay false.
+
+Final runtime validation passed 2,868 backend tests / 425 steps, 111 SQL
+catalogs / 1,737 assertions, three new replay/deletion concurrency cases and 425
+migration contracts. Twelve focused transport/contracts passed. The prepared
+module and Insight entry point pass their own deployment configuration;
+lint/format, DTO21 and docs26 pass. Schema lint is clean, the 323-routine
+privilege audit has zero violations, and advisor error gates report no new
+findings. Independent review is clear. Initial CASE parsing and catalog-fixture
+expression/deleted-scan setup errors were corrected before the final full run.
+No native source or deployed runtime imports changed; native and unchanged-fleet
+compilation were not repeated.
+
+### Original-grant reply persistence — October 6, 2026
+
+Prepared SQL and TypeScript now bind provider completion to the original
+immutable context, exact message tuple, reservation/lease, first committed quota
+attempt and permanent consumed dispatch marker. The deterministic answer and
+usage ledger commit with the conversation touch; duplicate payloads recover,
+changed payloads conflict and deletion wins. Exact full-payload read recovery
+survives quota pruning without disclosing private usage; pruned quota cannot
+authorize a missing answer. Unknown write responses allow a read only, never
+another provider attempt, refund or automatic successor. HTTP orchestration,
+native persisted send tickets and integrated operational qualification remain
+open. All activation gates remain false.
+
+### Bounded protected Field Chat HTTP owner — October 6, 2026
+
+The source handler now routes protected sends through exact immutable recovery
+before all mutable legacy reads. Fresh work preserves
+eligibility/Pro/safety/quota ordering, prompts from final admitted context, and
+fresh one-time grant authority. A separate receipt-shaped response and native
+deterministic receipt decoder avoid reconstructing mutable conversation state.
+The raw provider transport enforces parent cancellation, one call, a 90-second
+deadline and 32 KiB response ceiling; the owner reserves completion/recovery
+headroom before dispatch. Unknown outcomes stay held and cannot trigger a
+successor or refund. Native actual-send ticket persistence/delivery and
+integrated operational qualification remain open. Every activation gate stays
+false; source integration does not authorize deployment.
+
+### Native immutable chat request and inert staging — October 6, 2026
+
+The native selected-chat ticket and closed request now preserve exact displayed
+analysis/revisions, conversation proposal, message identity and normalized text.
+An owner-private intent retains its canonical fingerprint and validated terminal
+receipt across storage decoding. Atomic staging recovers exact IDs before fresh
+eligibility and rejects changed authority, unresolved operations and malformed
+work. Observation deletion erases the dedicated namespace. The new raw job kind
+uses the unchanged persisted schema and remains excluded from generic wakeups.
+At this staging checkpoint, claims, delivery, Auth teardown and actual send UI
+remained separate work; all activation gates remained false. The later claim
+addendum below records the next completed boundary.
+
+### October 6 — native chat claims and terminal receipts
+
+Prepared local claims now serialize the original send and explicit same-request
+replay. Interrupted work holds without automatic wake or a new request identity.
+Strict owner/deletion/child and attempt checks fence dispatch and receipt saves;
+a matching late receipt can settle after expiry, while a replaced attempt
+cannot. Disk-backed restart restores the prior held generation without granting
+a send. Transport, retained account delivery and UI remain unconnected and all
+activation gates stay disabled. The current native contract is in the
+[AnalysisHistory owner guide](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#native-chat-claims-and-receipts).
+
+### October 6 — scoped native chat transport
+
+The prepared closed history mutation owner now includes exact protected chat
+sends alongside the existing typed review operations. It retains account work
+through a bounded pinned request, streams a maximum 32 KiB, rejects redirects
+and has no automatic retry or token-recovery path. The145-second scoped session
+leaves the ordinary 90-second session unchanged, and dispatch checks remaining
+claim time after Auth with explicit receipt-save reserve. Retained delivery and
+send UI remain separate work; all activation gates stay false.
+
+### October 6 addendum: retained native Field Chat delivery
+
+Prepared native delivery now claims the exact saved request before every
+nonterminal HTTP send, retains account work through durable receipt settlement,
+and distinguishes dispatch cancellation from late known-answer persistence.
+QueueManager retains actual execution and both Auth barriers await its exit.
+Unknown attempts remain held without automatic scheduling; explicit replay
+preserves all original request identity. Send UI and server-proven denial
+remediation remain, alongside runtime qualification. All gates stay false.
+
+### October 6 addendum: displayed chat and restart discovery
+
+Prepared native selected-chat access now validates the baseline actually loaded
+into the visible engine, rather than adopting a fresh selected cache. Local
+restart discovery validates owner, parent, child and saved envelopes in bounded
+fetch batches, returns canonical UUID pages of terminal receipts and separately
+reports a unique pending/running/held request. Reading never claims or sends,
+replaces held occupancy or changes selection. The complete App composition
+includes this access only behind the disabled installation gate. Send UI,
+server-proven no-admission remediation and runtime qualification remain open.
+
+### October 6 addendum: protected chat composer and saved-question actions
+
+The dedicated prepared Insight chat presentation now persists a retained exact
+question before queue handoff, preserves ambiguous saves across sheet reopening
+and exposes explicit actions for pending or interrupted saved requests. It uses
+the displayed baseline and immutable local receipts, bypasses legacy chat setup
+for protected scans and never cancels durable delivery when the sheet closes.
+Task-exit refresh remains local and event-driven. All activation gates stay
+false; server-proven no-admission remediation and dedicated UI/runtime
+qualification remain required before readiness.
+
+### October 6: prepared exact chat non-admission retirement
+
+A forward migration prepares a service-only permanent stale-ticket seal, derived
+under canonical admission locks rather than from an HTTP error. The shared
+context writer and generic quota INSERT/UPDATE paths prevent a sealed request
+from later executing. Existing attempts remain held, and no provider refund or
+successor is introduced. HTTP/native proof delivery and terminal remediation
+remain a subsequent slice; all activation gates stay false.
+
+### October 6: exact seal recovery and HTTP proof delivery
+
+The service-only read-only proof boundary now checks original owner, subject,
+request fingerprint and proposed conversation under writer locks. Existing
+completion wins before proof; proof wins before fresh gates and entitlement.
+Only locked absence of fence/quota/message evidence permits fresh preflight. The
+HTTP owner returns a distinct no-admission outcome after exact recovery or one
+independently verified stale-ticket seal. Unknown and held outcomes never become
+proof. Native durable proof settlement is next; existing completion-only clients
+hold the new outcome safely. All activation gates remain false.
+
+### October 6: native terminal proof and persistent stale-ticket rejection
+
+Native protected chat now distinguishes exact no-admission proof from assistant
+completion and atomically persists it under the original running claim. A
+versioned metadata envelope preserves old assistant receipts without rewriting
+on read. New request IDs cannot reuse the same server-proved stale selection,
+including after restart or when the proof is off the visible receipt page. The
+UI shows “Question not sent” and withholds new-send controls until authority is
+actually refreshed. The dedicated remote-refresh action and operational
+qualification remain; all activation gates stay false.
+
+### October 6: explicit identification refresh after terminal chat proof
+
+Prepared chat now offers an explicit refresh through a bounded, retained
+QueueManager owner. It validates the frozen ticket before reading authoritative
+state, returns a changed full ticket without mutating the Session, and awaits
+lease release during account teardown. The host verifies current presentation
+and loaded authority before closing the stale sheet. Refresh does not send,
+reopen chat, change a saved question or authorize a provider successor. A later
+explicit question uses the newly displayed ticket. All rollout gates remain
+false; operational qualification remains separate.

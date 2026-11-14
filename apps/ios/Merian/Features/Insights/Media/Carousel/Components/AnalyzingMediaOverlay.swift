@@ -85,6 +85,9 @@ struct AnalyzingMediaOverlay: View {
                 .accessibilityHidden(true)
             }
         }
+        // Disable the entire decorative host, not just its animated leaves.
+        // Only a still-photo focus overlay owns drag and resize interactions.
+        .allowsHitTesting(kind == .visual && focusRegion != nil)
     }
 
     @ViewBuilder

@@ -215,9 +215,11 @@ background-account regressions—exact upload-owner retirement, rejected
 inference-dispatch requeue, and retirement after an upload callback advances to
 staged—plus activation-time ingestion-job creation for a legacy scan without
 one. `BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
-ownership, the exact Background Transfer and Media Upload consumer allowlists,
-throwing reads, balanced per-scan persistence fences, dependency exclusions,
-400-line focused-file ceilings, and a 1,600-line non-growth cap on the residual
+ownership, the exact Background Inference, Background Transfer and Media Upload
+consumer allowlists, and the sole Debug-only initial-media History activation
+fixture with its compile-time and launch guards. It also freezes throwing reads,
+balanced per-scan persistence fences, dependency exclusions, 400-line
+focused-file ceilings, and a 1,600-line non-growth cap on the residual
 aggregate.
 
 `InferenceLifecyclePersistenceTests` mirrors claims, retreats, durable
@@ -728,12 +730,15 @@ let newPayload = await dbActor.extractSearchablePayloads(from: [scanID])
 - `validPaths(from:)` — filters a list of paths/URLs down to those that actually
   exist on disk or are remote URLs
 
-**When to use**: Always use `FileIOActor.shared` — it is a singleton. Never
-write or delete scan media from `BackgroundDatabaseActor`, `@MainActor`, or
-ad-hoc `Task.detached` blocks. Image writes still use
-`writeTemporaryImages(imageDatas:)`; mixed cleanup for images, video files,
-thumbnails, extracted audio, and queue-only inference frames should flow through
-`deleteFiles(at:)`.
+**When to use**: Use the existing live FileIO owner, or explicitly inject it for
+isolated local fixtures. Generic legacy access is limited to regular,
+single-link flat files under its Documents/temporary roots; it cannot retire
+private-store references. Audio/video persistence retains its adoption/copy
+contract. Prepared video reanalysis instead uses `snapshotVideoFile` to make a
+bounded independent copy without deleting the source. Its process-local token
+checks file/root identity around consumption and cleanup, but grants no account
+or historical-original authority. See the
+[media ownership contract](../../apps/ios/Merian/Core/Data/README.md).
 
 ```swift
 let savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)

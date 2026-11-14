@@ -64,7 +64,11 @@ final class AccountDeletionCoordinatorHarness {
     var recorderSucceeds = true
     var resolutionSucceeds = true
     var adoptionSucceeds = true
+    var libraryContextIsCurrent = true
+    var acknowledgementSucceeds = true
     var signOutSucceeds = true
+    var duringCachedSessionLoad: @MainActor () async -> Void = {}
+    var duringSignOut: @MainActor () async -> Void = {}
     var cachedSessionIsExpired = false
     var cachedSessionLoadError: Error?
     var currentCachedIdentity: AuthTransitionSession?
@@ -78,6 +82,8 @@ final class AccountDeletionCoordinatorHarness {
 
     func makeDependencies() -> AccountDeletionCoordinationDependencies {
         AccountDeletionCoordinationDependencies(
+            validateLibrary: { _ in self.libraryContextIsCurrent },
+            acknowledgeLibraryPurge: { scope in self.acknowledgementSucceeds && scope.isCurrent },
             hasPendingPurchaseIdentityHandoff: {
                 self.hasPendingPurchaseIdentityHandoff
             },
@@ -144,9 +150,9 @@ final class AccountDeletionCoordinatorHarness {
                 ownsTransition: { _ in
                     self.transitionIsOwned
                 },
-                verifyExpectedSession: { _ in
+                verifyExpectedSession: { _, scope in
                     self.events.append("verify-session")
-                    guard self.sessionMatchesTransition else {
+                    guard self.sessionMatchesTransition, scope.permitsRuntimeDrain else {
                         throw SupabaseAuthTransitionError.signOutSessionChanged
                     }
                 },
@@ -158,6 +164,7 @@ final class AccountDeletionCoordinatorHarness {
                 },
                 loadCachedSession: {
                     self.events.append("load-cached-session")
+                    await self.duringCachedSessionLoad()
                     if let cachedSessionLoadError =
                         self.cachedSessionLoadError {
                         throw cachedSessionLoadError
@@ -182,8 +189,10 @@ final class AccountDeletionCoordinatorHarness {
                     self.events.append("publish-cached-session")
                     self.publishedIdentity = identity
                 },
-                performVerifiedLocalSignOut: { _ in
+                performVerifiedLocalSignOut: { _, scope in
+                    guard scope.permitsRuntimeDrain else { return false }
                     self.events.append("sign-out")
+                    await self.duringSignOut()
                     if self.signOutSucceeds {
                         self.currentCachedIdentity = nil
                     }

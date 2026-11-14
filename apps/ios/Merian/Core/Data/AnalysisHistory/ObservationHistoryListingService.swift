@@ -16,6 +16,7 @@ struct ObservationHistoryListingService {
         let result: ObservationHistoryPage.Result
         let display: AnalysisDisplaySnapshot?
         let authority: ObservationHistoryAuthority?
+        var reviewRevision: Int?
     }
     struct Page {
         let entries: [Entry]
@@ -83,7 +84,7 @@ struct ObservationHistoryListingService {
         }
     }
 
-    private static func entry(_ analysisID: UUID, scan: LocalScanRecord, context: ModelContext) throws -> Entry {
+    static func entry(_ analysisID: UUID, scan: LocalScanRecord, context: ModelContext) throws -> Entry {
         let id = analysisID.uuidString.lowercased()
         var query = FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == id })
         query.fetchLimit = 1
@@ -94,6 +95,7 @@ struct ObservationHistoryListingService {
         guard result.analysisID == analysisID, result.version == stored.snapshotVersion, result.completedAt == stored.completedAt else { throw ObservationHistoryError.resultConflict }
         var display = try ObservationHistoryDisplayProjection.snapshot(result).map { try AnalysisDisplaySnapshot.restore($0, analysisID: analysisID) }
         var authority: ObservationHistoryAuthority?
+        var reviewRevision: Int?
         if let state = stored.state {
             guard state.id == id, state.ownerAccountID == stored.ownerAccountID, state.observationID == scan.id else { throw ObservationHistoryError.resultConflict }
             if let saved = state.displaySnapshotData { display = try ObservationHistoryDisplayProjection.restore(saved, matching: result) }
@@ -101,8 +103,9 @@ struct ObservationHistoryListingService {
                 guard state.reviewRevision >= 0, state.reviewRevision <= state.observationStateRevision,
                       state.reviewSnapshotData.count <= 32_768 else { throw ObservationHistoryError.resultConflict }
                 authority = try ObservationHistoryAuthority.decode(JSONSerialization.jsonObject(with: state.reviewSnapshotData))
+                reviewRevision = state.reviewRevision
             }
         }
-        return Entry(result: result, display: display, authority: authority)
+        return Entry(result: result, display: display, authority: authority, reviewRevision: reviewRevision)
     }
 }

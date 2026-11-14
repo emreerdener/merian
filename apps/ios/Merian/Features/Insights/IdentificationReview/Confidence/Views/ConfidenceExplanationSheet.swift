@@ -14,6 +14,14 @@ struct ConfidenceExplanationSheet: View {
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
     let onRequestDismissalAction: (ConfidenceExplanationDismissalAction) -> Void
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    @State private var pendingCommunityConsent: CommunityConsentTicket?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls: ConfidenceReviewControls
+    var onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)?
+    var onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)?
+    var onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)?
+    @State private var pendingReanalysis: SavedReanalysisTicket?
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -22,11 +30,12 @@ struct ConfidenceExplanationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel: ConfidenceExplanationViewModel
+    @State private var pendingConfirmationUndo: (() -> Void)?
     @State private var showPaywall = false
     @State private var showsIncorrectConfirmation = false
     @State private var reviewToast: ToastPayload?
     @State private var reviewToastAction: (() -> Void)?
-    @State private var pendingIncorrectSubject: IdentificationReviewSubject?
+    @State private var pendingIncorrectSubject: (subject: IdentificationReviewSubject, review: LocalAIIdentificationReview)?
 
     init(
         scanId: String,
@@ -42,6 +51,12 @@ struct ConfidenceExplanationSheet: View {
         onRequestDismissalAction: @escaping (
             ConfidenceExplanationDismissalAction
         ) -> Void,
+        prepareCommunityConsent: CommunityConsentPreparation? = nil,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        confidenceReviewControls: ConfidenceReviewControls = .init(),
+        onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)? = nil,
+        onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)? = nil,
+        onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
     ) {
         self.scanId = scanId
@@ -55,11 +70,36 @@ struct ConfidenceExplanationSheet: View {
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
         self.onRequestDismissalAction = onRequestDismissalAction
+        self.prepareCommunityConsent = prepareCommunityConsent
+        self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.confidenceReviewControls = confidenceReviewControls
+        self.onPreparedCandidateReview = onPreparedCandidateReview
+        self.onPreparedCommunityConsent = onPreparedCommunityConsent
+        self.onPreparedReanalysis = onPreparedReanalysis
         self._viewModel = State(
             initialValue: ConfidenceExplanationViewModel(
                 dependencies: dependencies
             )
         )
+    }
+
+    private var displayedCorrection: String? {
+        guard permitsLegacyReview else {
+            if case let .named(name) = confidenceReviewControls.confirmationState { return name }
+            return nil
+        }
+        return userIdentificationOverride
+    }
+    private var displayedConfirmation: Bool {
+        permitsLegacyReview ? userConfirmedIdentification : confidenceReviewControls.confirmationState == .primary
+    }
+
+    private var protectedConfirmationUndoAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent, let action = confidenceReviewControls.undoConfirmation else { return nil }
+        return {
+            guard isSubjectPresentationCurrent else { return }
+            if confidenceReviewControls.undoConfirmationRequiresPrompt { pendingConfirmationUndo = action } else { action() }
+        }
     }
 
     private var showLocationPrompt: Bool {
@@ -68,10 +108,16 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var refinementAction: (() -> Void)? {
-        guard let snapshot = viewModel.refinementSnapshot else { return nil }
+        if let prepareSavedReanalysis {
+            return {
+                guard isSubjectPresentationCurrent else { return }
+                dismissWithPreparedReanalysis(prepareSavedReanalysis(scanId, presentationGeneration))
+            }
+        }
+        guard permitsLegacyReview, let snapshot = viewModel.refinementSnapshot else { return nil }
 
         return {
-            guard isSubjectPresentationCurrent,
+            guard permitsLegacyReview, isSubjectPresentationCurrent,
                   snapshot.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
                 return
             }
@@ -89,13 +135,15 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var headerTitle: String {
-        if inferenceEngine.speciesData?.aiReview.isUnresolved == true { return "Incorrect" }
+        if let review = inferenceEngine.speciesData?.aiReview, review.isUnresolved || review.needsAttention {
+            return review.state == .aiRejected && !review.needsAttention ? "Incorrect" : IdentificationReviewNotice.title(review)
+        }
         return ConfidenceExplanationPresentation.headerTitle(
             confidenceScore: confidenceScore,
             inferenceTier: inferenceTier,
             provenance: provenance,
-            hasUserOverride: userIdentificationOverride != nil,
-            isUserConfirmed: userConfirmedIdentification
+            hasUserOverride: displayedCorrection != nil,
+            isUserConfirmed: displayedConfirmation
         )
     }
 
@@ -126,51 +174,77 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var communityRequestAction: (() -> Void)? {
-        guard onAskCommunity != nil else { return nil }
+        guard onAskCommunity != nil || prepareCommunityConsent != nil else { return nil }
         return {
+            if let prepareCommunityConsent {
+                guard let ticket = prepareCommunityConsent(scanId, presentationGeneration) else { return }
+                dismissWithPreparedCommunityConsent(ticket)
+                return
+            }
+            guard permitsLegacyReview else { return }
             requestDismissalAction(.askCommunity(actionContext))
         }
     }
 
-    private var undoIncorrectAction: (() -> Void)? {
-        guard isSubjectPresentationCurrent,
-              inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return nil }
-        let expectedSubject = subject
-        return { undoIncorrect(expectedSubject: expectedSubject) }
+    private var permitsLegacyReview: Bool {
+        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)
     }
 
-    private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
+    private var undoIncorrectAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent else { return nil }
+        if !permitsLegacyReview {
+            return confidenceReviewControls.checking { isSubjectPresentationCurrent }.undo
+        }
+        guard inferenceEngine.speciesData?.canUndoIncorrectIdentification == true,
+              let expectedReview = inferenceEngine.speciesData?.aiReview else { return nil }
+        let expectedSubject = subject
+        return { undoIncorrect(expectedSubject: expectedSubject, expectedReview: expectedReview) }
+    }
+
+    private var proposalConfirmationAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent,
+              inferenceEngine.speciesData?.canConfirmReanalysisProposal == true else { return nil }
+        return confidenceReviewControls.checking { isSubjectPresentationCurrent }.confirmProposal
+    }
+
+    private func undoIncorrect(expectedSubject: IdentificationReviewSubject, expectedReview: LocalAIIdentificationReview) {
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.aiReview == expectedReview,
                   inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
             reviewToast = nil
             reviewToastAction = nil
-            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext)
+            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext, expectedReview: expectedReview)
         }
     }
 
     private var incorrectAction: (() -> Void)? {
-        guard isSubjectPresentationCurrent,
+        guard permitsLegacyReview, isSubjectPresentationCurrent,
               viewModel.refinementSnapshot != nil,
+              let expectedReview = inferenceEngine.speciesData?.aiReview,
               inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return nil }
         return {
-            pendingIncorrectSubject = subject
+            pendingIncorrectSubject = (subject, expectedReview)
             showsIncorrectConfirmation = true
         }
     }
 
     private func confirmIncorrectIdentification() {
-        guard let expectedSubject = pendingIncorrectSubject else { return }
+        guard let pending = pendingIncorrectSubject else { return }
+        let expectedSubject = pending.subject, expectedReview = pending.review
         pendingIncorrectSubject = nil
         Task { @MainActor in
-            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+            guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.aiReview == expectedReview,
                   inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
             await inferenceEngine.markIdentificationIncorrect(
                 expectedScanId: scanId,
                 modelContext: modelContext,
+                expectedReview: expectedReview,
                 onLocalSave: {
-                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
-                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
+                    guard permitsLegacyReview, expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                          let rejectedReview = inferenceEngine.speciesData?.aiReview else { return }
+                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject, expectedReview: rejectedReview) }
                     reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
                 }
             )
@@ -200,8 +274,14 @@ struct ConfidenceExplanationSheet: View {
                         && !userConfirmedIdentification && userIdentificationOverride == nil
                 )
 
-                if inferenceEngine.speciesData?.aiReview.isUnresolved == true {
-                    IncorrectIdentificationView(onUndo: undoIncorrectAction)
+                if let review = inferenceEngine.speciesData?.aiReview, review.isUnresolved || review.needsAttention {
+                    IncorrectIdentificationView(
+                        review: review,
+                        onUndo: undoIncorrectAction,
+                        onConfirm: proposalConfirmationAction,
+                        unavailableReason: undoIncorrectAction == nil
+                            ? confidenceReviewControls.unavailableReason ?? IdentificationReviewNotice.unavailableReason(review) : nil
+                    )
                         .padding(.horizontal, 16)
                 }
 
@@ -209,19 +289,20 @@ struct ConfidenceExplanationSheet: View {
                 let storedCandidateCount = storedCandidates.count
                 let isExhausted = inferenceEngine.speciesData?.alternativesExhausted == true
 
-                if isExhausted {
+                if isExhausted && permitsLegacyReview {
                     AllCandidatesReviewedView(
                         candidatesCount: storedCandidateCount,
                         onReviewAgain: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.candidateReview.presentSwipeModal(
                                 subject: subject
                             )
                         },
                         onReset: {
-                            guard isSubjectPresentationCurrent else { return }
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
@@ -232,7 +313,7 @@ struct ConfidenceExplanationSheet: View {
                         feedback: viewModel.feedback
                     )
                     .padding(.horizontal, 16)
-                } else if let override = userIdentificationOverride {
+                } else if let override = displayedCorrection {
                     let displayOverride = ConfidenceExplanationPresentation
                         .overrideDisplayName(
                             overrideScientificName: override,
@@ -242,34 +323,42 @@ struct ConfidenceExplanationSheet: View {
                     OverriddenView(
                         overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
-                        onUndo: {
-                            guard isSubjectPresentationCurrent else { return }
+                        onUndo: permitsLegacyReview ? {
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
                                     modelContext: modelContext
                                 )
                             }
-                        }
+                        } : protectedConfirmationUndoAction,
+                        unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
                     )
                     .padding(.horizontal, 16)
-                } else if userConfirmedIdentification && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
+                } else if displayedConfirmation && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
                     ConfirmedView(
-                        onReset: {
-                            guard isSubjectPresentationCurrent else { return }
+                        onReset: permitsLegacyReview ? {
+                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                             viewModel.feedback.lightImpact()
                             Task { @MainActor in
+                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
                                 await viewModel.candidateReview.resetReview(
                                     subject: subject,
                                     inferenceEngine: inferenceEngine,
                                     modelContext: modelContext
                                 )
                             }
-                        }
+                        } : protectedConfirmationUndoAction,
+                        unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
                     )
                     .padding(.horizontal, 16)
+                } else if !permitsLegacyReview {
+                    if let reason = confidenceReviewControls.unavailableReason {
+                        Text(reason).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 16)
+                    }
                 } else if !candidates.isEmpty {
 
                     CandidatesCard(
@@ -280,17 +369,30 @@ struct ConfidenceExplanationSheet: View {
                         onAskCommunity: communityRequestAction,
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
+                        prepareCommunityConsent: prepareCommunityConsent,
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                        resumeCommunityConsent: dismissWithPreparedCommunityConsent,
+                        resumeSavedReanalysis: dismissWithPreparedReanalysis,
                         showDismissButton: false,
                         dependencies: viewModel.candidateDependencies
                     )
                     .padding(.horizontal, 16)
                 }
 
+                if !permitsLegacyReview, !confidenceReviewControls.candidateChoices.isEmpty {
+                    CandidatesCard(candidates: [], aiScientificName: "", inferenceTier: nil,
+                        confirmButtonTitle: confirmButtonTitle, showDismissButton: false,
+                        confidenceReviewControls: confidenceReviewControls.checking { isSubjectPresentationCurrent },
+                        resumeCandidateReview: dismissWithPreparedCandidateReview,
+                        dependencies: viewModel.candidateDependencies)
+                        .padding(.horizontal, 16)
+                }
+
                 let onReanalyze = refinementAction
                 let onAskCommunity = communityRequestAction
                 if onReanalyze != nil || onAskCommunity != nil || incorrectAction != nil {
                     ConfidenceSheetActionButtons(
-                        isReanalyzeLocked: !revenueCatManager.canStartProScan,
+                        isReanalyzeLocked: prepareSavedReanalysis == nil && !revenueCatManager.canStartProScan,
                         onReanalyze: onReanalyze,
                         onAskCommunity: onAskCommunity,
                         onMarkIncorrect: incorrectAction,
@@ -349,6 +451,15 @@ struct ConfidenceExplanationSheet: View {
                 allowsAskCommunity: communityRequestAction != nil,
                 allowsRefinement: refinementAction != nil,
                 onRequestDismissalAction: { request in
+                    pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                    if case .askCommunity = request.action, let prepareCommunityConsent {
+                        pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                    }
+                    pendingReanalysis?.cancel()
+                    pendingReanalysis = nil
+                    if case .refineScan = request.action, let prepareSavedReanalysis {
+                        pendingReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                    }
                     viewModel.candidateReview.stageDismissalRequest(request)
                 },
                 dependencies: viewModel.candidateDependencies
@@ -356,6 +467,12 @@ struct ConfidenceExplanationSheet: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
+        .onDisappear {
+            pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+            pendingReanalysis?.cancel()
+            pendingReanalysis = nil
         }
         .onChange(of: inferenceEngine.scanPresentationGeneration) {
             guard !isSubjectPresentationCurrent else { return }
@@ -387,32 +504,63 @@ struct ConfidenceExplanationSheet: View {
         dismiss()
     }
 
+    private func dismissWithPreparedCandidateReview(_ ticket: CandidateReviewTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedCandidateReview else { ticket.cancel(); return }
+        onPreparedCandidateReview(actionContext, ticket)
+        dismiss()
+    }
+
+    private func dismissWithPreparedCommunityConsent(_ ticket: CommunityConsentTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedCommunityConsent else { ticket.cancel(); return }
+        onPreparedCommunityConsent(actionContext, ticket)
+        dismiss()
+    }
+
+    private func dismissWithPreparedReanalysis(_ ticket: SavedReanalysisTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedReanalysis else { ticket.cancel(); return }
+        onPreparedReanalysis(actionContext, ticket)
+        dismiss()
+    }
+
     private func resumePendingSwipeDismissalRequest() {
+        let community = pendingCommunityConsent
+        pendingCommunityConsent = nil
+        var communityForwarded = false
+        defer { if !communityForwarded { community?.cancel() } }
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let request = viewModel.candidateReview
             .takePendingDismissalRequest(matching: subject),
-            isSubjectPresentationCurrent else { return }
+            isSubjectPresentationCurrent else { prepared?.cancel(); return }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
+                guard let expectedReview = request.expectedReview, permitsLegacyReview, isSubjectPresentationCurrent else { return }
                 await viewModel.candidateReview.applyOverride(
                     scientificName: scientificName,
                     subject: subject,
                     inferenceEngine: inferenceEngine,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
+                guard let expectedReview = request.expectedReview, permitsLegacyReview, isSubjectPresentationCurrent else { return }
                 _ = await viewModel.candidateReview.confirmOriginal(
                     subject: subject,
                     inferenceEngine: inferenceEngine,
-                    modelContext: modelContext
+                    modelContext: modelContext, expectedReview: expectedReview
                 )
             }
         case .askCommunity:
+            if let community { communityForwarded = true; dismissWithPreparedCommunityConsent(community); return }
+            guard prepareCommunityConsent == nil, permitsLegacyReview else { return }
             communityRequestAction?()
         case .refineScan:
+            if let prepared { dismissWithPreparedReanalysis(prepared); return }
+            guard prepareSavedReanalysis == nil else { return }
             refinementAction?()
         }
     }

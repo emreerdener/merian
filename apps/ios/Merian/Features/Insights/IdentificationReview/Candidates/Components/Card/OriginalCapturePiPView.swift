@@ -6,7 +6,7 @@ struct OriginalCapturePiPView: View {
 
     var body: some View {
         Group {
-            if let imageData = inferenceEngine.activeMedia.liveImageData {
+            if let imageData = inferenceEngine.activeMedia.presentationImageData {
                 let presentationGeneration =
                     inferenceEngine.scanPresentationGeneration
                 Group {

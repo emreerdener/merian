@@ -16,6 +16,15 @@ struct EnvironmentLocationHardware {
             _ distanceFilter: CLLocationDistance
         ) -> Void
 
+    #if DEBUG
+    fileprivate static let unitTesting = Self(
+        authorizationStatus: { .denied }, configure: { _ in },
+        requestWhenInUseAuthorization: {}, requestLocation: {},
+        startUpdatingLocation: {}, stopUpdatingLocation: {},
+        applyProfile: { _, _ in }
+    )
+    #endif
+
     static var live: Self {
         let manager = CLLocationManager()
         return Self(
@@ -53,8 +62,13 @@ final class EnvironmentLocationController: NSObject,
         let waitForLocationTimeout: @MainActor () async -> Void
 
         @MainActor static var live: Self {
-            Self(
-                hardware: .live,
+            #if DEBUG
+            let hardware: EnvironmentLocationHardware = TestExecutionCoordinator.isRunningUnitTests ? .unitTesting : .live
+            #else
+            let hardware: EnvironmentLocationHardware = .live
+            #endif
+            return Self(
+                hardware: hardware,
                 waitForLocationTimeout: {
                     try? await Task.sleep(
                         nanoseconds:

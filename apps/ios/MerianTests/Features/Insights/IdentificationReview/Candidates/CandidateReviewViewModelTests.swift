@@ -6,6 +6,26 @@ import Testing
 
 @MainActor
 struct CandidateReviewViewModelTests {
+    @Test(arguments: [false, true])
+    func delayedCandidateDismissalRetainsReviewAndCannotConfirmAfterRevisionChange(rejected: Bool) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), engine = confirmationEngine()
+        let expected = try #require(engine.speciesData?.aiReview)
+        var calls = 0
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { _, _, _, _ in calls += 1 }))
+        let subject = subject(scanId: "confirmation", generation: engine.scanPresentationGeneration)
+        viewModel.presentSwipeModal(subject: subject)
+        viewModel.stageDismissalRequest(.init(action: .confirmOriginal, scanId: subject.scanId,
+            presentationGeneration: subject.presentationGeneration, expectedReview: expected))
+        viewModel.dismissSwipeModal(ownedBy: subject)
+        engine.speciesData?.aiReview = .init(authority: .init(revision: 1, state: rejected ? .aiRejected : .clear,
+            originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil))
+        let request = try #require(viewModel.takePendingDismissalRequest(matching: subject))
+        #expect(request.expectedReview == expected)
+        let confirmed = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext, expectedReview: request.expectedReview)
+        #expect(!confirmed && calls == 0 && engine.speciesData?.userConfirmedIdentification == false)
+    }
+
     @Test func staleDismissalCannotClearNewerModalOwnership() {
         let viewModel = makeViewModel()
         let first = subject(scanId: "first", generation: 1)
@@ -123,7 +143,7 @@ struct CandidateReviewViewModelTests {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let engine = confirmationEngine()
         var attempts = 0
-        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _, _ in
             attempts += 1
             if attempts == 2 { engine.speciesData?.userConfirmedIdentification = true }
         }))
@@ -144,7 +164,7 @@ struct CandidateReviewViewModelTests {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let engine = confirmationEngine()
         var attempts = 0
-        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _, _ in
             attempts += 1
             engine.speciesData?.aiReview.pending = AIIdentificationReviewRequest(
                 scanID: "confirmation", expectedRevision: 0, operationID: "synthetic-operation",
@@ -165,7 +185,7 @@ struct CandidateReviewViewModelTests {
         let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let engine = confirmationEngine()
-        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _, _ in
             engine.speciesData = SpeciesData(scanId: "replacement", commonName: "Replacement",
                 scientificName: "Fixtureus replacement",
                 insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),

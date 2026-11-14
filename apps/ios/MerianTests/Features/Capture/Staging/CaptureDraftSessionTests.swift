@@ -7,6 +7,26 @@ import UIKit
 @MainActor
 @Suite("Staged draft ownership", .serialized)
 struct CaptureDraftSessionTests {
+    @Test func unownedCaptureBindsOnceAndCannotMoveBetweenAccounts() {
+        var session = CaptureDraftSession()
+        let firstAccount = UUID()
+        let otherAccount = UUID()
+        let acceptsUnowned = session.bindAccount(nil)
+        let bindsFirstAccount = session.bindAccount(firstAccount)
+        let acceptsSameAccount = session.bindAccount(firstAccount)
+        let acceptsMissingAccount = session.bindAccount(nil)
+        let acceptsOtherAccount = session.bindAccount(otherAccount)
+        #expect(acceptsUnowned)
+        #expect(bindsFirstAccount)
+        #expect(acceptsSameAccount)
+        #expect(!acceptsMissingAccount)
+        #expect(!acceptsOtherAccount)
+        #expect(session.accountID == firstAccount)
+        session.reset()
+        let bindsAfterReset = session.bindAccount(otherAccount)
+        #expect(bindsAfterReset)
+    }
+
     @Test func eligibilityIsMintedOnlyAtEntryAndNeverRearmed() {
         var session = CaptureDraftSession()
         let attempt = session.begin(autoSubmit: true, compositionIsEmpty: true, isRefining: false)
@@ -135,7 +155,8 @@ struct CaptureDraftSessionTests {
         vm.updateDescriptionDraft(ObservationContext(freeText: "Existing context"))
         vm.isReviewActive = true
         vm.synchronizeSharedDescription()
-        vm.audioDraftOperation = try #require(vm.beginDraftOperation())
+        let operation = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = operation
         vm.reconcileEndedAudioOperation(isRecording: false, hasPendingReview: true, hasSubmittedAudio: false)
         #expect(vm.draftSession.hasUnresolvedWork)
         vm.reconcileEndedAudioOperation(isRecording: false, hasPendingReview: false, hasSubmittedAudio: false)

@@ -8,6 +8,14 @@ user's published-scan surfaces. The canonical product and behavior contract is
 Earned Field trip patches and their divider appear only when patches are
 available. Loading reserves no patch space and shows no patch skeletons.
 
+The published-scans preview groups its heading, secondary count, owner-only
+recovery notice, three-column grid, and **View all scans** footer in one card.
+It uses 16-point internal padding, a 24-point continuous corner radius, and the
+secondary grouped background. The heading uses bold title2, matching the stat
+values and active Field trip title. Recovery appears below the heading and above
+the grid; the heading and recovery row stack when horizontal space is
+insufficient. Loading and unavailable states share the same card inset.
+
 ## Ownership
 
 - `Models/` contains Profile-only value types and display policy, including
@@ -75,6 +83,12 @@ launches until the unavailable-media count increases; confirmed decreases lower
 the acknowledged count. Existing four-total dismissals remain compatible. The
 [author-profile contract](../../../../../../docs/features-and-hardware/14-explore-author-profiles.md)
 owns the count-based behavior and its aggregate-data limitation.
+
+Achievement qualifying scans use Core UI's `ScanPreviewCard` with a large 4:3
+image, species names, a location-and-date line, the qualifying reason, and a
+**View discovery** button. They omit social controls. Location labels continue
+to honor the profile's geoprivacy setting; missing or private locations show
+only the date. The image and button open the existing local Insight route.
 
 ## State Boundaries
 

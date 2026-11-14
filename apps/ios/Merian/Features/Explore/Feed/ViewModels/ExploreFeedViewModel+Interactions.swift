@@ -136,7 +136,11 @@ extension ExploreFeedViewModel {
 
     @discardableResult
     func blockAuthor(of post: ExplorePost) async -> Bool {
-        let targetUserId = post.authorUserId
+        await blockAuthor(userId: post.authorUserId)
+    }
+
+    @discardableResult
+    func blockAuthor(userId targetUserId: String) async -> Bool {
         if await dependencies.interactions.blockAuthor(targetUserId) {
             removePosts(byAuthorUserId: targetUserId)
             toastMessage = .success("User blocked")

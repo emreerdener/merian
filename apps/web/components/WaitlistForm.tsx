@@ -168,24 +168,26 @@ export function WaitlistForm() {
         </Stack>
       </form>
 
-      {message
-        ? (
-          <Alert
-            color={formState === "success" ? "green" : "red"}
-            icon={formState === "success"
-              ? <IconCheck size={18} />
-              : <IconX size={18} />}
-            variant="light"
-            className="waitlist-signup__alert"
-          >
-            <Text size="sm">{message}</Text>
-          </Alert>
-        )
-        : (
-          <Text size="sm" className="waitlist-signup__fineprint">
-            We will only use your email for Naturebook beta updates and invites.
-          </Text>
-        )}
+      {message ? (
+        <Alert
+          color={formState === "success" ? "green" : "red"}
+          icon={
+            formState === "success" ? (
+              <IconCheck size={18} />
+            ) : (
+              <IconX size={18} />
+            )
+          }
+          variant="light"
+          className="waitlist-signup__alert"
+        >
+          <Text size="sm">{message}</Text>
+        </Alert>
+      ) : (
+        <Text size="sm" className="waitlist-signup__fineprint">
+          We will only use your email for Naturebook beta updates and invites.
+        </Text>
+      )}
     </Stack>
   );
 }

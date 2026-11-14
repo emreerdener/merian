@@ -68,6 +68,27 @@ struct LibrarySignOutJournalStore {
         }
     }
 
+    /// Exact committed step, with caller-owned session/container/transition fences.
+    /// Runtime drain permission is distinct from permission to erase the library.
+    @MainActor struct RecoveryScope {
+        let journal: LibrarySignOutJournal
+        fileprivate let store: LibrarySignOutJournalStore
+        fileprivate let validateContext: @MainActor () -> Bool
+
+        var isCurrent: Bool {
+            guard validateContext() else { return false }
+            do { return try store.load() == journal } catch { return false }
+        }
+        var allowsLibraryPurge: Bool { journal.phase == .sourceCleared && isCurrent }
+    }
+
+    func recoveryScope(expected journal: LibrarySignOutJournal,
+                       validateContext: @escaping @MainActor () -> Bool) -> RecoveryScope? {
+        guard journal.phase == .committed || journal.phase == .sourceCleared else { return nil }
+        let scope = RecoveryScope(journal: journal, store: self, validateContext: validateContext)
+        return scope.isCurrent ? scope : nil
+    }
+
     var isPending: Bool {
         do { return try load() != nil } catch { return true }
     }

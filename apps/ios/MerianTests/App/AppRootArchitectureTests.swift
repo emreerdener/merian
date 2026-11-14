@@ -3,6 +3,21 @@ import Testing
 
 @Suite("App root architecture")
 struct AppRootArchitectureTests {
+    @Test func originalInputRecoveryIsConfiguredBeforeQueueStartup() throws {
+        let app = try readSource(at: "MerianApp.swift")
+        let admission = try #require(app.range(of: "dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
+        let queue = try #require(app.range(of: "dependencies.scanRepository.configure(with: mainContext)"))
+        #expect(admission.lowerBound < queue.lowerBound)
+        let repository = try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/Database/ScanRepository.swift")
+        let context = try #require(repository.range(of: "offlineQueue.modelContext = modelContext"))
+        let recovery = try #require(repository.range(of: "offlineQueue.requestReanalysisStartupRecovery()"))
+        #expect(context.lowerBound < recovery.lowerBound)
+        let startup = try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+ReanalysisAdmission.swift")
+        let cleanup = try #require(startup.range(of: "requestReanalysisErasureRecovery()"))
+        let accountAdmission = try #require(startup.range(of: "requestReanalysisAdmissionRecovery()"))
+        #expect(cleanup.lowerBound < accountAdmission.lowerBound)
+    }
+
     @Test func appDirectoriesAndRootOwnersRemainExplicit() throws {
         let root = try appSourceRoot()
         let entries = try FileManager.default.contentsOfDirectory(
@@ -25,6 +40,7 @@ struct AppRootArchitectureTests {
         }
 
         #expect(directories == [
+            "Composition",
             "Lifecycle",
             "Presentation",
             "Routing",
@@ -37,6 +53,7 @@ struct AppRootArchitectureTests {
         let sources = try appSources()
         let expectedOwners = [
             "final class AppDelegate:": "AppDelegate.swift",
+            "struct PreparedHistoryReanalysisComposition {": "Composition/PreparedHistoryReanalysisComposition.swift",
             "enum AppRootPresentation:":
                 "Presentation/AppRootPresentation.swift",
             "struct AppRootAlertHost:": "Presentation/AppRootAlertHost.swift",
@@ -68,6 +85,18 @@ struct AppRootArchitectureTests {
         })
 
         #expect(oversized.isEmpty)
+    }
+
+    @Test func fixtureResetPrecedesContainerWriterInstallation() throws {
+        let source = try readSource(at: "MerianApp.swift")
+        let seed = try #require(source.range(of: "UITestSeedCoordinator.prepareIfNeeded(container: container)"))
+        for call in ["dependencies.scanRepository.configure(with: mainContext)",
+                     "dependencies.supabaseManager.refreshLibraryAccountIsolation()",
+                     "SpeciesPreferredNameRepository.discardLegacyUnscopedPreferences(",
+                     "dependencies.privateScanMapStore.configure("] {
+            let configure = try #require(source.range(of: call))
+            #expect(seed.lowerBound < configure.lowerBound)
+        }
     }
 
     @Test func uiTestSeedsRemainDebugOnlyWithReleaseNoOps() throws {

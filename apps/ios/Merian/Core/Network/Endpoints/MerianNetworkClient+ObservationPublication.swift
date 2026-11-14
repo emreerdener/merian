@@ -1,6 +1,22 @@
 import Foundation
 
 extension MerianNetworkClient {
+    /// Read-only discovery; no automatic replay or adoption of a remote operation as local consent.
+    func observationPublicationTarget(_ request: ObservationPublicationTargetRequest, ownerID: UUID) async throws -> ObservationPublicationReceipt? {
+        try Task.checkCancellation()
+        let data = try await performAuthenticatedObservationRequest(.publicationTarget,
+            body: JSONEncoder().encode(request), expectedAuthUserID: ownerID)
+        try Task.checkCancellation()
+        return try ObservationPublicationReceipt.decodeTarget(data, request: request)
+    }
+
+    /// Descriptive candidates only; final consent and durable admission belong to a separate owner.
+    func prepareObservationPublicationConsent(_ request: ObservationPublicationConsentRequest, ownerID: UUID) async throws -> ObservationPublicationConsentSnapshot {
+        let data = try await performAuthenticatedJSONDataPost(function: "prepare-observation-publication-consent",
+            payload: try publicationPayload(request), expectedAuthUserID: ownerID, allowsUnauthorizedSessionRecovery: false)
+        return try ObservationPublicationConsentSnapshot.decode(data, request: request)
+    }
+
     /// Exact replay belongs to the durable caller; this method never creates an operation ID.
     func requestObservationPublication(_ request: ObservationPublicationRequest, ownerID: UUID) async throws -> ObservationPublicationReceipt {
         let data = try await performAuthenticatedJSONDataPost(function: "request-observation-publication",

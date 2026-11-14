@@ -10,11 +10,8 @@ struct CaptureControlDependencies {
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {
         Self(
-            isVisualCaptureAllowed: {
-                diContainer.usageManager.canPerformScan(
-                    isProActive: diContainer.revenueCatManager.canStartProScan
-                )
-            },
+            // The shutter stages locally; identification checks funding later.
+            isVisualCaptureAllowed: { true },
             isProVideoAvailable: {
                 diContainer.revenueCatManager.canStartProScan
             },

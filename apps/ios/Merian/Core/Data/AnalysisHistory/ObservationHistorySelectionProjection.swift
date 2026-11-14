@@ -6,6 +6,8 @@ import SwiftData
 @MainActor
 enum ObservationHistorySelectionProjection {
     struct Retained {
+        let display: AnalysisDisplaySnapshot
+        let snapshotVersion: Int
         let authority: ObservationHistoryAuthority
         let reviewRevision: Int
         let observationRevision: Int
@@ -15,6 +17,12 @@ enum ObservationHistorySelectionProjection {
         guard let id = scan.selectedAnalysisID.flatMap(UUID.init(uuidString:)) else { throw ObservationHistoryError.unavailable }
         let retained = try retained(id, scan: scan, context: context)
         guard retained.observationRevision == scan.observationStateRevision else {
+            throw ObservationHistoryStateSyncService.AdmissionError.selectionProjectionRequired
+        }
+        if retained.snapshotVersion == 3,
+           case .nativeInitial = try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw,
+               consumerID: scan.sharedMediaConsumerID, record: .scan),
+           AnalysisDisplaySnapshot(analysisID: id, record: scan) != retained.display {
             throw ObservationHistoryStateSyncService.AdmissionError.selectionProjectionRequired
         }
         return retained.authority
@@ -40,8 +48,8 @@ enum ObservationHistorySelectionProjection {
         guard saved.analysisID == id, saved.version == result.snapshotVersion, saved.completedAt == result.completedAt else {
             throw ObservationHistoryError.resultConflict
         }
-        _ = try ObservationHistoryDisplayProjection.restore(display, matching: saved)
-        return Retained(authority: try ObservationHistoryAuthority.decode(JSONSerialization.jsonObject(with: state.reviewSnapshotData)),
+        let projected = try ObservationHistoryDisplayProjection.restore(display, matching: saved)
+        return Retained(display: projected, snapshotVersion: saved.version, authority: try ObservationHistoryAuthority.decode(JSONSerialization.jsonObject(with: state.reviewSnapshotData)),
             reviewRevision: state.reviewRevision, observationRevision: state.observationStateRevision)
     }
 }

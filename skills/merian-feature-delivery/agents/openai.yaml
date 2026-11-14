@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Feature Delivery"
+  short_description: "Plan user journeys and integration checkpoints"
+  default_prompt: "Use $merian-feature-delivery to connect this Merian feature's next observable journey to its owners, dependencies, applicable evidence and remaining acceptance work."

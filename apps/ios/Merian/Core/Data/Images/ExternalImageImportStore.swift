@@ -101,6 +101,8 @@ actor ExternalImageImportStore {
             throw ExternalImageImportError.unavailableApplicationSupportDirectory
         }
 
+        let rootFence = try SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: true)
+        defer { withExtendedLifetime(rootFence) {} }
         try prepareRootDirectory(rootURL)
 
         let didAccessSecurityScopedResource = securityScope.startAccessing(sourceURL)
@@ -153,18 +155,24 @@ actor ExternalImageImportStore {
 
     func pendingImports() -> [PendingExternalImageImport] {
         guard let rootURL else { return [] }
+        guard let rootFence = try? SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: true) else { return [] }
+        defer { withExtendedLifetime(rootFence) {} }
         let snapshot = (try? reconcileInbox(rootURL: rootURL)) ?? loadSnapshot(rootURL: rootURL)
         return snapshot.imports.sorted { $0.receivedAt < $1.receivedAt }
     }
 
     func fileURL(for pendingImport: PendingExternalImageImport) -> URL? {
         guard let rootURL else { return nil }
+        guard let rootFence = try? SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: false) else { return nil }
+        defer { withExtendedLifetime(rootFence) {} }
         let url = fileURL(for: pendingImport, rootURL: rootURL)
         return fileManager.fileExists(atPath: url.path) ? url : nil
     }
 
     func remove(_ pendingImport: PendingExternalImageImport) {
         guard let rootURL else { return }
+        guard let rootFence = try? SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: true) else { return  }
+        defer { withExtendedLifetime(rootFence) {} }
 
         var snapshot = (try? reconcileInbox(rootURL: rootURL)) ?? loadSnapshot(rootURL: rootURL)
         snapshot.imports.removeAll { $0.id == pendingImport.id }
@@ -187,6 +195,8 @@ actor ExternalImageImportStore {
 
     func recordTerminalFailure() {
         guard let rootURL else { return }
+        guard let rootFence = try? SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: true) else { return  }
+        defer { withExtendedLifetime(rootFence) {} }
         var snapshot = (try? reconcileInbox(rootURL: rootURL)) ?? loadSnapshot(rootURL: rootURL)
         snapshot.terminalFailureCount = min((snapshot.terminalFailureCount ?? 0) + 1, 8)
         try? writeSnapshot(snapshot, rootURL: rootURL)
@@ -194,6 +204,8 @@ actor ExternalImageImportStore {
 
     func consumeTerminalFailure() -> Bool {
         guard let rootURL else { return false }
+        guard let rootFence = try? SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: true) else { return false }
+        defer { withExtendedLifetime(rootFence) {} }
         var snapshot = (try? reconcileInbox(rootURL: rootURL)) ?? loadSnapshot(rootURL: rootURL)
         let count = snapshot.terminalFailureCount ?? 0
         guard count > 0 else { return false }

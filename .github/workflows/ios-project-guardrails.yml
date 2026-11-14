@@ -5,10 +5,14 @@ on:
     paths:
       - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
+      - "scripts/ios-tooling/**"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
       - ".github/workflows/ios-runtime-audit.yml"
       - "scripts/config/ios-runtime-audit.json"
+      - "scripts/config/ios-source-size-policy.json"
+      - "scripts/check-ios-fast-preflight.py"
+      - "scripts/test-ios-fast-preflight.py"
       - "scripts/ios-runtime-audit.py"
       - "scripts/test-ios-runtime-audit.py"
       - ".swiftlint.yml"
@@ -53,6 +57,10 @@ on:
       - "scripts/local-ios-build.py"
       - "scripts/test-local-ios-build.py"
       - "scripts/test-ios-build-and-test-workflow.sh"
+      - "scripts/ios-unit-shards.py"
+      - "scripts/test-ios-unit-shards.py"
+      - "scripts/test-ios-unit-shard-workflow.py"
+      - "scripts/config/ios-unit-shard-weights.json"
       - "scripts/validate-ios-critical-test-results.sh"
       - "scripts/validate-ios-focused-test-results.sh"
       - "scripts/validate-ios-privacy-manifest.sh"
@@ -78,10 +86,14 @@ on:
     paths:
       - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
+      - "scripts/ios-tooling/**"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
       - ".github/workflows/ios-runtime-audit.yml"
       - "scripts/config/ios-runtime-audit.json"
+      - "scripts/config/ios-source-size-policy.json"
+      - "scripts/check-ios-fast-preflight.py"
+      - "scripts/test-ios-fast-preflight.py"
       - "scripts/ios-runtime-audit.py"
       - "scripts/test-ios-runtime-audit.py"
       - ".swiftlint.yml"
@@ -126,6 +138,10 @@ on:
       - "scripts/local-ios-build.py"
       - "scripts/test-local-ios-build.py"
       - "scripts/test-ios-build-and-test-workflow.sh"
+      - "scripts/ios-unit-shards.py"
+      - "scripts/test-ios-unit-shards.py"
+      - "scripts/test-ios-unit-shard-workflow.py"
+      - "scripts/config/ios-unit-shard-weights.json"
       - "scripts/validate-ios-critical-test-results.sh"
       - "scripts/validate-ios-focused-test-results.sh"
       - "scripts/validate-ios-privacy-manifest.sh"
@@ -158,6 +174,8 @@ jobs:
   validate-generated-project:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/scripts/ios-tooling/Gemfile
 
     steps:
       - name: Checkout repository
@@ -165,6 +183,12 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Setup locked iOS project parser
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
+        with:
+          ruby-version: "3.3.12"
+          bundler-cache: true
 
       - name: Setup Deno
         uses: ./.github/actions/setup-deno
@@ -196,4 +220,4 @@ jobs:
         run: bash services/supabase/scripts/validate_edge_dto_contract.sh
 
       - name: Test iOS CI tooling contracts
-        run: make test-ios-ci-tooling
+        run: bundle exec make test-ios-ci-tooling

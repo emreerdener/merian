@@ -10,6 +10,10 @@ final class OfflineJobScheduler {
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
+        var syncReanalysisAdmissions: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var syncReanalyses: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var syncAnalysisReviews: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
         let syncPendingScans: @MainActor (OfflineQueueManager) -> Void
@@ -24,6 +28,10 @@ final class OfflineJobScheduler {
                     await LibraryDetailsSyncService.drain(context: context, manager: .shared)
                 }
             },
+            syncReanalysisAdmissions: { $0.requestReanalysisAdmissionRecovery() },
+            syncReanalyses: { $0.requestReanalysisExecutionRecovery() },
+            syncAnalysisReviews: { $0.requestAnalysisReviewRecovery() },
+            syncPublications: { await $0.syncObservationPublications() },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
             syncPendingScans: { $0.syncPendingScans() },
@@ -45,6 +53,16 @@ final class OfflineJobScheduler {
     private var scheduledWakeTask: Task<Void, Never>?
     private weak var libraryRetryManager: OfflineQueueManager?
     private var libraryRetryDate: Date?
+    private weak var publicationRetryManager: OfflineQueueManager?
+    private var publicationRetryDate: Date?
+    private var publicationRetryOwner: UUID?
+    private weak var reanalysisRetryManager: OfflineQueueManager?
+    private var reanalysisRetryDate: Date?
+    private var reanalysisRetryOwner: UUID?
+    private weak var analysisReviewRetryManager: OfflineQueueManager?
+    private weak var analysisReviewRetryContainer: ModelContainer?
+    private var analysisReviewRetryOwner: UUID?
+    private var analysisReviewRetryDate: Date?
 
     /// Actual in-process wake time. Kept internal so regression tests can prove
     /// a persisted future retry was restored instead of merely displayed.
@@ -62,6 +80,7 @@ final class OfflineJobScheduler {
     }
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
+        drainOperations.syncReanalysisAdmissions(manager)
         guard manager.isOnline,
               !manager.isCurrentNetworkConstrained else {
             cancelScheduledWake(using: manager)
@@ -72,10 +91,13 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
+        drainOperations.syncReanalyses(manager)
+        drainOperations.syncAnalysisReviews(manager)
         await drainOperations.syncLibraryDetails(manager)
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
         await drainOperations.syncIdentificationReviews(manager)
+        await drainOperations.syncPublications(manager)
         drainOperations.replayInference(manager)
         await drainOperations.replayFieldTripProgress(manager)
         await drainOperations.syncPendingDeletions(manager)
@@ -105,6 +127,53 @@ final class OfflineJobScheduler {
         libraryRetryManager = nil
     }
 
+    func schedulePublicationRetry(using manager: OfflineQueueManager, now: Date = Date()) {
+        publicationRetryManager = manager
+        publicationRetryOwner = deletionAccountID()
+        publicationRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    func publicationDrainDidStart(using manager: OfflineQueueManager) {
+        guard publicationRetryManager === manager, publicationRetryOwner == deletionAccountID() else { return }
+        publicationRetryDate = nil; publicationRetryManager = nil
+        publicationRetryOwner = nil
+    }
+
+    func scheduleReanalysisRetry(using manager: OfflineQueueManager, now: Date = Date()) {
+        reanalysisRetryManager = manager; reanalysisRetryOwner = deletionAccountID()
+        reanalysisRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    func reanalysisDrainDidStart(using manager: OfflineQueueManager) {
+        guard reanalysisRetryManager === manager, reanalysisRetryOwner == deletionAccountID() else { return }
+        reanalysisRetryManager = nil; reanalysisRetryDate = nil; reanalysisRetryOwner = nil
+    }
+
+    func scheduleAnalysisReviewRetry(using manager: OfflineQueueManager, ownerID: UUID,
+                                     container: ModelContainer, now: Date = Date()) {
+        guard deletionAccountID() == ownerID, manager.modelContext?.container === container else { return }
+        analysisReviewRetryManager = manager; analysisReviewRetryContainer = container
+        analysisReviewRetryOwner = ownerID; analysisReviewRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    /// Only a valid lease in the captured owner/container may retire its fallback.
+    func analysisReviewDrainDidStart(using manager: OfflineQueueManager, ownerID: UUID, container: ModelContainer) {
+        guard analysisReviewRetryManager === manager, analysisReviewRetryContainer === container,
+              manager.modelContext?.container === container, analysisReviewRetryOwner == ownerID, deletionAccountID() == ownerID else { return }
+        analysisReviewRetryDate = nil; analysisReviewRetryManager = nil
+        analysisReviewRetryContainer = nil; analysisReviewRetryOwner = nil
+    }
+
+    private func analysisReviewRetryFloor(using manager: OfflineQueueManager) -> Date? {
+        guard analysisReviewRetryManager === manager, let container = analysisReviewRetryContainer,
+              manager.modelContext?.container === container, analysisReviewRetryOwner != nil,
+              analysisReviewRetryOwner == deletionAccountID(), !manager.analysisReviewDeliveryOwner.isRunning else { return nil }
+        return analysisReviewRetryDate
+    }
+
     /// Recreates the process-local timer from durable SwiftData dates.
     ///
     /// A retry timestamp is an eligibility boundary, not a timer. This bridge
@@ -120,7 +189,13 @@ final class OfflineJobScheduler {
             return
         }
         let libraryDeadline = libraryRetryManager === manager ? libraryRetryDate : nil
-        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline].compactMap({ $0 }).min() else {
+        let publicationDeadline = publicationRetryManager === manager && publicationRetryOwner != nil &&
+            publicationRetryOwner == deletionAccountID() &&
+            !manager.publicationDeliveryOwner.isRunning ? publicationRetryDate : nil
+        let reanalysisDeadline = reanalysisRetryManager === manager && reanalysisRetryOwner != nil &&
+            reanalysisRetryOwner == deletionAccountID() && !manager.reanalysisExecutionOwner.isRunning ? reanalysisRetryDate : nil
+        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline, reanalysisDeadline,
+                               analysisReviewRetryFloor(using: manager)].compactMap({ $0 }).min() else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -204,19 +279,22 @@ final class OfflineJobScheduler {
             return Date().addingTimeInterval(Self.databaseReadRetryDelay)
         }
         let blockedScanJobIds = Set<String>(scans.compactMap { scan -> String? in
-            (scan.queueNeedsAttention ||
+            (!scan.permitsOrdinaryInference || scan.queueNeedsAttention ||
                 scan.scanStateRaw >= firstNonRunnableRaw)
                 ? OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
                 : nil
         })
         var candidates: [Date] = scans.compactMap { scan -> Date? in
-            guard !scan.queueNeedsAttention,
+            guard scan.permitsOrdinaryInference, !scan.queueNeedsAttention,
                   scan.scanStateRaw < firstNonRunnableRaw else {
                 return nil
             }
             return scan.queueNextRetryAt
         }
 
+        let ordinaryScanJobIDs = Set(scans.filter(\.permitsOrdinaryInference).map {
+            OfflineQueueManager.scanIngestionJobId(scanId: $0.id)
+        })
         let jobDescriptor = FetchDescriptor<OfflineJobRecord>()
         let activeStatuses: Set<String> = [
             OfflineJobStatus.pending.rawValue,
@@ -236,11 +314,40 @@ final class OfflineJobScheduler {
             return candidates.min()
         }
         let deletionOwner = deletionAccountID()
+        if let owner = deletionOwner, !manager.analysisReviewDeliveryOwner.isRunning {
+            do {
+                let floor = analysisReviewRetryFloor(using: manager)
+                candidates.append(contentsOf: try ObservationAnalysisReviewPersistence.candidates(container: context.container, ownerID: owner).map { candidate in
+                    floor.map { max($0, candidate.1) } ?? candidate.1
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
+        if let owner = deletionOwner, !manager.publicationDeliveryOwner.isRunning {
+            do {
+                let retryFloor = publicationRetryManager === manager && publicationRetryOwner == owner ? publicationRetryDate : nil
+                candidates.append(contentsOf: try ObservationPublicationPersistence.candidates(container: context.container, ownerID: owner).map { candidate in
+                    retryFloor.map { max($0, candidate.1) } ?? candidate.1
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
+        if let owner = deletionOwner, !manager.reanalysisExecutionOwner.isRunning {
+            do {
+                let floor = reanalysisRetryManager === manager && reanalysisRetryOwner == owner ? reanalysisRetryDate : nil
+                candidates.append(contentsOf: try ObservationReanalysisExecutionStore.candidates(ownerID: owner,
+                    container: context.container, isCurrent: { deletionAccountID() == owner }).map { candidate in
+                    floor.map { max($0, candidate.due) } ?? candidate.due
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
         candidates.append(contentsOf: jobs.compactMap { job -> Date? in
-            // Unknown kinds cannot be drained by this binary. Prepared publication
-            // work stays dormant until its account-bound execution owner is connected.
-            guard let kind = OfflineJobKind(rawValue: job.kindRaw), kind != .observationPublicationSync,
+            // Publication deadlines above require validated owner-bound envelopes.
+            // Unknown kinds cannot be drained by this binary.
+            guard let kind = OfflineJobKind(rawValue: job.kindRaw),
+                  kind != .observationPublicationSync, kind != .observationReanalysisSync, kind != .observationReanalysisErasure,
+                  kind != .observationAnalysisReviewSync, kind != .protectedInsightChatSync,
                   kind != .future || job.id.hasPrefix("library-details:") else { return nil }
+            // A qualified, damaged or absent queue row cannot feed a legacy wake loop.
+            if kind == .scanIngestion, !ordinaryScanJobIDs.contains(job.id) { return nil }
             // Enrollment recovery is explicit, including damaged/unknown hold metadata.
             guard !job.id.hasPrefix(ObservationHistoryEnrollmentIntent.prefix),
                   !job.id.hasPrefix(ObservationHistorySelectionIntent.prefix) else { return nil }

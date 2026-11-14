@@ -37,12 +37,6 @@ extension CaptureWorkspaceViewModel {
                 self.completeDraftOperation(draftOperation, succeeded: succeeded)
             }
 
-            guard await self.requestScanAdmission(
-                flashFallbackEligible: false
-            ) != nil else {
-                return
-            }
-
             do {
                 async let shutterLocation = self.dependencies.scan.context
                     .requestCurrentLocation()
@@ -63,6 +57,7 @@ extension CaptureWorkspaceViewModel {
                 recordedFileURL = recording.fileURL
                 guard !Task.isCancelled,
                       self.scanOperationState.isCurrent(generation),
+                      self.isDraftAccountCurrent,
                       self.draftSession.contains(draftOperation),
                       self.hasAvailableStagedCaptureSlot else {
                     try? FileManager.default.removeItem(
@@ -93,6 +88,8 @@ extension CaptureWorkspaceViewModel {
                     ))
                 guard !Task.isCancelled,
                       self.scanOperationState.isCurrent(generation),
+                      self.isDraftAccountCurrent,
+                      self.draftSession.contains(draftOperation),
                       self.hasAvailableStagedCaptureSlot else {
                     self.discardPreparedVideo(preparedVideo)
                     throw CancellationError()

@@ -140,7 +140,7 @@ struct InferenceArchitectureTests {
             "get { presentationState.activeMedia }",
             "get { presentationState.speciesData }",
             "sessionLifecycleCoordinator.prepareForNewScan(",
-            "historicalLoadCoordinator.load(from: record)"
+            "historicalLoadCoordinator.load(from: record, retainedDisplayMedia: retainedDisplayMedia)"
         ] {
             #expect(engine.contains(token))
         }
@@ -468,7 +468,7 @@ struct InferenceArchitectureTests {
             "private let historicalHydrationCoordinator:",
             "private let lookalikeCacheResetService:",
             "private let reviewWorkflowCoordinator:",
-            "func load(from record: LocalScanRecord)"
+            "func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil)"
         ] {
             #expect(historicalLoad.contains(token))
         }
@@ -481,7 +481,7 @@ struct InferenceArchitectureTests {
         }
 
         let loadStart = try #require(historicalLoad.range(
-            of: "func load(from record: LocalScanRecord)"
+            of: "func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil)"
         ))
         let loadSection = historicalLoad[loadStart.lowerBound...]
         let admission = try #require(
@@ -574,7 +574,7 @@ struct InferenceArchitectureTests {
             #expect(!engine.contains(token))
         }
         let engineLoadStart = try #require(
-            engine.range(of: "func load(from record: LocalScanRecord)")
+            engine.range(of: "func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil)")
         )
         let engineLoadEnd = try #require(engine.range(
             of: "func handleApplicationActiveStateChange(",
@@ -585,7 +585,7 @@ struct InferenceArchitectureTests {
         ]
         #expect(
             engineLoad.contains(
-                "historicalLoadCoordinator.load(from: record)"
+                "historicalLoadCoordinator.load(from: record, retainedDisplayMedia: retainedDisplayMedia)"
             )
         )
 

@@ -94,9 +94,9 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
 
 test("Next.js transitive security overrides remain explicit", () => {
   assert.equal(packageManifest.dependencies?.next, "16.4.6");
-  assert.equal(packageManifest.devDependencies?.postcss, "8.5.28");
+  assert.equal(packageManifest.devDependencies?.postcss, "8.5.32");
   assert.deepEqual(packageManifest.overrides?.next, {
-    postcss: "8.5.28",
+    postcss: "8.5.32",
     sharp: "0.35.5",
   });
 });
@@ -208,4 +208,11 @@ test("all Sharp native artifacts retain the patched SVG decoder floor", () => {
       `${path} must resolve at least ${floor}`,
     );
   }
+});
+
+test("Vercel imports the package-specific quality check identity", () => {
+  assert.match(
+    adminQualityWorkflow,
+    /\n  test:\n    name: Naturebook Admin Quality \/ test\n/,
+  );
 });

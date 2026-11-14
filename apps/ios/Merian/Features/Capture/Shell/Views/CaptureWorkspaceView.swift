@@ -41,6 +41,7 @@ struct CaptureWorkspaceView: View {
         CaptureGoalIndicatorExpansionState = .collapsed
 
     // MARK: - Zoom Drag Lock
+    @State private var isViewfinderVisible = false
     @State private var isVerticalZooming: Bool = false
     @State private var isToggleDragging: Bool = false
 
@@ -71,12 +72,18 @@ struct CaptureWorkspaceView: View {
     init(
         appSettings: AppSettings? = nil,
         opensExploreOnFreshLaunch: Bool = false,
-        showsWhatsNewOnFreshLaunch: Bool = false
+        showsWhatsNewOnFreshLaunch: Bool = false,
+        diContainer: AppDIContainer? = nil,
+        reanalysisAccess: CaptureReanalysisAccess? = nil,
+        dependencies: CaptureWorkspaceDependencies? = nil
     ) {
         self.showsWhatsNewOnFreshLaunch = showsWhatsNewOnFreshLaunch
         let raw = (appSettings ?? AppSettings.shared).captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
         _viewModel = State(initialValue: CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            reanalysisAccess: reanalysisAccess,
+            dependencies: dependencies,
             initialActiveSheet: showsWhatsNewOnFreshLaunch
                 ? .whatsNew : (opensExploreOnFreshLaunch ? .explore : nil),
             opensExploreAfterWhatsNew: showsWhatsNewOnFreshLaunch
@@ -126,6 +133,7 @@ struct CaptureWorkspaceView: View {
             .modifier(CaptureWorkspaceOrchestrationModifier(
                 viewModel: viewModel,
                 coordinator: coordinator,
+                isViewfinderVisible: $isViewfinderVisible,
                 captureMode: $captureMode,
                 observationContext: descriptionBinding,
                 describePromptViewModel: describePromptViewModel,
@@ -170,6 +178,7 @@ struct CaptureWorkspaceView: View {
                                         // MARK: Visual page — Camera
                                         VisualCaptureView(
                                             viewModel: viewModel,
+                                            isCameraVisible: isViewfinderVisible,
                                             isVerticalZooming: $isVerticalZooming
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)

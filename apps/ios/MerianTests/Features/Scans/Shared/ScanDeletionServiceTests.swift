@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import Testing
 
@@ -25,7 +26,7 @@ struct ScanDeletionServiceTests {
                 eradicateRecord: { receivedRecord, receivedContext in
                     #expect(receivedRecord === record)
                     #expect(receivedContext === context)
-                    events.values.append("eradicate")
+                    events.values.append("eradicate"); return true
                 },
                 triggerDestructiveFeedback: {
                     events.values.append("feedback")
@@ -50,7 +51,7 @@ struct ScanDeletionServiceTests {
                     return nil
                 },
                 eradicateRecord: { _, _ in
-                    events.values.append("eradicate")
+                    events.values.append("eradicate"); return true
                 },
                 triggerDestructiveFeedback: {
                     events.values.append("feedback")
@@ -75,7 +76,7 @@ struct ScanDeletionServiceTests {
                     return nil
                 },
                 eradicateRecord: { _, _ in
-                    events.values.append("eradicate")
+                    events.values.append("eradicate"); return true
                 },
                 triggerDestructiveFeedback: {
                     events.values.append("feedback")
@@ -88,6 +89,23 @@ struct ScanDeletionServiceTests {
         #expect(result == .notRequested)
         #expect(!result.shouldCompletePresentation)
         #expect(events.values.isEmpty)
+    }
+
+    @Test func nativeOwnershipAndRejectedCommitDoNotCompletePresentation() throws {
+        let context = try makeContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        record.mediaAuthorityRaw = "sharedDirectNativeInitialV1"
+        record.sharedMediaConsumerID = UUID()
+        var erasures = 0, feedback = 0
+        let service = ScanDeletionService(dependencies: .init(findRecord: { _, _ in record },
+            eradicateRecord: { _, _ in erasures += 1; return false }, triggerDestructiveFeedback: { feedback += 1 }))
+        let native = service.delete(scanID: record.id, in: context)
+        #expect(native == .ownershipHeld && !native.shouldCompletePresentation)
+        #expect(erasures == 0 && feedback == 0)
+        record.mediaAuthorityRaw = "legacy"; record.sharedMediaConsumerID = nil
+        let rejected = service.delete(scanID: record.id, in: context)
+        #expect(rejected == .ownershipHeld && !rejected.shouldCompletePresentation)
+        #expect(erasures == 1 && feedback == 1)
     }
 
     private func makeContext() throws -> ModelContext {

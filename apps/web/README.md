@@ -28,17 +28,17 @@ App Store Connect campaign link; do not invent an `/invite` route unless a real
 referral product is designed and deployed.
 
 The Explore route fetches the public post and detail projections from Supabase
-on the server, renders a rich read-only post page with default Mantine
-components, and emits Open Graph metadata so Messages/social shares can render a
-clean preview. Unshared, administratively hidden, tombstoned, blocked, and
-otherwise privacy-filtered posts resolve to the application not-found page with
-non-indexable metadata; server code must not reconstruct them from direct table
-reads. Standalone-audio post details and social previews consume the persisted
-`media_items.thumbnail_url` spectrogram. The home grid uses the public species
-reference thumbnail instead, with the spectrogram as a legacy fallback. The
-public web app never downloads recordings to calculate FFT data in a visitor's
-browser; blank or unsupported legacy thumbnails retain the volume-icon fallback
-and normal `<audio>` playback.
+on the server, renders a rich read-only post page with Mantine components and
+responsive observation styling, and emits Open Graph metadata so Messages/social
+shares can render a clean preview. Unshared, administratively hidden,
+tombstoned, blocked, and otherwise privacy-filtered posts resolve to the
+application not-found page with non-indexable metadata; server code must not
+reconstruct them from direct table reads. Standalone-audio post details and
+social previews consume the persisted `media_items.thumbnail_url` spectrogram.
+The Explore grid uses the public species reference thumbnail instead, with the
+spectrogram as a legacy fallback. The public web app never downloads recordings
+to calculate FFT data in a visitor's browser; blank or unsupported legacy
+thumbnails retain the volume-icon fallback and normal `<audio>` playback.
 
 Post-detail audio slides include an optional browser-local **Boost audio** mode.
 Only boost requests use the allowlisted `/api/explore/audio` WAV stream; Web
@@ -70,19 +70,207 @@ use the same readable labels; attribution never displays naked URLs.
 
 ## Public design direction
 
-The homepage uses a forest-green hero, confident display typography, warm
-surfaces, and decorative 3D artwork from the iOS asset catalog. The hero retains
-the existing app screenshot. Community cards render the current server-fetched
-public Explore projection, with poster-only media, species labels, and public
-author username handles. An empty feed shows an explicit empty state rather than
-sample observations. The fetch limit remains 24.
+The homepage `/` is a full-screen public Explore canvas. Drag, touch pan,
+trackpad scrolling and keyboard arrows move a stable square lattice of unique
+public posts. A shared WebGL lens bends cards and gutters together; dragging
+zooms the scene out by 6%, then settles with restrained momentum. Cards are
+photo-only, open their existing detail route on activation, and have no hover
+animation. Reduced motion and unavailable WebGL automatically use an ordinary
+linked HTML grid; there is no Canvas/Grid/Refresh/Help toolbar. Rendering sleeps
+when stationary or hidden, with four active image slots (at most eight requests
+while fallbacks overlap), a 96-tile GPU cache, 512px textures and a 1.5
+device-pixel-ratio ceiling.
 
-The shared header, working mobile navigation, footer, and Mantine theme extend
-this identity to reference, share, and policy pages. Light/dark preferences
-remain supported; the homepage hero and footer keep their campaign colors.
-Footer links point only to existing routes or homepage anchors. The standalone
-concept's sample stories, save controls, and proposed library search are not
-part of the public app.
+`/explore` permanently redirects to `/`. `/about` owns the previous homepage:
+decorative hero, feature previews, app details, beta invitation and full footer.
+The butterfly wordmark remains centered at the top at every screen size. A
+shared bottom-centered navigation pill contains Explore, About, Support and Join
+beta (or the configured app-store action). Explore opens beta signup in the
+existing modal; About retains its signup anchor. Other pages reserve bottom
+space so the navigation does not obscure their footer. QR preview appears only
+in the footer, never on the canvas. Legacy root `#about`, `#features` and
+`#waitlist` anchors redirect to About. The following hero/motion descriptions
+apply to **About**, including its `?hero=mesh` comparison.
+
+Explore initially requests 48 posts through the additive service-only
+`get_public_web_explore_posts_page` RPC. `GET /api/explore?cursor=…` returns
+`{items: [{id, label, poster}], nextCursor, hasMore}`. Its versioned opaque
+cursor preserves the exact database timestamp and UUID. Pages append in stable
+expanding rings with ID deduplication; new publications appear on refresh.
+Loading, failure, empty and end states are distinct. The homepage shell renders
+immediately with curved neutral skeletons and requests the feed in the browser.
+The initial SVG skeleton projects rounded squares through the same inverse lens
+geometry used by WebGL; the renderer continues that geometry while photos load.
+After a 1.2-second grace period, an unavailable, slow, or empty feed uses a
+decorative nature preview from the 12 bundled About photographs. These preset
+images are explicitly labeled as a preview and never open post links or enter
+the public API response. A late successful feed replaces the preview. Reloading
+starts a new feed session. The accessible grid retains its load-more and retry
+controls for additional pages.
+
+The canvas covers the full viewport behind the logo and navigation. Its visible
+cell bounds include lens distortion and the 6% drag zoom-out. Cells beyond the
+loaded feed are filled with decorative presets, never duplicated observations.
+Photos use a 25% larger composition scale (starting at 300px on desktop and
+188px on phones), retaining the 12px/8px gutters so fewer photos fill the view.
+The preset-only canvas pans continuously; a real feed retains its loaded-region
+pan limit with decorative coverage beyond that boundary. Very large viewports
+increase card size enough to retain complete coverage within the 96-tile GPU
+budget. Appending real posts replaces their corresponding decorative cells.
+
+Each photo starts with a plain neutral-gray skeleton tile, with no center dot or
+icon. Pending tiles pulse gently over two seconds in both WebGL and HTML; loaded
+photos and failed placeholders remain still. Missing, failed or slow community
+posters use a bundled preset after the same grace period; a later successful
+community image replaces it. A card only opens its post once its actual image
+has loaded, so decorative substitutes are never attributed to an observation.
+Image failures retain a neutral tile if even the bundled preset is unavailable.
+Reduced motion disables skeleton pulsing and image crossfades. WebGL failure
+uses the same real/preset selection in the standard HTML grid.
+
+WebGL posters use `/api/explore/poster/[postId]`: the server rechecks canonical
+public visibility, permits only raster public-upload URLs on `media.merian.app`
+or Wikimedia Commons, rejects redirects, limits fetching to 8 seconds/8 MiB, and
+limits decoding to 16 megapixels. Sharp emits a maximum 512px WebP with a
+3-second processing timeout. Unsupported sources use neutral placeholders. Both
+API routes are `no-store`, accept no arbitrary media URL, and never expose
+server credentials. No hosted CORS changes are required. The additive migration
+must be applied through the authorized backend release before releasing this
+frontend for full pagination. During that transition, only a first-page
+`PGRST202` (missing pagination RPC signature) retries through the existing
+`get_public_web_explore_posts` public projection, capped at 48 real posts with
+no continuation cursor. Permission, network, and continuation failures remain
+errors; there are no direct table reads. Each feed RPC has an 8-second deadline.
+Missing server configuration uses the decorative preview; real community content
+requires the Setup variables below. The preview needs no backend configuration
+or infrastructure release.
+
+The hero background uses neutral dots spaced 32px apart. With a fine hover
+pointer, dots within a 180px radius gently spread outward, enlarge, and brighten
+with a restrained local glow: the radius grows by at most 0.35px, opacity
+increases by 0.12, and displacement stays below 4px. Damped springs ease the
+response in and out, preserving momentum as the pointer moves. Scrolling
+releases the existing effect with a slower spring instead of clearing the canvas
+state; hover resumes on fresh pointer movement after scrolling settles. The
+effect is decorative and does not intercept links or affect image positions.
+Frames stop after settling and while offscreen or in hidden tabs. Touch and
+reduced-motion users retain the static CSS dot pattern; the same pattern is
+available before hydration or without canvas.
+
+The default radial composition places 25 larger square photos on two loose
+rings, with six smaller accents at varied distances between them. These 31
+decorative slots reuse the same poster set without another feed request. The
+extra accents are hidden in the compact layout, which retains its 25-square
+composition. Each radial photo has a fixed, distinct tilt between -18 and +18
+degrees, mixing clockwise, counterclockwise, and nearly upright orientations
+around each ring. Scrolling gently opens the rings outward, increases their size
+by at most 8%, and rotates them by at most another eight degrees. A bounded
+scroll progress eases into place over roughly 180ms; there is no scroll pinning,
+hover response, or autonomous idle motion in this version. Animation frames stop
+once the position settles and while offscreen or in hidden tabs. Reduced motion
+keeps the composition at its resting position. The desktop image viewport has no
+edge masks or bottom fade: photos remain fully visible up to the clipped section
+bounds. The floating butterfly and wordmark use a soft, theme-aware drop shadow
+for contrast as content scrolls behind them; there is no full-width header fade.
+At widths of 768px and below, the same photos form the composed square mosaic
+below the centered copy, with varied sizes, close consistent gutters, and no
+rotation. Only this compact mosaic has a 48px top fade and 56px bottom fade,
+blending into the copy area and next section while leaving the sides fully
+visible. The mosaic translates upward by at most 24px on scroll as one surface,
+preserving its spacing. Resizing switches between the mosaic and rings without
+reloading images. Both layouts share the same poster set, loading/fallback
+behavior, and server query.
+
+The `?hero=mesh` comparison preserves the previous interactive mesh; all other
+query values select radial. The following mesh motion details apply only to that
+optional comparison. The hero uses a complete tiling of 25 true squares in three
+sizes, with sides spanning approximately 2.10:1. The mix includes 12 medium, 3
+larger, and 10 smaller squares; the size contrast remains restrained while the
+enlarged tiles need fewer images. A single non-repeating composition distributes
+the size hierarchy with staggered T-junctions, interrupting long horizontal and
+vertical seams. Smaller squares fill the spaces around larger images, leaving a
+consistent narrow gutter along every shared edge and no unfilled pockets. Slots
+stay stable during image loading and interaction. Hover and idle pulses reshape
+a coupled mesh of true squares. Precomputed responses preserve the resting
+gutter along every shared edge, with diagonal junction constraints preventing
+pinched corners. Neighbouring frames grow, shrink, and translate together; the
+composition never repacks or switches separation axes. Each full square uses
+compositor translation and scale, preserving source framing without zooming
+inside the image. A damped spring (natural frequency 6 radians/second, damping
+ratio 0.82) preserves momentum during hover handoff and release with a barely
+perceptible settle.
+
+Idle motion flows through a distributed nine-image sequence. Each 12-second
+handoff gently settles the outgoing image while the next begins growing, with
+complementary easing and no resting pause. At most two focus responses overlap;
+their combined strength stays constant, preserving the shared gaps and avoiding
+an extra swell during handoff. The largest relative size change is bounded to
+approximately 2.9%; some connected squares respond together to retain their
+shared spacing. Hover adds emphasis to the selected tile's current idle focus
+and pauses the idle clock; release springs back to the idle sequence without
+resetting its phase. The whole composition also drifts on 84/104-second cycles,
+bounded to 24 pixels horizontally and 15.6 pixels vertically. Hover adds at most
+6 pixels of eased pointer movement at the current drift position. Overscan keeps
+the viewport covered. Motion pauses offscreen and in hidden tabs; reduced motion
+keeps the mosaic static. The same poster set fills all slots without another
+feed request. The grid has no caption or playback controls. Hover hit testing
+samples the same fade artwork, so nearly transparent edges do not attract the
+focus. Motion stops offscreen and in hidden tabs; reduced-motion preferences
+render a static grid. The decorative hero reuses poster URLs from the same
+24-post server result, with no additional feed query. Accessible discovery cards
+are available on `/`. The page shell streams before that query finishes; the
+hero starts with quiet skeleton tiles and gives Explore 1.2 seconds to load. An
+empty or failed feed, failed image, or elapsed grace period selects bundled
+decorative nature photography for unresolved tiles. Decoded Explore photos
+crossfade in over 600 ms, including late arrivals, without rebuilding the grid.
+Successfully loaded Explore tiles never download their fallback. Reduced motion
+disables the fade as well as tile resizing. Fallback photos have no observation
+labels, authors, or post links; their sources and license are recorded in
+`public/assets/hero-nature/README.md`. Discovery cards emphasize square photos
+with unframed captions, species labels, identification context, and public
+author username handles. They render the current server-fetched public Explore
+projection; an empty feed shows an explicit empty state rather than sample
+observations. The decorative About fetch limit remains 24; the Explore feed
+paginates at 48.
+
+The “Discover nature, your way” feature row follows the hero. Five illustrative
+previews cover identification, listening, keeping records, community discovery,
+and choosing public posts. They use bundled decorative photos and CSS motion,
+not real observation data, recordings, or production interface captures. Each
+preview loops automatically while visible, without play/pause icons or button
+semantics. Its loop pauses offscreen or in hidden tabs and resumes at the same
+phase. Reduced motion keeps the illustrations static. The horizontal row
+supports swipe/scroll and previous/next controls. Production clips can replace
+each `FeaturePreview` without changing the card structure. The expanded footer
+combines a large invitation, existing navigation links, and an explicitly
+labeled, nonfunctional QR preview awaiting an approved app link. No login,
+search, or store destination is invented for this presentation.
+
+The shared header, mobile navigation, footer, and Mantine theme extend the
+neutral identity to reference, share, and policy pages. Light/dark preferences
+remain supported, with charcoal surfaces in dark mode and restrained forest
+accents. The observation page places its square media carousel beside the
+identification and author information on desktop, stacking them on mobile.
+Supporting content uses readable sections separated by subtle rules. Hazard
+notices, identification provenance, source links, media behavior, and reporting
+remain available. Footer links point only to existing routes or homepage
+anchors.
+
+`ButterflyMark` renders the transparent butterfly in the header. The header
+wordmark remains live text beside the butterfly at every screen size. A native
+`<picture>` selects the animated WebP only for
+`prefers-reduced-motion: no-preference`; reduced motion and browsers without a
+matching source use the static PNG. Selection works before hydration and updates
+when the system preference changes. The animation retains the two gentle
+flutters and pause in a 4.7-second loop. The footer always uses the static PNG,
+regardless of motion preference.
+
+The header renders the mark at 40 CSS pixels on desktop and 28 on mobile.
+Animated WebP sources at 40, 84, and 120 pixels let the browser select a
+suitable resolution up to 3× density without downloading the original 512-pixel
+export. All variants preserve the 50 fps motion samples, transparency, and loop
+timing; the resting pose uses a single extended frame. Keep the `<source>` sizes
+aligned with the header's rendered dimensions when changing its layout.
 
 The existing Turnstile-protected waitlist form appears once on the homepage,
 inside its closing invitation. Secondary pages open that same form in the header
@@ -202,7 +390,7 @@ provide the legacy JavaScript compiler API. See Microsoft's
 
 ### Dependency maintenance
 
-All direct Mantine packages are pinned together at 9.6.2. Dependabot groups
+All direct Mantine packages are pinned together at 9.7.5. Dependabot groups
 minor and patch updates because Mantine uses exact peer versions. Node types
 remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
 with matching 19.3 type declarations; Dependabot groups those packages and the
@@ -217,7 +405,7 @@ and retain the complete frozen-install, audit, test, type-check, and build gate.
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Next.js 16.3.6 also fixes the
+file. Next.js 16.3.8 also fixes the
 [next/og ImageResponse RCE](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j).
 It retains the fixes for the reviewed
 [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
@@ -231,15 +419,17 @@ The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
-The Sharp override tracks 0.35.4, which addresses the
-[libheif vulnerabilities](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
-The direct Tiptap packages are pinned together at 3.31.3 to cover both the
+The Sharp override tracks 0.35.5, which includes the patched librsvg release for
+[SVG memory safety](https://github.com/advisories/GHSA-wq5f-xc86-pv6w) and
+retains the earlier
+[libheif fixes](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c). The direct
+Tiptap packages are pinned together at 3.31.4 to cover both the
 [attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
 and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
 The lockfile also excludes the affected
 [CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
-`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.6, PostCSS
-8.5.25, Sharp 0.35.4, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
+`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.4.6, PostCSS
+8.5.25, Sharp 0.35.5, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
 explicit Next overrides, and the workflow audit step. Dependency update pull
 requests must run the full dependency audit, test, type-check, and
 production-build gate.
@@ -321,6 +511,12 @@ ID in `X-Request-ID`. A `429` includes `Retry-After: 600`; internal database or
 provider details are logged privately and never returned.
 
 ## Vercel Deployment
+
+Require the exact commit's `Naturebook Web Quality / test` GitHub check as a
+Vercel Deployment Check. The explicit job name distinguishes it from the admin
+workflow; a bare `test` check is ambiguous and must not be imported. Keep
+automatic production domain assignment disabled during coordinated backend
+releases, and promote only after backend readback and this check pass.
 
 Configure the Vercel project as a monorepo app:
 
@@ -436,7 +632,10 @@ preference.
 
 ## Public Routes
 
-- `/` — Naturebook discovery homepage, public Explore grid, and beta invitation.
+- `/` — Naturebook homepage with decorative hero imagery, features, and beta
+  invitation.
+- `/explore` — recent public community discoveries with links to individual
+  posts.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
   anonymous visitors can view post context and send a support-email report from
   the centered action below the Taxonomy card, but cannot like, comment, reply,
@@ -444,10 +643,9 @@ preference.
   from the public detail presentation. Ordered image, video, and audio media
   appear in the detail carousel. Its active video autoplays muted and inline on
   a continuous loop with native controls, while inactive videos pause and
-  rewind. The homepage Explore grid remains poster-only and uses species
-  reference images for audio posts. Audio detail slides retain their
-  spectrogram, bottom-anchored controls, and optional browser-local Boost Audio
-  toggle.
+  rewind. The Explore grid remains poster-only and uses species reference images
+  for audio posts. Audio detail slides retain their spectrogram, bottom-anchored
+  controls, and optional browser-local Boost Audio toggle.
 - `/species/[speciesId]/[slug]` — public Species Dictionary reference page. The
   lowercase ASCII slug is derived from the common name, with the scientific name
   and then `species` as fallbacks; it is descriptive only and never used for
@@ -500,7 +698,7 @@ The page may consume the resulting public image, species labels, public author
 identity, shared timestamp, privacy-filtered location/telemetry, public field
 notes, normalized hashtags, reference images, overview text, conservation
 status, taxonomy labels, and alternate names. If the projection supplies
-`author_username`, render it as `@username` on homepage cards, post details, and
+`author_username`, render it as `@username` on Explore cards, post details, and
 avatar alt text. Missing or blank usernames use "a Naturebook observer"; never
 fall back to `author_name`. Do not expose exact coordinates, private field
 notes, raw scan telemetry, auth data, private email, or server credentials.
@@ -512,11 +710,11 @@ broad species, scan, profile, or Explore tables to reconstruct that payload.
 Similar-species thumbnails are intentionally omitted because the current
 lookalike payload does not carry the required license and attribution fields.
 
-The Explore share page intentionally uses default Mantine components and
-component props instead of route-specific CSS classes or custom page chrome.
-Post visibility must come exclusively from the canonical card projection
-contract. In particular, do not bypass its moderation/publication/media-health
-rules with the detail RPC, service-role table queries, or cached page data.
+The Explore share page uses Mantine components with scoped observation layout
+classes in `app/globals.css`. Post visibility must come exclusively from the
+canonical card projection contract. In particular, do not bypass its
+moderation/publication/media-health rules with the detail RPC, service-role
+table queries, or cached page data.
 
 See `../../docs/system-architecture/08-public-brand-compatibility.md` for the
 permanent brand and compatibility contract,
@@ -527,9 +725,78 @@ and Universal Link implementation contract.
 
 ## Identification labels
 
-Explore home cards and post detail consume the optional public identification
+Explore cards and post detail consume the optional public identification
 rank/source projection through `lib/exploreIdentification.ts`. Broader groups,
 observer selection and community labels are explicit; detail preserves original
 AI labels separately. Malformed present metadata fails closed. Broader/community
 labels cannot substitute a species reference thumbnail or reference carousel.
 Legacy payloads with no identification metadata retain their presentation.
+
+### Indexed source-map dependency floor
+
+The frozen graph requires `source-map-js` 1.2.2 or newer to exclude the reviewed
+[indexed source-map event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+The package security contract checks every resolved copy. Preserve the blocking
+dependency audit and complete frozen-install, test, type-check and production
+build sequence when updating this transitive dependency.
+
+### Sharp native dependency floors
+
+The Sharp security contract also checks every optional `@img/sharp-*` artifact,
+including nested copies: native bindings must be at least 0.35.5 and bundled
+libvips packages at least 1.3.4. A patched JavaScript wrapper alone does not
+satisfy this decoder boundary.
+
+The October 7, 2026 dependency review pins Next.js 16.3.8 for the
+[security patch release](https://github.com/vercel/next.js/releases/tag/v16.3.8),
+including Image Optimization SSRF and cache-isolation fixes. Existing PostCSS
+and Sharp overrides remain unchanged; the dependency audit is not bypassed.
+
+## Website review quarantine
+
+The infrastructure release includes
+`20261113222835_quarantine_public_web_explore.sql`. Public web card, pagination,
+and detail readers exclude posts with an `open` or `in_review` post case or
+identification case, plus scans whose `is_flagged` remains true. Native Explore
+visibility and reporter-specific preferences are unchanged. The grouped review
+case is authoritative: source report rows can still say `PENDING_REVIEW` after a
+moderator dismisses the case. Clearing a case restores eligibility only if every
+other publication, moderation, media, tombstone and identity rule passes.
+Existing repeat-reporter behavior is preserved: additional evidence from the
+same reporter does not reopen a cleared case; a new independent reporter does.
+
+`get_public_web_explore_visibility(p_post_ids UUID[])` is service-only, accepts
+1–128 non-null IDs, and returns only eligible IDs through the canonical
+anonymous projection plus the website quarantine rule. It exposes no report or
+case data. The website uses `GET /api/explore/visibility?ids=…` for bounded
+rechecks and `GET /api/explore/changes?ids=…` for scoped SSE eligibility
+snapshots. Both are no-store and validate the same UUID/count bounds. Streams
+recheck those IDs every two seconds, end after 50 seconds with an explicit
+reconnect event, cancel work on disconnect, and cap active streams at 16 per
+server instance. Each database request has a three-second deadline; at most 32
+visibility queries run concurrently per server instance. Sequential polling
+rounds have a five-second total budget. This is bounded server polling delivered
+through SSE, not a database Realtime subscription or a global moderation feed.
+Deployment-level traffic/rate limits remain necessary for these public
+endpoints.
+
+Open canvas, HTML grid, About hero and post-detail pages use expiring visibility
+approval. A removal unmounts detail media and disposes canvas textures/cancels
+image requests while retaining the cell position with a decorative replacement.
+There is no stock image attributed or linked to the removed post. Pages start
+closed until checked, clear approval on stream/check failure or tab hiding, and
+recheck on return/back-forward navigation. Streams normally deliver changes in
+roughly two seconds plus request latency; six-second approval leases fail closed
+if updates stall. Sessions over 128 IDs, or unavailable SSE, use sequential
+128-ID requests every two seconds without overlapping checks. A stalled or
+failed stream is closed before polling takes over, so queued old frames cannot
+restore withdrawn content. Post details are dynamic/no-store, including
+metadata, instead of retaining the former five-minute ISR cache.
+
+This does not retract previously downloaded media, external social previews, or
+copies saved by a visitor. The web support-email report link is not database
+intake; quarantine starts when a report/flag is accepted into the existing
+review system. Backend migration application must precede the frontend release.
+A missing visibility RPC fails closed to decorative previews/unavailable detail;
+there is no legacy visibility bypass. Prepare and validate locally; no
+production migration or deployment is authorized by this implementation.

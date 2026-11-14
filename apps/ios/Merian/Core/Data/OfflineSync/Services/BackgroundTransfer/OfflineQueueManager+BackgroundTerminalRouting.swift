@@ -163,6 +163,15 @@ extension OfflineQueueManager {
             inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
             finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork)
         }
+        // Only a preexisting durable task owner can contribute new completion
+        // evidence. Legacy account/generation adoption remains recovery-only.
+        var originalOwnership: BackgroundAccountWorkOwnership?
+        if let ownerUserID, let generation, let container = modelContext?.container {
+            let candidate = BackgroundAccountWorkOwnership(ownerUserID: ownerUserID, generation: generation, phase: .inference)
+            if await resolvedQueueDbActor(container: container).backgroundAccountWorkIsCurrent(scanId: scanId, ownership: candidate) {
+                originalOwnership = candidate
+            }
+        }
         guard await validateOrAdoptBackgroundAccountWork(
             scanId: scanId,
             generation: generation,
@@ -194,12 +203,20 @@ extension OfflineQueueManager {
             }
             return
         }
+        let completionAccount: InferenceCompletionAccountScope?
+        if let originalOwnership, let lease = backgroundAccountWorkLeases[taskIdentifier] {
+            completionAccount = .init(ownerID: originalOwnership.ownerUserID,
+                isCurrent: { accountWork.isCurrent(lease) }, release: {})
+        } else { completionAccount = nil }
+        defer { completionAccount?.finish() }
         await processInferenceDownloadResult(
             scanId: scanId,
             generation: generation,
             resultFileURL: resultFileURL,
             statusCode: statusCode,
             functionRouteEvidence: functionRouteEvidence,
+            originalOwnership: originalOwnership,
+            completionAccount: completionAccount,
             finalizationService: finalizationService,
             publishCompletion: publishCompletion
         )

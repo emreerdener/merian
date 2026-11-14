@@ -279,6 +279,28 @@ struct StagedCaptureTests {
         #expect(replacement.original.environmentContext?.location?.coordinate.longitude == -87.6298)
     }
 
+    @Test func cropInvalidatesOriginalByteAuthorityButDisplayChangesDoNot() {
+        let analysis = UUID()
+        let photo = ObservationHistoryPhotoReference(mediaID: UUID(), contentType: "image/jpeg", byteCount: 3,
+            sha256: String(repeating: "a", count: 64))
+        let original = StagedImage(compressedData: Data([1]), displayData: Data([2]), uiImage: UIImage(),
+            original: IdentifiableImage(image: UIImage()), reanalysisProvenance: .original(analysisID: analysis, photo: photo))
+        let display = original.replacing(displayData: Data([3]), uiImage: UIImage()).replacingFocusRegion(nil)
+        #expect(display.reanalysisProvenance == original.reanalysisProvenance)
+        let crop = display.replacing(compressedData: Data([4]))
+        #expect(crop.reanalysisProvenance == .editedOriginal(analysisID: analysis, photo: photo))
+        #expect(crop.replacing(original: crop.original).reanalysisProvenance == crop.reanalysisProvenance)
+        var capture = StagedCapture(); capture.images = [original]
+        let before = CaptureSubmissionAdmissionSnapshot(capture)
+        // A lineage edit still invalidates a pending admission when encoded bytes happen to match.
+        capture.images = [original.replacing(original: original.original)]
+        #expect(CaptureSubmissionAdmissionSnapshot(capture) != before)
+        capture.images = [original.replacingFocusRegion(.init(x: 0.1, y: 0.2, width: 0.3, height: 0.4))]
+        #expect(CaptureSubmissionAdmissionSnapshot(capture) != before)
+        capture.images = [original]; capture.images[0].addedAt.addTimeInterval(1)
+        #expect(CaptureSubmissionAdmissionSnapshot(capture) != before)
+    }
+
     @Test func stagingSupportsAllowedCombinationMatrix() {
         func makeImage(addedAt: TimeInterval) -> StagedImage {
             StagedImage(

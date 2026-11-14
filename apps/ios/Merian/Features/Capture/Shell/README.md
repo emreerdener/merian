@@ -1,3 +1,54 @@
+## November 12 — capture overlay simplification
+
+The Capture overlay no longer displays the Pending submissions shortcut below
+the mode selector. This removes that visible entry only; the recovery sheet, its
+routing/model seams, durable requests and account-transition safeguards remain
+unchanged. The October 27 entry below records the earlier UI candidate.
+
+## November 9 — saved-request recovery presentation
+
+The audio/video saved-request sheets route consumed outcomes through the shared
+`AnalysisRecoveryCheckingModel`. Its durable budget limits visible checking;
+closing or backgrounding leaves accepted exact recovery with the existing
+execution owner. Fresh parent/account validation precedes foreground feedback.
+The sheets explain the connectivity requirement without promising background
+completion. Verified saved-original viewing and UI/accessibility qualification
+remain open; the
+[integration guide](../../../../../../docs/development-guides/25-scan-to-history.md#current-integration-boundary)
+owns current evidence and limits.
+
+## November 4 — explicit saved-result route candidate
+
+The208 inactive native initial-photo scan route carries the scan ID on its
+existing `PresentedRoute` and mounts `LocalScanInsightLoader` before changing
+the engine. That shared loader joins verified retained display bytes without
+legacy paths; ordinary scan routing retains its current synchronous load. The
+route value disappears with its presentation. Source review and focused
+route/native display validation passed with independent verification. No Capture
+visual redesign is included. See the
+[canonical journey](../../../../../../docs/development-guides/25-scan-to-history.md#retained-initial-photo-display-candidate).
+
+After native History acknowledgement, the recovery sheet offers a separate Open
+result action through the existing scan route and normal dismissal barrier. It
+does not navigate automatically or select the acknowledgement's baseline.
+Account/session/container fences and the route coordinator's stale-envelope
+policy remain in force. This203 composition remains inactive; focused203
+discovery/routing checks and the corrected XCTest scan-route method passed
+independent evidence review; the installation guard is unchanged. See the
+[Submission contract](../Submission/README.md).
+
+## October 27 — inactive local pending-submission route
+
+The existing Capture sheet router now owns the dependency-gated Pending
+submissions entry and CaptureNativeRecoverySheet. Presentation closes through
+the existing dismissal barrier and account/lifetime invalidation hooks; it does
+not cancel or delete durable work or shut down the native owner. Ordinary live
+composition remains disabled. The [Submission contract](../Submission/README.md)
+defines lazy admission, account/container fences, exact local identity selection
+and the limits of this status-only view. Focused Debug checks passed on the
+preserved candidate; generic Simulator Release passed after the separate Journal
+rollback. Installed UI and complete RUX acceptance remain open.
+
 # Capture Shell
 
 The `Shell` directory acts as the root container for the entire Capture feature.
@@ -63,7 +114,26 @@ work waits until the announcement closes. The
 [What’s New contract](../../../../../../docs/development-guides/12-in-app-changelog.md#whats-new-sheet)
 owns eligibility, acknowledgement, and Settings replay.
 
+## Camera introduction visibility
+
+Shell passes foreground visual-camera visibility through the Scan view
+hierarchy. Root and feature presentations remain occupied until their dismissal
+callbacks, so the introductory badge does not run behind launch-time What's New
+or Explore. The workspace dependency exposes the app-container-owned
+introduction claim; view recreation, draft clearing, and sheet dismissal do not
+reset it. Scan owns the prompt phases and timer cancellation. See the
+[camera guide](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md#viewfinderhints-featurescapturescancomponentsviewfinderhintsswift).
+
 ## Ownership
+
+`CameraSheetRouter` wraps private Scans, Profile, Insight, reanalysis and
+achievement destinations in `LibraryAccountAccessView`. Recovery does not
+replace the camera; private deep links route to Scans recovery before reading
+retained records. Photo/audio capture starts locally, with admission deferred to
+identification. The workspace observes published and cached identity changes to
+retire account-owned drafts and fence late capture completions. Fresh captures
+made before any account resolves remain explicitly unowned until their first
+account binding. Same-account token refresh preserves them.
 
 The Shell is organized by responsibility rather than as a pair of aggregate
 files:
@@ -133,9 +203,9 @@ Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
 leaving Scan, root or feature presentation takeover, workspace teardown, and
 state reset invalidate Scan's still and pre-recording generations. A video that
 has already started keeps the existing graceful-stop behavior so its partial
-clip can finish staging; a pending video admission or hardware start is
-cancelled. This prevents a late shutter or admission response from repopulating
-cleared state or auto-submitting behind another presentation.
+clip can finish staging; pending video hardware startup is cancelled. This
+prevents a late shutter or recording result from repopulating cleared state or
+auto-submitting behind another presentation.
 
 `CaptureWorkspaceViewModel.handleRootSheetDismissed` owns the post-result
 notification opt-in handoff for Close, swipe, and binding-driven dismissal. It
@@ -252,14 +322,15 @@ surface, not a trigger for a separate filter or pop-up menu.
 
 `MainTabBar` is Capture-workspace navigation chrome rather than a Core UI route
 owner. Its Capture-only `FloatingNavigationMenu` layout is co-located in
-`Components/Navigation`; together they keep the existing Explore, Scans, and
-Profile bindings and accessibility identifiers. The injected navigation view
-model refreshes Explore badge sources on mount, foreground return, and Explore
-dismissal. A UUID generation fence rejects an older overlapping result or a
-completion after disappearance. An unavailable notification count preserves the
-last known notification badge, while the existing feed-fetch failure behavior
-clears the external-post badge. The view contains no network client, badge
-coordinator, or haptic singleton lookup.
+`Components/Navigation`; its visible labels are Explore, Book, and Profile. Book
+uses `book.fill` and the accessibility label “Book”, retaining the existing
+Scans route, unread badge, bindings, and `MainTabBar_Scans` identifier. The
+injected navigation view model refreshes Explore badge sources on mount,
+foreground return, and Explore dismissal. A UUID generation fence rejects an
+older overlapping result or a completion after disappearance. An unavailable
+notification count preserves the last known notification badge, while the
+existing feed-fetch failure behavior clears the external-post badge. The view
+contains no network client, badge coordinator, or haptic singleton lookup.
 
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
@@ -516,3 +587,401 @@ Successful staging never opens the intermediate recorder review; it returns
 Record to idle and makes the audio node available. Current-draft capacity
 failure retains recovery playback/discard and manual retry. Stale completion
 cleanup never clears a newer operation or deletes an already-staged original.
+
+## Protected reanalysis editor
+
+The prepared `historicalReanalysis` route carries an explicit observation,
+historical analysis and expected owner. `CaptureReanalysisAccess` validates the
+owner and frozen source at entry, then `CameraSheetRouter` mounts a dedicated
+`CaptureReanalysisSheet`. `CaptureWorkspaceDependencies.reanalysis` defaults to
+nil: ordinary entry remains disabled until the complete activation contract is
+qualified. The prepared access factory requires a current-owner/session check
+and account generation from its assembler, plus the queue-owned shared
+preparation coordinator; idle sheets hold no Auth work lease. Producer and local
+recovery reserve the same child before metadata access, so recovery cannot
+invalidate a writer that has not reached its file lock.
+
+`CaptureReanalysisEditor` owns explicit original-photo selection, private
+preview loading, a complete verified staged cohort, photo additions and note
+edits/removal. It uses the existing immutable source, selection, loader and
+session owners. Its five-photo budget is independent of ordinary Capture's two
+physical slots. Selection starts empty, retains exact mixed source order and
+never takes the first N originals. Photos can be previewed before selection;
+unsupported originals require choosing another photo or adding new evidence.
+V1/V3 analyses inherit no mutable observation media or notes. Added photos use
+file-backed import and bounded existing image preparation, without borrowing
+parent location or gallery metadata into the reanalysis request.
+
+The editor submits only through `CaptureReanalysisSession.stage`; it never calls
+ordinary admission, local funding, replacement or `InferenceEngine.analyze`. The
+single **Reanalyze** action freezes the exact plan and explicitly requests
+submission before private files are written. A failed or ambiguous save retains
+that identity and action, and disables edits until explicit discard succeeds.
+After durable preparation and fresh owner/generation checks, the editor invokes
+the required injected submission callback with the persisted child ID. The
+assembler connects it to the queue's `.submitted(childID)` admission
+opportunity; ordinary access remains gated. An exact already-bound replay stays
+owned by execution and does not reenter advisory admission. Saved presentation
+confirms local submission only, without claiming provider completion or changing
+the selected identification. Processing waits for current consent and an
+eligible connection; old saved-only drafts remain inert.
+
+Explicit discard retires only the session's unattempted child and requests
+receipt-bound local cleanup after commit. Account-generation changes and root
+presentation teardown instead invalidate the editor and clear private previews,
+selection and source references. The sheet also clears its picker, preview and
+discard-dialog state; a late preview cannot assign an image after closure. These
+transitions do not claim cancellation of durable work. Suspended operations
+check the editor and account fences before exposing results. Interactive sheet
+dismissal is disabled so normal user cancellation uses the explicit discard
+boundary.
+
+`CaptureReanalysisEditorTests` covers explicit subsets above ordinary capacity,
+source/order preservation, durable submission before its wake, unchanged
+selection, same-identity retry after failed file writes, withheld stale-owner
+completion, bound replay without advisory wake, exact discard, account
+invalidation and owner-qualified route identity. The existing Core routing and
+Capture architecture/refinement gates remain applicable. The protected editor's
+final end-to-end UI and execution qualification remain part of the disabled
+activation contract.
+
+The inert App history composition supplies `CaptureReanalysisAccess.prepared`
+with the same account client, private-photo resolver and session predicate as
+History/status. Protected server-photo loading and original-photo preparation
+use that verified photo owner; they cannot fall back to the shared Supabase
+manager. The November 4 retained-baseline candidate separately injects the
+existing native owner for AI-role reads. The chooser resolves that lookup before
+Continue becomes available; a completed failure permits explicit new photos or
+retry. Only the exact saved baseline A association supplies native input, even
+when another result is selected. Typed local provenance survives editing and the
+first durable child insert; exact child retries use copied inputs. See the
+[frozen refinement contract](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source).
+An opened editor retains session values, not an account-work lease, and checks
+owner, generation and session validity before use. The documents-location seam
+allows isolated qualification without changing production file ownership.
+Ordinary live Capture access remains nil.
+
+The root initializer accepts the App's exact optional `reanalysisAccess` and
+supplied AppDI container. Its ViewModel initializer resolves workspace
+dependencies before establishing route subscriptions, so a historical route
+cannot arrive before installation. Views only forward the injected values.
+Explicitly injected workspace dependencies are authoritative, including their
+nil access. The App installation gate is fixed false and does not construct the
+bundle; ordinary Capture remains unchanged and unavailable for historical
+routes.
+
+### Legacy reanalysis admission fence
+
+Legacy refinement routes check fresh enrollment protection before Capture
+staging or the Pro paywall. A staged enrollment intent, acknowledged history,
+damaged intent, missing record or unavailable context denies the route. The
+independent historical route still requires its exact protected access. Insight
+toolbar, chat, biological/candidate and confidence actions withhold legacy
+reanalysis when protected access is absent and repeat the fence at delayed
+handoffs. The content action checks again before feedback or navigation.
+Ordinary unenrolled scans retain legacy behavior; protected failure never
+authorizes replacement.
+
+Already-open legacy drafts repeat enrollment checks before admission preview and
+after its suspension, before enqueue. A denial preserves the draft and its
+original target. Completed legacy results also check fresh protection before
+copying source tags, collections or notes; the existing deletion fence remains
+independent. This does not cancel or refund an already dispatched legacy child,
+and legacy requests do not carry a server-verifiable parent association.
+
+### Prepared audio access
+
+`CaptureAudioReanalysisAccess` opens only an explicit historical target in the
+current container. A short account lease validates and freezes its source,
+authentication session and generation; opening retains no idle lease. The
+returned session freezes input at the actual tap. Its submit closure supplies
+the common account/container checks to the producer and binder and accepts a
+separate presentation predicate for foreground handoff only. No hidden account,
+file or network fallback is created.
+
+This access exists only in the inert App composition. It is not installed in
+ordinary workspace dependencies, routing or the photo editor. Presentation loss
+after durable preparation/binding leaves that work intact. A fresh session is
+not recovery of that work: the separate explicit saved-child access below
+recovers its original proof. No user-selected resume UI route is installed. No
+scheduler, automatic adoption or replacement is authorized. Fresh audio opening
+and exact saved-child recovery use `captureForAudio`, which retains V4 source
+authority without loading its WAV. New submission still requires explicit new
+audio bytes; descriptions are optional and caller-supplied. Photo entry remains
+closed to V4.
+
+### Explicit saved audio resume access
+
+`CaptureAudioReanalysisAccess.openResume` accepts an explicit saved four-ID
+child scope. Unlike fresh `open`, it creates no source/plan or child/media UUID
+and defers source validation to the retained resume reader. Its short opening
+lease ends before returning the closure. The closure checks current presentation
+before work and after awaits, while retained preparation uses only common
+account/session/generation/container scope. Closing presentation can withhold
+queue handoff without cancelling a committed binding. Reopening with the same
+identity recovers that binding without new consent or local files.
+
+A fresh exact snapshot read precedes handoff to the existing App-injected queue
+entry. Consumed work preserves its outcome-only marker; resume grants no second
+provider invocation. No latest-child choice, automatic discovery or ordinary UI
+route is installed. A bounded user-selected saved-child surface remains
+required.
+
+### Inert saved audio status access
+
+`CaptureAudioStatusAccess` is separate from submission and resume. Opening
+requires explicit owner/observation/container, captures the account session and
+generation, validates the enrolled parent through the status reader's shared
+lock, and releases the opening lease. The returned page closure delegates
+cursor/limit handling to the injected retained `ObservationAudioStatusOwner`. It
+acquires no idle lease and exposes no execution action.
+
+Only common owner/session/generation/container checks reach the retained owner.
+The waiter checks its own cancellation and presentation before and after the
+await; a stale presentation cannot receive a private page or cancel another
+waiter's shared read. Account loss, deletion and enrollment holds fail closed.
+The prepared App bundle supplies the queue's owner explicitly. Construction
+starts nothing, ordinary access stays nil, and no route or child-selection UI is
+installed. An advisory page never authorizes new work or redispatch.
+
+### Explicit saved audio chooser model
+
+`CaptureAudioSavedRequestsModel` is an inert presentation model. The App
+bundle's `openSavedAudioRequests` factory requires explicit
+owner/observation/container, opens the scoped status capability, and supplies
+exact-child resume separately. There is no sheet, ordinary route or automatic
+invocation in this checkpoint.
+
+An explicit load holds at most one 20-link page. Refresh/next clears previous
+rows, cursor, omissions and selection before awaiting. Failed pages expose no
+old action or absence claim. Choosing a row requires membership in the displayed
+page; loading never selects a child. The final Continue tap synchronously opens
+that exact four-ID resume before scheduling a waiter. It creates no operation,
+uses no phase as permission, and keeps the same selected identity after failure.
+
+Page and resume callbacks validate presentation generation and common scope.
+Closing clears private presentation state and cancels only the model's waiter,
+not the retained status/preparation/execution owners or durable work. Started or
+coalesced admission reports only that checking began, never successful analysis.
+Refresh is explicit; there is no polling or automatic retry. Consumed requests
+remain outcome-only through the existing exact resume and queue boundaries.
+
+### Rendered saved audio chooser
+
+`CaptureAudioSavedRequestsSheet` renders the explicit-selection model. Rows use
+page-local numbering and advisory saved phases; they do not invent dates,
+species names or media thumbnails. A separate View saved audio action verifies
+the selected child’s exact WAV under the existing preparation/file owners before
+creating an in-memory player. Missing, changed or inaccessible bytes yield an
+unavailable explanation without changing the request. Playback uses the shared
+serial executor and session lease; closure/background/scope loss retires it. No
+temporary export, consent, provider call or execution retry is added. This
+preview candidate awaits focused runtime qualification. The final action stays
+disabled until a row is selected. Consumed phases display Check saved result;
+unconsumed phases display Continue saved request. These labels grant no
+authority: the model still opens the exact saved request through the existing
+resume/queue boundary.
+
+Refresh and paging clear selection. Omitted work has an explicit notice and is
+never treated as absence. Closing or losing account/presentation scope closes
+the model. While the audio preview is open, a local half-second scope check
+retires stale playback; there is no network polling or provider replay.
+Completion is not inferred from queue acceptance. The alternatives card is
+unchanged.
+
+The sheet is rendered only by an explicit Debug/UI-test fixture for now.
+Ordinary routes and the App installation gate remain disabled. Its fixture
+proves rendering and interaction, while native integration tests separately
+prove persistence, exact consumed recovery and account ownership.
+
+### Retained initial audio candidate host
+
+`CaptureAudioReanalysisHost` is an inert parent-retained presentation owner,
+constructed explicitly by `PreparedHistoryReanalysisComposition.openAudioHost`.
+It does not install a workspace route or sheet. The composition retains an
+injected or locally constructed `CaptureAudioReanalysisHostOwner` when audio
+access exists. Copies share this reference. The owner indexes at most four hosts
+by exact owner, observation, source analysis and container. Opening the same key
+returns the same host without another access opening or lease. Capacity denies
+new keys before opening access; it never evicts a retained candidate.
+
+Errors, closure, task exit and apparent completion do not release entries.
+Common scope loss invalidates the host and, through a weak callback, the whole
+parent. Parent invalidation closes every host and permanently denies further
+opens, including after waiters exit. A new composition is not evidence that
+durable work is absent: startup/new-account UI admission still must use
+saved-child recovery before offering a new request. This checkpoint adds no
+release or replacement authority. The opened access retains its original
+account/session/generation/ container predicate without an idle lease.
+
+The final submit tap freezes canonical audio, ordered descriptions and
+child/media identity synchronously before launching the host waiter. Failed or
+ambiguous saves keep that session and plan. Explicit retry invokes the same
+session's strict admission read: already-bound work skips preparation and
+consent, and consumed work remains outcome-only through the queue. An
+unavailable or completed request never resets the host into a fresh candidate.
+
+Closing hides presentation and cancels only its waiter. The host keeps both the
+candidate and task until the waiter actually exits, and refuses reopening while
+that waiter is running. Late completion cannot repopulate a closed presentation.
+Account-scope validation invalidates the host; it never falls back to legacy
+submission. Queue admission reports checking only, not a completed result or a
+selection change. Durable recovery after process restart remains owned by the
+existing saved-child status/resume boundaries.
+
+`CaptureAudioReanalysisHostTests` covers committed and uncommitted bind-save
+failure followed by dismissal/reopening with the original UUID, exact input,
+single durable job and no repeated authorization for an existing binding;
+delayed waiter exit; changed-input rejection; and current-account loss through
+prepared access. Parent tests additionally cover exact reuse across composition
+copies, four-entry capacity without eviction, failed opening without admission,
+and permanent common-scope/reentrant invalidation. These are domain tests.
+Rendered initial input, parent lifetime wiring, and the assembled
+Capture-to-History UI route remain open. The installation gate remains false and
+ordinary access nil.
+
+### Prepared caller-file audio lifecycle
+
+The inert `CaptureAudioReanalysisHost.prepareInput` accepts an explicitly
+injected `CaptureAudioInputPreparer`. Its separate retained task returns only
+canonical bytes after temporary-file cleanup. Presentation and common scope are
+checked around preparation; closing clears ephemeral input and cancels the task,
+but reopening remains denied until actual exit. Late results cannot populate a
+closed or replaced presentation. This task holds no account lease.
+
+`submitPrepared` preserves explicit description order before and after that WAV,
+then uses the existing synchronous final-tap freeze. Input preparation cannot
+replace a frozen plan. Closing clears the input preview but preserves any frozen
+request; explicit retry uses its original bytes and identity. No file picker,
+ordinary route or fresh-entry authority is installed by these methods.
+
+### Inert audio submission sheet
+
+`CaptureAudioReanalysisSheet` requires an explicitly supplied, already-presented
+host and input preparer. It is not installed in an ordinary route. Its file
+importer accepts one audio file, with an opaque host-issued token captured by
+value for completion and cancellation. Tokens belong to the original
+presentation; delayed callbacks cannot prepare input, cancel a newer picker or
+close a reopened host. The sheet retains its presentation snapshot in SwiftUI
+state across body reconstruction. Repeated `present` on the same open, idle host
+does not silently create a new presentation generation.
+
+Before submission, optional descriptions remain editable presentation state and
+are ordered before/after the canonical recording at the final tap. Choosing a
+file does not create an analysis or media identity. Picker/preparation work
+blocks submission. Once a plan is frozen, the sheet only offers continuation of
+that original request and does not import or apply changed descriptions. Closing
+uses the exact presentation scope and preserves any durable request. The sheet
+creates no Task, account lease, status lookup, automatic retry or selection
+change. Fresh-entry/recovery authority and runtime UI qualification remain
+separate requirements.
+
+### Prepared source-based audio access
+
+`CaptureAudioSourceReanalysisAccess` is separate from legacy
+`CaptureAudioReanalysisAccess`. Its required source-start dependency admits a
+strict saved source only through the retained source coordinator; a repeated
+fresh tap that finds an exact execution binding uses the existing execution
+owner with unchanged consumption markers. `openSourceResume` reads only V10
+source work, then applies the source service's durable admission policy. It
+never treats a source reply as provider permission. Opening holds no idle lease;
+both paths freeze and recheck owner/session/generation/container around awaits,
+and check presentation separately before synchronous handoff.
+
+This boundary is available through the explicit source host factory described
+below. Source saved-request status uses the separate typed factory described
+below. Ordinary access remains nil and alternatives-card layout is unchanged.
+
+### Explicit source host presentation
+
+The existing `CaptureAudioReanalysisHost` and sheet share presentation/input
+mechanics through an exhaustive legacy/source access value. Distinct typed
+constructors cannot fall back between routes. The immutable host route never
+changes after opening. One parent owner retains at most one host per
+owner/observation/source/container tuple; opening that tuple through the other
+route fails closed before creating another candidate. Both routes share the same
+four-host capacity and invalidation lifetime. Source close/reopen keeps the
+frozen plan, cancels only its waiter, and retains it until actual exit.
+
+`openAudioSourceHost` is an explicit prepared factory using the required source
+access. The ordinary installation gate stays false. Source status-list routing
+is explicit; the legacy status decoder remains unchanged.
+
+### Explicit saved audio source presentation
+
+`CaptureAudioSourceStatusAccess`, `CaptureAudioSourceSavedRequestsModel` and
+`CaptureAudioSourceSavedRequestsSheet` expose bounded source-only discovery.
+Selection retains the exact owner, observation and child. Only the final “Check
+saved source” action opens source resume, synchronously before launching its
+waiter. Closing or changing account/presentation fences late page and
+continuation callbacks. Refresh failure clears stale selection; page omission
+never establishes safe absence or permission to replace a request.
+
+The list cannot fall back to execution recovery, reserve a source, bind
+execution or dispatch while reading. Bound execution remains in the existing
+saved-audio list. Both page routes share four retained slots and account drains.
+The new sheet is explicitly injectable, not installed in ordinary Capture.
+Existing identification and alternatives cards are unchanged.
+
+## Inactive original-photo ownership (NCO-1)
+
+Explicit qualification composition may supply `photoOriginalPreparation`;
+`.live` leaves it nil. Its local branch retains original bytes before draft
+release, stores AI/display assets separately and freezes only into
+`preparedHeld`. It cannot request funding, upload or AI work. Original handles
+travel only in local staging, not ordinary admission/queue payloads. Failures
+retain the draft and block submission. This candidate is under native
+validation; capture-tools layout and later redesign remain separate.
+
+### Explicit saved video continuation
+
+`CaptureVideoStatusAccess`, `CaptureVideoSavedRequestsModel` and
+`CaptureVideoSavedRequestsSheet` page existing video children through the shared
+four-slot status owner. No row is selected automatically. A final explicit tap
+opens the exact four-ID target through `CaptureVideoResumeAccess`; account,
+generation, container and presentation fences are checked before queue handoff.
+Closing the sheet cancels its waiter and clears private presentation, while the
+existing owners retain work through actual exit.
+
+`ObservationVideoResumeSubmission` recovers complete saved preparation only,
+stages initial reservation or an already-observed reserved upload, and hands
+ready uploads to explicit consent binding. Unknown reservation/upload attempts
+and unconsumed non-idle execution stay held. Consumed execution uses only the
+original outcome reader. A throwing stage save cannot return dispatch authority.
+The prepared composition exposes `openSavedVideoRequests` and uses the existing
+queue/account owners and authenticated transport; ordinary installation remains
+false. This source has independent review; native runtime qualification is
+pending. Fresh current-video hosting and cleanup ownership are described below;
+HQ-230 runtime/resource qualification remains open.
+
+### Prepared fresh-video lifetime
+
+The explicit current-video host freezes choice, optional text and one child at
+the final tap. Dismissal retains that candidate; interrupted freeze retries
+validate the original choice and exact temporary copy. The existing bounded
+audio host owner shares four slots with video and retains failed token-bound
+cleanup. AppDI arms its exact-manager lifetime on explicit opening; Auth waits
+for actual host exit and cleanup before its remaining drains. No ordinary route
+is installed. See the canonical `docs/development-guides/25-scan-to-history.md`
+section “Prepared current-video host and cleanup lifetime” for ownership, limits
+and remaining qualification.
+
+## Saved-video original preview candidate
+
+The saved-video screen has an independent View saved video action. Its resume
+access verifies the exact saved child and complete canonical cohort under the
+existing preparation/account/file owners, then returns only the original clip
+from the provenance source. It never calls resume, consent, admission or
+provider execution. Missing or changed siblings refuse the entire preview and
+preserve the request. The transient full cohort is bounded by the existing
+manifest limits; playback retains only the source clip (maximum 12 MiB).
+
+A separate preview model owns the in-memory asset, player and audio-session
+lease. Load is silent; Play validates the request and acquires the existing
+session lease. Close, background, selection/refresh and account/container/job
+invalidation stop playback and drop the source. A local validation loop runs
+only while the preview remains open. No temporary file or export is created.
+Native27803 passes focused local runtime checks (34 methods/59 cases across six
+suites, zero skips), independently verified. Initial-native original viewing,
+full RUX, UI accessibility and physical-device qualification remain separate
+open work.

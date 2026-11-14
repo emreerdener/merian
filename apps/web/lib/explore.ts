@@ -6,6 +6,7 @@ import {
 } from "./exploreIdentification";
 
 import { createAdminSupabaseClient } from "./supabaseAdmin";
+import { requestExploreFeedRows } from "./exploreFeedRequest";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -738,4 +739,21 @@ export async function fetchExploreFeedPosts(
 
   const rows = (data ?? []) as ExplorePostRow[];
   return rows.map(mapExplorePost);
+}
+
+/** Paginated public canvas. Failures must never masquerade as end-of-feed. */
+export async function fetchExploreFeedPageRows(
+  cursor: { sharedAt: string; postId: string } | null,
+): Promise<Array<{ post: ExplorePost; sharedAt: string }>> {
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    console.error("explore_feed_server_configuration_missing");
+    throw new Error("Explore unavailable");
+  }
+  const rows = await requestExploreFeedRows<ExplorePostRow>(async (name, args) => {
+    const { data, error } = await supabase.rpc(name, args)
+      .abortSignal(AbortSignal.timeout(8000));
+    return { data: data as ExplorePostRow[] | null, error };
+  }, cursor);
+  return rows.map((row) => ({ post: mapExplorePost(row), sharedAt: row.shared_at }));
 }

@@ -1,0 +1,448 @@
+.section {
+  padding: 104px 0 72px;
+}
+.heading {
+  max-width: 1440px;
+  margin: 0 auto 32px;
+  padding-inline: 32px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.eyebrow {
+  font-size: 14px;
+  color: var(--text-sub);
+  margin: 0 0 12px;
+}
+.heading h2 {
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.12;
+  letter-spacing: -.045em;
+  font-weight: 550;
+  margin: 0;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+}
+.controls button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  border: 1px solid var(--form-border);
+  color: var(--text-main);
+  cursor: pointer;
+}
+.controls button:disabled {
+  opacity: .3;
+  cursor: default;
+}
+.track {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  padding: 5px max(32px, calc((100vw - 1376px) / 2)) 20px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+.card {
+  flex: 0 0 clamp(260px, 26vw, 340px);
+  scroll-snap-align: center;
+  min-width: 0;
+}
+.card h3 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.025em;
+  margin: 18px 0 7px;
+  line-height: 1.25;
+}
+.card p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-sub);
+  margin: 0;
+  max-width: 32ch;
+}
+.preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 16px;
+  background: var(--surface-subtle);
+  position: relative;
+  overflow: hidden;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+}
+.artwork {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.artwork img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.capture {
+  position: absolute;
+  width: 65%;
+  aspect-ratio: .84;
+  left: 17.5%;
+  top: 12%;
+  border: 6px solid var(--bg-solid);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px #00000010;
+}
+.capture > img {
+  border-radius: 14px;
+}
+.viewfinder {
+  position: absolute;
+  inset: 17%;
+  border: 1px solid #ffffffb3;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.scan {
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 30%;
+  top: 0;
+  background: linear-gradient(transparent, #d6efb280);
+  border-bottom: 1px solid #f1ffe3;
+  opacity: 0;
+}
+.result {
+  position: absolute;
+  left: -13%;
+  right: -13%;
+  bottom: 12%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-solid);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 10px;
+  color: var(--text-sub);
+  box-shadow: 0 8px 28px #00000018;
+  transform: translateY(5px);
+}
+.result strong {
+  color: var(--text-main);
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+}
+.result > svg:last-child {
+  margin-left: auto;
+  color: var(--focus-border);
+}
+.listening {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 25px;
+}
+.soundPhoto {
+  position: relative;
+  width: 38%;
+  aspect-ratio: 1;
+}
+.soundPhoto img {
+  border-radius: 50%;
+}
+.soundRing {
+  position: absolute;
+  inset: -8px;
+  border: 1px solid var(--focus-border);
+  border-radius: 50%;
+  opacity: .2;
+}
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 45px;
+  color: var(--focus-border);
+}
+.waveform i {
+  display: block;
+  width: 3px;
+  border-radius: 3px;
+  background: currentColor;
+  transform: scaleY(.4);
+}
+.soundLabel {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-sub);
+}
+.journal {
+  position: absolute;
+  inset: 0;
+}
+.noteBack,
+.noteFront {
+  position: absolute;
+  width: 54%;
+  aspect-ratio: .8;
+  left: 25%;
+  top: 13%;
+  background: var(--bg-solid);
+  padding: 8px;
+  border-radius: 9px;
+  box-shadow: 0 8px 24px #00000012;
+}
+.noteBack {
+  transform: rotate(9deg) translate(12px, 0);
+}
+.noteFront {
+  transform: rotate(-8deg) translate(-17px, 12px);
+}
+.noteFront img {
+  height: 65%;
+  border-radius: 4px;
+}
+.noteBack img {
+  border-radius: 4px;
+}
+.noteFront > span {
+  display: block;
+  font: 12px Georgia, serif;
+  margin-top: 12px;
+}
+.noteFront > i {
+  display: block;
+  width: 74%;
+  height: 2px;
+  background: var(--form-border);
+  margin-top: 8px;
+}
+.noteFront > i:last-child {
+  width: 48%;
+}
+.saved {
+  position: absolute;
+  left: 18%;
+  bottom: 14%;
+  border-radius: 30px;
+  background: var(--bg-solid);
+  padding: 8px 12px;
+  font-size: 10px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  box-shadow: 0 4px 12px #00000010;
+}
+.discovery {
+  position: absolute;
+  inset: 12%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  transform: rotate(-5deg);
+}
+.discovery > span:not(.discoveryLabel) {
+  overflow: hidden;
+  border-radius: 8px;
+}
+.discoveryLabel {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 43%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-solid);
+  box-shadow: 0 6px 20px #00000018;
+  padding: 10px 6px;
+  font-size: 11px;
+  border-radius: 30px;
+  transform: rotate(5deg);
+}
+.sharing {
+  position: absolute;
+  inset: 0;
+}
+.sharePhoto {
+  position: absolute;
+  width: 58%;
+  aspect-ratio: 1;
+  top: 15%;
+  left: 21%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.shareChoice {
+  position: absolute;
+  display: flex;
+  gap: 0;
+  left: 11%;
+  right: 11%;
+  bottom: 22%;
+  padding: 5px;
+  background: var(--bg-solid);
+  border: 1px solid var(--form-border);
+  border-radius: 30px;
+  box-shadow: 0 4px 20px #00000012;
+}
+.shareChoice > span {
+  width: 50%;
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  align-items: center;
+  font-size: 10px;
+  padding: 7px 0;
+  z-index: 1;
+}
+.shareChoice > i {
+  position: absolute;
+  left: 5px;
+  width: calc(50% - 5px);
+  height: calc(100% - 10px);
+  background: var(--surface-subtle);
+  border-radius: 30px;
+}
+.shareCaption {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  bottom: 11%;
+  font-size: 10px;
+  color: var(--text-sub);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .preview .scan {
+    animation: scan 3.5s ease-in-out infinite;
+  }
+  .preview .result {
+    animation: result 3.5s ease-in-out infinite;
+  }
+  .preview .waveform i {
+    animation: sound 1.2s ease-in-out infinite alternate;
+  }
+  .preview .soundRing {
+    animation: ring 2.4s ease-out infinite;
+  }
+  .preview .noteFront {
+    animation: note 4s ease-in-out infinite;
+  }
+  .preview .noteBack {
+    animation: noteBack 4s ease-in-out infinite;
+  }
+  .preview .discovery {
+    animation: discover 5s ease-in-out infinite;
+  }
+  .preview .shareChoice > i {
+    animation: choice 4s ease-in-out infinite;
+  }
+}
+/* Preserve each loop’s phase while the card or browser tab is hidden. */
+.preview[data-running="false"] * {
+  animation-play-state: paused;
+}
+@keyframes scan {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  20%,
+  75% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0;
+    transform: translateY(340%);
+  }
+}
+@keyframes result {
+  0%,
+  100% {
+    transform: translateY(5px);
+  }
+  45%,
+  80% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes sound {
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes ring {
+  to {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+@keyframes note {
+  50% {
+    transform: rotate(-3deg) translate(-28px, 8px);
+  }
+}
+@keyframes noteBack {
+  50% {
+    transform: rotate(12deg) translate(20px, -7px);
+  }
+}
+@keyframes discover {
+  50% {
+    transform: rotate(2deg) scale(1.05);
+  }
+}
+@keyframes choice {
+  0%,
+  20%,
+  100% {
+    transform: translateX(0);
+  }
+  45%,
+  75% {
+    transform: translateX(100%);
+  }
+}
+@media (max-width: 48em) {
+  .section {
+    padding-block: 64px 40px;
+  }
+  .heading {
+    padding-inline: 20px;
+    gap: 14px;
+  }
+  .heading h2 {
+    max-width: 250px;
+  }
+  .track {
+    padding-inline: 20px;
+    gap: 24px;
+  }
+  .card {
+    flex-basis: 78vw;
+    max-width: 320px;
+  }
+}

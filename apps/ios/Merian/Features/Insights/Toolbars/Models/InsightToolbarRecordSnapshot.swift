@@ -1,6 +1,7 @@
 import Foundation
 
 struct InsightToolbarRecordSnapshot: Equatable {
+    let selectedReviewBaseline: SelectedAnalysisReviewBaseline?
     let scanId: String
     let coverImagePath: String?
     let taxonomyKingdom: String?
@@ -21,7 +22,9 @@ struct InsightToolbarRecordSnapshot: Equatable {
     let isHumanSubject: Bool
     let shouldSuppressReferenceImages: Bool
 
-    init(record: LocalScanRecord) {
+    init(record: LocalScanRecord, selectedReviewBaseline: SelectedAnalysisReviewBaseline? = nil) {
+        self.selectedReviewBaseline = selectedReviewBaseline?.observationID.uuidString.caseInsensitiveCompare(record.id) == .orderedSame
+            ? selectedReviewBaseline : nil
         self.scanId = record.id
         self.coverImagePath = record.coverImagePath
         self.taxonomyKingdom = record.taxonomyKingdom

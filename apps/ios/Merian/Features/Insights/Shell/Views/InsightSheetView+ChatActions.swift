@@ -65,6 +65,14 @@ extension InsightSheetView {
         ) else {
             return
         }
+        if dependencies.savedReanalysisAccess != nil {
+            pendingChatReanalysis?.cancel()
+            pendingChatReanalysis = prepareSavedReanalysis(scanID: expectedScanId, generation: expectedGeneration)
+            pendingInsightChatDismissalAction = .reanalyze(scanId: expectedScanId, generation: expectedGeneration)
+            viewModel.state.isInsightChatSheetPresented = false
+            return
+        }
+        guard permitsLegacyReview(expectedScanId) else { return }
         guard dependencies.isProActive() else {
             pendingInsightChatDismissalAction = .showPaywall(
                 scanId: expectedScanId,
@@ -82,35 +90,44 @@ extension InsightSheetView {
     }
 
     func resumePendingInsightChatDismissalAction() {
+        let prepared = pendingChatReanalysis
+        pendingChatReanalysis = nil
         let action = pendingInsightChatDismissalAction
         pendingInsightChatDismissalAction = nil
         selectedInsightChatScanId = nil
         selectedInsightChatGeneration = nil
 
-        guard let action else { return }
+        guard let action else { prepared?.cancel(); return }
         let context = action.context
         guard viewModel.isPresentingLocalRecord(
             scanId: context.scanId,
             generation: context.generation
         ) else {
+            prepared?.cancel()
             return
         }
 
         switch action {
         case .reviewAlternatives:
-            guard viewModel.canReviewIdentificationConcernCandidates else { return }
+            prepared?.cancel()
+            guard permitsLegacyReview(context.scanId),
+                  viewModel.canReviewIdentificationConcernCandidates else { return }
             viewModel.presentCandidateSwipe(
                 source: .identificationConcern,
                 expectedScanId: context.scanId,
                 expectedGeneration: context.generation
             )
         case .reanalyze:
+            if let prepared { prepared.resume(); return }
+            guard dependencies.savedReanalysisAccess == nil, permitsLegacyReview(context.scanId) else { return }
             dependencies.selectionFeedback()
             dependencies.requestRefinement(
                 context.scanId,
                 viewModel.shareableFieldNotes
             )
         case .showPaywall:
+            prepared?.cancel()
+            guard permitsLegacyReview(context.scanId) else { return }
             viewModel.state.showPaywall = true
         }
     }

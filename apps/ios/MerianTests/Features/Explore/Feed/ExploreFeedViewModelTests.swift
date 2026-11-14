@@ -4,6 +4,54 @@ import XCTest
 
 @MainActor
 final class ExploreFeedViewModelTests: XCTestCase {
+    func testBlockAuthorWithoutPublishedPostsUsesProfileAuthorID() async {
+        var requestedAuthorID: String?
+        let viewModel = ExploreFeedViewModel(
+            appSettings: ExploreFeedTestFixtures.appSettings(),
+            dependencies: ExploreFeedTestFixtures.dependencies(blockAuthor: {
+                requestedAuthorID = $0
+                return true
+            })
+        )
+
+        let succeeded = await viewModel.blockAuthor(userId: "profile-author")
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(requestedAuthorID, "profile-author")
+        XCTAssertEqual(viewModel.blockedAuthorUserIDs, ["profile-author"])
+        XCTAssertEqual(viewModel.toastMessage?.title, "User blocked")
+    }
+
+    func testBlockAuthorFromProfileRemovesOnlyThatAuthorsPosts() async {
+        let viewModel = ExploreFeedViewModel(
+            appSettings: ExploreFeedTestFixtures.appSettings(),
+            dependencies: ExploreFeedTestFixtures.dependencies(blockAuthor: { _ in true })
+        )
+        let blockedPost = ExploreFeedTestFixtures.post(id: "blocked", authorUserId: "profile-author")
+        let otherPost = ExploreFeedTestFixtures.post(id: "other", authorUserId: "other-author")
+        viewModel.upsertPost(blockedPost, includeInFeed: true)
+        viewModel.upsertPost(otherPost, includeInFeed: true)
+
+        let succeeded = await viewModel.blockAuthor(userId: "profile-author")
+
+        XCTAssertTrue(succeeded)
+        XCTAssertNil(viewModel.post(id: blockedPost.id))
+        XCTAssertEqual(viewModel.posts, [otherPost])
+    }
+
+    func testFailedProfileBlockKeepsPostsAndReportsFailure() async {
+        let viewModel = makeViewModel()
+        let post = ExploreFeedTestFixtures.post(id: "retained", authorUserId: "profile-author")
+        viewModel.upsertPost(post, includeInFeed: true)
+
+        let succeeded = await viewModel.blockAuthor(userId: "profile-author")
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(viewModel.posts, [post])
+        XCTAssertTrue(viewModel.blockedAuthorUserIDs.isEmpty)
+        XCTAssertEqual(viewModel.toastMessage?.severity, .error)
+    }
+
     func testInitialFeedRetriesWhenAuthSettlesAndThenKeepsSuccessfulPage() async {
         var attempts = 0
         let post = ExploreFeedTestFixtures.post(id: "ready")

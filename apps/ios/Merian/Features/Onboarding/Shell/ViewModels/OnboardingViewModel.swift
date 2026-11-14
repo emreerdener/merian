@@ -57,5 +57,6 @@ import Observation
             return
         }
         dependencies.resumeConsentBlockedScan(accountID)
+        if dependencies.hasCurrentRequiredConsent() { dependencies.resumeSubmittedReanalyses(accountID) }
     }
 }

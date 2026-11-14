@@ -196,7 +196,7 @@ extension OfflineQueueManager {
         )
         let fetched: [OfflineQueuedScan]
         do {
-            fetched = try context.fetch(descriptor)
+            fetched = try context.fetch(descriptor).filter(\.permitsOrdinaryInference)
         } catch {
             MerianLog.data.error(
                 "replayInferenceStagedScans: fetch failed: \(error, privacy: .private)"

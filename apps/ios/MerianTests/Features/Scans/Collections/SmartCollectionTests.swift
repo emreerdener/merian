@@ -93,8 +93,8 @@ struct SmartCollectionTests {
 
     @Test("Suggestions respect thresholds, ranking, and duplicate collection suppression")
     func testSuggestionRankingAndSuppression() throws {
-        let existingBirds = ScanCollection(name: "Birds")
-        context.insert(existingBirds)
+        let existingInvasive = ScanCollection(name: "  invasive-FINDS  ")
+        context.insert(existingInvasive)
 
         let reviewScans = try (0..<2).map {
             try makeScan(
@@ -132,14 +132,66 @@ struct SmartCollectionTests {
 
         let suggestions = SmartCollectionSuggester.suggestions(
             from: reviewScans + recentPlants + olderBirds + invasive,
-            existingCollections: [existingBirds],
+            existingCollections: [existingInvasive],
             referenceDate: referenceDate
         )
 
         #expect(suggestions.map(\.title).first == "Needs review")
         #expect(suggestions.map(\.title).contains("Recent finds"))
-        #expect(suggestions.map(\.title).contains("Invasive finds"))
-        #expect(!suggestions.map(\.title).contains("Birds"))
+        #expect(!suggestions.map(\.title).contains("Invasive finds"))
+    }
+
+    @Test("Taxonomy browsing does not create category collections", arguments: [
+        ("plantae", ""), ("fungi", ""), ("animalia", "insecta"),
+        ("animalia", "aves"), ("animalia", "mammalia"), ("animalia", "reptilia")
+    ])
+    func testCategoriesRemainInScanFilters(taxonomy: (String, String)) throws {
+        let scans = try (0..<5).map {
+            try makeScan(
+                name: "Category scan \($0)",
+                taxonomyKingdom: taxonomy.0,
+                taxonomyClass: taxonomy.1,
+                timestamp: referenceDate
+            )
+        }
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+
+        #expect(suggestions.map(\.title) == ["Recent finds"])
+    }
+
+    @Test("All eligible suggestions survive beyond the former six-collection cap")
+    func testAllEligibleSuggestionsRemainVisible() throws {
+        let scans = try (0..<9).map {
+            try makeScan(
+                name: "Eligible scan \($0)",
+                locationName: ["Meadow", "Woodland", "Wetland"][$0 / 3],
+                isInvasive: true,
+                hazardType: "toxic",
+                confidenceScore: 0.42,
+                timestamp: referenceDate.addingTimeInterval(TimeInterval(-$0))
+            )
+        }
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            sharedPostIDProvider: { "post-\($0)" },
+            referenceDate: referenceDate
+        )
+
+        #expect(suggestions.map(\.title) == [
+            "Needs review", "Recent finds", "Explore posts", "Invasive finds", "Potential hazards",
+            "Meadow", "Woodland", "Wetland"
+        ])
+        let hazards = try #require(suggestions.first { $0.definition.rule == .hazards })
+        #expect(hazards.count == 9)
+        let refreshed = SmartCollectionSuggester.refreshedSnapshot(
+            for: hazards, from: scans, referenceDate: referenceDate
+        )
+        #expect(refreshed.scans.map(\.id) == hazards.scans.map(\.id))
     }
 
     @Test("Location suggestions normalize punctuation and spacing")
@@ -378,22 +430,6 @@ struct SmartCollectionTests {
 
         #expect(locationSnapshot.scans.first?.id == "scan-a")
         #expect(locationSnapshot.coverScan?.id == "scan-b")
-
-        let plantScans = [
-            try makeScan(id: "newest-tax", name: "Newest Plant", taxonomyKingdom: "plantae", timestamp: referenceDate),
-            try makeScan(id: "older-tax", name: "Older Plant", taxonomyKingdom: "plantae", timestamp: referenceDate.addingTimeInterval(-10)),
-            try makeScan(id: "oldest-tax", name: "Oldest Plant", taxonomyKingdom: "plantae", timestamp: referenceDate.addingTimeInterval(-20))
-        ]
-        let taxonomySuggestions = SmartCollectionSuggester.suggestions(
-            from: plantScans,
-            existingCollections: [],
-            sharedPostIDProvider: { _ in nil },
-            referenceDate: referenceDate
-        )
-        let taxonomySnapshot = try #require(taxonomySuggestions.first { $0.title == "Plants" })
-
-        #expect(taxonomySnapshot.scans.first?.id == "newest-tax")
-        #expect(taxonomySnapshot.coverScan?.id == "older-tax")
     }
 
     @Test("Recent finds cover remains the newest matching scan")

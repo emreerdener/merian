@@ -95,9 +95,13 @@ struct MerianApp: App {
     // MARK: - App Dependencies
     let diContainer: AppDIContainer
     let lifecycleManager: AppLifecycleManager
+    let preparedHistoryReanalysis: PreparedHistoryReanalysisComposition?
     
     // MARK: - SwiftData Container
     let container: ModelContainer?
+    // Preserve first-construction provenance for the inactive native composition.
+    // Retaining it opens no media owner and grants no operation by itself.
+    let nativeReleaseStartupAdmission: NativeReleaseStartupAdmission?
     let startupStoreState: StartupStoreState
     let startupRecoveryNotice: StartupRecoveryNotice?
     let shouldOpenExploreOnFreshLaunch: Bool
@@ -105,6 +109,7 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
+        MerianEnvironment.requireHistoryQualificationConfiguration()
         // Test-mode Keychain reads use synthetic storage and cannot establish
         // whether a production recovery proof is absent.
         if !TestExecutionCoordinator.isRunningTests {
@@ -119,6 +124,9 @@ struct MerianApp: App {
             container: dependencies
         )
         diContainer = dependencies
+        preparedHistoryReanalysis = .appInstallation {
+            .prepared(in: dependencies)
+        }
         lifecycleManager = AppLifecycleManager(container: dependencies)
         UITestSeedCoordinator.prepareRequiredConsentIfNeeded(
             consentManager: dependencies.consentManager
@@ -132,6 +140,10 @@ struct MerianApp: App {
 
         let bootstrapOutcome = ModelContainerBootstrapper.bootstrap()
         container = bootstrapOutcome.container
+        nativeReleaseStartupAdmission = bootstrapOutcome.nativeReleaseAdmission
+        // Failure leaves native composition unavailable; ordinary installation is gated off.
+        try? dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,
+            admission: bootstrapOutcome.nativeReleaseAdmission)
         startupStoreState = bootstrapOutcome.startupStoreState
         startupRecoveryNotice = StartupRecoveryNoticePolicy.combined(
             storeNotice: bootstrapOutcome.startupNotice
@@ -146,6 +158,8 @@ struct MerianApp: App {
                 || ManualAppleRevocationNoticeStore.isPending()
         ) || UITestSeedCoordinator.isWhatsNewLaunchSeedEnabled)
         if let container {
+            // Fixture reset precedes context injection and every app-owned writer.
+            UITestSeedCoordinator.prepareIfNeeded(container: container)
             let mainContext = container.mainContext
             dependencies.scanRepository.configure(with: mainContext)
             dependencies.supabaseManager.refreshLibraryAccountIsolation()
@@ -153,7 +167,6 @@ struct MerianApp: App {
                 modelContext: mainContext
             )
 
-            UITestSeedCoordinator.prepareIfNeeded(container: container)
             dependencies.privateScanMapStore.configure(
                 modelContainer: container,
                 eventStream: dependencies.appEventPublisher
@@ -207,8 +220,11 @@ struct MerianApp: App {
                                 opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch,
                                 showsWhatsNewOnFreshLaunch: hasPendingWhatsNew
                                     && !isAccountDeletionRecoveryPending
-                                    && !isShowingManualAppleRevocationNotice
+                                    && !isShowingManualAppleRevocationNotice,
+                                diContainer: diContainer,
+                                reanalysisAccess: preparedHistoryReanalysis?.capture
                             )
+                            .environment(\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)
                             .environment(\.acknowledgeWhatsNew) {
                                 guard appSettings.hasCompletedOnboarding,
                                       consentManager.hasCurrentRequiredConsent,
@@ -236,6 +252,14 @@ struct MerianApp: App {
                             )
                         }
                     }
+                    #if DEBUG
+                    .modifier(SavedAudioChooserUITestPresentation())
+                    .modifier(AudioReanalysisSheetUITestPresentation())
+                    .modifier(QueuedObservationUITestPresentation())
+                    .modifier(NativeRecoveryUITestPresentation())
+                    .modifier(ReanalysisRecoveryUITestPresentation())
+                    .modifier(InitialMediaHistoryUITestPresentation())
+                    #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
                     .modifier(LibraryTransitionPresentation(supabase: diContainer.supabaseManager))
@@ -425,11 +449,12 @@ struct MerianApp: App {
         isAccountDeletionRecoveryPending = true
         guard let modelContext = container?.mainContext else { return false }
         let completed = await diContainer.supabaseManager
-            .resumePendingAccountDeletionLocalCleanup {
-                diContainer.scanRepository.purgeAllData(
+            .resumePendingAccountDeletionLocalCleanup { scope in
+                await diContainer.scanRepository.purgeAllData(
                     modelContext: modelContext,
                     resetDerivedState:
-                        diContainer.privateScanMapStore.resetSensitiveState
+                        diContainer.privateScanMapStore.resetSensitiveState,
+                    validateAuthorization: { scope.permitsLibraryPurge(in: modelContext.container) }
                 )
             }
         isAccountDeletionRecoveryPending =

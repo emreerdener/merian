@@ -1,5 +1,23 @@
 # Capture Scan
 
+The optional native camera-photo branch and its retained shutter framing are
+documented in
+[Submission](../Submission/README.md#inactive-native-camera-photo-composition).
+It reuses the injected camera and native original owners; ordinary live
+composition remains inactive. The October 27 focused qualification and generic
+Simulator Release build passed; the Submission contract records the retained
+failure, evidence reuse, warnings, and remaining journey acceptance.
+
+## Pending video startup interruption
+
+The critical lifecycle test is
+`testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission`. It holds
+the injected recorder before the started callback, interrupts startup, and
+checks cancellation plus late-file cleanup without touching a replacement draft.
+A started recording is stopped and may complete; completed preparation retains
+its existing interruption behavior. Capture CI requires the pending-startup test
+explicitly, including a negative fixture for its absence.
+
 `Capture/Scan` owns the visual Capture modality: camera preview presentation,
 focus and zoom interaction, photo/video capture actions, bounded media
 preparation, and the staged-media commit boundary. It does not own the
@@ -36,10 +54,39 @@ still-photo and video-request lifetime owners, respectively.
 workspace container. Do not add a Scan singleton, a broad service protocol, or
 direct service lookup in a view.
 
+The physical shutter and recorder stage media without waiting for Auth or the
+scan-admission preview. Submission retains account, funding, and durable-queue
+checks. Local Pro-video capability, permissions, thermal policy, and draft
+capacity still apply. Account recovery appears only when opening private
+destinations; new media stays in the local draft until it can be identified.
+
 `MainOverlayView` consumes Shell's shared `captureChromeLayout` environment for
 viewfinder-hint clearance. Expanded staging adds the same measured offset used
 by the primary capture controls; Scan does not measure or size the tray. See the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#tray-and-protected-discard).
+
+## Viewfinder introduction
+
+`ViewfinderHintPresentation` owns the timed "Tap to identify" → Pro video hint →
+contextual guidance sequence. `ViewfinderHintLaunchState` is retained by the app
+container and injected through Shell's workspace dependencies, so the
+introduction runs once per process on an uncovered, empty camera. Capture and
+visibility loss cancel it permanently for that launch. Refinement and the
+recording countdown retain their own presentation priority. The
+[camera guide](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md#viewfinderhints-featurescapturescancomponentsviewfinderhintsswift)
+owns timing, eligibility, accessibility, and verification details.
+
+## Zoom presentation
+
+`ZoomSliderView` starts and settles with only 4pt optical-stop and current-zoom
+dots, centered 8pt inside the selected viewport edge. Zoom changes animate the
+dots inward to 18pt, expand the ruler lines, and reveal the numeric zoom pill
+over 0.12s. After 0.8s without a zoom change, shared animation progress retracts
+all lines, restores the yellow dot, and moves the dots outward over 0.5s. The
+52pt touch area and logarithmic zoom/haptic mapping stay fixed. Hiding or
+removing the control cancels its idle work and resets the presentation. The
+[camera guide](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md#zoomsliderview-featurescapturescancomponentszoomsliderviewswift)
+owns the complete interaction contract.
 
 ## Media lifecycle
 
@@ -51,9 +98,15 @@ sample five deterministic frames, prepare a playback clip, and extract companion
 WAV audio. Completion waits for all required results rather than adding each
 stage's latency. Temporary audio/compressed artifacts remain leased until
 staging accepts them, so failed, cancelled, timed-out, superseded, and
-unconsumed preparation results delete their files. `DetachedWork` propagates
-parent cancellation into the bounded workers; synchronous ImageIO/AVFoundation
-work observes cancellation at the explicit stage boundaries.
+unconsumed preparation results delete their files. The join and timeout owners
+cancel and drain every child, collect late successful leases, and explicitly
+discard unaccepted artifacts before returning the original failure. Lease
+initialization/deinitialization is not the observable cleanup boundary; failed
+unlinks remain non-accepting and retryable and are reported privately. Borrowed
+original playback is never discarded. The audio owner observes its detached
+worker's actual result even after cancellation and removes intermediate exports
+before returning. Synchronous ImageIO/AVFoundation work observes cancellation at
+explicit stage boundaries; cancellation alone does not prove worker exit.
 
 The companion-audio extractor leaves appended sample buffers valid for the
 asynchronous asset writer. If that writer emits WAVE_EXTENSIBLE, the shared
@@ -110,11 +163,11 @@ boundary.
 
 Shell interrupts visual work when the scene becomes inactive, the user leaves
 Scan, a root or feature presentation takes ownership, the workspace disappears,
-or capture state is cleared. A still shutter or pre-recording admission request
-is cancelled and generation-fenced, so a non-cooperative late response cannot
-newly save, prepare, stage, or auto-submit media. A video that has already begun
-recording retains the established graceful-stop path and may stage its partial
-clip; only work that has not reached recording is discarded.
+or capture state is cleared. A still shutter or pending video hardware startup
+is cancelled and generation-fenced, so a non-cooperative late capture result
+cannot newly save, prepare, stage, or auto-submit media. A video that has
+already begun recording retains the established graceful-stop path and may stage
+its partial clip; only work that has not reached recording is discarded.
 
 The original-recording and PhotoKit lifetime contract is documented in
 [`27-camera-roll-media-export.md`](../../../../../../docs/features-and-hardware/27-camera-roll-media-export.md).

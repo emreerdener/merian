@@ -110,13 +110,13 @@ struct InferencePersistenceArchitectureTests {
             occurrenceCount(
                 of: "ScanInferencePersistenceCoordinator.shared.acquire(",
                 in: lifecycle
-            ) == 3
+            ) == 2
         )
         #expect(
             occurrenceCount(
                 of: "ScanInferencePersistenceCoordinator.shared.release(",
                 in: lifecycle
-            ) == 6,
+            ) == 4,
             "Lifecycle cancellation and normal exits must release every fence"
         )
         #expect(
@@ -126,6 +126,8 @@ struct InferencePersistenceArchitectureTests {
             ) == 3,
             "Every lifecycle mutation must check cancellation after acquire"
         )
+        #expect(occurrenceCount(of: "ScanInferencePersistenceCoordinator.shared.acquireAll(", in: lifecycle) == 1)
+        #expect(occurrenceCount(of: "ScanInferencePersistenceCoordinator.shared.releaseAll(", in: lifecycle) == 2)
         #expect(
             lifecycle.contains(
                 "let readContext = ModelContext(modelContext.container)"

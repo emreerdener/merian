@@ -1,4 +1,75 @@
+## October 22 — V66 release-start storage foundation qualified
+
+The active schema is V66. The additive V65→V66 stage adds nullable
+`releaseStartData` and `releaseStartSHA256` to the existing receiving slot.
+Migration leaves both nil and preserves every historical identity, phase,
+revision, prepared/result byte sequence and digest. V65 was frozen and compiled
+before editing the active record. Its unchanged models retain the complete
+closed V64 relationship graph. No relationship or historical schema is changed.
+Every applicable forward plan appends V65→V66; V65 has a dedicated recent-source
+startup plan. Rescue and quarantine eligibility are unchanged.
+
+Raw Row equality includes both fields. All current slot/phase, clean and dirty
+receiving, manual release and whole-store paged audit paths reject any populated
+or partial sidecar. This includes foreign/orphan rows. Storage grants no request
+staging, release start, provider execution or cleanup permission. No runtime
+writer creates, consumes or clears these fields. A future typed owner requires
+separate binding/audit, accounting, writer-closure and recovery qualification.
+Existing metadata, package and physical limits remain unchanged.
+
+Exact independent and IC-1 reviewed shared-checkout validation passed 177
+methods / 232 invocations across the 17 selected migration, recovery, model,
+receiving, audit, funding, codec and purge suites on the installed simulator.
+The first run retained one stale orphan-error expectation failure; its reviewed
+test-only correction passed in a single-method rerun. All 2,927 source/project
+hashes stayed unchanged during each run. Source guardrails and their adversarial
+checks, full portable iOS CI tooling, project generation/validation and Markdown
+checks passed. This does not claim device, broader matrix or full-feature
+acceptance. Exact evidence:
+`.artifacts/native-app-capture-handoff-20261020/v66-validation01.json`.
+Activation disabled; PR116 frozen; deployment hold active; AWS unapproved.
+Earlier dated sections below retain historical implementation and validation
+facts; this section owns the current schema version and sidecar behavior.
+
+## October 20 — V65 receiving-intent storage foundation
+
+The active schema is V65. Its additive V64→V65 stage introduces one empty
+package-keyed receiving-intent slot table; it does not create operations, adopt
+media or activate Capture. V64 was frozen and compiled first. Existing
+source-isolated plans append the new stage, and V64 has its own recent startup
+plan. Destructive rescue and quarantine eligibility remain unchanged.
+
+Raw intent rows are conservative storage liabilities, including malformed or
+unanchored rows. Until the intent-aware owner is qualified, they block legacy
+qualification/purge and native scoped mutation audits, including after page
+suspension. The canonical codec remains a descriptive value, not a writer
+capability. Typed staging, receiving, exact recovery, abandonment and Capture
+handoff remain subsequent acceptance gates. Numeric limits are unchanged.
+
+Local validation passed 185 focused methods. The complete unit target recorded
+6,456 passes and one omitted purge-inventory fixture; the corrected three-suite
+rerun passed 23/23 methods with runtime sources unchanged. Full-run evidence,
+including a synthetic video-fixture QoS warning, remains retained. This is
+shared-checkout validation, not isolated, device or integrated acceptance. See
+`docs/rfcs/identification-history-alpha-readiness-2026-10-11.md` for exact
+results. Activation is disabled, PR116 frozen, deployment held and AWS
+unapproved.
+
 # App Models
+
+## October 16 — native consumer foundation locally qualified
+
+NCI-1 adds V63 explicit legacy/shared authority, scalar consumer identity and
+pending/retained accounting after compiling the frozen V62 graph. Migration
+preserves existing paths, submitted snapshots and relationships without creating
+bindings. Consumer state blocks unsupported legacy construction and purge;
+shared-tagged queues cannot use ordinary legacy inference. Exact bounded cohort
+joins and migration/reopen passed focused qualification. The complete native run
+retained 6,092 passes and one stale test inventory failure; its test-only
+correction passed the reviewed purge-suite rerun. Typed mutation owners,
+retained accounting and producer integration remain under construction. This is
+inactive local work, not completed product acceptance. PR116 remains frozen and
+the deployment hold remains active.
 
 This directory owns values and persistence declarations shared across product
 features. It is not a home for feature state, networking, filesystem work, or

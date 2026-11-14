@@ -86,8 +86,8 @@ final class AuthSessionRecoveryCoordinatorHarness {
     private(set) var localStateClearCount = 0
     private(set) var purchaseSignOutCount = 0
 
-    func makeCoordinator() -> AuthSessionRecoveryCoordinator {
-        AuthSessionRecoveryCoordinator(dependencies: makeDependencies())
+    func makeCoordinator(preservePrimaryData: Bool = false) -> AuthSessionRecoveryCoordinator {
+        AuthSessionRecoveryCoordinator(dependencies: makeDependencies(), preservePrimaryData: preservePrimaryData)
     }
 
     func makeDependencies() -> AuthSessionRecoveryDependencies {

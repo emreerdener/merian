@@ -733,3 +733,19 @@ are not additional paid studies and are not summed with the entries above.
 - [Prepared Gemini photo return based on beta feedback](../../../docs/rfcs/identification-gemini-photo-return-2026-10-03.md)
   — Product routing decision and prepared migration; not a new paid study or
   benchmark qualification.
+- [Identification-history integrated review plan](../../../docs/rfcs/identification-history-integrated-review-plan-2026-10-07.md)
+  — Supporting feature integration review; software validation only, not an
+  identification experiment or production qualification.
+- [Integrated identification-history review results](../../../docs/rfcs/identification-history-integrated-review-results-2026-10-07.md)
+  — Supporting feature integration review; software validation only, not an
+  identification experiment or production qualification.
+- [Identification-history alpha readiness](../../../docs/rfcs/identification-history-alpha-readiness-2026-10-11.md)
+  — Supporting implementation roadmap and acceptance sequencing; no new
+  identification experiment, benchmark qualification or feature activation.
+- [Identification-history version actions and redesign](../../../docs/rfcs/identification-history-version-actions-and-redesign-2026-10-11.md)
+  — Supporting product follow-up and ownership sequencing for deletion, media
+  export and redesign; not experimental evidence or release authorization.
+- [PR116 inactive integration and merge readiness](../../../docs/rfcs/identification-history-pr116-merge-readiness-2026-10-16.md)
+  — Candidate-specific scope and release-readiness record; local software
+  validation is separate from exact-candidate CI, deployment and feature
+  activation.

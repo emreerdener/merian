@@ -9,8 +9,10 @@ struct PhotoLibraryButton: View {
     var maxSelectionCount: Int = 1
     var isAvailable = true
     let onRequestPickerPresentation: @MainActor () async -> Bool
+    var onPresentationChange: @MainActor (Bool) -> Void = { _ in }
     
     @State private var showPermissionPrompt = false
+    @State private var permissionPresentationPending = false
     @State private var isPickerPresented = false
     @State private var isCheckingAdmission = false
     @State private var admissionTask: Task<Void, Never>?
@@ -57,7 +59,12 @@ struct PhotoLibraryButton: View {
             matching: .images,
             photoLibrary: .shared()
         )
-        .sheet(isPresented: $showPermissionPrompt) {
+        .onChange(of: isCheckingAdmission || isPickerPresented || permissionPresentationPending) { _, occupied in
+            onPresentationChange(occupied)
+        }
+        .sheet(isPresented: $showPermissionPrompt, onDismiss: {
+            permissionPresentationPending = false
+        }) {
             PhotoLibraryPermissionSheetView {
                 authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
                 showPermissionPrompt = false
@@ -77,6 +84,7 @@ struct PhotoLibraryButton: View {
             }
         }
         .onDisappear {
+            onPresentationChange(false)
             admissionTask?.cancel()
         }
     }
@@ -84,12 +92,15 @@ struct PhotoLibraryButton: View {
     private func handleTap() {
         guard isAvailable else { return }
         guard authStatus != .notDetermined else {
+            permissionPresentationPending = true
+            onPresentationChange(true)
             showPermissionPrompt = true
             return
         }
         guard admissionTask == nil else { return }
 
         isCheckingAdmission = true
+        onPresentationChange(true)
         admissionTask = Task { @MainActor in
             defer {
                 isCheckingAdmission = false

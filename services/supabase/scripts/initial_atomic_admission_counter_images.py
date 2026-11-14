@@ -1,5 +1,6 @@
 """Independent quota-counter postimages for three complete synthetic admissions."""
 from initial_atomic_admission_fixture import AdmissionFixture
+from initial_atomic_admission_counter_window import prepare_counter_window
 from initial_atomic_admission_sessions import BASE, PROJECTION
 
 
@@ -20,6 +21,7 @@ def counter_image_cases(qualification):
         return "DO $$ DECLARE actual JSONB;expected JSONB;BEGIN SELECT COALESCE(jsonb_agg(value ORDER BY value::TEXT),'[]'::JSONB) INTO expected FROM expected_counters;actual:=" + counter_projection + ';IF actual IS DISTINCT FROM expected OR (SELECT value FROM peer_before) IS DISTINCT FROM ' + peer_projection + ' OR (SELECT count(*) FROM before_counters WHERE charged AND request_count>1)<>' + str(expected_shared) + ' OR (SELECT count(*) FROM before_counters WHERE NOT charged)<>' + str(expected_unlinked) + " THEN RAISE EXCEPTION USING ERRCODE='ZX593';END IF;END $$;"
     fixture = AdmissionFixture(qualification, held=True)
     try:
+        prepare_counter_window(qualification, 'counter_images')
         scans = [fixture.admit_one().scan_id, fixture.admit_one().scan_id,
                  fixture.admit_one(owner_id=fixture.foreign, ip_identity='c').scan_id]
     finally:

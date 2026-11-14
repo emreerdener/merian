@@ -126,6 +126,18 @@ private final class AuthLocalSignOutTestHarness {
 
 @MainActor
 final class AuthLocalSignOutCoordinatorTests: XCTestCase {
+    func testQualificationPreservationStopsBeforeAnySignOutEffect() async throws {
+        let runtime = AuthRuntimeState()
+        let source = AuthTransitionSession(userID: UUID(), isAnonymous: false)
+        let transition = try XCTUnwrap(runtime.beginTransition(kind: .signOut, sourceSession: source))
+        let harness = AuthLocalSignOutTestHarness()
+        let coordinator = AuthLocalSignOutCoordinator()
+        await coordinator.signOut(ownedBy: transition, dependencies: harness.dependencies(), preservePrimaryData: true)
+        XCTAssertTrue(harness.events.isEmpty)
+        XCTAssertFalse(coordinator.isRunning)
+        XCTAssertTrue(runtime.ownsTransition(transition))
+    }
+
     func testSignOutDrainsEveryAccountLeaseBeforeSDKMutation() async throws {
         let runtime = AuthRuntimeState()
         let source = AuthTransitionSession(userID: UUID(), isAnonymous: false)
@@ -209,6 +221,21 @@ final class AuthLocalSignOutCoordinatorTests: XCTestCase {
         XCTAssertEqual(engine.debugBackgroundWriteState().pending, 0)
         engine.finishAuthTransitionWriteFence()
         engine.cancelActiveRequest()
+    }
+
+    func testLostAuthorityDuringSDKSignOutDoesNotRunExternalCleanup() async {
+        let gate = AuthLocalSignOutTestGate(), harness = AuthLocalSignOutTestHarness()
+        harness.sdkGate = gate
+        let coordinator = AuthLocalSignOutCoordinator()
+        let task = Task { await coordinator.signOut(ownedBy: Self.transition, dependencies: harness.dependencies()) }
+        await gate.waitUntilSuspended()
+        harness.transitionIsOwned = false
+        await gate.release()
+        await task.value
+        XCTAssertEqual(harness.sdkCount, 1)
+        XCTAssertEqual(harness.externalCount, 0)
+        XCTAssertEqual(harness.finishCount, 1)
+        XCTAssertFalse(coordinator.isRunning)
     }
 
     func testSignOutPreservesStateTransitionAndEffectOrder() async {

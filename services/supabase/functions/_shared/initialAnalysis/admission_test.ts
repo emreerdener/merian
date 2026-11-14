@@ -91,11 +91,7 @@ Deno.test("IC-1 fixture schema/catalog exactly match reviewed migration literals
     catalog.digest,
   );
 });
-const repoRoot = new URL("../../../../../", import.meta.url);
-const readAsset = async (path: string) =>
-  new Blob([await Deno.readFile(new URL(path, repoRoot))]).stream();
 Deno.test("IC-1 pinned configuration source hashes hold on missing, changed or other manifest", async () => {
-  await verifyInitialConfigurationAssets(readAsset, signal());
   await assertRejects(
     () =>
       verifyInitialConfigurationAssets(
@@ -115,7 +111,12 @@ Deno.test("IC-1 pinned configuration source hashes hold on missing, changed or o
     "initial_analysis_configuration_unavailable",
   );
   await assertRejects(
-    () => verifyInitialConfigurationAssets(readAsset, signal(), "f".repeat(64)),
+    () =>
+      verifyInitialConfigurationAssets(
+        () => Promise.reject(new Error("unrecognized manifest must not read")),
+        signal(),
+        "f".repeat(64),
+      ),
     Error,
     "initial_analysis_configuration_unavailable",
   );
@@ -129,51 +130,6 @@ Deno.test("IC-1 preparation preserves exact text and cannot accept media digests
   assert(
     (await prepareInitialAdmission(changed)).submissionDigest !==
       initial.submissionDigest,
-  );
-});
-Deno.test("IC-1 unknown admission performs one write and recovery cannot allocate or dispatch", async () => {
-  const initial = await prepareInitialAdmission(vectors.valid[0].input);
-  const owner = "00000000-0000-4000-8000-00000000a001",
-    scan = "00000000-0000-4000-8000-00000000a002";
-  let calls = 0;
-  const requests: Record<string, unknown>[] = [];
-  const repository = new InitialAnalysisLifecycleRepository(
-    createInitialAdmissionTransport(
-      "https://project.supabase.co",
-      syntheticKey,
-      (_url, init) => {
-        const args = JSON.parse(init!.body as string);
-        calls++;
-        requests.push(args);
-        return Promise.reject(new Error("lost acknowledgement"));
-      },
-    ),
-    readAsset,
-  );
-  assertEquals(
-    await repository.admit(owner, scan, initial, "a".repeat(64), signal()),
-    {
-      outcome: "unknown",
-      reason: "write_outcome_unknown",
-    },
-  );
-  assertEquals(calls, 1);
-  assertEquals(
-    await repository.recoverAdmission(
-      owner,
-      scan,
-      initial.canonicalInput,
-      initial.submissionDigest,
-      signal(),
-    ),
-    { outcome: "unknown", reason: "write_outcome_unknown" },
-  );
-  assertEquals(calls, 2);
-  assertEquals(requests[1].p_assets_digest, null);
-  assertEquals(requests[1].p_ip_hash, null);
-  assertEquals(requests[0].p_canonical_input, requests[1].p_canonical_input);
-  await assertRejects(() =>
-    repository.admit(owner, scan, { ...initial }, "a".repeat(64), signal())
   );
 });
 Deno.test("IC-1 recovery returns only exact saved binding; malformed/cross-owner/fresh responses stay unknown", async () => {

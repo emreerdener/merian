@@ -79,3 +79,14 @@ struct ObservationPublicationStatusRequest: Encodable, Equatable, Sendable {
         try values.encode(observationID.uuidString.lowercased(), forKey: .observation_id)
     }
 }
+
+/// Discovery never supplies consent or invents an operation identity.
+struct ObservationPublicationTargetRequest: Encodable, Equatable, Sendable {
+    let observationID: UUID
+    enum CodingKeys: String, CodingKey { case schema_version, observation_id }
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(1, forKey: .schema_version)
+        try values.encode(observationID.uuidString.lowercased(), forKey: .observation_id)
+    }
+}

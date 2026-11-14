@@ -93,6 +93,13 @@ enum OfflineScanJobMetadataContract {
         return funding
     }
 
+    /// Observation needs positive ownership proof, not a default for damaged
+    /// metadata. Normal writers never retain both reservation and release key.
+    static func unreleasedFundingForObservation(in metadataJSON: String?) -> ScanFundingReservation? {
+        guard !object(from: metadataJSON).keys.contains(fundingReleasedKey) else { return nil }
+        return funding(in: metadataJSON)
+    }
+
     static func settingFunding(
         _ funding: ScanFundingReservation,
         in metadataJSON: String?

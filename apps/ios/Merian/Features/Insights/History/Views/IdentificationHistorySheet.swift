@@ -2,16 +2,21 @@ import SwiftUI
 
 struct IdentificationHistorySheet: View {
     @Bindable var model: IdentificationHistoryViewModel
+    var candidateRendering = CandidateReviewRendering()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPhoto: UUID?
+    @State private var retainedCandidates: AnalysisCandidateReviewModel?
+    @State private var candidates: AnalysisCandidateReviewModel?
 
     var body: some View {
         NavigationStack {
             List {
-                if model.isClosed { Text("History is no longer available for this account.") }
-                else if let detail = model.detail { preview(detail) }
-                else {
+                if model.isClosed {
+                    Text("History is no longer available for this account.")
+                } else if let detail = model.detail {
+                    preview(detail)
+                } else {
                     Section {
                         ForEach(model.rows) { row in
                             Button { model.start(.preview(row.id)) } label: { rowLabel(row) }
@@ -59,13 +64,19 @@ struct IdentificationHistorySheet: View {
         }
         .accessibilityIdentifier("IdentificationHistorySheet")
         .presentationDetents([.large])
-        .task { model.start(.newest) }
+        .sheet(item: $candidates, onDismiss: { retainedCandidates?.close(); retainedCandidates = nil }) { candidate in
+            AnalysisCandidateReviewSheet(model: candidate, rendering: candidateRendering)
+        }
+        .task { if model.rows.isEmpty && model.detail == nil { model.start(.newest) } }
         .onChange(of: model.isSessionCurrent, initial: true) { _, current in if !current { model.close() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.validate() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshReview() } }
+        .onChange(of: model.reviewDeliveryGeneration) { _, _ in model.refreshReview() }
+        .onChange(of: model.review?.terminalMessage) { _, value in if value != nil { model.refreshReview() } }
         .task(id: model.undoOperation) { await model.expireUndo() }
         .task(id: selectedPhoto) { if let selectedPhoto { await model.loadPhoto(selectedPhoto) } }
         .onChange(of: model.detail?.row.id) { _, _ in selectedPhoto = nil }
-        .onDisappear { model.close() }
+        // The owning shell closes this session on actual dismissal. A nested
+        // candidate sheet may cover History without ending its review scope.
     }
     private func rowLabel(_ row: IdentificationHistoryRow) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -74,8 +85,11 @@ struct IdentificationHistorySheet: View {
                 if model.selected == row.id { Label("Current", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.tint) }
             }
             if let scientific = row.scientificName, scientific != row.title { Text(scientific).italic() }
-            if let date = row.completedAt { Text(date, format: .dateTime.year().month().day().hour().minute()).font(.caption) }
-            else { Text("Saved identification · Original date unavailable").font(.caption) }
+            if let date = row.completedAt {
+                Text(date, format: .dateTime.year().month().day().hour().minute()).font(.caption)
+            } else {
+                Text("Saved identification · Original date unavailable").font(.caption)
+            }
             Text([row.confidence, row.review].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
@@ -84,14 +98,34 @@ struct IdentificationHistorySheet: View {
     @ViewBuilder private func preview(_ detail: IdentificationHistoryDetail) -> some View {
         Section { rowLabel(detail.row) }
         Section {
-            if model.selected == detail.row.id { Text("This is your current identification.") }
-            else {
+            if model.selected == detail.row.id {
+                Text("This is your current identification.")
+            } else {
                 Button("Use this identification") { model.start(.restore) }
                     .disabled(!detail.canRestore || model.pending)
                     .accessibilityIdentifier("HistoryRestore")
+                if let reason = detail.restoreUnavailableReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
             }
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
+        }
+        if let review = model.review { IdentificationHistoryReviewSection(model: review, onReviewCandidates: {
+            let candidate = model.prepareCandidateReview()
+            retainedCandidates = candidate; candidates = candidate
+        }).id(ObjectIdentifier(review)) }
+        if let publication = model.publication {
+            IdentificationPublicationSection(model: publication).id(ObjectIdentifier(publication))
+        } else if model.canAskCommunity {
+            Section {
+                Button("Ask the community") { model.askCommunity() }
+                    .accessibilityIdentifier("HistoryAskCommunity")
+            }
+        }
+        if model.canReanalyze {
+            Section {
+                Button("Reanalyze from this identification") { model.start(.reanalyze) }
+                    .accessibilityIdentifier("HistoryReanalyze")
+            } footer: { Text("Review the photos and notes before submitting. Your current identification stays selected.") }
         }
         if detail.isCached { Text("Saved preview. Any change will wait for server acknowledgment.").font(.callout) }
         if !detail.canRestore && model.selected != detail.row.id {

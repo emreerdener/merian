@@ -19,7 +19,7 @@ extension QueuedScanContext {
 
 extension InsightSheetViewModel {
     var hasUserMedia: Bool {
-        activeMedia.hasUserImage
+        activeMedia.hasUserImage && !activeMedia.hasRetainedDisplayImages
     }
 
     var activeRecordTimestamp: Date? {
@@ -33,6 +33,7 @@ extension InsightSheetViewModel {
     }
 
     var activeImageCount: Int {
+        if activeMedia.hasRetainedDisplayImages { return activeMedia.retainedDisplayImageCount }
         guard presentedLocalRecordScanId != nil else {
             return activeMedia.imagePathsForUpload.count +
                 activeMedia.videoPaths.count +

@@ -11,6 +11,18 @@ struct ObservationHistoryStateSyncService {
 
     var cloud = ObservationHistoryCloudClient.live
 
+    /// Local, settled display ticket for explicit entry. Does not sync or change selection.
+    static func displayBaseline(observation: UUID, container: ModelContainer) throws -> ReviewBaseline {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let context = ModelContext(container)
+            let scan = try ObservationHistorySyncService.enrolledScan(observation.uuidString, context: context)
+            try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
+            try requireSettledReview(scan, context: context)
+            try requireSettledAnalysisReview(scan, context: context)
+            return ReviewBaseline(scan, displayAnalysisID: observation)
+        }
+    }
+
     @discardableResult
     func syncSelected(observationID: String, container: ModelContainer) async throws -> Int {
         let baseline = try ConfirmedSpeciesReviewPersistence.transaction {
@@ -18,6 +30,7 @@ struct ObservationHistoryStateSyncService {
             let scan = try ObservationHistorySyncService.enrolledScan(observationID, context: context)
             try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
             try Self.requireSettledReview(scan, context: context)
+            try Self.requireSettledAnalysisReview(scan, context: context)
             return ReviewBaseline(scan)
         }
         guard let ownerID = UUID(uuidString: baseline.owner) else { throw ObservationHistoryError.unavailable }
@@ -38,6 +51,7 @@ struct ObservationHistoryStateSyncService {
                 guard scan.analysisOwnerAccountID == baseline.owner else { throw ObservationHistoryError.accountChanged }
                 try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
                 try Self.requireSettledReview(scan, context: context)
+                try Self.requireSettledAnalysisReview(scan, context: context)
                 guard ReviewBaseline(scan) == baseline else { throw AdmissionError.conflictingRevision }
                 try Self.apply(state, to: scan, baseline: baseline, context: context)
                 try Task.checkCancellation()
@@ -82,13 +96,43 @@ struct ObservationHistoryStateSyncService {
             scan.selectedAnalysisID = state.selectedAnalysisID.uuidString.lowercased()
         }
         if state.revision > baseline.revision {
-            scan.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: state.review.aiReview).storedData()
-            scan.confirmedSpeciesIdentityData = try Self.nativeSpeciesReview(state.review)?.storedData()
-            scan.confirmedSpeciesId = state.review.confirmedSpeciesID
-            scan.userIdentificationOverride = state.review.override
-            scan.userConfirmedIdentification = state.review.confirmed ?? false
-            scan.userReviewStateRaw = state.review.state?.rawValue
-            scan.observationStateRevision = state.revision
+            try applyAdmittedAuthority(state, to: scan)
+        }
+    }
+
+    /// Caller has validated admission and representability inside its save transaction.
+    static func applyAdmittedAuthority(_ state: ObservationHistoryState, to scan: LocalScanRecord) throws {
+        scan.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: state.review.aiReview).storedData()
+        scan.confirmedSpeciesIdentityData = try nativeSpeciesReview(state.review)?.storedData()
+        scan.confirmedSpeciesId = state.review.confirmedSpeciesID
+        scan.userIdentificationOverride = state.review.override
+        scan.userConfirmedIdentification = state.review.confirmed ?? false
+        scan.userReviewStateRaw = state.review.state?.rawValue
+        scan.observationStateRevision = state.revision
+    }
+
+    /// Same-selection first native enrollment has independently authenticated the
+    /// untouched tuple. Store only its acknowledged envelope, preserving raw display.
+    static func acknowledgePristineReview(_ state: ObservationHistoryState, scan: LocalScanRecord) throws {
+        guard let review = nativeSpeciesReview(state.review), review == (try pristineClear()),
+              matches(state.review, scan: scan) else { throw AdmissionError.pendingReview }
+        scan.confirmedSpeciesIdentityData = try review.storedData()
+    }
+
+    nonisolated private static func pristineClear() throws -> ConfirmedSpeciesReview {
+        try .init(revision: 0, identity: nil, override: nil, confirmed: false, speciesID: nil, state: .unreviewed)
+    }
+
+    /// Selected-state refresh must not race a native review awaiting reconciliation.
+    /// Keep this separate from the legacy check used by review reconciliation itself.
+    static func requireSettledAnalysisReview(_ scan: LocalScanRecord, context: ModelContext) throws {
+        let observation = try ObservationHistoryPage.uuid(scan.id)
+        let prefix = ObservationAnalysisReviewPersistence.observationPrefix(observation)
+        for job in try context.fetch(FetchDescriptor<OfflineJobRecord>()) where job.id.hasPrefix(prefix)
+            || (job.kind == .observationAnalysisReviewSync && job.subjectId?.lowercased() == scan.id.lowercased()) {
+            let intent = try ObservationAnalysisReviewPersistence.restore(job)
+            guard intent.ownerID.uuidString.lowercased() == scan.analysisOwnerAccountID,
+                  intent.request.observationID == observation, intent.isComplete else { throw AdmissionError.pendingReview }
         }
     }
 
@@ -185,7 +229,30 @@ struct ObservationHistoryStateSyncService {
         let reviewState: String?
         let display: AnalysisDisplaySnapshot?
 
+        let nativeInitialBinding: UUID?
+        var isPristineNativeReview: Bool {
+            nativeInitialBinding != nil && ai == nil && species == nil && speciesID == nil
+                && override == nil && !confirmed && reviewState == nil
+        }
+
+        /// Only proof-bound first enrollment can turn the pristine displayed ticket into
+        /// its authenticated zero-revision clear. Ordinary equality stays byte-exact.
+        func retainsIdentification(of other: Self, ordinaryCompletion: OrdinaryInferenceCompletion.Proof? = nil) -> Bool {
+            let ordinaryOriginal = ordinaryCompletion.map {
+                other.nativeInitialBinding == nil && other.ai == nil && other.species == nil
+                    && other.speciesID == nil && other.override == nil && !other.confirmed && other.reviewState == nil
+                    && other.display?.analysisID == $0.scanID && owner == $0.ownerID.uuidString.lowercased()
+            } ?? false
+            let acknowledged = (other.isPristineNativeReview || ordinaryOriginal) && other.owner.isEmpty && other.selected == nil
+                && !owner.isEmpty && selected != nil && nativeInitialBinding == other.nativeInitialBinding
+                && species != nil && species == (try? ObservationHistoryStateSyncService.pristineClear().storedData())
+            return ai == other.ai && (species == other.species || acknowledged) && speciesID == other.speciesID
+                && override == other.override && confirmed == other.confirmed
+                && reviewState == other.reviewState && display == other.display
+        }
+
         init(_ scan: LocalScanRecord, displayAnalysisID: UUID? = nil) {
+            nativeInitialBinding = scan.mediaAuthorityRaw == "sharedDirectNativeInitialV1" ? scan.sharedMediaConsumerID : nil
             owner = scan.analysisOwnerAccountID ?? ""
             selected = scan.selectedAnalysisID
             revision = scan.observationStateRevision ?? 0

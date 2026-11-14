@@ -3,6 +3,7 @@ import Foundation
 struct QueuedRetryPresentation: Equatable {
     enum Action: Equatable {
         case retryNow
+        case checkStatus
         case viewPlans
         case reviewOpenAIPermission
     }
@@ -27,6 +28,7 @@ struct QueuedRetryPresentation: Equatable {
         canRetryNow: Bool,
         isOnline: Bool,
         now: Date,
+        canCheckStatus: Bool = false,
         openAIPermission: OpenAIPermission = .unavailable
     ) -> QueuedRetryPresentation? {
         let requiresAttention = needsAttention || queueState == .failed
@@ -35,6 +37,12 @@ struct QueuedRetryPresentation: Equatable {
             if category == .openAIConsent {
                 return openAIConsentPresentation(
                     permission: openAIPermission, canRetryNow: canRetryNow, isOnline: isOnline
+                )
+            }
+            if canCheckStatus && [.connection, .service, .processing, .retryLimit, .unknown].contains(category) {
+                return QueuedRetryPresentation(
+                    message: "Your saved submission needs review. Check its last recorded status.",
+                    action: isOnline ? .checkStatus : nil
                 )
             }
             return QueuedRetryPresentation(

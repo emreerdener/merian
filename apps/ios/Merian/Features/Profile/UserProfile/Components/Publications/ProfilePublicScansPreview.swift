@@ -77,21 +77,6 @@ struct ProfilePublicScansPreview: View {
             VStack(alignment: .leading, spacing: 14) {
                 sectionHeader
 
-                if publications.isLoading && posts.isEmpty {
-                    loadingGrid
-                } else if publications.didFail && posts.isEmpty {
-                    Text("Published scans unavailable right now.")
-                        .profileExploreStateStyle()
-                } else if posts.isEmpty {
-                    Text(
-                        recoverySummary?.userFacingEmptyMessage ??
-                            "No published scans yet."
-                    )
-                    .profileExploreStateStyle()
-                } else {
-                    scanGrid(posts: posts)
-                }
-
                 if let recoverySummary, let currentUserID {
                     ProfilePublicationRecoverySummaryView(
                         summary: recoverySummary,
@@ -101,10 +86,34 @@ struct ProfilePublicScansPreview: View {
                     )
                 }
 
+                if publications.isLoading && posts.isEmpty {
+                    loadingGrid
+                } else if publications.didFail && posts.isEmpty {
+                    Text("Published scans unavailable right now.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if posts.isEmpty {
+                    Text(
+                        recoverySummary?.userFacingEmptyMessage ??
+                            "No published scans yet."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    scanGrid(posts: posts)
+                }
+
                 if shouldShowViewMoreButton {
                     viewMoreButton
                 }
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
         } else {
             Color.clear
                 .frame(height: 0)
@@ -135,27 +144,41 @@ struct ProfilePublicScansPreview: View {
     }
 
     private var sectionHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Published scans")
-                .font(.title3.weight(.bold))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                sectionTitle.fixedSize()
+                Spacer()
+                scanCount.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                sectionTitle
+                scanCount
+            }
+        }
+    }
 
-            Spacer()
+    private var sectionTitle: some View {
+        Text("Published scans")
+            .font(.title2.weight(.bold))
+            .fixedSize(horizontal: false, vertical: true)
+    }
 
-            if let visibleCount = profileViewModel.socialStats?
-                .visiblePublishedPostCount {
-                let noun = visibleCount == 1 ? "scan" : "scans"
-                Text(
-                    "\(visibleCount.formatted(.number.notation(.compactName))) \(noun)"
-                )
+    @ViewBuilder
+    private var scanCount: some View {
+        if let visibleCount = profileViewModel.socialStats?
+            .visiblePublishedPostCount {
+            let noun = visibleCount == 1 ? "scan" : "scans"
+            Text(
+                "\(visibleCount.formatted(.number.notation(.compactName))) \(noun)"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+        } else if profileViewModel.isLoadingSocialStats {
+            Text("000")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-            } else if profileViewModel.isLoadingSocialStats {
-                Text("000")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .redacted(reason: .placeholder)
-                    .accessibilityLabel("Loading published scans count")
-            }
+                .redacted(reason: .placeholder)
+                .accessibilityLabel("Loading published scans count")
         }
     }
 
@@ -231,6 +254,7 @@ struct ProfilePublicScansPreview: View {
                 Capsule()
                     .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
             }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

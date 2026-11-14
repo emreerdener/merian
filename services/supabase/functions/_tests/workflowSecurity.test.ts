@@ -722,20 +722,27 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
 
   for (const [name, source] of sources) {
     const runnerJobs = source.match(/^[ ]{4}runs-on:[^\n]+$/gm) ?? [];
-    const boundedRunnerJobs = source.match(
+    const boundedRunnerJobs = [...source.matchAll(
       /^[ ]{4}runs-on:[^\n]+\n[ ]{4}timeout-minutes: ([1-9][0-9]*)$/gm,
-    ) ?? [];
+    )];
     assertEquals(
       boundedRunnerJobs.length,
       runnerJobs.length,
       `${name} has a runner job without a timeout immediately after runs-on.`,
     );
     for (const definition of boundedRunnerJobs) {
-      const minutes = Number(
-        definition.match(/timeout-minutes: ([1-9][0-9]*)$/)?.[1],
-      );
+      const minutes = Number(definition[1]);
+      const job = source.slice(0, definition.index).match(
+        /^ {2}[A-Za-z0-9_-]+:$/gm,
+      )?.at(-1);
+      // Only isolated native unit shards have the larger validation budget.
+      // Compilation, aggregation and every production job retain the common cap.
+      const limit = name === "ios-build-and-test.yml" &&
+          job === "  ios-unit-shards:"
+        ? 330
+        : 120;
       assert(
-        minutes <= 120,
+        minutes <= limit,
         `${name} has an excessive ${minutes}-minute job timeout.`,
       );
     }

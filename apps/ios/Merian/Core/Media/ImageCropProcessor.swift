@@ -71,9 +71,11 @@ struct ImageCropProcessor {
     }()
 
     private static func makeImageDestination(
-        _ renderData: NSMutableData
+        _ renderData: NSMutableData,
+        encoding: ImagePreparationPolicy.Encoding
     ) -> CGImageDestination? {
-        for type in destinationTypePreferences {
+        let types = encoding == .jpeg ? [UTType.jpeg.identifier] : destinationTypePreferences
+        for type in types {
             if let destination = CGImageDestinationCreateWithData(
                 renderData as CFMutableData,
                 type as CFString,
@@ -86,16 +88,18 @@ struct ImageCropProcessor {
         return nil
     }
 
-    /// Encodes WebP when ImageIO advertises support, otherwise JPEG.
+    /// Defaults to WebP when ImageIO supports it, otherwise JPEG. An explicit
+    /// JPEG request never falls back to a different format.
     nonisolated static func encode(
         _ cgImage: CGImage,
         quality: Double = ImagePreparationPolicy.compressionQuality,
         orientation: CGImagePropertyOrientation? = nil,
-        maxPixelSize: Int? = nil
+        maxPixelSize: Int? = nil,
+        encoding: ImagePreparationPolicy.Encoding = .preferred
     ) -> Data? {
         autoreleasepool {
             let renderData = NSMutableData()
-            guard let destination = makeImageDestination(renderData) else {
+            guard let destination = makeImageDestination(renderData, encoding: encoding) else {
                 return nil
             }
             var options: [CFString: Any] = [
@@ -127,7 +131,8 @@ struct ImageCropProcessor {
         quarterTurns: Int = 0,
         maxPixelSize: Int? = Int(
             ImagePreparationPolicy.maximumInferenceDimension
-        )
+        ),
+        encoding: ImagePreparationPolicy.Encoding = .preferred
     ) async -> Data {
         let finalScale = scale * currentScale
         let finalOffset = CGSize(
@@ -254,11 +259,27 @@ struct ImageCropProcessor {
             return encode(
                 croppedImage,
                 orientation: cgOrientation(from: targetOrientation),
-                maxPixelSize: maxPixelSize
+                maxPixelSize: maxPixelSize,
+                encoding: encoding
             )
         }
 
         return processedBytes ?? Data()
+    }
+
+    /// Convert immutable normalized shutter framing to the crop editor's current
+    /// point geometry. Opening/cancelling the editor does not change that recipe.
+    nonisolated static func initialSquareCropOffset(imageSize: CGSize, displaySize: CGFloat,
+                                                    verticalCenterFraction: CGFloat) -> CGSize? {
+        let width = imageSize.width, height = imageSize.height
+        guard width.isFinite, height.isFinite, width > 0, height > 0,
+              displaySize.isFinite, displaySize > 0, verticalCenterFraction.isFinite,
+              (0...1).contains(verticalCenterFraction) else { return nil }
+        let side = min(width, height)
+        let cropY = max(0, min(height * verticalCenterFraction - side / 2, height - side))
+        let y = ((height - side) / 2 - cropY) / side * displaySize
+        guard y.isFinite else { return nil }
+        return CGSize(width: 0, height: y)
     }
 
     /// Crops a downsampled CGImage to the largest centered square, biasing the vertical

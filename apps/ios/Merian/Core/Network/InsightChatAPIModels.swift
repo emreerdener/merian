@@ -226,3 +226,16 @@ struct SpeciesDictionaryChatRequestBody: Encodable {
         case feedbackNote = "feedback_note"
     }
 }
+
+/// Exact protected-send receipt; deliberately not a mutable conversation snapshot.
+struct InsightChatProtectedCompletion: Decodable, Equatable {
+    let contextVersion: Int
+    let completed: Bool
+    let message: InsightChatMessage
+
+    private enum CodingKeys: String, CodingKey {
+        case contextVersion = "context_version"
+        case completed
+        case message
+    }
+}

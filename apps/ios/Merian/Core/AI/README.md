@@ -398,6 +398,11 @@ This README maps that contract to native source and test ownership.
   owner. Interactive override, confirmation, and reset sequencing, persistence
   implementation, transport, Explore invalidation, and milestone lookup remain
   outside the engine.
+- Before copying replacement metadata, `InferenceScanReplacement` requires a
+  fresh enrollment check on the original. A staged or acknowledged history hold,
+  damaged hold or failed lookup preserves both records without copying tags,
+  collections or notes. The repository's deletion fence remains independent;
+  this guard does not cancel an already dispatched legacy child.
 - `Inference/Result/InferenceScanReplacement.swift` owns the synchronous
   reanalysis metadata safety boundary. Only a typed persisted outcome with
   distinct, non-empty scan IDs and a replacement visible in a fresh store
@@ -408,11 +413,11 @@ This README maps that contract to native source and test ownership.
   restores only the helper's staged fields, not unrelated user edits. A cleanup
   failure can leave two scans; it cannot justify deleting the only usable
   original. Review state intentionally belongs to the new analysis. This remains
-  the current native replacement workflow. The
-  [reversible-history backend preparation](../../../../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
-  has not replaced it with append-only results or added restoration UI. History
-  activation requires removing replacement deletion from every completion path
-  and integrating the native migration, sync, retention and deletion gates.
+  the legacy workflow for unenrolled scans. The prepared
+  [identification-history flow](../../Features/Insights/History/README.md)
+  instead appends immutable results and exposes explicit Restore/Undo without
+  calling this replacement helper. Its ordinary access and activation gates stay
+  disabled pending complete integration and operational qualification.
 - `Inference/Recovery/InferenceLiveFailurePolicy.swift` owns stateless
   interruption and failure classification, modality-specific retirement reasons,
   and telemetry/circuit/feedback decisions. It reuses Core Network's
@@ -1463,3 +1468,30 @@ from a displaced session. The restored `SpeciesData` carries this authority
 separately; shared species consumers now preserve this authority, and the native
 reader advertises protocol 6 for owner-review-aware results without activating a
 new producer.
+
+### Legacy review during history enrollment
+
+`InferenceReviewWorkflowCoordinator` denies scan-only confirmation, override,
+rejection and undo before optimistic presentation or queue admission when a
+fresh locked `ObservationHistoryEnrollmentIntent.protects` read finds a staged
+hold or any history metadata. Missing persistence context, absent or ambiguous
+scan rows, and lookup failures also deny admission. Async dictionary and
+acknowledgement callbacks recheck the fence before applying review presentation.
+This does not implement an analysis-bound review operation or redirect an action
+to the selected result.
+
+Serialized legacy actor writes and verified review preparation/acknowledgement
+repeat the check inside the persistence transaction. The legacy outbox similarly
+checks enqueue, both carry endpoints, dispatch admission, completion and
+conflict reconciliation. A protected pending job retains its exact payload in
+`needsAttention` with no deadline and `analysis_bound_review_required`; it is
+never silently rebased or retried through another endpoint. Carry stages and
+saves under the same lock, preserving the replacement caller's save callback.
+
+Legacy override/reset/confirmation presentation now waits for the guarded local
+write phase. If enrollment wins while a queued write waits, the displayed
+identification stays unchanged and no follow-on dictionary lookup or legacy
+transport starts. The server's exact `analysis_bound_review_required` response
+also holds the job when enrollment happened on another device; it does not
+trigger legacy authority reconciliation. Carry rechecks both endpoints after
+post-acceptance work and before requesting source retirement.

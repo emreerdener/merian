@@ -67,9 +67,22 @@ retire a proof.
   reset; it neither changes the server ledger nor resolves the deletion marker.
 - The protocol-v2 recovery and acknowledgement values are distinct and are not
   interchangeable. Legacy 32-byte capability data remains protocol-v1 readable.
-- Accepted deletion clears account-local data before acknowledgement and
-  verified capability retirement. Definitively uncommitted protocol-v2 intake
-  may retire only its unused capability without erasing account-local data.
+- Accepted deletion awaits account-local row and private reanalysis namespace
+  erasure before preferences/runtime reset, acknowledgement and verified
+  capability retirement. A file-erasure failure retains the cleanup marker for
+  retry; local receipt work is drained under the existing Auth barrier.
+  Definitively uncommitted protocol-v2 intake may retire only its unused
+  capability without erasing account-local data.
+- `matchesExisting(_:)` compares protocol and both proof values against a fresh
+  throwing secure-store read. It ignores creation metadata, admits absence only
+  when verified and never treats a storage error as absence.
+- `retireVerified()` adapts verified secure-store removal for workflow callers;
+  any failed removal returns false and retains the recovery barrier. It does not
+  grant deletion authority or change the capability format.
+- `AccountDeletionLocalCleanupStore.RecoveryScope` retains exact stage/proof
+  evidence with injected session and original-container predicates. Intake
+  permits runtime joining only; accepted cleanup/retirement/legacy cleanup may
+  permit a purge of that exact container. It imports no SwiftData or SDK owner.
 - Unknown recovery phases and uncertain storage remain fail closed.
 
 ## Verification
