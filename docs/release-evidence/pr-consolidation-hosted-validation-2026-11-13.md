@@ -803,3 +803,24 @@ explicitly retained integration method. This previews classification only and is
 not runtime evidence. The first full portable gate reached the workflow contract
 and rejected its stale full-target summary wording. That assertion was updated
 to require the truthful scoped summary; the failure log remains retained.
+
+## Final-shard Auth drain source-check repair
+
+Original shard 12 completed 482 methods with no failures or skips. Its original
+opaque-parameter verifier failure reconciles with the reviewed parser in a local
+diagnostic replay; that replay does not replace hosted validation.
+
+Original shard 14 completed 505 methods: 504 passed and one failed, with no
+skips. `fundingSettlementTaskIsRetainedAndAuthDrained` still searched for the
+older no-argument private Auth-drain signature. The implementation now accepts
+an optional recovery authority and returns `Bool`. The source check now matches
+that exact declaration and confines its assertions to the function body before
+`verifiedExpectedSession`. It also asserts background quiescence precedes
+retained sync, completing the existing settlement/background/retained/lease
+ordering checks. Production Auth code and behavior are unchanged.
+
+The source-only architecture suite can run directly on macOS without an app
+build, simulator or database. This is focused validation, not a hosted iOS pass.
+Remaining original shards and one new source-bound iOS workflow remain required.
+Unchanged backend, web and admin diagnostics are not repeated. PR152/main remain
+frozen; PR150 and active History remain separate.

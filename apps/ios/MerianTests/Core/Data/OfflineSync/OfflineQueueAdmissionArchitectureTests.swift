@@ -299,9 +299,14 @@ struct OfflineQueueAdmissionArchitectureTests {
             "InferenceFundingReconciliationOwner("
         ))
         let drain = try #require(auth.range(
-            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition() async"
+            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition( "
+                + "recoveryAuthority: AuthRecoveryAuthority? = nil) async -> Bool {"
         ))
-        let drainSource = auth[drain.lowerBound...]
+        let nextFunction = try #require(auth.range(
+            of: "private func verifiedExpectedSession(",
+            range: drain.upperBound..<auth.endIndex
+        ))
+        let drainSource = auth[drain.lowerBound..<nextFunction.lowerBound]
         let settlement = try #require(drainSource.range(
             of: ".cancelAndAwaitInferenceFundingSettlementForAuthTransition()"
         ))
@@ -312,6 +317,7 @@ struct OfflineQueueAdmissionArchitectureTests {
         let retained = try #require(drainSource.range(
             of: ".awaitRetainedSyncQuiescenceForAuthTransition()"
         ))
+        #expect(background.lowerBound < retained.lowerBound)
         let leases = try #require(drainSource.range(
             of: "authRuntimeState.awaitAccountWorkDrain()"
         ))
