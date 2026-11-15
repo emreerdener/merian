@@ -206,11 +206,14 @@ class DiscoveryTests(unittest.TestCase):
                          {"push": {"branches": ["codex/pr152-simulator-diagnostics-20261114"]}})
         self.assertEqual(workflow["permissions"], {"contents": "read"})
         job = workflow["jobs"]["discover"]
-        self.assertEqual(job["timeout-minutes"], 90)
+        self.assertEqual(job["timeout-minutes"], 120)
         self.assertEqual(job["steps"][2]["timeout-minutes"], 20)
         self.assertIs(job["steps"][0]["with"]["persist-credentials"], False)
         self.assertEqual(job["steps"][-1]["if"], "always()")
         self.assertNotIn("environment", job)
+        budgets = {step.get("name"): step.get("timeout-minutes") for step in job["steps"]}
+        self.assertEqual(budgets["Compile existing unit product"], 60)
+        self.assertEqual(budgets["Observe guest identity inside XCTest"], 10)
         scripts = "\n".join(step.get("run", "") for step in job["steps"])
         self.assertIn("--prepare-only", scripts)
         self.assertIn("--verify-directory", scripts)

@@ -1870,15 +1870,19 @@ HTTP request is dispatched. See the
    exactly one passed, unskipped case, the owned device and exact OS build, the
    current SHA/run/attempt, and one bounded attachment bound to that case and
    configuration. It never substitutes console output for the attachment. Host
-   preparation alone remains non-qualifying. The isolated job allows 90 minutes
-   including 20 for preparation, 10 for locked dependency resolution, 25 for
+   preparation alone remains non-qualifying. The isolated job allows 120 minutes
+   including 20 for preparation, 10 for locked dependency resolution, 60 for
    compilation, 10 for the test, 5 for verification and 10 for evidence upload.
-   The receipt always says `qualified: false` and `release_eligible: false`:
-   this only establishes a candidate identity for review. The measured transport
-   resource/drain tests and dependent accepted photo allocation cases must be
-   requalified without assertion changes, followed by complete exact-SHA
-   coverage with zero skips. Until then the existing unit gate remains blocked
-   and PR152 stays frozen.
+   Diagnostic run 43680601932 exhausted the former 25-minute compile limit while
+   Swift compilation was still progressing, with no reported compiler error. It
+   never reached the identity test. The 60-minute compile ceiling is one bounded
+   follow-up, not a simulator or resource qualification; test and setup
+   deadlines are unchanged. The receipt always says `qualified: false` and
+   `release_eligible: false`: this only establishes a candidate identity for
+   review. The measured transport resource/drain tests and dependent accepted
+   photo allocation cases must be requalified without assertion changes,
+   followed by complete exact-SHA coverage with zero skips. Until then the
+   existing unit gate remains blocked and PR152 stays frozen.
 
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The

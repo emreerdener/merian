@@ -12,7 +12,7 @@ jobs:
   discover:
     name: Observe exact iOS 27 candidate identity
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
@@ -58,7 +58,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/ios27-identity/package-resolution.log"
           git diff --quiet -- "$package_resolved"
       - name: Compile existing unit product
-        timeout-minutes: 25
+        timeout-minutes: 60
         run: |
           set -o pipefail
           xcodebuild build-for-testing -scheme Merian -configuration Debug \
