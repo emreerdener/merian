@@ -1807,6 +1807,30 @@ HTTP request is dispatched. See the
    while executing cases; a partial log is not a pass. These budgets bound
    execution rather than assert performance. At most four shards run
    concurrently per workflow, each with a separate simulator and filesystem.
+
+   The separate `iOS Runtime Installation Experiment` workflow runs only on the
+   isolated `codex/pr152-simulator-diagnostics-20261114` branch. It tests an
+   **installer-registration hypothesis**, not a confirmed cause of the 23F77
+   failures.
+   [Apple documents secure exported runtime import](https://developer.apple.com/documentation/xcode-release-notes/xcode-26_4-release-notes);
+   [a runner-images report](https://github.com/actions/runner-images/issues/14946)
+   describes duplicate registrations with different runtime/image conditions.
+   This experiment changes only installation: export the pinned build and arm64
+   variant into an owned temporary directory, then import its single intact
+   `.exportedBundle` through Xcode. Both commands must exit zero, including
+   export; a bundle left after exit 70 is rejected. Export, its pre-import
+   inventory check and import share the original 360-second installation budget.
+   Counts include unavailable registrations: zero before export, zero after
+   export, exactly one after import. Preinstalled runtimes, export-side
+   installation and duplicates fail closed. The existing helper still verifies
+   installed build/device support, cache completion, cold boot and all three
+   exact guest identities, with unchanged deadlines and no fallback. This
+   one-job experiment performs no app compilation, UI run, full unit run or
+   deployment. Its bounded JSON receipt contains only setup results and safe
+   registration counts; `release_eligible` is always false. Even successful
+   setup requires a separately reviewed repair and complete validation before
+   the consolidation can advance. PR152 remains frozen during the experiment.
+
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The
    [complete-unit sharding contract](#complete-unit-sharding-contract) defines

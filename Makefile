@@ -158,6 +158,7 @@ test-ios-xcode-release-workflow:
 test-ios-ci-tooling:
 	python3 -B scripts/test-ios-unit-shards.py
 	python3 -B scripts/test-prepare-ios-unit-simulator.py
+	python3 -B scripts/test-experiment-ios-runtime-import.py
 	python3 -B scripts/test-ios-fast-preflight.py
 	python3 -B scripts/test-ios-device-review-schemes.py
 	python3 -B scripts/test-ios-runtime-audit.py
