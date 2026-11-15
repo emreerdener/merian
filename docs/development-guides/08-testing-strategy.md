@@ -1862,13 +1862,23 @@ HTTP request is dispatched. See the
    methods. The isolated `iOS Candidate Runtime Discovery` workflow therefore
    observes the preinstalled iOS 27.2 build `24B8117`, using a newly owned
    iPhone 18 Pro simulator. It requires exact installed identity/device support,
-   cache readiness, boot and bounded guest queries, without installing a
-   substitute runtime or guessing its model identifier. The receipt always says
-   `qualified: false` and `release_eligible: false`: this only establishes a
-   candidate identity for review. The measured transport resource/drain tests
-   and dependent accepted photo allocation cases must be requalified without
-   assertion changes, followed by complete exact-SHA coverage with zero skips.
-   Until then the existing unit gate remains blocked and PR152 stays frozen.
+   cache readiness and boot without installing a substitute runtime or guessing
+   its model identifier. Both runtime candidates stalled at `simctl getenv`
+   after boot. The next diagnostic therefore compiles the existing unit target
+   and launches only `SimulatorRuntimeIdentityTests` through Xcode. Its guest
+   process writes an allowlisted identity attachment; the verifier requires
+   exactly one passed, unskipped case, the owned device and exact OS build, the
+   current SHA/run/attempt, and one bounded attachment bound to that case and
+   configuration. It never substitutes console output for the attachment. Host
+   preparation alone remains non-qualifying. The isolated job allows 90 minutes
+   including 20 for preparation, 10 for locked dependency resolution, 25 for
+   compilation, 10 for the test, 5 for verification and 10 for evidence upload.
+   The receipt always says `qualified: false` and `release_eligible: false`:
+   this only establishes a candidate identity for review. The measured transport
+   resource/drain tests and dependent accepted photo allocation cases must be
+   requalified without assertion changes, followed by complete exact-SHA
+   coverage with zero skips. Until then the existing unit gate remains blocked
+   and PR152 stays frozen.
 
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The

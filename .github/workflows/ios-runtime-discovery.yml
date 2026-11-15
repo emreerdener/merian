@@ -12,7 +12,7 @@ jobs:
   discover:
     name: Observe exact iOS 27 candidate identity
     runs-on: xcode-27
-    timeout-minutes: 25
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
@@ -25,14 +25,85 @@ jobs:
           git diff --quiet
           test "$(xcodebuild -version | sed -n '1p')" = 'Xcode 27.0'
           test "$(xcodebuild -version | sed -n '2p')" = 'Build version 27A266a'
-      - name: Observe preinstalled runtime on owned device
+      - name: Prepare exact preinstalled runtime on owned device
+        id: simulator
         timeout-minutes: 20
-        run: python3 -B scripts/discover-ios27-simulator.py --evidence "$RUNNER_TEMP/ios27-discovery.json"
+        run: |
+          mkdir "$RUNNER_TEMP/ios27-identity"
+          destination="$(python3 -B scripts/discover-ios27-simulator.py --prepare-only \
+            --evidence "$RUNNER_TEMP/ios27-identity/preparation.json")"
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+      - name: Verify generated source membership
+        run: |
+          bash scripts/test-ios-project-source-membership.sh
+          bash scripts/check-ios-project-source-membership.sh
+      - name: Restore locked Swift package checkouts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+      - name: Resolve locked dependencies
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then xcode_project="merian.xcodeproj"; fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          test -s "$package_resolved"
+          jq -e '(.pins | type) == "array" and (.pins | length) > 0' "$package_resolved" >/dev/null
+          xcodebuild -resolvePackageDependencies -scheme Merian -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$GITHUB_WORKSPACE/.build/xcode-source-packages" \
+            -packageCachePath "$RUNNER_TEMP/ios27-package-cache" -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile -skipPackageUpdates \
+            2>&1 | tee "$RUNNER_TEMP/ios27-identity/package-resolution.log"
+          git diff --quiet -- "$package_resolved"
+      - name: Compile existing unit product
+        timeout-minutes: 25
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -scheme Merian -configuration Debug \
+            -testProductsPath "$RUNNER_TEMP/identity.xctestproducts" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$GITHUB_WORKSPACE/.build/xcode-source-packages" \
+            -packageCachePath "$RUNNER_TEMP/ios27-package-cache" -disablePackageRepositoryCache \
+            -skipPackageUpdates -disableAutomaticPackageResolution \
+            -derivedDataPath "$RUNNER_TEMP/ios27-derived-data" -only-testing:merianTests \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$RUNNER_TEMP/ios27-identity/build.log"
+      - name: Observe guest identity inside XCTest
+        id: identity-test
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/identity.xctestproducts" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios27-identity/results.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests/SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity \
+            2>&1 | tee "$RUNNER_TEMP/ios27-identity/test.log"
+      - name: Verify single passed identity attachment
+        if: always() && steps.identity-test.outcome != 'skipped'
+        timeout-minutes: 5
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.identity-test.outcome }}
+        run: |
+          evidence="$RUNNER_TEMP/ios27-identity"
+          xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json"
+          xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json"
+          xcrun xcresulttool export attachments --path "$evidence/results.xcresult" \
+            --test-id 'SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity()' \
+            --output-path "$evidence/attachments"
+          python3 -B scripts/discover-ios27-simulator.py --verify-directory "$evidence" \
+            --evidence "$RUNNER_TEMP/ios27-discovery.json"
+          git diff --quiet --ignore-submodules --
       - name: Retain non-release identity evidence
         if: always()
+        timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios27-discovery-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ios27-discovery.json
+          path: |
+            ${{ runner.temp }}/ios27-discovery.json
+            ${{ runner.temp }}/ios27-identity
           if-no-files-found: error
           retention-days: 14
