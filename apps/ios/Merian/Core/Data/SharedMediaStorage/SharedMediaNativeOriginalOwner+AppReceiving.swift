@@ -479,7 +479,7 @@ extension SharedMediaNativeOriginalOwner {
         })
     }
     private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
-                                         body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
+                                                 body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
         let held = await coordinator.acquireAll(scanIds: [queueID, observationID])
         let lock = SharedMediaNativeReceivingLockGrant()

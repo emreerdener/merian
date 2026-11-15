@@ -22,6 +22,14 @@ only the exact `P0002` / `analysis_history_not_found` pair as absence. Missing
 RPCs, unknown errors and malformed responses cannot authorize execution. Real
 Edge missing-function retry behavior remains unchanged.
 
+The review endpoint's two missing-route cases preserve this distinction even
+when both responses carry `SB-Error-Code: NOT_FOUND`: confirmation returns
+`edgeFunctionUnavailable`, while the Reject/Undo RPC retains the exact generic
+HTTP 404. Both must dispatch exactly once; neither may refresh or replay. The
+consolidation diagnostic exposed and corrected the older test expectation that
+incorrectly treated both transports as Edge routes; production classification is
+unchanged.
+
 Completion410 adds no database or API change. Gateway-shaped missing-child and
 missing-RPC cases supplement the existing route retry/recovery tests.
 Independent review and75 focused native tests passed, with zero skips. The same

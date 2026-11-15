@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 import Testing
 
 struct VideoAudioFixture: Sendable {
@@ -23,7 +24,9 @@ struct VideoAudioFixture: Sendable {
             at: outputDirectory,
             withIntermediateDirectories: true
         )
+        print("VideoAudioFixture: waiting for encoder ownership")
         await Self.writerGate.acquire()
+        print("VideoAudioFixture: encoder ownership acquired")
         do {
             try Task.checkCancellation()
             try await prepare(
@@ -43,16 +46,20 @@ struct VideoAudioFixture: Sendable {
         channels: Int?, amplitude: Double, width: Int, height: Int,
         frameCount: Int, transform: CGAffineTransform
     ) async throws {
+        print("VideoAudioFixture: silent video started")
         let silentURL = root.appendingPathComponent("silent.mp4")
         try await Self.writeSilentVideo(
             to: silentURL, width: width, height: height, frameCount: frameCount, transform: transform
         )
+        print("VideoAudioFixture: silent video completed")
         guard let channels else {
             try FileManager.default.copyItem(at: silentURL, to: videoURL)
             return
         }
         let audioURL = root.appendingPathComponent("tone.m4a")
+        print("VideoAudioFixture: AAC started")
         try Self.writeAAC(to: audioURL, channels: channels, amplitude: amplitude, frameCount: frameCount)
+        print("VideoAudioFixture: AAC completed")
         let composition = AVMutableComposition()
         for (url, mediaType) in [(silentURL, AVMediaType.video), (audioURL, .audio)] {
             let asset = AVURLAsset(url: url)
@@ -72,7 +79,9 @@ struct VideoAudioFixture: Sendable {
             asset: composition,
             presetName: AVAssetExportPresetPassthrough
         ))
+        print("VideoAudioFixture: composition export started")
         try await exporter.export(to: videoURL, as: .mp4)
+        print("VideoAudioFixture: composition export completed")
     }
 
     func outputFiles() throws -> [URL] {
@@ -112,7 +121,7 @@ struct VideoAudioFixture: Sendable {
 
     private static let writerGate = VideoFixtureWriterGate()
 
-    private static func writeSilentVideo(
+    @MainActor private static func writeSilentVideo(
         to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform
     ) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
@@ -121,23 +130,66 @@ struct VideoAudioFixture: Sendable {
             AVVideoWidthKey: width,
             AVVideoHeightKey: height
         ])
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: input,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-                kCVPixelBufferWidthKey as String: width,
-                kCVPixelBufferHeightKey as String: height
-            ]
-        )
         input.transform = transform
-        writer.add(input)
         // Keep encoder ownership until completion or cancellation, including
-        // failed assertions and cancellation during fixture preparation.
-        defer {
-            if writer.status == .writing { writer.cancelWriting() }
+        // failure and the actual exit of every pending append.
+        defer { if writer.status == .writing { writer.cancelWriting() } }
+        if #available(iOS 26.0, *) {
+            let receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
+            let pixels = CVReadOnlyPixelBuffer(unsafeBuffer: try blackPixels(width: width, height: height))
+            try #require(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+            for frame in 0..<frameCount {
+                var stoppedStatus = writer.status.rawValue
+                var stoppedWithError = false
+                do {
+                    try await withReadinessDeadline(cancel: {
+                        stoppedStatus = writer.status.rawValue
+                        stoppedWithError = writer.error != nil
+                        writer.cancelWriting()
+                    }) {
+                        try await receiver.append(pixels, with: CMTime(value: Int64(frame), timescale: 30))
+                    }
+                } catch ReadinessFailure.timedOut {
+                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(stoppedStatus), writer error present \(stoppedWithError)")
+                    throw ReadinessFailure.timedOut
+                }
+            }
+            writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
+            receiver.finish()
+        } else {
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+                assetWriterInput: input,
+                sourcePixelBufferAttributes: [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height
+                ]
+            )
+            writer.add(input)
+            try #require(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+            let pixels = try blackPixels(width: width, height: height)
+            for frame in 0..<frameCount {
+                try Task.checkCancellation()
+                let deadline = ContinuousClock.now + .seconds(5)
+                while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(5))
+                }
+                try #require(
+                    input.isReadyForMoreMediaData,
+                    "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
+                )
+                try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
+            }
+            writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
+            input.markAsFinished()
         }
-        try #require(writer.startWriting())
-        writer.startSession(atSourceTime: .zero)
+        await writer.finishWriting()
+        try #require(writer.status == .completed)
+    }
+
+    private static func blackPixels(width: Int, height: Int) throws -> CVPixelBuffer {
         var pixelBuffer: CVPixelBuffer?
         #expect(CVPixelBufferCreate(
             kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB,
@@ -149,23 +201,52 @@ struct VideoAudioFixture: Sendable {
             memset(base, 0, CVPixelBufferGetDataSize(pixels))
         }
         CVPixelBufferUnlockBaseAddress(pixels, [])
-        for frame in 0..<frameCount {
-            try Task.checkCancellation()
-            let deadline = ContinuousClock.now + .seconds(5)
-            while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(5))
-            }
-            try #require(
-                input.isReadyForMoreMediaData,
-                "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
-            )
-            try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
-        }
-        writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
-        input.markAsFinished()
-        await writer.finishWriting()
-        try #require(writer.status == .completed)
+        return pixels
     }
+
+    enum ReadinessFailure: Error { case timedOut }
+
+    /// Cancellation stops the writer, but ownership remains held until append
+    /// actually exits and both the deadline and cancellation tasks are joined.
+    @MainActor static func withReadinessDeadline(
+        timeout: Duration = .seconds(5), cancel: @escaping @MainActor () -> Void,
+        operation: @MainActor () async throws -> Void
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        let state = VideoFixtureDeadlineState(cancel: cancel)
+        let registration = OSAllocatedUnfairLock(initialState: VideoFixtureCancellationRegistration())
+        try await withTaskCancellationHandler {
+            let timer = Task { @MainActor in
+                do { try await Task.sleep(until: deadline, clock: .continuous) }
+                catch { return }
+                state.stop(timedOut: true)
+            }
+            let result: Result<Void, any Error>
+            do {
+                try Task.checkCancellation()
+                try await operation()
+                result = .success(())
+            } catch { result = .failure(error) }
+            timer.cancel()
+            await timer.value
+            let cancellation = registration.withLock { value in
+                value.closed = true
+                return value.task
+            }
+            await cancellation?.value
+            // A late scheduler wake must not turn an exceeded deadline into success.
+            if ContinuousClock.now >= deadline { state.stop(timedOut: true) }
+            if Task.isCancelled { state.stop(timedOut: false); throw CancellationError() }
+            if state.timedOut { throw ReadinessFailure.timedOut }
+            try result.get()
+        } onCancel: {
+            registration.withLock { value in
+                guard !value.closed, value.task == nil else { return }
+                value.task = Task { @MainActor in state.stop(timedOut: false) }
+            }
+        }
+    }
+
 }
 
 // Synthetic encoders share process resources even when Swift Testing runs
@@ -189,4 +270,22 @@ private actor VideoFixtureWriterGate {
             waiters.removeFirst().resume()
         }
     }
+}
+
+@MainActor private final class VideoFixtureDeadlineState {
+    private let cancel: @MainActor () -> Void
+    private var stopped = false
+    private(set) var timedOut = false
+    init(cancel: @escaping @MainActor () -> Void) { self.cancel = cancel }
+    func stop(timedOut: Bool) {
+        self.timedOut = self.timedOut || timedOut
+        guard !stopped else { return }
+        stopped = true
+        cancel()
+    }
+}
+
+private struct VideoFixtureCancellationRegistration: Sendable {
+    var closed = false
+    var task: Task<Void, Never>?
 }

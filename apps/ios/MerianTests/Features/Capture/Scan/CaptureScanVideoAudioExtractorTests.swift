@@ -144,6 +144,53 @@ struct CaptureScanVideoAudioExtractorTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
+    @MainActor @Test(arguments: ["success", "failure", "timeout", "cancel", "late"])
+    func fixtureAppendDeadlineJoinsCancellationAndActualExit(_ boundary: String) async throws {
+        let probe = FixtureAppendDeadlineProbe()
+        let entered = AsyncStream<Void>.makeStream()
+        defer { entered.continuation.finish() }
+        let work = Task { @MainActor in
+            try await VideoAudioFixture.withReadinessDeadline(
+                timeout: ["timeout", "late"].contains(boundary) ? .milliseconds(10) : .seconds(5),
+                cancel: { probe.stop() }
+            ) {
+                if boundary == "failure" { throw FixtureAppendDeadlineProbe.Failure.append }
+                if boundary == "timeout" || boundary == "cancel" {
+                    await withCheckedContinuation { continuation in
+                        probe.pending = continuation
+                        entered.continuation.yield(())
+                    }
+                    probe.drained = true
+                } else if boundary == "late" {
+                    // Force append success to race a delayed timer on this actor.
+                    let until = ContinuousClock.now + .milliseconds(20)
+                    while ContinuousClock.now < until {}
+                }
+            }
+        }
+        if boundary == "cancel" {
+            var iterator = entered.stream.makeAsyncIterator()
+            _ = await iterator.next()
+            work.cancel()
+        }
+        do {
+            try await work.value
+            #expect(boundary == "success")
+        } catch VideoAudioFixture.ReadinessFailure.timedOut {
+            #expect(boundary == "timeout" || boundary == "late")
+        } catch is CancellationError {
+            #expect(boundary == "cancel")
+        } catch FixtureAppendDeadlineProbe.Failure.append {
+            #expect(boundary == "failure")
+        }
+        #expect(probe.stops == (["timeout", "cancel", "late"].contains(boundary) ? 1 : 0))
+        #expect(probe.pending == nil)
+        if boundary == "timeout" || boundary == "cancel" { #expect(probe.drained) }
+        // A cancelled deadline must not later touch a successful/failed writer.
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(probe.stops == (["timeout", "cancel", "late"].contains(boundary) ? 1 : 0))
+    }
+
     private func extractAndDiscard(_ fixture: VideoAudioFixture) async throws {
         let lease = try #require(await CaptureScanVideoAudioExtractor.extract(
             videoURL: fixture.videoURL,
@@ -168,5 +215,17 @@ private actor AudioArtifactGate {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return !leases.isEmpty
+    }
+}
+
+@MainActor private final class FixtureAppendDeadlineProbe {
+    enum Failure: Error { case append }
+    var pending: CheckedContinuation<Void, Never>?
+    var stops = 0
+    var drained = false
+    func stop() {
+        stops += 1
+        pending?.resume()
+        pending = nil
     }
 }

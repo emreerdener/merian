@@ -12674,13 +12674,31 @@ audio handoff and retained delivery owner are not established by these tests.
 `VideoAudioFixture` serializes its complete preparation lifecycle across test
 suites: silent-video writing, AAC preparation and composition export. The permit
 is released only after completion or error cleanup, including cancellation after
-waiting. The five-second writer readiness bound is unchanged. This test-only
-guard does not serialize production capture or extraction. The concurrent
-fixture regression covers silent, mono and stereo outputs together with a
-pre-cancelled constructor and successful preparation afterward. It does not
-deterministically force cancellation while queued. CI iOS887 exposed a
-writer-readiness timeout; overlapping fixture exports are a supported contention
-hypothesis, not evidence of a production media defect.
+waiting. On iOS 26 and later it attaches the input through Apple's pixel-buffer
+receiver and awaits each immutable buffer append. Earlier runtimes retain the
+legacy adaptor. Both paths keep the five-second readiness bound. The modern path
+cancels the writer on timeout or caller cancellation, awaits actual append exit,
+and cancels/joins its timer and cancellation task before returning. A late
+append success cannot clear an expired deadline. No task may cancel a writer
+after encoder ownership is released.
+
+This test-only guard does not serialize production capture or extraction. The
+concurrent fixture regression covers silent, mono and stereo outputs together
+with a pre-cancelled constructor and successful preparation afterward. It does
+not deterministically force cancellation while queued. A separate controlled
+append regression covers success, append error, timeout, caller cancellation and
+success racing a delayed deadline, including actual exit before return. Fixed
+phase-only diagnostics distinguish gate admission, silent writing, AAC creation
+and composition export without recording media, paths or identities.
+`CaptureVideoReanalysisHostTests` waits for settlement with cancellation-aware
+short sleeps instead of a tight yield loop and cancels/joins host work before
+propagating cancellation to fixture teardown; its one-minute test limit remains.
+
+CI iOS887 and diagnostic run 43699310762 exposed writer-readiness timeouts. The
+latter also timed out two real-media host tests before their one-minute limit.
+The retained logs do not locate their precise stalled phase. The modern receiver
+and cooperative waiter are test-harness repairs awaiting hosted proof, not
+evidence of a production media defect or a demonstrated performance fix.
 
 ### Explicit source reservation delivery regressions
 

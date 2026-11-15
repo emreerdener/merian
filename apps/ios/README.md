@@ -1743,8 +1743,14 @@ Ownership lasts until preparation completes or error cleanup finishes; an
 incomplete writer is cancelled before release. Cancellation while queued is
 checked after admission, before starting the next writer. The fixture retains
 all 30 frames and the one-second media range, with bounded readiness waits and
-frame/status diagnostics. This test-only gate does not serialize production
-capture or change extraction behavior.
+frame/status diagnostics. On iOS 26 and later, the async pixel-buffer receiver
+replaces legacy readiness polling; earlier runtimes retain the adaptor. Each
+modern append keeps the five-second cap and joins the append, timer and
+cancellation work before release. Timeout evidence records the frame,
+pre-cancellation writer status and error presence without raw codec error text.
+Fixed phase logs distinguish admission, video writing, AAC and export. This
+test-only gate does not serialize production capture or change extraction
+behavior.
 
 ## Native warning checks
 

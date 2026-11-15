@@ -598,3 +598,49 @@ inputs, native assertions, workflow budgets or simulator identities change.
 Retained-artifact replay is local diagnostic evidence only; it cannot relabel
 the failed hosted run or clear a release gate. Fresh complete validation remains
 required, with PR152/main frozen and PR150 and History separate.
+
+## Video fixture and host-wait repair
+
+Shard 4 of diagnostic run 43699310762 completed 450 methods: 447 passed, three
+failed, zero skipped. Two `CaptureVideoReanalysisHostTests` real-media methods
+exceeded their one-minute limits. The retained log shows codec/AAC work but does
+not establish which preparation or settlement phase stalled. In
+`ObservationVideoReservationDeliveryTests.oneSavedAttemptSettlesOnlyKnownCurrentAnswers`,
+the conflict and unknown arguments failed while constructing their fixture,
+before creating the reservation service: the legacy video writer remained
+writing with no error but was not ready at frame 8 within five seconds.
+
+The shared fixture now uses Apple's async pixel-buffer receiver on iOS 26 and
+later, with the legacy adaptor retained for older deployment targets. Every
+append retains the five-second deadline; timeout/cancellation stops the writer
+and waits for actual append exit plus deadline/cancellation task completion
+before releasing fixture encoder ownership. A successful append arriving after
+the deadline still fails. Controlled lifecycle regressions cover success, append
+failure, timeout, caller cancellation and a delayed-deadline race. All existing
+fixture media assertions and host handoff/reopen/drain assertions remain. The
+host test waiter uses cancellation-aware short sleeps and cancels/joins host
+work before propagating cancellation to fixture teardown. Its one-minute limit
+and all workflow budgets are unchanged. Phase-only diagnostics separate future
+fixture admission, silent writing, AAC/export and host settlement observations.
+
+This is a test-harness repair candidate, not a proven runtime fix. The original
+failed evidence remains retained. Fresh compilation, complete native execution
+and all exact-SHA prerequisites remain mandatory; PR152/main stay frozen and
+PR150, History and the local support report remain separate.
+
+## Review RPC error-expectation repair
+
+Shard 7 completed 493 methods: 492 passed, one failed, zero skipped. The false
+argument of `missingGatewayRouteReturnsWithoutRedispatch` expected an Edge
+missing-function error from the Reject/Undo database RPC. Confirmation's Edge
+case passed. Independent source and history review established that the test
+expectation predates the documented transport boundary: only `/functions/v1/`
+URLs receive Edge missing-function classification, while PostgREST RPCs preserve
+their own HTTP error semantics even with shared gateway headers.
+
+The test retains both parameter rows, the same synthetic gateway response and
+the exact one-dispatch assertion. Confirmation still requires
+`edgeFunctionUnavailable`; Reject/Undo now requires the exact HTTP 404 and body.
+No production error classifier, retry behavior, API payload, SQL or permission
+changes. The sibling recovery regression already pins database RPC 404 handling.
+Fresh complete hosted validation remains required.
