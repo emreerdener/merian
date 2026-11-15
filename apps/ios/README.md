@@ -1583,12 +1583,16 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
 Hosted **iOS Build and Test** compiles and inventories the complete unit target
-once, executes whole suites serially across isolated runner/simulator shards,
-and requires an aggregate proving every inventoried method passed exactly once.
+once, retains the existing opt-in native/SQL integration as a separate
+qualification, and executes all other whole suites serially across isolated
+runner/simulator shards. **Hosted iOS unit tests** proves every ordinary
+inventoried method passed exactly once; the receipt explicitly records the
+integration as not executed and does not claim complete-target qualification.
 All parameter rows, durable fixtures, assertions and shared-state guards remain.
 The six critical scan UI smokes and Release archive stay independent. Production
 readiness requires the unit aggregate and both of those gates at the exact
-commit and pinned toolchain. The unit build also compiles the report-only
+commit and pinned toolchain. That result does not clear the separate integration
+or app-release requirements. The unit build also compiles the report-only
 performance bundle; sharding does not qualify device performance. See the
 [complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
 for artifact provenance, process-isolation limits and the requirement to rerun

@@ -1469,7 +1469,9 @@ baseline.
 `.github/workflows/ios-build-and-test.yml` is the authoritative compiled
 verification gate for iOS changes. It reports a stable
 `iOS Build and Test / Production readiness` check on main pushes and optional
-pull requests. The complete exact-SHA result gates release, not entry into main.
+pull requests. This exact-SHA hosted result is one release prerequisite, not
+complete app acceptance. The repository permits ordinary main development; the
+consolidation packet separately requires its scoped prerequisites before merge.
 A fail-closed scope job starts the macOS work for:
 
 > **Current consent candidate:** the former Terms-link compile defect and
@@ -1492,8 +1494,8 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and all three macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, all six critical scan UI smokes, and
-Release-archive gate.
+replace the ordinary hosted unit suites, all six critical scan UI smokes, and
+Release-archive gate. Dedicated integration remains separately qualified.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
 does not report a completed required check when an entire workflow is skipped by
@@ -1721,22 +1723,27 @@ app-owned local files. The loader fixture verifies rejection happens before an
 HTTP request is dispatched. See the
 [iOS App Transport Security Contract](./17-ios-transport-security.md).
 
-1. **Full iOS unit tests** is the complete-coverage aggregate for a single
+1. **Hosted iOS unit tests** is the ordinary-suite aggregate for a single
    exact-SHA compiled unit product. A build job resolves only locked package
    versions, verifies generated-project source membership, and compiles the app,
    unit and performance bundles into Xcode's portable `.xctestproducts` format.
-   Xcode enumerates the complete `merianTests` target; the planner assigns whole
-   suites to at most sixteen isolated runner/simulator jobs. No handwritten
-   suite allowlist or skip selector can replace that inventory. Each shard runs
-   serially, with Xcode process-level parallel testing disabled. The aggregate
-   reconciles every compiled method exactly once, checks all parameter leaves,
-   and applies the unchanged critical-result validator to the raw shard trees.
-   The candidate lane pins the observed arm64 iOS 27.2 build `24B8117` on an
-   iPhone 18 Pro, guest model `iPhone19,2`, in `scripts/ios-unit-shards.py`. The
-   Debug transport guard admits that exact tuple for requalification while
-   preserving its previous measured tuple and every test/session/receiver guard.
-   Identity observation does not qualify transport resources or full coverage;
-   both focused and complete native gates below remain mandatory.
+   Xcode enumerates the complete `merianTests` target. The planner retains the
+   existing opt-in `SharedMediaNativeLiteralRecoveryTests` method in a separate
+   integration classification and assigns all other whole suites to at most
+   sixteen isolated runner/simulator jobs. That integration requires an owned
+   disposable SQL bridge and has its own qualification record; an unarmed skip
+   never qualifies it. No other method may leave the hosted partition. Each
+   shard runs serially, with Xcode process-level parallel testing disabled. The
+   aggregate reconciles every ordinary compiled method exactly once, checks all
+   parameter leaves, and applies the unchanged critical-result validator to the
+   raw shard trees. The candidate lane pins the observed arm64 iOS 27.2 build
+   `24B8117` on an iPhone 18 Pro, guest model `iPhone19,2`, in
+   `scripts/ios-unit-shards.py`. The Debug transport guard admits that exact
+   tuple for requalification while preserving its previous measured tuple and
+   every test/session/receiver guard. Identity observation does not qualify
+   transport resources or full coverage; both focused and ordinary native gates
+   below remain mandatory. Dedicated integration and app acceptance remain
+   separately scoped requirements.
 
    `discover-ios27-simulator.py --prepare-only` requires the uniquely installed
    matching runtime and supported device type on a disposable GitHub-hosted
@@ -1752,7 +1759,7 @@ HTTP request is dispatched. See the
    one bounded identity attachment. The five-minute verifier binds the case,
    guest runtime/build, device UUID, architecture, configuration, source SHA and
    run/attempt. Console text never supplies identity. The resulting observation
-   receipt remains `qualified: false` and `release_eligible: false`; full-unit
+   receipt remains `qualified: false` and `release_eligible: false`; hosted-unit
    reconciliation additionally requires its exact pinned tuple. Each job retains
    the probe's native evidence.
 
@@ -2186,22 +2193,28 @@ unexpectedly skipped jobs fail the check. The portable workflow contract
 executes this decision across every unit/UI/archive outcome combination. UI,
 archive and unit compilation depend directly on scope; the unit pipeline
 continues through the shard matrix and the aggregate, which requires successful
-compilation and every shard. Release evidence remains the complete unit target,
-all six UI cases, and the archive on one exact SHA; no smaller test selection
-replaces it.
+compilation and every shard. Hosted evidence remains all ordinary unit suites,
+all six UI cases, and the archive on one exact SHA; no smaller ordinary-suite
+selection replaces it. It does not qualify the separately recorded native/SQL
+integration or an app release. The original consolidation packet preserves
+unfinished app work and leaves its activation/distribution acceptance with the
+app workstream.
 
 ### Complete unit sharding contract
 
 The user-approved CI recovery separates whole unit suites across disposable
 GitHub-hosted runners. This revises the former single-process target execution;
-it does not add intra-runner test workers or reduce the target. The source-side
-`SharedProcessStateTestTrait` and `OfflineQueueTestCase` lease shared resources
-and restore queue context per case. They remain unchanged, as do their owning
-architecture tests. Isolation removes concurrent singleton sharing across
-runners. Each test still owns completion of its asynchronous tasks. A task leak
-can no longer perturb a suite on a different runner; that incidental
-cross-suite/process interaction coverage is not equivalent to the former one
-process. No declared cross-suite state dependency was identified in review.
+it does not add intra-runner test workers or omit compiled inventory. The
+November 15 classification below separates the existing opt-in integration from
+ordinary hosted execution; it does not mark that integration passed. The
+source-side `SharedProcessStateTestTrait` and `OfflineQueueTestCase` lease
+shared resources and restore queue context per case. They remain unchanged, as
+do their owning architecture tests. Isolation removes concurrent singleton
+sharing across runners. Each test still owns completion of its asynchronous
+tasks. A task leak can no longer perturb a suite on a different runner; that
+incidental cross-suite/process interaction coverage is not equivalent to the
+former one process. No declared cross-suite state dependency was identified in
+review.
 
 `scripts/ios-unit-shards.py` owns these controls:
 
@@ -2218,19 +2231,26 @@ process. No declared cross-suite state dependency was identified in review.
   the enabled set to equal exactly the assigned methods. It never filters away
   an unchecked disabled entry. Full-target enumeration rejects any disabled
   marker. These are selection metadata, not skipped test results: every method
-  remains required in exactly one shard. Empty, malformed, duplicate or
-  foreign-target method entries fail. Only exact trailing `()` normalization
-  bridges XCTest result spelling; Swift argument labels remain intact. The
-  version-2 plan also binds the raw full-enumeration SHA-256; focused and
-  aggregate verification recheck the original bytes as well as all methods.
-  Hosted enumeration has established this framing; successful hosted result
-  reconciliation and complete execution remain required.
+  remains assigned either to exactly one hosted shard or to the one explicit
+  separate integration. Empty, malformed, duplicate or foreign-target method
+  entries fail. Only exact trailing `()` normalization bridges XCTest result
+  spelling; Swift argument labels remain intact. The version-3 plan also binds
+  the exact separate integration selector and raw full-enumeration SHA-256;
+  focused and aggregate verification recheck the original bytes as well as all
+  methods. Hosted enumeration has established this framing; successful hosted
+  result reconciliation and complete execution remain required.
 - Focused enumeration is reconciled against the exact plan before the lengthy
   resource tests start, then checked again with the retained results afterward.
   A missing complement, unexpected enabled method, disabled assigned method or
   malformed marker fails the gate. The same complete selection-state checks
   apply before every shard and during aggregate evidence verification.
-- A deterministic, complete, disjoint partition keeps whole suites together.
+- A deterministic, complete, disjoint partition keeps ordinary suites together.
+  The separate classification is exactly
+  `merianTests/SharedMediaNativeLiteralRecoveryTests/nativeCandidateAndSQLRepliesRemainLiteralThroughDurableRecovery`.
+  A missing selector, additional method in its suite, changed classification or
+  overlap with a hosted shard fails plan validation. Unknown ordinary suites
+  cannot be silently classified as integrations. The full compiled inventory
+  remains unchanged; the ordinary union plus this selector must equal it.
   `scripts/config/ios-unit-shard-weights.json` contains historical scheduling
   hints, including the later measured photo-role suite. These are not comparable
   performance baselines or pass thresholds. Unknown suites remain mandatory and
@@ -2268,11 +2288,16 @@ process. No declared cross-suite state dependency was identified in review.
   receipts from every raw summary, tree, qualifier and selected inventory. It
   rejects missing/extra shard artifacts, changed hashes, stale
   source/run/attempt, unexpected test nodes, duplicate methods/argument
-  identities and incomplete union coverage. It wraps the raw trees without
-  editing their suites or cases and invokes
+  identities and incomplete ordinary-suite union coverage. Its receipt records
+  `scope=hosted-unit-suites`, `complete_target=false`, `release_eligible=false`,
+  the full compiled count and the separate integration with
+  `status=not-executed`. Historical evidence never changes that status. It wraps
+  the raw trees without editing their suites or cases and invokes
   `validate-ios-critical-test-results.sh` unchanged. Production readiness
-  depends on this aggregate under the existing **Full iOS unit tests** check
-  name, plus the unchanged UI and Release archive gates.
+  depends on **Hosted iOS unit tests**, plus the unchanged UI and Release
+  archive gates. Its summary explicitly disclaims native/SQL integration
+  qualification. A green hosted result is not a full app acceptance or
+  distribution decision.
 
 A retry must use **Re-run all jobs** so products, plan and every shard receipt
 belong to one attempt. Rerunning only failed jobs intentionally cannot combine
@@ -2285,8 +2310,10 @@ publication, deployment or distribution.
 
 Portable verification includes adversarial inventory, parameter, provenance,
 archive and workflow tests through `make test-ios-ci-tooling`. Hosted product
-transfer, enumeration compatibility, the full assigned matrix and every
-exact-SHA release prerequisite remain required before merge.
+transfer, enumeration compatibility and the full ordinary assigned matrix remain
+required before consolidation, together with its scoped backend/web and external
+control prerequisites. Dedicated native/SQL and app acceptance remain separate
+activation/distribution requirements; the hosted result does not clear them.
 
 ### Repository Rule Setup
 
@@ -2296,21 +2323,25 @@ allow ordinary main pushes without a required PR or pre-push status check,
 retain administrator enforcement, and prohibit force pushes and branch deletion.
 
 `iOS Build and Test / Production readiness` remains the stable result to inspect
-for the exact main commit. A release requires the full unit target, all four
-critical UI smokes, and Release archive on that SHA; a scope-only success cannot
-substitute. Existing PR and merge-group triggers remain optional validation
-support, not a required development path. A direct main push runs the applicable
-iOS gate once and needs no merge or post-merge rerun. Admin Vercel promotion
-still requires its same-commit Deployment Check independently of branch rules.
+for the exact main commit. Hosted validation requires every ordinary unit suite,
+all six critical UI smokes, and Release archive on that SHA; a scope-only
+success cannot substitute. Dedicated integration and app-release acceptance are
+separate requirements; see the
+[literal qualification contract](./18-ios-runtime-quality-and-benchmarking.md#literal-native-disposable-sql-recovery-qualification).
+Existing PR and merge-group triggers remain optional validation support, not a
+required development path. A direct main push runs the applicable iOS gate once
+and needs no merge or post-merge rerun. Admin Vercel promotion still requires
+its same-commit Deployment Check independently of branch rules.
 
 ### Xcode Organizer Distribution Contract
 
-Distribution is deliberately outside CI. After exact-SHA **iOS Build and Test**
-passes, an operator archives the clean revision with Xcode and uploads it with
-Organizer **TestFlight & App Store**. Automatic signing and **Manage version and
-build number** remain enabled. Apple credentials stay in Xcode and the macOS
-Keychain; no workflow receives signing certificates or App Store Connect private
-keys.
+Distribution is deliberately outside CI. Only after exact-SHA **iOS Build and
+Test**, applicable dedicated integration and app-release acceptance pass, and
+distribution is explicitly authorized, an operator archives the clean revision
+with Xcode and uploads it with Organizer **TestFlight & App Store**. Automatic
+signing and **Manage version and build number** remain enabled. Apple
+credentials stay in Xcode and the macOS Keychain; no workflow receives signing
+certificates or App Store Connect private keys.
 
 `scripts/test-ios-xcode-release-workflow.sh` proves that:
 

@@ -140,7 +140,7 @@ def validate(workflow):
            "scripts/ios-unit-shards.py receipt")
     check(step(shards, "Retain shard coverage evidence")["with"]["name"] ==
           "ios-unit-shard-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}", "Evidence collision")
-    check(aggregate["name"] == "Full iOS unit tests" and aggregate["needs"] == ["scope", "ios-unit-build", "ios-unit-shards"],
+    check(aggregate["name"] == "Hosted iOS unit tests" and aggregate["needs"] == ["scope", "ios-unit-build", "ios-unit-shards"],
           "Aggregate bypasses a prerequisite")
     check(aggregate["if"] == "always() && needs.scope.outputs.should_run == 'true'", "Aggregate hidden on failures")
     check(aggregate["env"]["IOS_UNIT_PLAN_SHA256"] == shards["env"]["IOS_UNIT_PLAN_SHA256"] ==
@@ -157,14 +157,17 @@ def validate(workflow):
           and download["merge-multiple"] is False, "Evidence attempts mixed or directories flattened")
     check(step(aggregate, "Download exact runtime requalification evidence")["with"]["artifact-ids"] ==
           "${{ needs.ios-unit-build.outputs.requalification_id }}", "Focused artifact not bound to current build")
-    combined = script(aggregate, "Reconcile complete target and protected regressions", "scripts/ios-unit-shards.py aggregate",
-                      "bash scripts/validate-ios-critical-test-results.sh", "--requalification-directory")
+    combined = script(aggregate, "Reconcile hosted suites and protected regressions", "scripts/ios-unit-shards.py aggregate",
+                      "bash scripts/validate-ios-critical-test-results.sh", "--requalification-directory",
+                      "The opt-in native/SQL integration requires separate qualification.")
     check(combined.index("scripts/ios-unit-shards.py aggregate") < combined.index("bash scripts/validate-ios-critical-test-results.sh"),
           "Protected-only result substituted for complete target")
-    retained = step(aggregate, "Retain complete unit coverage evidence")
+    retained = step(aggregate, "Retain hosted unit coverage evidence")
     check(retained["if"] == "always()" and retained["with"]["if-no-files-found"] == "warn",
           "Aggregate failure diagnostics hidden or absent output masks original failure")
     check("ios-unit-tests" in jobs["production-readiness"]["needs"], "Production readiness bypasses aggregate")
+    script(jobs["production-readiness"], "Enforce iOS verification result",
+           "Dedicated native/SQL integration is not qualified by this workflow")
     for path in ("scripts/ios-unit-shards.py", "scripts/test-ios-unit-shards.py",
                  "scripts/test-ios-unit-shard-workflow.py", "scripts/config/ios-unit-shard-weights.json",
                  "scripts/discover-ios27-simulator.py", "scripts/test-discover-ios27-simulator.py"):
@@ -198,6 +201,8 @@ class WorkflowTests(unittest.TestCase):
                 "Enumerate transport and Foundation requalification suites"))),
             lambda j: j["ios-unit-tests"].update(needs=["scope", "ios-unit-build"]),
             lambda j: j["ios-unit-tests"].update(**{"if": "success()"}),
+            lambda j: j["ios-unit-tests"].update(name="Full iOS unit tests"),
+            lambda j: j["production-readiness"]["steps"][0].update(run="echo All tests passed"),
             lambda j: j["ios-unit-tests"]["steps"][0]["env"].update(SHARD_RESULT="success"),
             lambda j: j["production-readiness"]["needs"].remove("ios-unit-tests"),
             lambda j: j["ios-unit-shards"]["steps"].append({"name": "Requalify transport resources and iOS 27 parsing",

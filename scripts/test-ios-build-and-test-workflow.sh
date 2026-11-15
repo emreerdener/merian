@@ -355,7 +355,7 @@ assert_no_runner_context_in_job_env() {
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
-assert_contains "    name: Full iOS unit tests"
+assert_contains "    name: Hosted iOS unit tests"
 assert_count 1 'name: Prepare candidate unit-test simulator'
 assert_count 1 'name: Prepare candidate shard simulator'
 assert_count 2 'python3 -B scripts/discover-ios27-simulator.py --prepare-only'
@@ -463,7 +463,7 @@ assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
-assert_contains 'Every inventoried method and every observed parameter leaf passed; no skipped or duplicated coverage.'
+assert_contains 'Every ordinary inventoried method and observed parameter leaf passed; no skipped or duplicated hosted coverage. The opt-in native/SQL integration requires separate qualification.'
 assert_contains 'Exact analyzing, live-to-queue, retry, completion, protected chat, and explicit refresh UX regressions: \`passed\`'
 assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"

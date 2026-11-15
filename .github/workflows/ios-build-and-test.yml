@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute all ordinary iOS unit suites, record the opt-in native/SQL integration separately, run deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -556,7 +556,7 @@ jobs:
           retention-days: 14
 
   ios-unit-tests:
-    name: Full iOS unit tests
+    name: Hosted iOS unit tests
     needs: [scope, ios-unit-build, ios-unit-shards]
     if: always() && needs.scope.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -607,7 +607,7 @@ jobs:
           digest-mismatch: error
           path: ${{ runner.temp }}/ios-unit-requalification
 
-      - name: Reconcile complete target and protected regressions
+      - name: Reconcile hosted suites and protected regressions
         run: |
           python3 -B scripts/ios-unit-shards.py aggregate \
             --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
@@ -616,12 +616,12 @@ jobs:
           bash scripts/validate-ios-critical-test-results.sh \
             "$RUNNER_TEMP/ios-unit-aggregate/summary.json" "$RUNNER_TEMP/ios-unit-aggregate/tests.json"
           {
-            echo '### Complete compiled iOS unit coverage'
-            echo 'Every inventoried method and every observed parameter leaf passed; no skipped or duplicated coverage.'
+            echo '### Hosted compiled iOS unit coverage'
+            echo 'Every ordinary inventoried method and observed parameter leaf passed; no skipped or duplicated hosted coverage. The opt-in native/SQL integration requires separate qualification.'
             cat "$RUNNER_TEMP/ios-unit-aggregate/coverage.json"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Retain complete unit coverage evidence
+      - name: Retain hosted unit coverage evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1405,7 +1405,7 @@ jobs:
             echo "- Scope job: \`${SCOPE_RESULT}\`"
             echo "- macOS verification required: \`${SHOULD_RUN:-unknown}\`"
             echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
-            echo "- Full iOS tests: \`${UNIT_TEST_RESULT}\`"
+            echo "- Hosted iOS tests: \`${UNIT_TEST_RESULT}\`"
             echo "- Critical scan UI smokes: \`${UI_TEST_RESULT}\`"
             echo "- Current-SHA Release archive: \`${RELEASE_ARCHIVE_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1435,11 +1435,11 @@ jobs:
             || [ "$UI_TEST_RESULT" != "success" ] \
             || [ "$RELEASE_ARCHIVE_RESULT" != "success" ]; then
             echo \
-              "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
+              "Hosted iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "critical scan UI smokes: ${UI_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "The complete unit target, all six critical scan UI smokes, and current-SHA Release archive must all pass." >&2
+            echo "All hosted unit suites, all six critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed the complete iOS unit target, all six critical scan UI smokes, and Release archive validation."
+          echo "The exact workflow SHA passed hosted unit suites, all six critical scan UI smokes, and Release archive validation. Dedicated native/SQL integration is not qualified by this workflow; app activation and distribution require separate evidence."

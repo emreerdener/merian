@@ -36,6 +36,8 @@ EXPECTED_ARGUMENTS = {
     "merianTests/CaptureNativePhotoRoleAllocationTests/firstOriginalPutChecksExactProgressOnce(_:)": 3,
 }
 EXPECTED_EMPTY_SUPPORT = {"merianTests/ConsentManagerTestCase", "merianTests/OfflineQueueTestCase"}
+EXPECTED_INTEGRATIONS = ["merianTests/SharedMediaNativeLiteralRecoveryTests/"
+                         "nativeCandidateAndSQLRepliesRemainLiteralThroughDurableRecovery"]
 
 
 def enumeration_text(methods, *, full_target=False, full_inventory=None):
@@ -95,7 +97,8 @@ class ShardTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.methods = ["merianTests/Alpha/testOne", "merianTests/Alpha/parameter(value:)",
-                        "merianTests/Beta/testTwo", "merianTests/Gamma/testThree"] + sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
+                        "merianTests/Beta/testTwo", "merianTests/Gamma/testThree"] + sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS)) + EXPECTED_INTEGRATIONS
+        self.ordinary = [m for m in self.methods if m not in EXPECTED_INTEGRATIONS]
         self.enumeration = self.root / "enumeration.txt"
         self.enumeration.write_text(enumeration_text(self.methods, full_target=True))
         self.products = self.root / "products.tar.gz"
@@ -126,10 +129,34 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(shards.partition(self.methods, {"Alpha": 50}),
                          shards.partition(list(reversed(self.methods)), {"Alpha": 50}))
         plan = shards.load_plan(self.plan_file)
-        self.assertEqual(sorted(m for s in plan["shards"] for m in s["methods"]), sorted(self.methods))
+        self.assertEqual(sorted(m for s in plan["shards"] for m in s["methods"]), sorted(self.ordinary))
+        self.assertEqual(plan["separate_integrations"], EXPECTED_INTEGRATIONS)
+        self.assertEqual(plan["inventory"], sorted(self.methods))
         alpha = [s for s in plan["shards"] if "merianTests/Alpha" in s["suites"]]
         self.assertEqual(len(alpha), 1)
         self.assertEqual(len(alpha[0]["methods"]), 2)
+
+    def test_integration_classification_cannot_hide_missing_or_additional_methods(self):
+        for methods, integrations in (
+            (self.ordinary, EXPECTED_INTEGRATIONS),
+            (self.methods, []),
+            (self.methods, EXPECTED_INTEGRATIONS + ["merianTests/Alpha/testOne"]),
+            (self.methods + ["merianTests/SharedMediaNativeLiteralRecoveryTests/newTest"], EXPECTED_INTEGRATIONS),
+        ):
+            with self.subTest(methods=methods, integrations=integrations), self.assertRaises(ValueError):
+                shards.hosted_methods(sorted(methods), integrations)
+
+    def test_plan_rejects_ordinary_method_reclassified_or_integration_duplicated(self):
+        self.plan["separate_integrations"].append("merianTests/Alpha/testOne")
+        self.save_plan()
+        with self.assertRaisesRegex(ValueError, "classification"):
+            shards.load_plan(self.plan_file)
+        self.plan["separate_integrations"] = list(EXPECTED_INTEGRATIONS)
+        self.plan["shards"][0]["methods"] = sorted(self.plan["shards"][0]["methods"] + EXPECTED_INTEGRATIONS)
+        self.plan["shards"][0]["suites"] = sorted({shards.suite(m) for m in self.plan["shards"][0]["methods"]})
+        self.save_plan()
+        with self.assertRaisesRegex(ValueError, "partition"):
+            shards.load_plan(self.plan_file)
 
     def test_large_inventory_uses_bounded_sixteen_jobs_and_keeps_new_suites(self):
         methods = [f"merianTests/NewSuite{i}/test" for i in range(55)]
@@ -241,7 +268,7 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(shards.inventory(self.enumeration, full_target=True), sorted(self.methods))
         self.assertEqual(self.plan["empty_support_suites"], sorted(EXPECTED_EMPTY_SUPPORT))
         self.assertEqual(self.plan["enumeration_sha256"], shards.digest(self.enumeration))
-        self.assertEqual(sorted(m for s in self.plan["shards"] for m in s["methods"]), sorted(self.methods))
+        self.assertEqual(sorted(m for s in self.plan["shards"] for m in s["methods"]), sorted(self.ordinary))
 
     def test_full_inventory_requires_exact_empty_support_entries_and_no_executable_children(self):
         valid = self.enumeration.read_text()
@@ -475,15 +502,21 @@ class ShardTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 shards.result_methods(summary_for(self.methods), tree, qualification())
 
-    def test_aggregate_preserves_raw_trees_and_reconciles_complete_coverage(self):
+    def test_aggregate_preserves_raw_trees_and_discloses_separate_integration(self):
         evidence = self.evidence()
         output = self.root / "aggregate"
         shards.aggregate(self.plan, evidence, output, self.focused)
-        self.assertEqual(shards.read_json(output / "summary.json"), summary_for(self.methods))
+        self.assertEqual(shards.read_json(output / "summary.json"), summary_for(self.ordinary))
         raw = shards.read_json(output / "tests.json")["shards"]
         self.assertEqual(raw, [shards.read_json(evidence / f"ios-unit-shard-1234-attempt-1-{i}" / "tests.json")
                                for i in range(len(self.plan["shards"]))])
         self.assertEqual(shards.read_json(output / "coverage.json")["parameter_leaves"], 14)
+        coverage = shards.read_json(output / "coverage.json")
+        self.assertFalse(coverage["complete_target"])
+        self.assertFalse(coverage["release_eligible"])
+        self.assertEqual(coverage["compiled_methods"], len(self.methods))
+        self.assertEqual(coverage["scope"], "hosted-unit-suites")
+        self.assertEqual(coverage["separate_integrations"], {"methods": EXPECTED_INTEGRATIONS, "status": "not-executed"})
 
     def test_aggregate_rejects_missing_extra_and_stale_attempt_artifacts(self):
         evidence = self.evidence()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Partition the compiled unit inventory and reconcile every native result."""
+"""Inventory every method; reconcile hosted suites and disclose separate integration."""
 
 import argparse
 import hashlib
@@ -25,6 +25,11 @@ RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "27.2",
            "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,2"}
 PRODUCT = "tests.xctestproducts"
 MAX_JSON = 64 * 1024 * 1024
+# This existing opt-in integration requires an owned disposable SQL bridge.
+# Preserve it in the compiled inventory, but never claim that unarmed hosted
+# execution qualifies it. No other method may leave the ordinary shard union.
+SEPARATE_INTEGRATIONS = ["merianTests/SharedMediaNativeLiteralRecoveryTests/"
+                         "nativeCandidateAndSQLRepliesRemainLiteralThroughDurableRecovery"]
 REQUALIFICATION_SUITES = {"merianTests/" + name for name in (
     "PinnedPhotoUploadTaskTests", "CaptureNativePhotoRoleAllocationTests", "AppleFoundationVisualCueProviderTests")}
 FOUNDATION_METHODS = {"merianTests/AppleFoundationVisualCueProviderTests/" + name for name in (
@@ -152,14 +157,25 @@ def partition(methods, weights):
 def make_plan(enumeration, products, weights):
     methods = inventory(enumeration, full_target=True)
     require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
+    ordinary = hosted_methods(methods, SEPARATE_INTEGRATIONS)
     require(isinstance(weights, dict) and all(isinstance(k, str) and type(v) is int
             and 0 < v < 86400 for k, v in weights.items()), "Invalid scheduling weights")
-    return {"schema_version": 2, **identity(), "toolchain": TOOLCHAIN,
+    return {"schema_version": 3, **identity(), "toolchain": TOOLCHAIN,
             "configuration": "Debug", "runtime": RUNTIME, "target": TARGET,
             "build_workspace": os.environ["GITHUB_WORKSPACE"],
             "products_sha256": digest(products), "inventory": methods,
             "enumeration_sha256": digest(enumeration), "empty_support_suites": sorted(EMPTY_SUPPORT_SUITES),
-            "shards": partition(methods, weights)}
+            "separate_integrations": list(SEPARATE_INTEGRATIONS),
+            "shards": partition(ordinary, weights)}
+
+
+def hosted_methods(methods, integrations):
+    require(integrations == SEPARATE_INTEGRATIONS, "Unreviewed integration classification")
+    require(set(integrations).issubset(methods), "Required integration absent from compiled inventory")
+    integration_suites = {suite(method) for method in integrations}
+    require([m for m in methods if suite(m) in integration_suites] == integrations,
+            "Integration suite changed; review its complete method classification")
+    return [m for m in methods if m not in integrations]
 
 
 def load_plan(path, *, require_workspace=True):
@@ -167,7 +183,7 @@ def load_plan(path, *, require_workspace=True):
     plan = read_json(path)
     require(all(plan.get(k) == v for k, v in identity().items()),
             "Plan source/run/attempt mismatch; rerun all workflow jobs together")
-    require(plan.get("schema_version") == 2 and plan.get("toolchain") == TOOLCHAIN
+    require(plan.get("schema_version") == 3 and plan.get("toolchain") == TOOLCHAIN
             and plan.get("configuration") == "Debug" and plan.get("runtime") == RUNTIME
             and plan.get("target") == TARGET, "Plan qualification mismatch")
     require(isinstance(plan.get("build_workspace"), str) and plan["build_workspace"].startswith("/"), "Invalid build workspace")
@@ -177,12 +193,13 @@ def load_plan(path, *, require_workspace=True):
     require(isinstance(methods, list) and methods and methods == sorted(set(methods))
             and all(canonical(x) == x for x in methods), "Invalid plan inventory")
     require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
+    ordinary = hosted_methods(methods, plan.get("separate_integrations"))
     require(plan.get("empty_support_suites") == sorted(EMPTY_SUPPORT_SUITES)
             and not any(suite(method) in EMPTY_SUPPORT_SUITES for method in methods)
             and isinstance(plan.get("enumeration_sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", plan["enumeration_sha256"]), "Invalid full enumeration binding")
     shards = plan.get("shards")
-    require(isinstance(shards, list) and len(shards) == min(SHARDS, len({suite(x) for x in methods})),
+    require(isinstance(shards, list) and len(shards) == min(SHARDS, len({suite(x) for x in ordinary})),
             "Invalid shard count")
     assigned, owned_suites = [], []
     for index, shard in enumerate(shards):
@@ -194,7 +211,7 @@ def load_plan(path, *, require_workspace=True):
         require(selected == [x for x in methods if suite(x) in names], "A suite was split or omitted")
         assigned.extend(selected)
         owned_suites.extend(names)
-    require(sorted(assigned) == methods and len(set(owned_suites)) == len(owned_suites),
+    require(sorted(assigned) == ordinary and len(set(owned_suites)) == len(owned_suites),
             "Incomplete or overlapping shard partition")
     require(re.fullmatch(r"[a-f0-9]{64}", plan.get("products_sha256", "")), "Invalid product digest")
     return plan
@@ -448,7 +465,8 @@ def aggregate(plan, evidence, output, requalification_directory):
         methods.extend(value["methods"])
         parameters += value["parameter_leaves"]
         trees.append(read_json(directory / "tests.json"))
-    require(sorted(methods) == plan["inventory"] and len(methods) == len(set(methods)), "Aggregate coverage mismatch")
+    require(sorted(methods) == hosted_methods(plan["inventory"], plan["separate_integrations"])
+            and len(methods) == len(set(methods)), "Aggregate coverage mismatch")
     output.mkdir(parents=True, exist_ok=True)
     write_json(output / "summary.json", {"result": "Passed", "totalTestCount": len(methods), "passedTests": len(methods),
                                         "failedTests": 0, "skippedTests": 0})
@@ -457,6 +475,9 @@ def aggregate(plan, evidence, output, requalification_directory):
     write_json(output / "tests.json", {"shards": trees})
     write_json(output / "coverage.json", {**identity(), "plan_sha256": os.environ["IOS_UNIT_PLAN_SHA256"],
                "status": "passed", "methods": len(methods), "parameter_leaves": parameters, "shards": len(trees),
+               "scope": "hosted-unit-suites", "complete_target": False, "release_eligible": False,
+               "compiled_methods": len(plan["inventory"]),
+               "separate_integrations": {"methods": plan["separate_integrations"], "status": "not-executed"},
                "requalification": {"receipt_sha256": digest(focused / "receipt.json"),
                                    "products_sha256": focused_receipt["products_sha256"]}})
 

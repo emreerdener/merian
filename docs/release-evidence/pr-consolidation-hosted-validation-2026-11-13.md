@@ -712,3 +712,94 @@ No production deadline, immutable allocation TTL, clock, workflow budget or
 decoder assertion changes. Independent review favored this fixture-only repair
 over a new production clock or timeout seam. Fresh native validation is still
 required; this source change does not qualify the failed original run.
+
+## November 15 — reviewed historical evidence and integration scope
+
+The user requested review of changes since the November 9 test, reuse of
+applicable evidence, and only necessary reruns. No new Mac toolchain, simulator,
+Docker database or hosted beta mutation is needed for this review.
+
+The retained `completion286-join02` execution finished successfully on November
+9: one native method/case, zero failures/skips, 116 SQL checks and 12 fixture
+assertions. Candidate and four public-wire digests matched, the owned native and
+bridge children exited, and disposable database cleanup passed. The retained
+`completion286-runtime-review02.json` independently accepted that bounded
+literal SQL/native recovery join. It did not qualify live Auth/provider/R2,
+process death, phone behavior, full app acceptance or distribution. The native
+log used SDK 27.2; the actual test device was arm64 iOS 26.5 build `23F77`.
+These are historical observations, not the current hosted runtime identity.
+
+The integration test itself, native packet validator, runtime journey and
+request-journey runner are byte-identical to that receipt. This does not prove
+all dependencies unchanged. The historical record had 516 migrations; the
+candidate has 522, with six additions and none removed. Eleven inputs in the
+862-file SQL record differ, including the bridge and fixture support. The wider
+retained manifests include unrelated source, tests, documentation and assets;
+changed-file totals do not by themselves establish a new integration failure.
+
+Independent backend review found those eleven inputs unchanged between
+`83e2de4e065d4e4921ec87d367e1996186da9bc6` and
+`a9970171b0917ba939dca7dad869f10631728f9f`. Their entire `services/supabase`
+trees are identical. Candidate Validation run `43699312606` already passed all
+three jobs and 53 steps on `83e2de4`; that is supporting validation of the
+unchanged backend inputs, not a newly issued whole-candidate receipt for `a997`.
+Archive-read tests were relocated into their executable integration runner, not
+removed. Storage changes use normal backend coverage; the literal fixture's
+fixed local storage responses never qualified live R2. No additional backend
+runtime run is warranted solely for this delta review. The packet's final
+publication/deployment checks remain separate prerequisites.
+
+The earlier proposal in “Literal native and SQL coverage prerequisite” treated
+one same-product joined integration run as mandatory for this consolidation.
+That proposal is superseded by the scoped classification below. The original
+approval packet preserves unfinished native work and explicitly does not qualify
+an app release. Historical integration evidence remains historical; any affected
+feature activation or current integration claim needs its own app-workstream
+evidence and review. PR150 and active History remain separate.
+
+The schema-3 compiled plan preserves the exact opt-in integration method and its
+whole suite in `separate_integrations`. Every other compiled method belongs to
+exactly one hosted shard. Missing integration, additional methods in that suite,
+changed classification, overlapping assignment, omitted ordinary tests,
+failed/skipped results and stale artifacts fail validation. **Hosted iOS unit
+tests** reports only ordinary-suite coverage. Its receipt explicitly records
+`complete_target=false`, `release_eligible=false`, the full compiled count and
+integration `status=not-executed`. The workflow never converts the unarmed skip
+or November 9 pass into current integration success. Runtime assertions, test
+bodies, SQL, toolchain pins, hosted identity checks, UI smokes and archive
+checks are unchanged by this classification repair.
+
+Original shard 11 also completed 621 methods with zero failures/skips. Its
+original verifier rejected opaque parameter identities; the already-reviewed
+parser repair reconciled all 621 methods and 624 parameter leaves in a local
+diagnostic replay. Original hosted failure remains retained. The remaining
+original shards and hosted validation of the repair remain pending; no merge,
+deployment, activation or app-distribution clearance is claimed.
+
+Independent native review also found real changes in the historical execution
+closure: submission session, allocation access, completion documents,
+authenticated transport, receiving owner and test helpers differ from November
+9. Manifest hashes identify those differences; they do not establish behavioral
+equivalence. More recent hosted ordinary evidence already covers the recovery
+model and received-status transport (shard 11) and completion documents (shard
+4). Relative to `83e2de4`, the later receiving-owner repair restores the private
+lock boundary and relocates byte-identical preview code; the literal test's
+admission recovery, completion recovery and history acknowledgement bodies are
+unchanged. Normal current-source validation must still cover the repaired
+bounded-status fixture, private-lock boundary and other reviewed fixture fixes.
+It does not need to arm the database bridge for this backend/web packet.
+
+Reachability is deliberately not summarized as “all recovery is disabled.” The
+ordinary submission dependency factory does not wire the fresh native photo
+submission/allocation factory exercised by the first half of this integration.
+Recovery has conditional Release wiring through
+`PreparedHistoryReanalysisComposition.isAppInstallationQualified`. Remaining
+native acceptance therefore stays with the app workstream; the consolidation
+neither installs an app nor establishes current app-release qualification.
+
+An offline preview of the historical compiled inventory preserves all 7,317
+methods: 7,316 ordinary methods in sixteen whole-suite shards and the one
+explicitly retained integration method. This previews classification only and is
+not runtime evidence. The first full portable gate reached the workflow contract
+and rejected its stale full-target summary wording. That assertion was updated
+to require the truthful scoped summary; the failure log remains retained.
