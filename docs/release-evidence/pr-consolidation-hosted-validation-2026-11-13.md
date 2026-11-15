@@ -461,3 +461,38 @@ unit coverage, UI/archive and all other exact-SHA packet prerequisites remain
 required. The simulator support report stays local. No PR closure, main update,
 Supabase deployment or Naturebook production promotion is authorized by these
 local observations alone.
+
+## Hosted flat-inventory framing repair
+
+Diagnostic `9ddba5fb5b3d7a9bfa3f6525931fcd552e2225ea`, native run 43688035667
+attempt 1, passed compilation and the exact in-process simulator identity check.
+All six critical UI tests and the unsigned Release archive validation passed.
+Their retained artifact digests and source bindings were independently checked.
+Full unit validation failed before focused execution: the planner treated
+Xcode's `Plan Merian` header as a method identifier. The subsequent missing
+focused artifact and aggregate failures are consequences; the original run
+remains failed.
+
+Build artifact 14152501591 was independently verified against SHA-256
+`49f091fd48bec0321439b01f3bb8c3306b366a966390a6682991823258278c12`. Its raw
+enumeration digest is
+`8644e88fe687f67417bc7934b97f302a77b33e4572c3dade4f0e9da1433bcb41`. The 7,320
+lines comprise the exact plan header, 7,317 executable method selectors across
+988 suites, and two bare XCTest lifecycle-support classes:
+`ConsentManagerTestCase` and `OfflineQueueTestCase`. Every selector has one
+leading tab. Source inspection confirms both classes declare setup/teardown or
+helpers and no test methods. All seven required Foundation methods and 24
+focused requalification methods are present.
+
+The parser repair recognizes this exact framing, requires and separately binds
+the two support-only entries in a version-2 plan, and preserves every executable
+method. Unknown bare selectors, duplicate entries, malformed indentation,
+unexpected plans, methods under a declared empty base, and support entries in a
+selected shard/focused inventory fail closed. The plan binds the raw full
+enumeration digest, which focused and aggregate verification recheck. Replaying
+the retained hosted inventory produces sixteen disjoint whole-suite partitions
+covering all 7,317 methods; it does not execute native tests. No skip selector,
+test assertion, native source, runtime identity, timeout or workflow budget is
+changed. Fresh hosted product transfer, focused resource requalification and
+complete shard/result reconciliation remain mandatory. PR152 and main stay
+frozen, PR150 and History remain separate, and the support report stays local.

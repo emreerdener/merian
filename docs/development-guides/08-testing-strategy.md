@@ -2206,10 +2206,20 @@ process. No declared cross-suite state dependency was identified in review.
 `scripts/ios-unit-shards.py` owns these controls:
 
 - The full compiled inventory comes from Xcode 27's `-enumerate-tests` with flat
-  text identifiers. Empty, malformed, duplicate or foreign-target entries fail.
-  Only exact trailing `()` normalization bridges XCTest result spelling; Swift
-  argument labels remain intact. The first hosted run must prove the actual
-  Xcode enumeration/result mapping; portable parser fixtures cannot.
+  text identifiers: one exact `Plan Merian` header and one tab before each
+  selector. The full target also reports the two support-only XCTest bases
+  `merianTests/ConsentManagerTestCase` and `merianTests/OfflineQueueTestCase`.
+  Neither declares a test method. The parser requires exactly those two bare
+  entries in the full inventory, records them in the plan, and rejects unknown
+  bare selectors, duplicates or executable methods under either base. Selected
+  shard and focused inventories allow no bare support entries. These are bound
+  structural metadata, not skipped tests or scheduled methods. Empty, malformed,
+  duplicate or foreign-target method entries fail. Only exact trailing `()`
+  normalization bridges XCTest result spelling; Swift argument labels remain
+  intact. The version-2 plan also binds the raw full-enumeration SHA-256;
+  focused and aggregate verification recheck the original bytes as well as all
+  methods. Hosted enumeration has established this framing; successful hosted
+  result reconciliation and complete execution remain required.
 - A deterministic, complete, disjoint partition keeps whole suites together.
   `scripts/config/ios-unit-shard-weights.json` contains historical scheduling
   hints, including the later measured photo-role suite. These are not comparable

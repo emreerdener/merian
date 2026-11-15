@@ -14,6 +14,10 @@ import uuid
 from urllib.parse import unquote, urlsplit
 
 TARGET = "merianTests"
+# Xcode's full flat enumeration also reports these XCTest lifecycle bases.
+# Neither declares test methods. Preserve their presence separately from methods;
+# unknown bare suite selectors fail instead of silently dropping possible tests.
+EMPTY_SUPPORT_SUITES = {TARGET + "/ConsentManagerTestCase", TARGET + "/OfflineQueueTestCase"}
 SHARDS = 16
 TOOLCHAIN = "Xcode 27.0 Build version 27A266a"
 RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "27.2",
@@ -88,11 +92,19 @@ def canonical(selector):
     return selector[:-2] if selector.endswith("()") else selector
 
 
-def inventory(path):
+def inventory(path, *, full_target=False):
     require(Path(path).stat().st_size <= MAX_JSON, "Oversized compiled inventory")
     lines = Path(path).read_text().splitlines()
-    require(lines and all(lines), "Empty enumeration or blank inventory line")
-    result = [canonical(line) for line in lines]
+    require(len(lines) > 1 and lines[0] == "Plan Merian", "Missing or unexpected compiled test plan header")
+    require(all(line.startswith("\t") and not line.startswith("\t\t") for line in lines[1:]),
+            "Invalid compiled selector indentation")
+    selectors = [line[1:] for line in lines[1:]]
+    empty = [line for line in selectors if line in EMPTY_SUPPORT_SUITES]
+    require(len(empty) == len(set(empty)) and set(empty) == (EMPTY_SUPPORT_SUITES if full_target else set()),
+            "Missing, duplicate or unexpected empty support suite")
+    result = [canonical(line) for line in selectors if line not in EMPTY_SUPPORT_SUITES]
+    require(result and not any(suite(method) in EMPTY_SUPPORT_SUITES for method in result),
+            "Empty support suite contains executable methods")
     require(len(set(result)) == len(result), "Duplicate compiled test identifier")
     return sorted(result)
 
@@ -125,14 +137,15 @@ def partition(methods, weights):
 
 
 def make_plan(enumeration, products, weights):
-    methods = inventory(enumeration)
+    methods = inventory(enumeration, full_target=True)
     require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
     require(isinstance(weights, dict) and all(isinstance(k, str) and type(v) is int
             and 0 < v < 86400 for k, v in weights.items()), "Invalid scheduling weights")
-    return {"schema_version": 1, **identity(), "toolchain": TOOLCHAIN,
+    return {"schema_version": 2, **identity(), "toolchain": TOOLCHAIN,
             "configuration": "Debug", "runtime": RUNTIME, "target": TARGET,
             "build_workspace": os.environ["GITHUB_WORKSPACE"],
             "products_sha256": digest(products), "inventory": methods,
+            "enumeration_sha256": digest(enumeration), "empty_support_suites": sorted(EMPTY_SUPPORT_SUITES),
             "shards": partition(methods, weights)}
 
 
@@ -141,7 +154,7 @@ def load_plan(path, *, require_workspace=True):
     plan = read_json(path)
     require(all(plan.get(k) == v for k, v in identity().items()),
             "Plan source/run/attempt mismatch; rerun all workflow jobs together")
-    require(plan.get("schema_version") == 1 and plan.get("toolchain") == TOOLCHAIN
+    require(plan.get("schema_version") == 2 and plan.get("toolchain") == TOOLCHAIN
             and plan.get("configuration") == "Debug" and plan.get("runtime") == RUNTIME
             and plan.get("target") == TARGET, "Plan qualification mismatch")
     require(isinstance(plan.get("build_workspace"), str) and plan["build_workspace"].startswith("/"), "Invalid build workspace")
@@ -151,6 +164,10 @@ def load_plan(path, *, require_workspace=True):
     require(isinstance(methods, list) and methods and methods == sorted(set(methods))
             and all(canonical(x) == x for x in methods), "Invalid plan inventory")
     require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
+    require(plan.get("empty_support_suites") == sorted(EMPTY_SUPPORT_SUITES)
+            and not any(suite(method) in EMPTY_SUPPORT_SUITES for method in methods)
+            and isinstance(plan.get("enumeration_sha256"), str)
+            and re.fullmatch(r"[a-f0-9]{64}", plan["enumeration_sha256"]), "Invalid full enumeration binding")
     shards = plan.get("shards")
     require(isinstance(shards, list) and len(shards) == min(SHARDS, len({suite(x) for x in methods})),
             "Invalid shard count")
@@ -368,8 +385,10 @@ def requalification(directory, *, require_workspace=True):
     """Focused prerequisite, never a substitute for complete shard coverage."""
     directory = Path(directory)
     plan = load_plan(directory / "plan.json", require_workspace=require_workspace)
-    full = inventory(directory / "full-inventory.txt")
+    full = inventory(directory / "full-inventory.txt", full_target=True)
     require(full == plan["inventory"], "Focused full inventory differs from immutable plan")
+    require(digest(directory / "full-inventory.txt") == plan["enumeration_sha256"],
+            "Focused full enumeration digest differs from immutable plan")
     require(FOUNDATION_METHODS.issubset(full), "Required iOS 27 parser inventory is incomplete")
     expected = [m for m in full if suite(m) in REQUALIFICATION_SUITES]
     require({suite(m) for m in expected} == REQUALIFICATION_SUITES

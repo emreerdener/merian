@@ -33,6 +33,12 @@ EXPECTED_ARGUMENTS = {
     "merianTests/CaptureNativePhotoRoleAllocationTests/freshCaptureSendsOneFrozenSourceAndFencesChanges(duringTicket:)": 7,
     "merianTests/CaptureNativePhotoRoleAllocationTests/firstOriginalPutChecksExactProgressOnce(_:)": 3,
 }
+EXPECTED_EMPTY_SUPPORT = {"merianTests/ConsentManagerTestCase", "merianTests/OfflineQueueTestCase"}
+
+
+def enumeration_text(methods, *, full_target=False):
+    selectors = list(methods) + (sorted(EXPECTED_EMPTY_SUPPORT) if full_target else [])
+    return "Plan Merian\n" + "".join("\t" + method + "\n" for method in selectors)
 
 
 def qualification():
@@ -88,7 +94,7 @@ class ShardTests(unittest.TestCase):
         self.methods = ["merianTests/Alpha/testOne", "merianTests/Alpha/parameter(value:)",
                         "merianTests/Beta/testTwo", "merianTests/Gamma/testThree"] + sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
         self.enumeration = self.root / "enumeration.txt"
-        self.enumeration.write_text("\n".join(self.methods) + "\n")
+        self.enumeration.write_text(enumeration_text(self.methods, full_target=True))
         self.products = self.root / "products.tar.gz"
         self.products.write_bytes(b"compiled product fixture")
         self.plan = shards.make_plan(self.enumeration, self.products, {"Alpha": 50})
@@ -106,7 +112,7 @@ class ShardTests(unittest.TestCase):
         for shard in self.plan["shards"]:
             directory = root / f"ios-unit-shard-1234-attempt-1-{shard['index']}"
             directory.mkdir()
-            (directory / "enumeration.txt").write_text("\n".join(shard["methods"]) + "\n")
+            (directory / "enumeration.txt").write_text(enumeration_text(shard["methods"]))
             shards.write_json(directory / "summary.json", summary_for(shard["methods"]))
             shards.write_json(directory / "tests.json", tree_for(shard["methods"]))
             shards.write_json(directory / "qualification.json", qualification())
@@ -130,7 +136,8 @@ class ShardTests(unittest.TestCase):
         self.assertTrue(all(s["methods"] for s in partition))
 
     def test_plan_rejects_missing_required_ios27_parser_method(self):
-        self.enumeration.write_text("\n".join(m for m in self.methods if m != sorted(shards.FOUNDATION_METHODS)[0]) + "\n")
+        self.enumeration.write_text(enumeration_text(
+            [m for m in self.methods if m != sorted(shards.FOUNDATION_METHODS)[0]], full_target=True))
         with self.assertRaisesRegex(ValueError, "parser inventory"):
             shards.make_plan(self.enumeration, self.products, {})
 
@@ -141,7 +148,7 @@ class ShardTests(unittest.TestCase):
         methods = sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
         shards.write_json(directory / "plan.json", self.plan)
         (directory / "full-inventory.txt").write_text(self.enumeration.read_text())
-        (directory / "enumeration.txt").write_text("\n".join(methods) + "\n")
+        (directory / "enumeration.txt").write_text(enumeration_text(methods))
         tree = tree_for(methods)
         for suite in tree["testNodes"][0]["children"][0]["children"]:
             for case in suite["children"]:
@@ -172,7 +179,7 @@ class ShardTests(unittest.TestCase):
     def test_requalification_rejects_omitted_compiled_method_even_when_focus_passes(self):
         directory = self.requalification_evidence()
         with (directory / "full-inventory.txt").open("a") as output:
-            output.write("merianTests/PinnedPhotoUploadTaskTests/newRequiredMethod\n")
+            output.write("\tmerianTests/PinnedPhotoUploadTaskTests/newRequiredMethod\n")
         with self.assertRaisesRegex(ValueError, "Focused full inventory"):
             shards.requalification(directory)
 
@@ -212,13 +219,59 @@ class ShardTests(unittest.TestCase):
             shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
 
     def test_inventory_rejects_duplicates_headers_empty_and_other_targets(self):
-        for text in ["", "\n", "merianTests/A/test\n\n", "Test plan: Merian\n",
-                     "merianTests/A/test\nmerianTests/A/test()\n", "other/A/test\n",
-                     "merianTests/A/test?args=123\n", "merianTests/../test\n", "merianTests/A/test\t\n"]:
+        for text in ["", "\n", "Plan Merian\n", "Test plan: Merian\n\tmerianTests/A/test\n",
+                     "Plan Other\n\tmerianTests/A/test\n", "merianTests/A/test\n",
+                     "Plan Merian\nmerianTests/A/test\n", "Plan Merian\n  merianTests/A/test\n",
+                     "Plan Merian\n\t\tmerianTests/A/test\n", "Plan Merian\n\tmerianTests/A/test\n\n",
+                     enumeration_text(["merianTests/A/test", "merianTests/A/test()"]),
+                     enumeration_text(["other/A/test"]), enumeration_text(["merianTests/A/test?args=123"]),
+                     enumeration_text(["merianTests/../test"]), enumeration_text(["merianTests/A/test\t"]),
+                     enumeration_text(["merianTests/A/test", "Plan Merian"]),
+                     enumeration_text(["merianTests/A/test", "merianTests/UnknownEmptySuite"])]:
             with self.subTest(text=text):
                 self.enumeration.write_text(text)
                 with self.assertRaises(ValueError):
                     shards.inventory(self.enumeration)
+
+    def test_hosted_enumeration_framing_preserves_all_methods_and_support_entries(self):
+        self.assertEqual(shards.EMPTY_SUPPORT_SUITES, EXPECTED_EMPTY_SUPPORT)
+        self.assertEqual(shards.inventory(self.enumeration, full_target=True), sorted(self.methods))
+        self.assertEqual(self.plan["empty_support_suites"], sorted(EXPECTED_EMPTY_SUPPORT))
+        self.assertEqual(self.plan["enumeration_sha256"], shards.digest(self.enumeration))
+        self.assertEqual(sorted(m for s in self.plan["shards"] for m in s["methods"]), sorted(self.methods))
+
+    def test_full_inventory_requires_exact_empty_support_entries_and_no_executable_children(self):
+        valid = self.enumeration.read_text()
+        for text in [valid.replace("\tmerianTests/ConsentManagerTestCase\n", ""),
+                     valid + "\tmerianTests/ConsentManagerTestCase\n",
+                     valid + "\tmerianTests/ConsentManagerTestCase/newRequiredTest()\n",
+                     valid + "\tmerianTests/UnknownEmptySuite\n"]:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.enumeration.write_text(text)
+                shards.inventory(self.enumeration, full_target=True)
+
+    def test_selected_inventory_rejects_unassigned_empty_support_entries(self):
+        with self.assertRaisesRegex(ValueError, "empty support suite"):
+            shards.inventory(self.enumeration)
+
+    def test_full_inventory_raw_digest_is_reconciled_even_when_methods_are_identical(self):
+        path = self.focused / "full-inventory.txt"
+        lines = path.read_text().splitlines()
+        path.write_text("\n".join([lines[0]] + list(reversed(lines[1:]))) + "\n")
+        with self.assertRaisesRegex(ValueError, "enumeration digest"):
+            shards.requalification(self.focused)
+
+    def test_plan_rejects_removed_or_unbound_support_entries(self):
+        original = copy.deepcopy(self.plan)
+        for mutation in [lambda p: p.pop("empty_support_suites"),
+                         lambda p: p["empty_support_suites"].pop(),
+                         lambda p: p.update(enumeration_sha256="invalid"),
+                         lambda p: p.pop("enumeration_sha256")]:
+            self.plan = copy.deepcopy(original)
+            mutation(self.plan)
+            self.save_plan()
+            with self.assertRaisesRegex(ValueError, "enumeration binding"):
+                shards.load_plan(self.plan_file)
 
     def test_missing_overlapping_or_split_plan_never_loads(self):
         original = copy.deepcopy(self.plan)
