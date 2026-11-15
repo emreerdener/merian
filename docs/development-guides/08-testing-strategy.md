@@ -1808,9 +1808,9 @@ HTTP request is dispatched. See the
    execution rather than assert performance. At most four shards run
    concurrently per workflow, each with a separate simulator and filesystem.
 
-   The separate `iOS Runtime Installation Experiment` workflow runs only on the
-   isolated `codex/pr152-simulator-diagnostics-20261114` branch. It tests an
-   **installer-registration hypothesis**, not a confirmed cause of the 23F77
+   The historical `iOS Runtime Installation Experiment` workflow is now
+   manual-only; do not rerun it without a materially new hypothesis. It tested
+   an **installer-registration hypothesis**, not a confirmed cause of the 23F77
    failures.
    [Apple documents secure exported runtime import](https://developer.apple.com/documentation/xcode-release-notes/xcode-26_4-release-notes);
    [a runner-images report](https://github.com/actions/runner-images/issues/14946)
@@ -1856,6 +1856,19 @@ HTTP request is dispatched. See the
    only successful target qualification sets `setup_qualified`. Even successful
    setup requires a separately reviewed repair and complete validation before
    consolidation can advance. PR152 remains frozen during the experiment.
+
+   The complete unit configuration has a known coverage conflict: its iOS 26.5
+   qualification cannot execute the seven required iOS 27 Foundation parser
+   methods. The isolated `iOS Candidate Runtime Discovery` workflow therefore
+   observes the preinstalled iOS 27.2 build `24B8117`, using a newly owned
+   iPhone 18 Pro simulator. It requires exact installed identity/device support,
+   cache readiness, boot and bounded guest queries, without installing a
+   substitute runtime or guessing its model identifier. The receipt always says
+   `qualified: false` and `release_eligible: false`: this only establishes a
+   candidate identity for review. The measured transport resource/drain tests
+   and dependent accepted photo allocation cases must be requalified without
+   assertion changes, followed by complete exact-SHA coverage with zero skips.
+   Until then the existing unit gate remains blocked and PR152 stays frozen.
 
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The

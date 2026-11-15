@@ -288,7 +288,7 @@ class WorkflowTests(unittest.TestCase):
         workflow = json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
                               "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json", str(path)], text=True))
         self.assertEqual(workflow.get("on", workflow.get("true")),
-                         {"push": {"branches": ["codex/pr152-simulator-diagnostics-20261114"]}})
+                         {"workflow_dispatch": None})
         self.assertEqual(workflow["permissions"], {"contents": "read"})
         self.assertEqual(set(workflow["jobs"]), {"export-runtime", "import-runtime"})
         exporter, importer = (workflow["jobs"][key] for key in ("export-runtime", "import-runtime"))
