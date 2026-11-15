@@ -1828,17 +1828,21 @@ HTTP request is dispatched. See the
    Transfer preserves the complete single `.exportedBundle` file tree, hidden
    entries and file modes inside a tar file. Export rejects links and special
    files. The archive is capped at 16 GiB and 4,096 members, uploaded immutably
-   with one-day retention, and downloaded only by the producer's artifact ID
-   with `digest-mismatch: error`. The consumer verifies the producer's source
-   SHA, run, attempt and tar SHA-256, validates all archive paths and parent
-   relationships before writing, and extracts into a fresh owned directory. It
-   rejects links, sparse entries, duplicate/case-colliding names and payload
-   overflow. Tar preserves the represented file metadata; it does not establish
-   that every macOS extended attribute round-tripped. Apple's secure import and
-   the unchanged qualification are required to prove the transferred bundle
-   usable. The bundle is never unpacked on a developer's Mac. Only the bounded
-   setup receipts are retained for fourteen days; raw logs and runner
-   directories are not uploaded.
+   with one-day retention as one raw file (`archive: false`), and downloaded
+   only by the producer's artifact ID with `skip-decompress: true` and
+   `digest-mismatch: error`. This avoids the ZIP extraction path that timed out
+   before import; it is a transport hypothesis, not a proven cause or fix. The
+   raw artifact uses the tar filename, including the run and attempt, and the
+   consumer requires that exact filename without a name/pattern fallback. The
+   consumer verifies the producer's source SHA, run, attempt and tar SHA-256,
+   validates all archive paths and parent relationships before writing, and
+   extracts into a fresh owned directory. It rejects links, sparse entries,
+   duplicate/case-colliding names and payload overflow. Tar preserves the
+   represented file metadata; it does not establish that every macOS extended
+   attribute round-tripped. Apple's secure import and the unchanged
+   qualification are required to prove the transferred bundle usable. The bundle
+   is never unpacked on a developer's Mac. Only the bounded setup receipts are
+   retained for fourteen days; raw logs and runner directories are not uploaded.
 
    This separate experiment allows 360 seconds for source export and 360 seconds
    for target import; these are distinct phases on different hosts. Each

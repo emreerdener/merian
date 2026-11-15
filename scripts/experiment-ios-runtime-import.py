@@ -242,8 +242,9 @@ def main():
         receipt.update(identity)
         runner_temp = Path(os.environ["RUNNER_TEMP"])
         require(runner_temp.is_absolute() and runner_temp.is_dir(), "Invalid runner temporary directory.")
+        archive_name = f"runtime-export-{identity['run_id']}-attempt-{identity['run_attempt']}.tar"
         if args.mode == "export":
-            export_runtime(runner_temp, runner_temp / "runtime-export.tar", receipt)
+            export_runtime(runner_temp, runner_temp / archive_name, receipt)
             with open(os.environ["GITHUB_OUTPUT"], "a") as output:
                 for key in ("tar_sha256", "source_sha", "run_id", "run_attempt"):
                     output.write(key + "=" + receipt[key] + "\n")
@@ -252,7 +253,7 @@ def main():
             destination = runner_temp / "runtime-import-bundle"
             if args.mode == "unpack":
                 inspect_runtime(receipt, "before_unpack", 0)
-                unpack_bundle(runner_temp / "runtime-input/runtime-export.tar", destination, receipt["tar_sha256"])
+                unpack_bundle(runner_temp / "runtime-input" / archive_name, destination, receipt["tar_sha256"])
             else:
                 # Same runner, with no intervening mutation step after verified
                 # unpack. Recheck absence immediately before Apple's import.

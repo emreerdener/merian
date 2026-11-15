@@ -43,9 +43,8 @@ jobs:
         timeout-minutes: 10
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: runtime-export-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/runtime-export.tar
-          compression-level: 0
+          path: ${{ runner.temp }}/runtime-export-${{ github.run_id }}-attempt-${{ github.run_attempt }}.tar
+          archive: false
           if-no-files-found: error
           retention-days: 1
       - name: Retain export receipt
@@ -88,6 +87,7 @@ jobs:
           artifact-ids: ${{ needs.export-runtime.outputs.artifact_id }}
           merge-multiple: true
           digest-mismatch: error
+          skip-decompress: true
           path: ${{ runner.temp }}/runtime-input
       - name: Verify transfer and unpack into fresh directory
         timeout-minutes: 5

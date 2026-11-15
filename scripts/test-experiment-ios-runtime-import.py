@@ -241,6 +241,7 @@ class TransferTests(unittest.TestCase):
         evidence = self.root / "export.json"
         output = self.root / "outputs"
         def export(runner_temp, archive, receipt):
+            self.assertEqual(archive.name, f"runtime-export-{HOST['GITHUB_RUN_ID']}-attempt-1.tar")
             receipt["tar_sha256"] = "c" * 64
         env = dict(HOST, RUNNER_TEMP=str(self.root), GITHUB_OUTPUT=str(output))
         with patch.dict(os.environ, env, clear=True), patch.object(experiment.platform, "machine", return_value="arm64"), patch.object(sys, "argv", ["experiment", "export", "--evidence", str(evidence)]), patch.object(experiment, "export_runtime", side_effect=export):
@@ -250,6 +251,16 @@ class TransferTests(unittest.TestCase):
         self.assertFalse(receipt["setup_qualified"])
         self.assertFalse(receipt["release_eligible"])
         self.assertIn("run_attempt=1\n", output.read_text())
+
+    def test_unpack_uses_exact_raw_filename_from_current_run_and_attempt(self):
+        evidence = self.root / "unpack.json"
+        env = dict(HOST, **PROVENANCE, RUNNER_TEMP=str(self.root))
+        with patch.dict(os.environ, env, clear=True), patch.object(experiment.platform, "machine", return_value="arm64"), patch.object(sys, "argv", ["experiment", "unpack", "--evidence", str(evidence)]), patch.object(experiment, "inspect_runtime"), patch.object(experiment, "unpack_bundle") as unpack:
+            self.assertEqual(experiment.main(), 0)
+            unpack.assert_called_once_with(
+                self.root / "runtime-input" / f"runtime-export-{HOST['GITHUB_RUN_ID']}-attempt-1.tar",
+                self.root / "runtime-import-bundle", PROVENANCE["EXPORT_TAR_SHA256"])
+        self.assertFalse(json.loads(evidence.read_text())["setup_qualified"])
 
     def test_stale_provenance_cli_fails_before_extraction(self):
         evidence = self.root / "unpack.json"
@@ -298,14 +309,17 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(steps[-1]["if"], "always()")
         upload = exporter["steps"][3]
         self.assertEqual(upload["timeout-minutes"], 10)
-        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/runtime-export.tar")
+        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/runtime-export-${{ github.run_id }}-attempt-${{ github.run_attempt }}.tar")
         self.assertEqual(upload["with"]["retention-days"], 1)
-        self.assertEqual(upload["with"]["compression-level"], 0)
+        self.assertIs(upload["with"]["archive"], False)
+        self.assertNotIn("name", upload["with"])
+        self.assertNotIn("compression-level", upload["with"])
         self.assertNotIn("overwrite", upload["with"])
         download = importer["steps"][2]
         self.assertEqual(download["timeout-minutes"], 10)
         self.assertEqual(download["with"]["artifact-ids"], "${{ needs.export-runtime.outputs.artifact_id }}")
         self.assertEqual(download["with"]["digest-mismatch"], "error")
+        self.assertIs(download["with"]["skip-decompress"], True)
         self.assertNotIn("name", download["with"]); self.assertNotIn("pattern", download["with"])
         self.assertEqual([s["timeout-minutes"] for s in importer["steps"][3:5]], [5, 25])
         self.assertIn("experiment-ios-runtime-import.py unpack", importer["steps"][3]["run"])
