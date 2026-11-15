@@ -824,3 +824,28 @@ build, simulator or database. This is focused validation, not a hosted iOS pass.
 Remaining original shards and one new source-bound iOS workflow remain required.
 Unchanged backend, web and admin diagnostics are not repeated. PR152/main remain
 frozen; PR150 and active History remain separate.
+
+## Final-shard promoted-owner fixture deadline
+
+Original shard 13 completed 476 methods with zero failures/skips; its retained
+evidence reconciles with the reviewed opaque-parameter parser. Original shard 15
+completed 500 methods: 499 passed and one reached its one-minute test limit. All
+sixteen original shards are now accounted for; the original run remains failed
+and does not qualify the repaired source.
+
+`promotedOwnerReceivesExactMediaAndTextThenReopensWithoutInitialization` reached
+photo preparation at 35.14 seconds, receiving at 52.21 seconds, shutdown at
+55.46 seconds and reopening at 58.89 seconds. The final rediscovery audit was
+still progressing when the one-minute limit cancelled the test. Its earlier
+audit phases completed without saturation. This is evidence of an insufficient
+fixture deadline, not proof that the unexecuted final assertions pass.
+
+Only this complete acquire/prepare/receive/reopen/replay test receives a bounded
+two-minute deadline. The serialized suite retains a two-minute ceiling, and all
+nine other methods explicitly retain one-minute deadlines, including each
+parameterized case. Swift Testing uses the
+[shortest applicable time limit](https://developer.apple.com/documentation/testing/limitingexecutiontime),
+so merely adding a longer method trait beneath the old one-minute suite trait
+would not work. Test bodies, assertions, production code, resource caps and
+workflow budgets are unchanged. The fresh iOS workflow must still execute the
+complete hosted ordinary inventory with zero failures/skips.
