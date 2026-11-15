@@ -7,6 +7,8 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -36,9 +38,10 @@ EXPECTED_ARGUMENTS = {
 EXPECTED_EMPTY_SUPPORT = {"merianTests/ConsentManagerTestCase", "merianTests/OfflineQueueTestCase"}
 
 
-def enumeration_text(methods, *, full_target=False):
-    selectors = list(methods) + (sorted(EXPECTED_EMPTY_SUPPORT) if full_target else [])
-    return "Plan Merian\n" + "".join("\t" + method + "\n" for method in selectors)
+def enumeration_text(methods, *, full_target=False, full_inventory=None):
+    selectors = list(methods if full_inventory is None else full_inventory) + sorted(EXPECTED_EMPTY_SUPPORT)
+    return "Plan Merian\n" + "".join("\t" + method +
+        ("" if full_target or method in methods else " (disabled)") + "\n" for method in selectors)
 
 
 def qualification():
@@ -112,7 +115,7 @@ class ShardTests(unittest.TestCase):
         for shard in self.plan["shards"]:
             directory = root / f"ios-unit-shard-1234-attempt-1-{shard['index']}"
             directory.mkdir()
-            (directory / "enumeration.txt").write_text(enumeration_text(shard["methods"]))
+            (directory / "enumeration.txt").write_text(enumeration_text(shard["methods"], full_inventory=self.methods))
             shards.write_json(directory / "summary.json", summary_for(shard["methods"]))
             shards.write_json(directory / "tests.json", tree_for(shard["methods"]))
             shards.write_json(directory / "qualification.json", qualification())
@@ -148,7 +151,7 @@ class ShardTests(unittest.TestCase):
         methods = sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
         shards.write_json(directory / "plan.json", self.plan)
         (directory / "full-inventory.txt").write_text(self.enumeration.read_text())
-        (directory / "enumeration.txt").write_text(enumeration_text(methods))
+        (directory / "enumeration.txt").write_text(enumeration_text(methods, full_inventory=self.methods))
         tree = tree_for(methods)
         for suite in tree["testNodes"][0]["children"][0]["children"]:
             for case in suite["children"]:
@@ -231,7 +234,7 @@ class ShardTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.enumeration.write_text(text)
                 with self.assertRaises(ValueError):
-                    shards.inventory(self.enumeration)
+                    shards.inventory(self.enumeration, plan=self.plan)
 
     def test_hosted_enumeration_framing_preserves_all_methods_and_support_entries(self):
         self.assertEqual(shards.EMPTY_SUPPORT_SUITES, EXPECTED_EMPTY_SUPPORT)
@@ -252,7 +255,76 @@ class ShardTests(unittest.TestCase):
 
     def test_selected_inventory_rejects_unassigned_empty_support_entries(self):
         with self.assertRaisesRegex(ValueError, "empty support suite"):
-            shards.inventory(self.enumeration)
+            shards.inventory(self.enumeration, plan=self.plan)
+
+    def test_selected_inventory_retains_exact_disabled_complement(self):
+        selected = self.plan["shards"][0]["methods"]
+        self.enumeration.write_text(enumeration_text(selected, full_inventory=self.methods))
+        self.assertEqual(shards.inventory(self.enumeration, plan=self.plan), selected)
+        self.assertEqual(len(self.enumeration.read_text().splitlines()), len(self.methods) + 3)
+
+    def test_selected_inventory_rejects_missing_extra_duplicate_or_malformed_complement(self):
+        selected = self.plan["shards"][0]["methods"]
+        disabled = next(m for m in self.methods if m not in selected)
+        valid = enumeration_text(selected, full_inventory=self.methods)
+        mutations = [valid.replace("\t" + disabled + " (disabled)\n", ""),
+                     valid + "\tmerianTests/Unknown/newMethod (disabled)\n",
+                     valid + "\t" + disabled + " (disabled)\n",
+                     valid + "\t" + disabled + "\n",
+                     valid.replace(" (disabled)", " (disabled) (disabled)", 1),
+                     valid.replace(" (disabled)", " (skipped)", 1),
+                     valid.replace(" (disabled)", " (disabled) ", 1),
+                     valid.replace("\t" + disabled, "\t(disabled) " + disabled, 1),
+                     valid.replace("\tmerianTests/ConsentManagerTestCase (disabled)",
+                                   "\tmerianTests/ConsentManagerTestCase")]
+        for text in mutations:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.enumeration.write_text(text)
+                shards.inventory(self.enumeration, plan=self.plan)
+
+    def test_full_inventory_rejects_disabled_method_or_support_selector(self):
+        valid = self.enumeration.read_text()
+        for selector in [self.methods[0], sorted(EXPECTED_EMPTY_SUPPORT)[0]]:
+            self.enumeration.write_text(valid.replace("\t" + selector + "\n", "\t" + selector + " (disabled)\n"))
+            with self.assertRaisesRegex(ValueError, "Full target contains disabled"):
+                shards.inventory(self.enumeration, full_target=True)
+
+    def test_focused_reconciliation_rejects_disabled_assigned_or_enabled_unassigned_method(self):
+        path = self.focused / "enumeration.txt"
+        original = path.read_text()
+        assigned = shards.focused_methods(self.plan)[0]
+        unassigned = next(m for m in self.methods if m not in shards.focused_methods(self.plan))
+        for text in [original.replace("\t" + assigned + "\n", "\t" + assigned + " (disabled)\n"),
+                     original.replace("\t" + unassigned + " (disabled)\n", "\t" + unassigned + "\n")]:
+            path.write_text(text)
+            with self.assertRaisesRegex(ValueError, "Focused enumeration differs"):
+                shards.requalification(self.focused)
+
+    def test_focused_preflight_cli_requires_complete_assigned_selection(self):
+        path = self.focused / "enumeration.txt"
+        command = [sys.executable, "-B", str(Path(__file__).with_name("ios-unit-shards.py")),
+                   "check-focused-enumeration", "--plan", str(self.plan_file), "--enumeration", str(path)]
+        passed = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(passed.returncode, 0, passed.stderr)
+        assigned = shards.focused_methods(self.plan)[0]
+        path.write_text(path.read_text().replace("\t" + assigned + "\n", "\t" + assigned + " (disabled)\n"))
+        failed = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("Focused enumeration differs", failed.stderr)
+
+    def test_shard_reconciliation_rejects_disabled_assigned_or_enabled_unassigned_method(self):
+        root = self.evidence()
+        selected = self.plan["shards"][0]
+        directory = root / "ios-unit-shard-1234-attempt-1-0"
+        path = directory / "enumeration.txt"
+        original = path.read_text()
+        assigned = selected["methods"][0]
+        unassigned = next(m for m in self.methods if m not in selected["methods"])
+        for text in [original.replace("\t" + assigned + "\n", "\t" + assigned + " (disabled)\n"),
+                     original.replace("\t" + unassigned + " (disabled)\n", "\t" + unassigned + "\n")]:
+            path.write_text(text)
+            with self.assertRaisesRegex(ValueError, "Selected enumeration differs"):
+                shards.receipt(self.plan, 0, directory)
 
     def test_full_inventory_raw_digest_is_reconciled_even_when_methods_are_identical(self):
         path = self.focused / "full-inventory.txt"

@@ -2212,14 +2212,24 @@ process. No declared cross-suite state dependency was identified in review.
   Neither declares a test method. The parser requires exactly those two bare
   entries in the full inventory, records them in the plan, and rejects unknown
   bare selectors, duplicates or executable methods under either base. Selected
-  shard and focused inventories allow no bare support entries. These are bound
-  structural metadata, not skipped tests or scheduled methods. Empty, malformed,
-  duplicate or foreign-target method entries fail. Only exact trailing `()`
-  normalization bridges XCTest result spelling; Swift argument labels remain
-  intact. The version-2 plan also binds the raw full-enumeration SHA-256;
-  focused and aggregate verification recheck the original bytes as well as all
-  methods. Hosted enumeration has established this framing; successful hosted
-  result reconciliation and complete execution remain required.
+  shard and focused enumerations retain the entire target, with an exact
+  `(disabled)` suffix on every unselected method and both support bases. The
+  verifier requires their complete union to equal the immutable full plan and
+  the enabled set to equal exactly the assigned methods. It never filters away
+  an unchecked disabled entry. Full-target enumeration rejects any disabled
+  marker. These are selection metadata, not skipped test results: every method
+  remains required in exactly one shard. Empty, malformed, duplicate or
+  foreign-target method entries fail. Only exact trailing `()` normalization
+  bridges XCTest result spelling; Swift argument labels remain intact. The
+  version-2 plan also binds the raw full-enumeration SHA-256; focused and
+  aggregate verification recheck the original bytes as well as all methods.
+  Hosted enumeration has established this framing; successful hosted result
+  reconciliation and complete execution remain required.
+- Focused enumeration is reconciled against the exact plan before the lengthy
+  resource tests start, then checked again with the retained results afterward.
+  A missing complement, unexpected enabled method, disabled assigned method or
+  malformed marker fails the gate. The same complete selection-state checks
+  apply before every shard and during aggregate evidence verification.
 - A deterministic, complete, disjoint partition keeps whole suites together.
   `scripts/config/ios-unit-shard-weights.json` contains historical scheduling
   hints, including the later measured photo-role suite. These are not comparable

@@ -92,21 +92,34 @@ def canonical(selector):
     return selector[:-2] if selector.endswith("()") else selector
 
 
-def inventory(path, *, full_target=False):
+def inventory(path, *, full_target=False, plan=None):
     require(Path(path).stat().st_size <= MAX_JSON, "Oversized compiled inventory")
     lines = Path(path).read_text().splitlines()
     require(len(lines) > 1 and lines[0] == "Plan Merian", "Missing or unexpected compiled test plan header")
     require(all(line.startswith("\t") and not line.startswith("\t\t") for line in lines[1:]),
             "Invalid compiled selector indentation")
-    selectors = [line[1:] for line in lines[1:]]
-    empty = [line for line in selectors if line in EMPTY_SUPPORT_SUITES]
-    require(len(empty) == len(set(empty)) and set(empty) == (EMPTY_SUPPORT_SUITES if full_target else set()),
+    # Xcode retains the complete target in selected enumeration and annotates
+    # every unselected entry. Never discard that complement: bind it to the plan.
+    suffix = " (disabled)"
+    entries = [(line[1:-len(suffix)] if line.endswith(suffix) else line[1:], line.endswith(suffix))
+               for line in lines[1:]]
+    require(not full_target or not any(disabled for _, disabled in entries), "Full target contains disabled entries")
+    empty = [selector for selector, _ in entries if selector in EMPTY_SUPPORT_SUITES]
+    require(len(empty) == len(set(empty)) and set(empty) == EMPTY_SUPPORT_SUITES,
             "Missing, duplicate or unexpected empty support suite")
-    result = [canonical(line) for line in selectors if line not in EMPTY_SUPPORT_SUITES]
-    require(result and not any(suite(method) in EMPTY_SUPPORT_SUITES for method in result),
+    require(all(disabled == (not full_target) for selector, disabled in entries if selector in EMPTY_SUPPORT_SUITES),
+            "Incorrect empty support suite selection state")
+    methods = [(canonical(selector), disabled) for selector, disabled in entries if selector not in EMPTY_SUPPORT_SUITES]
+    all_methods = [method for method, _ in methods]
+    require(all_methods and not any(suite(method) in EMPTY_SUPPORT_SUITES for method in all_methods),
             "Empty support suite contains executable methods")
-    require(len(set(result)) == len(result), "Duplicate compiled test identifier")
-    return sorted(result)
+    require(len(set(all_methods)) == len(all_methods), "Duplicate compiled test identifier")
+    if not full_target:
+        require(isinstance(plan, dict) and sorted(all_methods) == plan.get("inventory"),
+                "Selected enumeration does not retain the complete planned target")
+    enabled = sorted(method for method, disabled in methods if not disabled)
+    require(enabled, "No selected executable methods")
+    return enabled
 
 
 def suite(identifier):
@@ -370,7 +383,7 @@ def result_methods(summary, tree, qualification):
 def receipt(plan, index, directory):
     directory = Path(directory)
     shard = selected_shard(plan, index)
-    require(inventory(directory / "enumeration.txt") == shard["methods"], "Selected enumeration differs from plan")
+    require(inventory(directory / "enumeration.txt", plan=plan) == shard["methods"], "Selected enumeration differs from plan")
     methods, arguments = result_methods(read_json(directory / "summary.json"), read_json(directory / "tests.json"),
                                         read_json(directory / "qualification.json"))
     require(methods == shard["methods"], "Executed methods differ from compiled inventory")
@@ -379,6 +392,13 @@ def receipt(plan, index, directory):
             "methods": methods, "parameter_leaves": arguments, "status": "passed",
             "files": {name: digest(directory / name) for name in
                       ("enumeration.txt", "summary.json", "tests.json", "qualification.json")}}
+
+
+def focused_methods(plan):
+    expected = [m for m in plan["inventory"] if suite(m) in REQUALIFICATION_SUITES]
+    require({suite(m) for m in expected} == REQUALIFICATION_SUITES
+            and set(REQUALIFICATION_ARGUMENT_COUNTS).issubset(expected), "Missing transport requalification methods")
+    return expected
 
 
 def requalification(directory, *, require_workspace=True):
@@ -390,10 +410,8 @@ def requalification(directory, *, require_workspace=True):
     require(digest(directory / "full-inventory.txt") == plan["enumeration_sha256"],
             "Focused full enumeration digest differs from immutable plan")
     require(FOUNDATION_METHODS.issubset(full), "Required iOS 27 parser inventory is incomplete")
-    expected = [m for m in full if suite(m) in REQUALIFICATION_SUITES]
-    require({suite(m) for m in expected} == REQUALIFICATION_SUITES
-            and set(REQUALIFICATION_ARGUMENT_COUNTS).issubset(expected), "Missing transport requalification methods")
-    require(inventory(directory / "enumeration.txt") == expected, "Focused enumeration differs from complete compiled suites")
+    expected = focused_methods(plan)
+    require(inventory(directory / "enumeration.txt", plan=plan) == expected, "Focused enumeration differs from complete compiled suites")
     tree = read_json(directory / "tests.json")
     methods, leaves = result_methods(read_json(directory / "summary.json"), tree,
                                      read_json(directory / "qualification.json"))
@@ -441,7 +459,7 @@ def aggregate(plan, evidence, output, requalification_directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("pack", "plan", "unpack", "selectors", "check-enumeration", "receipt", "aggregate", "requalification"))
+    parser.add_argument("action", choices=("pack", "plan", "unpack", "selectors", "check-enumeration", "check-focused-enumeration", "receipt", "aggregate", "requalification"))
     for name in ("plan", "enumeration", "products", "output", "weights", "directory", "requalification-directory"):
         parser.add_argument("--" + name, type=Path)
     parser.add_argument("--index", type=int)
@@ -467,7 +485,9 @@ def main():
     elif args.action == "selectors":
         Path(args.output).write_text("\n".join(selected_shard(plan, args.index)["suites"]) + "\n")
     elif args.action == "check-enumeration":
-        require(inventory(args.enumeration) == selected_shard(plan, args.index)["methods"], "Shard enumeration mismatch")
+        require(inventory(args.enumeration, plan=plan) == selected_shard(plan, args.index)["methods"], "Shard enumeration mismatch")
+    elif args.action == "check-focused-enumeration":
+        require(inventory(args.enumeration, plan=plan) == focused_methods(plan), "Focused enumeration differs from complete compiled suites")
     elif args.action == "receipt":
         require(os.environ.get("IOS_UNIT_TEST_OUTCOME") == "success", "Native test command did not succeed")
         write_json(args.output, receipt(plan, args.index, args.directory))

@@ -288,6 +288,8 @@ jobs:
 
       - name: Enumerate transport and Foundation requalification suites
         timeout-minutes: 5
+        env:
+          IOS_UNIT_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
         run: |
           set -o pipefail
           mkdir "$RUNNER_TEMP/ios-unit-requalification"
@@ -304,6 +306,9 @@ jobs:
             -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
             -test-enumeration-output-path "$RUNNER_TEMP/ios-unit-requalification/enumeration.txt" \
             2>&1 | tee "$RUNNER_TEMP/ios-unit-requalification/enumeration.log"
+          python3 -B scripts/ios-unit-shards.py check-focused-enumeration \
+            --plan "$RUNNER_TEMP/ios-unit-plan.json" \
+            --enumeration "$RUNNER_TEMP/ios-unit-requalification/enumeration.txt"
 
       - name: Requalify transport resources and iOS 27 parsing
         id: ios-transport-tests

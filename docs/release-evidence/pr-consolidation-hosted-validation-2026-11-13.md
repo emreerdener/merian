@@ -496,3 +496,45 @@ test assertion, native source, runtime identity, timeout or workflow budget is
 changed. Fresh hosted product transfer, focused resource requalification and
 complete shard/result reconciliation remain mandatory. PR152 and main stay
 frozen, PR150 and History remain separate, and the support report stays local.
+
+## Hosted selected-inventory reconciliation repair
+
+Diagnostic `d66f43114ab61a73d79cfef6e997b4d8cfb5ab87`, run 43691877910 attempt
+1, passed full inventory planning, portable product unpacking and the focused
+native test command. All 24 focused methods and 47 parameter leaves passed on
+the exact observed iOS 27 runtime with zero failures or skips. The unchanged
+result-tree validator independently accepts those raw results, including the
+protected two-, seven- and three-case methods. Current-source UI, Release
+archive, web/admin, Markdown and deterministic agent checks also passed.
+Optional live agent evaluation produced no evidence because its credential was
+unavailable.
+
+The hosted gate remains failed: selected enumeration contains the complete
+target, not only enabled selectors. Xcode annotates every unselected entry with
+the terminal `(disabled)` suffix. The original selected-inventory parser
+rejected this format before checking the passed result tree. Verified artifact
+14155023782 has SHA-256
+`c744cf8130b37c9b7d2134bcec10dc16a4f8ad22a80a4122e4f41310c3e4ad92`. Its 24
+enabled selectors exactly match the planned focused suites, while 7,295 disabled
+selectors comprise the other 7,293 executable methods and both support-only
+bases. This supersedes the previous assumption that selected enumeration omits
+those bases and unselected methods.
+
+The repaired verifier binds selection state across the complete immutable
+inventory. Every method and both support bases must appear exactly once; the
+enabled set must equal the assigned focus or shard methods, and its exact
+complement must carry the observed disabled marker. Unknown or missing
+selectors, mixed/duplicate states, disabled assigned methods, unexpected enabled
+methods and malformed markers fail closed. Full-target enumeration continues to
+reject every disabled marker. This accounts for Xcode's selection metadata;
+native results still require zero skipped tests, and the aggregate still
+requires every compiled method exactly once. No native source, assertions,
+parameter matrices, result-tree checks, runtime pins or budgets change.
+
+Focused enumeration now undergoes the same bound reconciliation immediately
+after enumeration, before the 120-minute test step, and again after execution.
+Local replay of the unchanged hosted artifact passes the corrected verifier;
+that replay neither relabels the failed hosted workflow nor proves the unrun
+shards. Fresh exact-SHA hosted qualification, complete matrix execution and all
+release prerequisites remain required. PR152/main stay frozen and PR150, History
+and the local-only support report remain separate.

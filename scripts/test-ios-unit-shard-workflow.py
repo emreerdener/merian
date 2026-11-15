@@ -68,6 +68,18 @@ def validate(workflow):
         retained = step(job, "Retain simulator identity evidence")
         check(retained["if"] == "always()" and retained["timeout-minutes"] == 10, "Identity evidence retention changed")
     suites = ("PinnedPhotoUploadTaskTests", "CaptureNativePhotoRoleAllocationTests", "AppleFoundationVisualCueProviderTests")
+    focused_enumeration = "Enumerate transport and Foundation requalification suites"
+    selected = step(build, focused_enumeration)
+    check(selected["timeout-minutes"] == 5 and selected["env"] ==
+          {"IOS_UNIT_PLAN_SHA256": "${{ steps.plan.outputs.plan_sha256 }}"}, "Focused inventory preflight is unbound")
+    selected_script = script(build, focused_enumeration, "scripts/ios-unit-shards.py check-focused-enumeration",
+                             '--plan "$RUNNER_TEMP/ios-unit-plan.json"',
+                             '--enumeration "$RUNNER_TEMP/ios-unit-requalification/enumeration.txt"')
+    check(selected_script.index("-enumerate-tests") < selected_script.index("check-focused-enumeration"),
+          "Focused inventory verified before generation")
+    ordered = [s.get("name") for s in build["steps"]]
+    check(ordered.index(focused_enumeration) < ordered.index("Requalify transport resources and iOS 27 parsing")
+          < ordered.index("Verify complete focused runtime evidence"), "Focused preflight or postflight order changed")
     for name in ("Enumerate transport and Foundation requalification suites", "Requalify transport resources and iOS 27 parsing"):
         text = script(build, name, "-testProductsPath", "-parallel-testing-enabled NO",
                       *("-only-testing:merianTests/" + suite for suite in suites))
@@ -176,6 +188,14 @@ class WorkflowTests(unittest.TestCase):
             lambda j: j["ios-unit-shards"].update(**{"continue-on-error": True}),
             lambda j: j["ios-unit-build"].update(**{"timeout-minutes": 360}),
             lambda j: j["ios-unit-build"]["outputs"].update(plan_sha256="arbitrary"),
+            lambda j: next(s for s in j["ios-unit-build"]["steps"] if s.get("name") ==
+                           "Enumerate transport and Foundation requalification suites").update(
+                               env={"IOS_UNIT_PLAN_SHA256": "arbitrary"}),
+            lambda j: next(s for s in j["ios-unit-build"]["steps"] if s.get("name") ==
+                           "Enumerate transport and Foundation requalification suites").update(run="xcodebuild -enumerate-tests"),
+            lambda j: j["ios-unit-build"]["steps"].append(j["ios-unit-build"]["steps"].pop(next(
+                i for i, s in enumerate(j["ios-unit-build"]["steps"]) if s.get("name") ==
+                "Enumerate transport and Foundation requalification suites"))),
             lambda j: j["ios-unit-tests"].update(needs=["scope", "ios-unit-build"]),
             lambda j: j["ios-unit-tests"].update(**{"if": "success()"}),
             lambda j: j["ios-unit-tests"]["steps"][0]["env"].update(SHARD_RESULT="success"),
