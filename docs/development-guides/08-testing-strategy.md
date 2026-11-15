@@ -12669,6 +12669,20 @@ explicit generation replacement and stale-claim denial. Known-answer settlement
 is tested after cancellation without granting dispatch permission. The separate
 audio handoff and retained delivery owner are not established by these tests.
 
+### Saved allocation cancellation admission
+
+`NativeAllocationStatusRecoveryTests.cancellationRetainsOwnerUntilSenderReturns`
+waits for an explicit sender-entry event after the request's validation and
+settlement checks. Early operation failure finishes that event stream;
+cancellation unwinds it into release, operation join and owner drain. The test
+still requires both caller cancellation and account shutdown to retain ownership
+until the sender returns, reject late success and preserve the saved row. A
+three-minute per-row test limit contains the entire durable fixture and cleanup;
+it is not a product recovery or sender-entry SLA. Hosted fixture construction
+alone exceeded one minute, and the adjacent audit measured almost six seconds to
+sender entry, invalidating the former four-second polling watchdog. Focused
+event regressions cover admission, early failure and waiter cancellation.
+
 ### Synthetic video fixture encoder ownership
 
 `VideoAudioFixture` serializes its complete preparation lifecycle across test

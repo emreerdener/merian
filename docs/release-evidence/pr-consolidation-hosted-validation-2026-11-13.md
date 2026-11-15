@@ -644,3 +644,49 @@ the exact one-dispatch assertion. Confirmation still requires
 No production error classifier, retry behavior, API payload, SQL or permission
 changes. The sibling recovery regression already pins database RPC 404 handling.
 Fresh complete hosted validation remains required.
+
+## Saved allocation cancellation readiness repair
+
+Shard 8 of diagnostic run 43699310762 completed 587 methods: 586 passed, one
+failed, zero skipped. Both rows of
+`NativeAllocationStatusRecoveryTests.cancellationRetainsOwnerUntilSenderReturns`
+expired their four-second pre-sender watchdog with neither sender entry nor
+operation return. Whole-row durations were 79.88 and 92.99 seconds, including
+durable fixture construction. The adjacent passing audit measured sender entry
+after 5.98 seconds; this is a test readiness conflict, not evidence that the
+cancellation ownership assertions failed.
+
+The repair waits for an explicit event emitted only after the sender's check and
+settle validators. Early operation exit closes the stream; test cancellation
+unwinds the wait into the existing sender release, operation cancel/join and
+owner drain. Both parameter rows, the held-owner assertion, rejection of late
+success and unchanged saved-row check remain. A three-minute method limit bounds
+whole-fixture execution and cleanup without changing production or workflow
+budgets. Three focused event cases cover admission, early failure and
+cancellation. Independent review accepted the event design and the limit based
+on the observed whole-row durations. Hosted proof remains pending.
+
+## Literal native and SQL coverage prerequisite
+
+Shard 9 completed 577 methods: 576 passed, zero failed, one skipped. The skipped
+method is
+`SharedMediaNativeLiteralRecoveryTests.nativeCandidateAndSQLRepliesRemainLiteralThroughDurableRecovery`.
+Its existing opt-in condition requires a fresh owned disposable Supabase replay
+and one-shot loopback bridge. The ordinary shard did not arm that integration.
+The zero-skip verifier correctly rejected the result; no passing receipt or
+coverage exception was created.
+
+The canonical runtime guide already requires a dedicated armed execution with
+source, product, native candidate and public-wire identity reconciliation. No
+checked-in hosted job currently supplies that bridge. GitHub-hosted ARM macOS
+does not support the nested virtualization needed by the usual Docker setup; the
+existing bridge requires a local Unix Docker engine. Independent review
+identified an isolated Mac with the pinned toolchain, simulator, Docker and
+matching compiled-product workspace as a missing prerequisite. Any dedicated
+lane must retain this selector in the immutable full inventory, execute it with
+zero skips, and reconcile its exact source/run/attempt/product-bound receipt
+with the other shards. That lane is not implemented or qualified here. No
+unarmed skip, historical result or separately unbound build can clear coverage.
+
+PR152/main remain frozen. PR150, active History resources and the local support
+report stay separate; no merge or deployment has occurred.
