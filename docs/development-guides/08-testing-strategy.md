@@ -1815,21 +1815,43 @@ HTTP request is dispatched. See the
    [Apple documents secure exported runtime import](https://developer.apple.com/documentation/xcode-release-notes/xcode-26_4-release-notes);
    [a runner-images report](https://github.com/actions/runner-images/issues/14946)
    describes duplicate registrations with different runtime/image conditions.
-   This experiment changes only installation: export the pinned build and arm64
-   variant into an owned temporary directory, then import its single intact
-   `.exportedBundle` through Xcode. Both commands must exit zero, including
-   export; a bundle left after exit 70 is rejected. Export, its pre-import
-   inventory check and import share the original 360-second installation budget.
-   Counts include unavailable registrations: zero before export, zero after
-   export, exactly one after import. Preinstalled runtimes, export-side
-   installation and duplicates fail closed. The existing helper still verifies
-   installed build/device support, cache completion, cold boot and all three
-   exact guest identities, with unchanged deadlines and no fallback. This
-   one-job experiment performs no app compilation, UI run, full unit run or
-   deployment. Its bounded JSON receipt contains only setup results and safe
-   registration counts; `release_eligible` is always false. Even successful
+   Export also installs on the source host, so the experiment uses two separate
+   disposable hosted jobs. The exporter requires zero matching registrations,
+   exports Apple's exact build and arm64 variant, then requires exactly one
+   available registration with the exact installed identity. It never imports on
+   that host. The importer independently starts with zero registrations, imports
+   the transferred bundle, requires exactly one available registration and runs
+   the unchanged cache, cold-boot and three exact guest identity checks. Counts
+   include unavailable registrations and identifier collisions; no runtime
+   deletion, reset, fallback, injected identity or retry is permitted.
+
+   Transfer preserves the complete single `.exportedBundle` file tree, hidden
+   entries and file modes inside a tar file. Export rejects links and special
+   files. The archive is capped at 16 GiB and 4,096 members, uploaded immutably
+   with one-day retention, and downloaded only by the producer's artifact ID
+   with `digest-mismatch: error`. The consumer verifies the producer's source
+   SHA, run, attempt and tar SHA-256, validates all archive paths and parent
+   relationships before writing, and extracts into a fresh owned directory. It
+   rejects links, sparse entries, duplicate/case-colliding names and payload
+   overflow. Tar preserves the represented file metadata; it does not establish
+   that every macOS extended attribute round-tripped. Apple's secure import and
+   the unchanged qualification are required to prove the transferred bundle
+   usable. The bundle is never unpacked on a developer's Mac. Only the bounded
+   setup receipts are retained for fourteen days; raw logs and runner
+   directories are not uploaded.
+
+   This separate experiment allows 360 seconds for source export and 360 seconds
+   for target import; these are distinct phases on different hosts. Each
+   artifact transfer step has ten minutes, consumer verification/extraction has
+   five, and target simulator preparation retains its 25-minute bound.
+   Export/package has ten minutes within a 30-minute source job; the target job
+   has 45 minutes. These are experiment budgets, not changes to required
+   validation jobs. Both Apple commands must exit zero, including export; files
+   left after exit 70 are rejected. The workflow performs no app compilation, UI
+   run, full unit run or deployment. `release_eligible` is always false, and
+   only successful target qualification sets `setup_qualified`. Even successful
    setup requires a separately reviewed repair and complete validation before
-   the consolidation can advance. PR152 remains frozen during the experiment.
+   consolidation can advance. PR152 remains frozen during the experiment.
 
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The
