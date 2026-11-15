@@ -178,7 +178,12 @@ def verify(directory, *, env=None):
     item = items[0]
     require(item.get("isAssociatedWithFailure") is False and item.get("deviceId") == device
             and item.get("configurationName") == configurations[0]["configurationName"], "Unbound identity attachment")
-    require(item.get("suggestedHumanReadableName") in (ATTACHMENT, ATTACHMENT + ".txt"), "Wrong attachment name")
+    name = item.get("suggestedHumanReadableName")
+    # Xcode's exporter adds the attachment index and UUID before the extension.
+    # Only the observed single-attachment form is accepted alongside literal names.
+    exported_name = r"merian-simulator-identity_0_[0-9A-F]{8}-(?:[0-9A-F]{4}-){3}[0-9A-F]{12}\.json"
+    require(isinstance(name, str) and (name in (ATTACHMENT, ATTACHMENT + ".txt")
+            or re.fullmatch(exported_name, name)), "Wrong attachment name")
     filename = item.get("exportedFileName", "")
     require(isinstance(filename, str) and filename not in ("", ".", "..", "manifest.json")
             and Path(filename).name == filename and "/" not in filename and "\\" not in filename,

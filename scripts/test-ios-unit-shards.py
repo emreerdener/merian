@@ -19,12 +19,31 @@ DEVICE = "11111111-1111-4111-8111-111111111111"
 ENV = {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "1234", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_WORKSPACE": "/Users/runner/work/merian/merian"}
 
 
+EXPECTED_RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "27.2", "SIMULATOR_RUNTIME_BUILD_VERSION": "24B8117",
+                    "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,2"}
+
+
+EXPECTED_FOUNDATION = {"merianTests/AppleFoundationVisualCueProviderTests/" + name for name in (
+    "schemaCanBeConstructed", "detailPresenceDoesNotPublishAnUnfinishedObject",
+    "completedCuePublishesWhileTheNextCueIsStillStreaming", "malformedEntriesDoNotShiftLaterCueIndices",
+    "mappingBoundsEvenAnOversizedResponse", "completeModelOutputStillPassesThroughIdentityValidation",
+    "emptyOrUnrelatedContentProducesNoCues")}
+EXPECTED_ARGUMENTS = {
+    "merianTests/PinnedPhotoUploadTaskTests/maximumOriginalStreamResources(cancelHalfway:)": 2,
+    "merianTests/CaptureNativePhotoRoleAllocationTests/freshCaptureSendsOneFrozenSourceAndFencesChanges(duringTicket:)": 7,
+    "merianTests/CaptureNativePhotoRoleAllocationTests/firstOriginalPutChecksExactProgressOnce(_:)": 3,
+}
+
+
 def qualification():
-    return {"qualified": True, "status": "passed", "architecture": "arm64", "runtime_cache_ready": True,
-            "runtime_identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
-            "device_type_identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
-            "observed_environment": shards.RUNTIME,
-            "simulator_destination": "platform=iOS Simulator,id=" + DEVICE}
+    return {"schema_version": 1, **shards.identity(), "qualified": False, "release_eligible": False,
+            "status": "passed", "identity_observed": True, "observation_method": "xctest_attachment", "architecture": "arm64",
+            "runtime_identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-2",
+            "device_type_identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro",
+            "observed_environment": dict(EXPECTED_RUNTIME), "simulator_destination": "platform=iOS Simulator,id=" + DEVICE,
+            "phases": [{"phase": name, "outcome": "passed", "elapsed_ms": 1} for name in ("cache", "create", "boot")],
+            "files": {name: "a" * 64 for name in ("preparation.json", "summary.json", "tests.json",
+                                                  "attachments/manifest.json", "attachments/identity.txt")}}
 
 
 def tree_for(methods):
@@ -38,11 +57,11 @@ def tree_for(methods):
                 "nodeIdentifier": result_id, "nodeIdentifierURL": url}
         if parameterized:
             case["children"] = [{"nodeType": "Arguments", "result": "Passed",
-                                  "nodeIdentifierURL": url + "?args=" + digit * 64} for digit in ("1", "2")]
+                                  "nodeIdentifierURL": url + "?args=" + format(i, "064x")} for i in range(EXPECTED_ARGUMENTS.get(method, 2))]
         suites.setdefault(name, {"nodeType": "Test Suite", "result": "Passed", "name": name,
                                  "children": []})["children"].append(case)
-    return {"devices": [{"architecture": "arm64", "deviceId": DEVICE, "osBuildNumber": "23F77",
-                          "osVersion": "26.5", "platform": "iOS Simulator"}],
+    return {"devices": [{"architecture": "arm64", "deviceId": DEVICE, "osBuildNumber": "24B8117",
+                          "osVersion": "27.2", "platform": "iOS Simulator"}],
             "testPlanConfigurations": [{"configurationId": "1", "configurationName": "Test Scheme Action"}],
             "testNodes": [{"nodeType": "Test Plan", "result": "Passed", "name": "Merian", "children": [
                 {"nodeType": "Unit test bundle", "result": "Passed", "name": "merianTests",
@@ -67,7 +86,7 @@ class ShardTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.methods = ["merianTests/Alpha/testOne", "merianTests/Alpha/parameter(value:)",
-                        "merianTests/Beta/testTwo", "merianTests/Gamma/testThree"]
+                        "merianTests/Beta/testTwo", "merianTests/Gamma/testThree"] + sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
         self.enumeration = self.root / "enumeration.txt"
         self.enumeration.write_text("\n".join(self.methods) + "\n")
         self.products = self.root / "products.tar.gz"
@@ -75,6 +94,7 @@ class ShardTests(unittest.TestCase):
         self.plan = shards.make_plan(self.enumeration, self.products, {"Alpha": 50})
         self.plan_file = self.root / "plan.json"
         self.save_plan()
+        self.focused = self.requalification_evidence()
 
     def save_plan(self):
         shards.write_json(self.plan_file, self.plan)
@@ -109,6 +129,88 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(sorted(m for s in partition for m in s["methods"]), sorted(methods))
         self.assertTrue(all(s["methods"] for s in partition))
 
+    def test_plan_rejects_missing_required_ios27_parser_method(self):
+        self.enumeration.write_text("\n".join(m for m in self.methods if m != sorted(shards.FOUNDATION_METHODS)[0]) + "\n")
+        with self.assertRaisesRegex(ValueError, "parser inventory"):
+            shards.make_plan(self.enumeration, self.products, {})
+
+    def requalification_evidence(self):
+        directory = self.root / "requalification"
+        if directory.exists(): return directory
+        directory.mkdir()
+        methods = sorted(EXPECTED_FOUNDATION | set(EXPECTED_ARGUMENTS))
+        shards.write_json(directory / "plan.json", self.plan)
+        (directory / "full-inventory.txt").write_text(self.enumeration.read_text())
+        (directory / "enumeration.txt").write_text("\n".join(methods) + "\n")
+        tree = tree_for(methods)
+        for suite in tree["testNodes"][0]["children"][0]["children"]:
+            for case in suite["children"]:
+                method = shards.canonical("merianTests/" + case["nodeIdentifier"])
+                if method in EXPECTED_ARGUMENTS:
+                    case["children"] = [{"nodeType": "Arguments", "result": "Passed",
+                        "nodeIdentifierURL": case["nodeIdentifierURL"] + "?args=" + format(i, "064x")}
+                        for i in range(EXPECTED_ARGUMENTS[method])]
+        shards.write_json(directory / "tests.json", tree)
+        shards.write_json(directory / "summary.json", summary_for(methods))
+        shards.write_json(directory / "qualification.json", qualification())
+        (directory / "enumeration.log").write_text("")
+        (directory / "xcodebuild.log").write_text("")
+        (directory / "results.xcresult").mkdir()
+        shards.write_json(directory / "receipt.json", shards.requalification(directory))
+        return directory
+
+    def test_requalification_derives_all_selected_methods_and_binds_evidence(self):
+        directory = self.requalification_evidence()
+        receipt = shards.requalification(directory)
+        self.assertFalse(receipt["release_eligible"])
+        self.assertEqual(receipt["parameter_leaves"], 12)
+        self.assertEqual(len(receipt["methods"]), 10)
+        self.assertEqual(len(receipt["files"]), 6)
+        self.assertEqual(receipt["products_sha256"], shards.digest(self.products))
+        self.assertEqual(receipt["plan_sha256"], shards.digest(self.plan_file))
+
+    def test_requalification_rejects_omitted_compiled_method_even_when_focus_passes(self):
+        directory = self.requalification_evidence()
+        with (directory / "full-inventory.txt").open("a") as output:
+            output.write("merianTests/PinnedPhotoUploadTaskTests/newRequiredMethod\n")
+        with self.assertRaisesRegex(ValueError, "Focused full inventory"):
+            shards.requalification(directory)
+
+    def test_protected_coverage_literals(self):
+        self.assertEqual(shards.RUNTIME, EXPECTED_RUNTIME)
+        self.assertEqual(shards.FOUNDATION_METHODS, EXPECTED_FOUNDATION)
+        self.assertEqual(shards.REQUALIFICATION_ARGUMENT_COUNTS, EXPECTED_ARGUMENTS)
+
+    def test_requalification_rejects_missing_extra_fixed_parameter_leaf_and_skip(self):
+        directory = self.requalification_evidence()
+        original = shards.read_json(directory / "tests.json")
+        for method in EXPECTED_ARGUMENTS:
+            for mode in ("missing", "extra", "skipped"):
+                tree = copy.deepcopy(original)
+                cases = tree["testNodes"][0]["children"][0]["children"]
+                case = next(c for suite in cases for c in suite["children"]
+                            if shards.canonical("merianTests/" + c["nodeIdentifier"]) == method)
+                if mode == "missing": case["children"].pop()
+                elif mode == "extra":
+                    case["children"].append({"nodeType": "Arguments", "result": "Passed",
+                        "nodeIdentifierURL": case["nodeIdentifierURL"] + "?args=" + "f" * 64})
+                else: case["children"][0]["result"] = "Skipped"
+                shards.write_json(directory / "tests.json", tree)
+                with self.subTest(method=method, mode=mode), self.assertRaises(ValueError):
+                    shards.requalification(directory)
+
+    def test_focused_result_rejects_wrong_plan_product_or_stale_receipt(self):
+        evidence = self.evidence()
+        for key, value in (("products_sha256", "f" * 64), ("plan_sha256", "e" * 64), ("source_sha", "b" * 40)):
+            original = shards.requalification(self.focused)
+            original[key] = value
+            shards.write_json(self.focused / "receipt.json", original)
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "Focused receipt mismatch"):
+                shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+        (self.focused / "extra").mkdir()
+        with self.assertRaisesRegex(ValueError, "extra focused evidence"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
     def test_inventory_rejects_duplicates_headers_empty_and_other_targets(self):
         for text in ["", "\n", "merianTests/A/test\n\n", "Test plan: Merian\n",
                      "merianTests/A/test\nmerianTests/A/test()\n", "other/A/test\n",
@@ -142,7 +244,7 @@ class ShardTests(unittest.TestCase):
     def test_native_methods_and_parameter_leaves_are_counted_separately(self):
         methods, leaves = shards.result_methods(summary_for(self.methods), tree_for(self.methods), qualification())
         self.assertEqual(methods, sorted(self.methods))
-        self.assertEqual(leaves, 2)
+        self.assertEqual(leaves, 14)
 
     def test_linux_aggregate_changes_workspace_but_not_source_run_or_attempt(self):
         with patch.dict(os.environ, {"GITHUB_WORKSPACE": "/home/runner/work/merian/merian"}):
@@ -189,22 +291,50 @@ class ShardTests(unittest.TestCase):
             summary.update(change)
             with self.assertRaises(ValueError):
                 shards.result_methods(summary, tree_for(self.methods), qualification())
-        for change in [{"qualified": False}, {"runtime_cache_ready": False}, {"observed_environment": {}},
+        for change in [{"qualified": True}, {"release_eligible": True}, {"identity_observed": False},
+                       {"observation_method": "getenv"}, {"source_sha": "b" * 40}, {"run_id": "1235"}, {"run_attempt": "2"},
+                       {"phases": []}, {"files": {}}, {"observed_environment": {}},
                        {"architecture": "x86_64"}, {"simulator_destination": "platform=iOS Simulator,id=other"}]:
             value = qualification()
             value.update(change)
             with self.assertRaises(ValueError):
                 shards.result_methods(summary_for(self.methods), tree_for(self.methods), value)
 
+    def test_identity_observation_rejects_malformed_provenance(self):
+        mutations = [lambda q: q.update(schema_version=True), lambda q: q.update(schema_version=2),
+                     lambda q: q.update(runtime_identifier="other"), lambda q: q.update(device_type_identifier="other"),
+                     lambda q: q["observed_environment"].update(SIMULATOR_MODEL_IDENTIFIER="iPhone99,1"),
+                     lambda q: q["observed_environment"].update(SIMULATOR_RUNTIME_VERSION="26.5"),
+                     lambda q: q["observed_environment"].update(SIMULATOR_RUNTIME_BUILD_VERSION="23F77"),
+                     lambda q: q["phases"].reverse(), lambda q: q["phases"][0].update(outcome="failed"),
+                     lambda q: q["phases"][0].update(elapsed_ms=True), lambda q: q["phases"][0].update(elapsed_ms=-1),
+                     lambda q: q["files"].update(extra="a" * 64)]
+        for mutation in mutations:
+            value = qualification(); mutation(value)
+            with self.assertRaises(ValueError): shards.observed_device(value)
+        for name in qualification()["files"]:
+            for mode in ("missing", "invalid"):
+                value = qualification()
+                if mode == "missing": value["files"].pop(name)
+                else: value["files"][name] = "not-a-digest"
+                with self.subTest(name=name, mode=mode), self.assertRaises(ValueError): shards.observed_device(value)
+        for name in ("attachments/..", "attachments/../escape", "outside.txt", "attachments/dir/name"):
+            value = qualification(); value["files"].pop("attachments/identity.txt"); value["files"][name] = "a" * 64
+            with self.subTest(name=name), self.assertRaises(ValueError): shards.observed_device(value)
+        for key, value in (("osVersion", "26.5"), ("osBuildNumber", "23F77"), ("deviceId", "22222222-2222-4222-8222-222222222222")):
+            tree = tree_for(self.methods); tree["devices"][0][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                shards.result_methods(summary_for(self.methods), tree, qualification())
+
     def test_aggregate_preserves_raw_trees_and_reconciles_complete_coverage(self):
         evidence = self.evidence()
         output = self.root / "aggregate"
-        shards.aggregate(self.plan, evidence, output)
+        shards.aggregate(self.plan, evidence, output, self.focused)
         self.assertEqual(shards.read_json(output / "summary.json"), summary_for(self.methods))
         raw = shards.read_json(output / "tests.json")["shards"]
         self.assertEqual(raw, [shards.read_json(evidence / f"ios-unit-shard-1234-attempt-1-{i}" / "tests.json")
                                for i in range(len(self.plan["shards"]))])
-        self.assertEqual(shards.read_json(output / "coverage.json")["parameter_leaves"], 2)
+        self.assertEqual(shards.read_json(output / "coverage.json")["parameter_leaves"], 14)
 
     def test_aggregate_rejects_missing_extra_and_stale_attempt_artifacts(self):
         evidence = self.evidence()
@@ -212,11 +342,11 @@ class ShardTests(unittest.TestCase):
         for name in ["stale", path.name.replace("attempt-1", "attempt-2")]:
             renamed = path.rename(evidence / name)
             with self.assertRaises(ValueError):
-                shards.aggregate(self.plan, evidence, self.root / "output")
+                shards.aggregate(self.plan, evidence, self.root / "output", self.focused)
             renamed.rename(path)
         (evidence / "extra").mkdir()
         with self.assertRaises(ValueError):
-            shards.aggregate(self.plan, evidence, self.root / "output")
+            shards.aggregate(self.plan, evidence, self.root / "output", self.focused)
 
     def test_aggregate_recomputes_receipts_and_rejects_tampered_evidence(self):
         evidence = self.evidence()
@@ -225,7 +355,7 @@ class ShardTests(unittest.TestCase):
         value["source_sha"] = "b" * 40
         shards.write_json(path, value)
         with self.assertRaises(ValueError):
-            shards.aggregate(self.plan, evidence, self.root / "output")
+            shards.aggregate(self.plan, evidence, self.root / "output", self.focused)
 
     def test_duplicate_json_keys_are_not_silently_accepted(self):
         self.plan_file.write_text('{"status":"failed","status":"passed"}')

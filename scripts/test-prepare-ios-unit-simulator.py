@@ -205,12 +205,73 @@ class QualificationTests(unittest.TestCase):
                     self.prepare(failed)
                 self.assertEqual(len(calls), 1)
 
-    def test_ci_qualification_matches_unchanged_transport_safety_contract(self):
+    def assert_transport_receiver_contract(self, source):
+        # Compare the complete admission block, not disconnected substrings that
+        # would still pass after adding a third tuple or an unconditional bypass.
+        begin, end = "var measuredReceiver = false", "return PinnedPhotoUploadTask(owned: config"
+        self.assertEqual(source.count(begin), 1)
+        self.assertEqual(source.count(end), 1)
+        actual = source.split(begin, 1)[1].split(end, 1)[0]
+        expected = '''
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningTests, let injected = withSessionLock({ storedOverridingSession?.configuration }) {
+            config.protocolClasses = injected.protocolClasses
+            if let scope = injected.httpAdditionalHeaders?["X-Merian-Test-Scope"] as? String, UUID(uuidString: scope) != nil {
+                config.httpAdditionalHeaders = ["X-Merian-Test-Scope": scope]
+                #if targetEnvironment(simulator) && arch(arm64)
+                let env = ProcessInfo.processInfo.environment
+                let matchesReceiverRuntime = (env["SIMULATOR_RUNTIME_VERSION"] == "26.5"
+                    && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "23F77"
+                    && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone18,1")
+                    || (env["SIMULATOR_RUNTIME_VERSION"] == "27.2"
+                        && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "24B8117"
+                        && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")
+                if let classes = config.protocolClasses, classes.count == 1, let receiver = classes.first {
+                    measuredReceiver = NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"
+                        && Bundle(for: receiver).bundleURL.pathExtension == "xctest"
+                        && matchesReceiverRuntime
+                }
+                #endif
+            }
+        }
+        #endif
+        '''
+        self.assertEqual(actual.split(), expected.split())
+        self.assertIn("var hasPurgedMeasuredTransfer: Bool { measuredReceiver && acknowledgedOwnedSessionEnd }", source)
+
+    def test_ci_runtime_pins_match_exact_debug_receiver_contract(self):
         source = (ROOT / "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift").read_text()
-        for key, value in simulator.EXPECTED_ENVIRONMENT.items():
-            self.assertIn(f'env["{key}"] == "{value}"', source)
-        self.assertIn("#if targetEnvironment(simulator) && arch(arm64)", source)
-        self.assertIn('NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"', source)
+        self.assert_transport_receiver_contract(source)
+        self.assertEqual(simulator.EXPECTED_ENVIRONMENT, {
+            "SIMULATOR_RUNTIME_VERSION": "26.5", "SIMULATOR_RUNTIME_BUILD_VERSION": "23F77",
+            "SIMULATOR_MODEL_IDENTIFIER": "iPhone18,1"})
+        spec = importlib.util.spec_from_file_location("receiver_shards", ROOT / "scripts/ios-unit-shards.py")
+        shards = importlib.util.module_from_spec(spec); spec.loader.exec_module(shards)
+        self.assertEqual(shards.RUNTIME, {
+            "SIMULATOR_RUNTIME_VERSION": "27.2", "SIMULATOR_RUNTIME_BUILD_VERSION": "24B8117",
+            "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,2"})
+
+    def test_debug_receiver_contract_rejects_broadened_admission(self):
+        source = (ROOT / "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift").read_text()
+        mutations = (
+            ('&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")',
+             '&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2") || true'),
+            ('&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")',
+             '&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2") || (env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone99,1")'),
+            ('if TestExecutionCoordinator.isRunningTests,', 'if true,'),
+            ('UUID(uuidString: scope) != nil', 'true'),
+            ('#if targetEnvironment(simulator) && arch(arm64)', '#if targetEnvironment(simulator)'),
+            ('classes.count == 1', 'classes.count >= 1'),
+            ('"merianTests.ScopedMockURLProtocol"', '"OtherReceiver"'),
+            ('&& Bundle(for: receiver).bundleURL.pathExtension == "xctest"', ''),
+            ('&& matchesReceiverRuntime', '|| matchesReceiverRuntime'),
+            ('measuredReceiver && acknowledgedOwnedSessionEnd', 'measuredReceiver || acknowledgedOwnedSessionEnd'),
+        )
+        for before, after in mutations:
+            with self.subTest(before=before):
+                self.assertIn(before, source)
+                with self.assertRaises(AssertionError):
+                    self.assert_transport_receiver_contract(source.replace(before, after))
 
     def test_failure_retains_nonpassing_requirement_receipt(self):
         with tempfile.TemporaryDirectory() as directory:

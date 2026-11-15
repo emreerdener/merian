@@ -406,3 +406,58 @@ files and backend candidate-list additions remain excluded. Portable product
 transfer, compiled enumeration/result mapping and the complete shard matrix
 still require new exact-SHA hosted validation; local tests do not establish
 them.
+
+## iOS 27 identity observation and full-coverage requalification candidate
+
+The frozen PR152 source `eae69e56924f61b33b0081d49de30fec6a6d5495` cannot
+satisfy complete coverage on iOS 26.5: seven compiled Foundation parser methods
+require iOS 27. The user authorized fixing that conflict without skipped tests,
+keeping PR150 and active History work separate and preserving every prerequisite
+before merge or deployment. Diagnostic publication is authorized separately;
+PR152 and main remain frozen.
+
+Diagnostic source `4f50e0b2ca1d5fcbe3651ce5a06438eeb12dfa04`, run 43683773270
+attempt 1, compiled successfully inside its sixty-minute limit and passed the
+single identity XCTest with zero failures or skips. Its original verifier failed
+because Xcode exported the named attachment with an index and UUID before the
+`.json` extension. Artifact 14150013188 was independently digest-verified
+(`a734ee6b5979d615fe6bd9f42a8fb6be3fc06733d5837c69eb74615bd1fd0b3b`). The
+unchanged preparation, summary, result tree, manifest and attachment bind the
+passed test to the owned arm64 iPhone 18 Pro and guest tuple
+`27.2 / 24B8117 / iPhone19,2`. A local verifier repair accepts only the observed
+`merian-simulator-identity_0_<uppercase canonical UUID>.json` shape in addition
+to the literal names; all case, device, configuration, source, run, count,
+payload, size and path checks remain. Local reverification observes identity but
+retains `qualified: false` and `release_eligible: false`. The original hosted
+failure is not relabeled as a passing run. Earlier setup/query and
+twenty-five-minute compile failures remain retained.
+
+The unpublished full-coverage candidate pins that observed tuple and adds it
+only to the Debug measured-receiver eligibility guard, preserving the old tuple,
+test/session/scope/receiver predicates and session invalidation acknowledgement.
+Production transport behavior and native resource assertions are unchanged.
+Every builder and shard must independently pass its own identity probe. Before
+publishing shard products, the builder must requalify all compiled transport,
+Capture allocation and Foundation parser methods from a freshly unpacked copy of
+the same digest-bound archive. The protected parameterized methods require
+exactly two, seven and three argument cases. Full inventory reconciliation
+requires all seven Foundation methods and every compiled unit method exactly
+once across at most sixteen serial whole-suite shards, with zero failures or
+skips. The aggregate independently verifies the focused receipt and unchanged
+critical-result checks; focused success never replaces complete coverage.
+
+Only the unit builder (310 minutes) and shards (350 minutes) exceed the common
+120-minute workflow-security cap. Compilation is bounded at sixty minutes,
+focused native tests at 120 minutes and each shard at 240 minutes. The previous
+Capture suite alone took 4,429 seconds; a thirty-minute focus would be too
+short. No production job limit changes. A complete local tooling run also
+exposed a random temporary-directory suffix incompatible with the recovery
+fixture's ownership guard. The test now creates a valid fixed child under a
+private random parent and explicitly proves an underscore name is rejected
+before container inspection; the runtime guard and SQL are unchanged.
+
+Fresh hosted product transfer, focused resource/parser qualification, complete
+unit coverage, UI/archive and all other exact-SHA packet prerequisites remain
+required. The simulator support report stays local. No PR closure, main update,
+Supabase deployment or Naturebook production promotion is authorized by these
+local observations alone.

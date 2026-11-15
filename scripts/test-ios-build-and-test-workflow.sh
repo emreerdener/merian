@@ -356,11 +356,11 @@ assert_no_runner_context_in_job_env() {
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
 assert_contains "    name: Full iOS unit tests"
-assert_count 1 'name: Prepare qualified unit-test simulator'
-assert_count 1 'name: Prepare qualified shard simulator'
-assert_count 2 'python3 -B scripts/prepare-ios-unit-simulator.py'
-assert_count 2 'ios-unit-simulator-qualification.json'
-assert_before 'name: Prepare qualified unit-test simulator' 'name: Compile app, unit, and performance test targets'
+assert_count 1 'name: Prepare candidate unit-test simulator'
+assert_count 1 'name: Prepare candidate shard simulator'
+assert_count 2 'python3 -B scripts/discover-ios27-simulator.py --prepare-only'
+assert_count 3 'ios-unit-simulator-qualification.json'
+assert_before 'name: Prepare candidate unit-test simulator' 'name: Compile app, unit, and performance test targets'
 assert_file_contains "$repo_root/Makefile" 'python3 -B scripts/test-prepare-ios-unit-simulator.py'
 python3 -B "$repo_root/scripts/test-ios-unit-shard-workflow.py"
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
@@ -429,8 +429,8 @@ assert_count 6 "persist-credentials: false"
 assert_action_release "actions/checkout" 6 7
 assert_action_release "actions/cache/restore" 3 6
 assert_action_release "actions/cache/save" 1 6
-assert_action_release "actions/upload-artifact" 11 7
-assert_action_release "actions/download-artifact" 4 8
+assert_action_release "actions/upload-artifact" 14 7
+assert_action_release "actions/download-artifact" 5 8
 assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
@@ -646,12 +646,11 @@ fi
 # immutable inventory and aggregate reconciliation prevents selected green subsets.
 # The UI bundle still executes exactly its six protected regressions.
 assert_count 1 "-only-testing:merianPerformanceTests"
-assert_count 2 "-only-testing:merianTests"
+assert_count 10 "-only-testing:merianTests"
 assert_count 7 "-only-testing:merianUITests"
 assert_count 6 "-only-testing:merianUITests/"
-if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
-  fail "Handwritten unit suite selectors must not replace the complete compiled inventory."
-fi
+# The Python contract confines handwritten selectors to identity and focused
+# prerequisites; complete inventory and shards still require the immutable plan.
 if grep -Fq -- "-skip-testing:merianTests" "$workflow"; then
   fail "The production gate must not skip any merianTests suite."
 fi

@@ -165,6 +165,17 @@ checks reused. Engine cleared the repair. The
 owns the exact scope and remaining integration. This does not install a CPM
 caller or prove ticket validity, physical staging bounds or remote closure.
 
+The iOS 27 validation candidate adds only the observed arm64 simulator tuple
+`27.2 / 24B8117 / iPhone19,2` to the Debug receiver eligibility guard, retaining
+`26.5 / 23F77 / iPhone18,1`. Test execution, an injected session with a UUID
+scope, a single `merianTests.ScopedMockURLProtocol` from an XCTest bundle, and
+the owned session invalidation acknowledgement remain required. The new tuple
+enables requalification; it is not itself measured-resource evidence. The
+complete transport, Capture allocation and Foundation parser suites must pass
+before full unit shards can start. See the
+[testing strategy](../../../../../docs/development-guides/08-testing-strategy.md).
+Production session behavior and resource assertions are unchanged.
+
 ## October 29 — native v2 transport candidate
 
 The inactive native owner and authenticated adapter now support explicitly

@@ -113,6 +113,20 @@ class DiscoveryTests(unittest.TestCase):
             env = dict(HOST, IOS_IDENTITY_TEST_OUTCOME="success"); env[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError): self.verify_fixture(env=env)
 
+    def test_observed_xcode_export_name_is_exact_and_nonqualifying(self):
+        name = "merian-simulator-identity_0_A0EBE5AF-9813-4C22-9356-E27AF02FD5DE.json"
+        result = self.verify_fixture(lambda f: f["attachments/manifest.json"][0]["attachments"][0].update(
+            suggestedHumanReadableName=name))
+        self.assertTrue(result["identity_observed"])
+        self.assertFalse(result["qualified"])
+        self.assertFalse(result["release_eligible"])
+        for invalid in (name.replace("_0_", "_1_"), name.replace("_0_", "_00_"),
+                        name.replace("A0EBE5AF", "not-uuid"), name.lower(), name + ".txt",
+                        "prefix-" + name, name.replace(".json", ".txt"), "../" + name, None):
+            with self.subTest(name=invalid), self.assertRaises(ValueError):
+                self.verify_fixture(lambda f: f["attachments/manifest.json"][0]["attachments"][0].update(
+                    suggestedHumanReadableName=invalid))
+
     def test_preparation_failure_or_qualification_claim_rejected(self):
         for key, value in (("status", "passed"), ("qualified", True), ("identity_observed", True),
                            ("release_eligible", True), ("runtime_identifier", "other"), ("phases", [])):

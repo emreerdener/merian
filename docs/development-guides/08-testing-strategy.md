@@ -1731,82 +1731,67 @@ HTTP request is dispatched. See the
    serially, with Xcode process-level parallel testing disabled. The aggregate
    reconciles every compiled method exactly once, checks all parameter leaves,
    and applies the unchanged critical-result validator to the raw shard trees.
-   Before compilation and separately on every shard,
-   `prepare-ios-unit-simulator.py` prepares the existing measured-transfer
-   qualification: arm64, iOS 26.5 build `23F77`, iPhone 17 Pro model
-   `iPhone18,1`. On a disposable GitHub-hosted runner only, it requests Apple's
-   exact build `23F77` when absent (not the release-number selector `26.5`),
-   independently verifies the installed build and supported device type, waits
-   for Apple's dyld shared-cache preparation for that exact runtime identifier,
-   creates its own simulator, and reads the three identity variables from the
-   booted device. It never injects those values or falls back to the newest
-   runtime. Installation, cache, identity or boot failure blocks the full unit
-   lane; accepted-transfer cases are not skipped and the transport's
-   drain/measurement fence is unchanged. The qualification receipt is retained
-   with the unit-test artifact. The setup step is bounded at 25 minutes,
-   including ten minutes for runtime cache completion and the unchanged
-   five-minute cold-boot allowance. The cache command uses the verified runtime
-   identifier, never `--all`, `--force`, a retry, or warn-and-continue behavior.
-   Cache readiness does not qualify the simulator without subsequent boot and
-   identity proof. Each of the three sequential identity reads has a 30-second
-   deadline and fails closed without retry on timeout. Each identity query
-   writes to an automatically removed temporary file and waits for the direct
-   process, so a descendant retaining stdout cannot make pipe EOF a
-   prerequisite. Success still requires exit code zero and the exact ASCII
-   identity, with a 64-byte output limit. Timeout diagnostics retain only the
-   key, direct-process status, output-presence/exact-match booleans and cleanup
-   outcome; partial output never qualifies the device. Cleanup kills only the
-   query process and allows at most five seconds to reap it. Only after the
-   first identity query times out, a failure-only
-   `simctl spawn <owned-UDID>
-   /usr/bin/true` diagnostic checks process
-   dispatch without `-s`. It discards stdout, waits at most ten seconds, and
-   allows five seconds to reap only its own process. A nonblocking pipe reader
-   caps retained stderr at 8 KiB, attempts bounded direct-process cleanup on
-   overflow and records whether reaping succeeded. It never waits for a
-   descendant to close the pipe after direct exit. No raw output is written to
-   disk or retained in the receipt. Only after a `nonzero` or `timeout` probe is
-   reaped, a strict parser extracts allowlisted Apple error domains and numeric
-   codes; empty and unrecognized output have fixed outcomes. An oversized
-   capture reports that outcome without parsing. A process exit code alone never
-   identifies an Apple error domain or proves that the device shut down. After
-   that probe, one ten-second `simctl list devices <owned-UDID> --json` read
-   snapshots only the owned device's state. Its direct process has the same
-   five-second cleanup bound and nonblocking reader, capped at 64 KiB of
-   retained stdout with a bounded cleanup attempt on overflow. Only a closed
-   state enum or fixed missing, ambiguous, invalid, nonzero, oversized, timeout
-   or unavailable outcome is retained, never device names, other inventory,
-   availability messages or paths. If the identity query and failed regular
-   spawn were both reaped, and the completed state read observes `Booted`, one
-   final `simctl spawn -s <owned-UDID> /usr/bin/true` control uses Apple's
-   deprecated standalone mode with a NULL Mach bootstrap port. It uses the same
-   ten-second deadline, five-second direct-process cleanup and bounded stderr
-   parser. This control does not require a booted device and cannot connect to
-   its services. It is only a comparison of command paths, never a readiness
-   prerequisite or fallback. A success shows that the standalone path completed
-   later; it does not identify a root cause or prove that the original guest
-   command would now succeed. It is omitted after a successful regular probe,
-   incomplete cleanup or an unobserved/non-Booted state. None of these
-   diagnostics runs on success or a later identity-query failure. Their
-   outcomes, duration, return codes and cleanup flags supplement the original
-   failed identity receipt; even a successful probe and a `Booted` state never
-   retry or qualify identity. Diagnostic failures cannot replace the original
-   timeout; cancellation still propagates after bounded direct-process cleanup.
-   Cache-update and boot phases retain only outcome and elapsed milliseconds
-   alongside existing failure diagnostics. This adds evidence to distinguish
-   dispatch from environment query failure, not a proven readiness fix. Because
-   the first-query failure skips the remaining two 30-second queries, the three
-   diagnostics' combined maximum of 45 seconds, including cleanup, fits inside
-   the existing bound. Helper command maxima total 1,390 seconds, or 1,395
-   including timeout cleanup, within the unchanged 25-minute step. Cache or boot
-   timeouts retain bounded command progress in the non-passing failure receipt.
-   UI and startup jobs retain their current simulator selection. The
-   build/inventory job has a 95-minute bound; each shard has a 240-minute test
-   step inside a 330-minute job, and aggregate reconciliation has fifteen
-   minutes. The previous single-process 120-minute run 43615068314 timed out
-   while executing cases; a partial log is not a pass. These budgets bound
-   execution rather than assert performance. At most four shards run
-   concurrently per workflow, each with a separate simulator and filesystem.
+   The candidate lane pins the observed arm64 iOS 27.2 build `24B8117` on an
+   iPhone 18 Pro, guest model `iPhone19,2`, in `scripts/ios-unit-shards.py`. The
+   Debug transport guard admits that exact tuple for requalification while
+   preserving its previous measured tuple and every test/session/receiver guard.
+   Identity observation does not qualify transport resources or full coverage;
+   both focused and complete native gates below remain mandatory.
+
+   `discover-ios27-simulator.py --prepare-only` requires the uniquely installed
+   matching runtime and supported device type on a disposable GitHub-hosted
+   runner, waits for that runtime's cache, creates a fresh owned simulator and
+   boots it. It neither installs a fallback nor injects identity values.
+   Preparation takes at most twenty minutes, including ten for cache readiness
+   and five for boot. Preparation alone cannot qualify a simulator.
+
+   After compilation, the builder launches the single
+   `SimulatorRuntimeIdentityTests` case through Xcode. Every shard repeats that
+   probe on its own owned simulator using its verified transferred product. Each
+   ten-minute probe must produce exactly one passed, unskipped XCTest result and
+   one bounded identity attachment. The five-minute verifier binds the case,
+   guest runtime/build, device UUID, architecture, configuration, source SHA and
+   run/attempt. Console text never supplies identity. The resulting observation
+   receipt remains `qualified: false` and `release_eligible: false`; full-unit
+   reconciliation additionally requires its exact pinned tuple. Each job retains
+   the probe's native evidence.
+
+   The builder enumerates every compiled unit method, requires all seven iOS 27
+   Foundation parser methods, packs the product and records its SHA-256 in an
+   immutable plan. It then verifies and unpacks that same archive into a fresh
+   directory for focused requalification. Every compiled method in
+   `PinnedPhotoUploadTaskTests`, `CaptureNativePhotoRoleAllocationTests` and
+   `AppleFoundationVisualCueProviderTests` must pass. The resource success and
+   cancellation method must have two argument leaves; the frozen-capture
+   transition method seven; the first-original-PUT method three. These exact
+   counts, unique argument identities and zero skips are also enforced when
+   those methods execute in the full shards. Resource assertions and the
+   session-drain fence remain unchanged.
+
+   Focused evidence includes the full and selected inventories, native summary
+   and tree, identity receipt, plan and product digests. Only after the focused
+   gate passes can the build job publish products for shard execution. The
+   aggregate downloads the focused artifact by its exact build output ID and
+   recomputes its receipt against the same plan before reconciling every shard
+   and the unchanged critical-result validator. Focused success never replaces
+   complete target coverage.
+
+   The builder has a 310-minute job limit, including a 60-minute compilation
+   limit, a 120-minute focused-test limit and explicit
+   orchestration/finalization margin. The historical Capture suite scheduling
+   evidence is 4,429 seconds; a thirty-minute focused limit would undercut that
+   evidence. Each shard retains its 240-minute test limit inside a 350-minute
+   job, including its own identity check and evidence retention. Aggregate
+   reconciliation has fifteen minutes. These are ceilings, not performance
+   claims. At most four of the sixteen whole-suite shards run concurrently. UI
+   and archive gates remain independent.
+
+   The previous iOS 26.5/`23F77`/`iPhone18,1` helper and its bounded
+   failure-only diagnostics remain available for the historical installation
+   experiment. Their `simctl getenv` failures are retained; they do not qualify
+   the iOS 27 candidate. The previous single-process 120-minute unit run
+   43615068314 also timed out while executing cases. Neither partial logs nor
+   runtime identity observations clear the full coverage requirement.
 
    The historical `iOS Runtime Installation Experiment` workflow is now
    manual-only; do not rerun it without a materially new hypothesis. It tested
@@ -1857,32 +1842,33 @@ HTTP request is dispatched. See the
    setup requires a separately reviewed repair and complete validation before
    consolidation can advance. PR152 remains frozen during the experiment.
 
-   The complete unit configuration has a known coverage conflict: its iOS 26.5
-   qualification cannot execute the seven required iOS 27 Foundation parser
-   methods. The isolated `iOS Candidate Runtime Discovery` workflow therefore
-   observes the preinstalled iOS 27.2 build `24B8117`, using a newly owned
-   iPhone 18 Pro simulator. It requires exact installed identity/device support,
-   cache readiness and boot without installing a substitute runtime or guessing
-   its model identifier. Both runtime candidates stalled at `simctl getenv`
-   after boot. The next diagnostic therefore compiles the existing unit target
-   and launches only `SimulatorRuntimeIdentityTests` through Xcode. Its guest
-   process writes an allowlisted identity attachment; the verifier requires
-   exactly one passed, unskipped case, the owned device and exact OS build, the
-   current SHA/run/attempt, and one bounded attachment bound to that case and
-   configuration. It never substitutes console output for the attachment. Host
-   preparation alone remains non-qualifying. The isolated job allows 120 minutes
-   including 20 for preparation, 10 for locked dependency resolution, 60 for
-   compilation, 10 for the test, 5 for verification and 10 for evidence upload.
-   Diagnostic run 43680601932 exhausted the former 25-minute compile limit while
-   Swift compilation was still progressing, with no reported compiler error. It
-   never reached the identity test. The 60-minute compile ceiling is one bounded
-   follow-up, not a simulator or resource qualification; test and setup
-   deadlines are unchanged. The receipt always says `qualified: false` and
-   `release_eligible: false`: this only establishes a candidate identity for
-   review. The measured transport resource/drain tests and dependent accepted
-   photo allocation cases must be requalified without assertion changes,
-   followed by complete exact-SHA coverage with zero skips. Until then the
-   existing unit gate remains blocked and PR152 stays frozen.
+   The previous complete unit configuration had a coverage conflict: its iOS
+   26.5 qualification could not execute the seven required iOS 27 Foundation
+   parser methods. The isolated `iOS Candidate Runtime Discovery` workflow
+   therefore observes the preinstalled iOS 27.2 build `24B8117`, using a newly
+   owned iPhone 18 Pro simulator. It requires exact installed identity/device
+   support, cache readiness and boot without installing a substitute runtime or
+   guessing its model identifier. Both runtime candidates stalled at
+   `simctl getenv` after boot. The next diagnostic therefore compiles the
+   existing unit target and launches only `SimulatorRuntimeIdentityTests`
+   through Xcode. Its guest process writes an allowlisted identity attachment;
+   the verifier requires exactly one passed, unskipped case, the owned device
+   and exact OS build, the current SHA/run/attempt, and one bounded attachment
+   bound to that case and configuration. It never substitutes console output for
+   the attachment. Host preparation alone remains non-qualifying. The isolated
+   job allows 120 minutes including 20 for preparation, 10 for locked dependency
+   resolution, 60 for compilation, 10 for the test, 5 for verification and 10
+   for evidence upload. Diagnostic run 43680601932 exhausted the former
+   25-minute compile limit while Swift compilation was still progressing, with
+   no reported compiler error. It never reached the identity test. The 60-minute
+   compile ceiling is one bounded follow-up, not a simulator or resource
+   qualification; test and setup deadlines are unchanged. The receipt always
+   says `qualified: false` and `release_eligible: false`: this only establishes
+   a candidate identity for review. The measured transport resource/drain tests
+   and dependent accepted photo allocation cases must be requalified without
+   assertion changes, followed by complete exact-SHA coverage with zero skips.
+   Until all exact-SHA gates pass, release remains blocked and PR152 stays
+   frozen. This candidate contract does not assert a hosted qualification pass.
 
    Every suite and parameterized method stays intact, with unchanged fixtures,
    resource guards and assertions. The
@@ -2381,6 +2367,8 @@ failure:
 
 | Failure                                                               | Artifact or local action                                                                                                                                                                                  |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulator identity                                                    | Inspect `ios-unit-build-identity-<run-id>-attempt-<attempt>` or `ios-unit-identity-<run-id>-attempt-<attempt>-<index>`; host preparation and a model observation alone do not qualify resources.          |
+| Focused runtime requalification                                       | Inspect `ios-unit-requalification-<run-id>-attempt-<attempt>`; require its exact product/plan digests, all three compiled suites and every protected parameter case.                                      |
 | Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                |
 | Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-attempt-<attempt>-<index>` coverage receipt. |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; rerun all workflow jobs together. Do not weaken inventory reconciliation or the critical-suite validator.             |

@@ -16,11 +16,25 @@ from urllib.parse import unquote, urlsplit
 TARGET = "merianTests"
 SHARDS = 16
 TOOLCHAIN = "Xcode 27.0 Build version 27A266a"
-RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "26.5",
-           "SIMULATOR_RUNTIME_BUILD_VERSION": "23F77",
-           "SIMULATOR_MODEL_IDENTIFIER": "iPhone18,1"}
+RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "27.2",
+           "SIMULATOR_RUNTIME_BUILD_VERSION": "24B8117",
+           "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,2"}
 PRODUCT = "tests.xctestproducts"
 MAX_JSON = 64 * 1024 * 1024
+REQUALIFICATION_SUITES = {"merianTests/" + name for name in (
+    "PinnedPhotoUploadTaskTests", "CaptureNativePhotoRoleAllocationTests", "AppleFoundationVisualCueProviderTests")}
+FOUNDATION_METHODS = {"merianTests/AppleFoundationVisualCueProviderTests/" + name for name in (
+    "schemaCanBeConstructed", "detailPresenceDoesNotPublishAnUnfinishedObject",
+    "completedCuePublishesWhileTheNextCueIsStillStreaming", "malformedEntriesDoNotShiftLaterCueIndices",
+    "mappingBoundsEvenAnOversizedResponse", "completeModelOutputStillPassesThroughIdentityValidation",
+    "emptyOrUnrelatedContentProducesNoCues")}
+# These protected methods have fixed literal argument arrays in the candidate.
+# General compiled enumeration identifies methods, not dynamic argument values.
+REQUALIFICATION_ARGUMENT_COUNTS = {
+    "merianTests/PinnedPhotoUploadTaskTests/maximumOriginalStreamResources(cancelHalfway:)": 2,
+    "merianTests/CaptureNativePhotoRoleAllocationTests/freshCaptureSendsOneFrozenSourceAndFencesChanges(duringTicket:)": 7,
+    "merianTests/CaptureNativePhotoRoleAllocationTests/firstOriginalPutChecksExactProgressOnce(_:)": 3,
+}
 
 
 def require(condition, message):
@@ -112,6 +126,7 @@ def partition(methods, weights):
 
 def make_plan(enumeration, products, weights):
     methods = inventory(enumeration)
+    require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
     require(isinstance(weights, dict) and all(isinstance(k, str) and type(v) is int
             and 0 < v < 86400 for k, v in weights.items()), "Invalid scheduling weights")
     return {"schema_version": 1, **identity(), "toolchain": TOOLCHAIN,
@@ -135,6 +150,7 @@ def load_plan(path, *, require_workspace=True):
     methods = plan.get("inventory")
     require(isinstance(methods, list) and methods and methods == sorted(set(methods))
             and all(canonical(x) == x for x in methods), "Invalid plan inventory")
+    require(FOUNDATION_METHODS.issubset(methods), "Required iOS 27 parser inventory is incomplete")
     shards = plan.get("shards")
     require(isinstance(shards, list) and len(shards) == min(SHARDS, len({suite(x) for x in methods})),
             "Invalid shard count")
@@ -243,15 +259,35 @@ def unpack_product(plan, products, destination):
                 path.chmod(member.mode & 0o777)
 
 
-def qualified_device(qualification):
-    require(qualification.get("qualified") is True and qualification.get("status") == "passed"
-            and qualification.get("architecture") == "arm64" and qualification.get("runtime_cache_ready") is True
-            and qualification.get("runtime_identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
-            and qualification.get("device_type_identifier") == "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
-            and qualification.get("observed_environment") == RUNTIME, "Unqualified shard simulator")
-    destination = qualification.get("simulator_destination", "")
+def observed_device(observation):
+    """Identity observation is required but never itself release qualification."""
+    require(isinstance(observation, dict) and type(observation.get("schema_version")) is int and observation["schema_version"] == 1
+            and observation.get("qualified") is False and observation.get("release_eligible") is False
+            and observation.get("status") == "passed" and observation.get("identity_observed") is True
+            and observation.get("observation_method") == "xctest_attachment"
+            and observation.get("architecture") == "arm64"
+            and observation.get("runtime_identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-27-2"
+            and observation.get("device_type_identifier") == "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro"
+            and observation.get("observed_environment") == RUNTIME, "Unverified shard simulator identity")
+    require(re.fullmatch(r"iPhone[0-9]{1,2},[0-9]{1,2}", RUNTIME["SIMULATOR_MODEL_IDENTIFIER"]), "Runtime model has not been observed")
+    require(all(observation.get(k) == v for k, v in identity().items()), "Stale simulator identity evidence")
+    phases = observation.get("phases")
+    require(isinstance(phases, list) and len(phases) == 3 and all(isinstance(p, dict) for p in phases),
+            "Missing simulator preparation phases")
+    require([p.get("phase") for p in phases] == ["cache", "create", "boot"]
+            and all(p.get("outcome") == "passed" and type(p.get("elapsed_ms")) is int and p["elapsed_ms"] >= 0
+                    for p in phases), "Incomplete simulator preparation")
+    files = observation.get("files")
+    fixed = {"preparation.json", "summary.json", "tests.json", "attachments/manifest.json"}
+    require(isinstance(files, dict) and len(files) == 5 and fixed.issubset(files)
+            and all(isinstance(v, str) and re.fullmatch(r"[a-f0-9]{64}", v) for v in files.values()),
+            "Missing identity evidence digests")
+    attachment = next(iter(set(files) - fixed))
+    require(re.fullmatch(r"attachments/[^/\\]+", attachment) and Path(attachment).name not in (".", ".."),
+            "Invalid identity attachment digest path")
+    destination = observation.get("simulator_destination", "")
     match = re.fullmatch(r"platform=iOS Simulator,id=([A-Fa-f0-9-]{36})", destination)
-    require(match is not None, "Invalid qualified simulator destination")
+    require(match is not None, "Invalid observed simulator destination")
     require(str(uuid.UUID(match.group(1))).upper() == match.group(1).upper(), "Invalid simulator UUID")
     return match.group(1)
 
@@ -262,11 +298,11 @@ def result_methods(summary, tree, qualification):
         require(type(summary.get(key)) is int, "Invalid native test count")
     require(summary["totalTestCount"] > 0 and summary["passedTests"] == summary["totalTestCount"]
             and summary["failedTests"] == summary["skippedTests"] == 0, "Incomplete, failed or skipped native tests")
-    device = qualified_device(qualification)
+    device = observed_device(qualification)
     devices = tree.get("devices")
     require(isinstance(devices, list) and len(devices) == 1, "Multiple/missing test devices")
     require(all(devices[0].get(k) == v for k, v in {"architecture": "arm64", "deviceId": device,
-            "osBuildNumber": "23F77", "osVersion": "26.5", "platform": "iOS Simulator"}.items()),
+            "osBuildNumber": "24B8117", "osVersion": "27.2", "platform": "iOS Simulator"}.items()),
             "Result device differs from qualified simulator")
     configs = tree.get("testPlanConfigurations")
     require(isinstance(configs, list) and len(configs) == 1, "Multiple/missing test configurations")
@@ -294,6 +330,8 @@ def result_methods(summary, tree, qualification):
             require(":" not in method or children, "Parameterized method has no argument results")
             methods.append(method)
             require(all(c.get("nodeType") == "Arguments" for c in children), "Unexpected method child")
+            if method in REQUALIFICATION_ARGUMENT_COUNTS:
+                require(len(children) == REQUALIFICATION_ARGUMENT_COUNTS[method], "Protected parameter argument coverage is incomplete")
         elif kind == "Arguments":
             require(parent == "Test Case" and not children, "Invalid parameter leaf")
             url = node.get("nodeIdentifierURL", "")
@@ -326,8 +364,37 @@ def receipt(plan, index, directory):
                       ("enumeration.txt", "summary.json", "tests.json", "qualification.json")}}
 
 
-def aggregate(plan, evidence, output):
+def requalification(directory, *, require_workspace=True):
+    """Focused prerequisite, never a substitute for complete shard coverage."""
+    directory = Path(directory)
+    plan = load_plan(directory / "plan.json", require_workspace=require_workspace)
+    full = inventory(directory / "full-inventory.txt")
+    require(full == plan["inventory"], "Focused full inventory differs from immutable plan")
+    require(FOUNDATION_METHODS.issubset(full), "Required iOS 27 parser inventory is incomplete")
+    expected = [m for m in full if suite(m) in REQUALIFICATION_SUITES]
+    require({suite(m) for m in expected} == REQUALIFICATION_SUITES
+            and set(REQUALIFICATION_ARGUMENT_COUNTS).issubset(expected), "Missing transport requalification methods")
+    require(inventory(directory / "enumeration.txt") == expected, "Focused enumeration differs from complete compiled suites")
+    tree = read_json(directory / "tests.json")
+    methods, leaves = result_methods(read_json(directory / "summary.json"), tree,
+                                     read_json(directory / "qualification.json"))
+    require(methods == expected, "Focused execution differs from complete compiled suites")
+    return {"schema_version": 1, **identity(), "toolchain": TOOLCHAIN, "runtime": RUNTIME,
+            "status": "passed", "release_eligible": False, "methods": methods, "parameter_leaves": leaves,
+            "plan_sha256": digest(directory / "plan.json"), "products_sha256": plan["products_sha256"],
+            "files": {name: digest(directory / name) for name in (
+                "plan.json", "full-inventory.txt", "enumeration.txt", "summary.json", "tests.json", "qualification.json")}}
+
+
+def aggregate(plan, evidence, output, requalification_directory):
     evidence, output = Path(evidence), Path(output)
+    focused = Path(requalification_directory)
+    require({p.name for p in focused.iterdir()} == {"plan.json", "full-inventory.txt", "enumeration.txt", "summary.json", "tests.json",
+            "qualification.json", "receipt.json", "enumeration.log", "xcodebuild.log", "results.xcresult"}, "Missing or extra focused evidence")
+    require((focused / "results.xcresult").is_dir() and not (focused / "results.xcresult").is_symlink(), "Missing focused native result")
+    require(read_json(focused / "plan.json") == plan, "Focused result uses another plan")
+    focused_receipt = requalification(focused, require_workspace=False)
+    require(read_json(focused / "receipt.json") == focused_receipt, "Focused receipt mismatch")
     expected = {f"ios-unit-shard-{plan['run_id']}-attempt-{plan['run_attempt']}-{s['index']}" for s in plan["shards"]}
     require({p.name for p in evidence.iterdir()} == expected, "Missing/extra shard artifacts; rerun all jobs together")
     trees, methods, parameters = [], [], 0
@@ -348,16 +415,22 @@ def aggregate(plan, evidence, output):
     # and still requires each protected suite and case exactly once.
     write_json(output / "tests.json", {"shards": trees})
     write_json(output / "coverage.json", {**identity(), "plan_sha256": os.environ["IOS_UNIT_PLAN_SHA256"],
-               "status": "passed", "methods": len(methods), "parameter_leaves": parameters, "shards": len(trees)})
+               "status": "passed", "methods": len(methods), "parameter_leaves": parameters, "shards": len(trees),
+               "requalification": {"receipt_sha256": digest(focused / "receipt.json"),
+                                   "products_sha256": focused_receipt["products_sha256"]}})
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("pack", "plan", "unpack", "selectors", "check-enumeration", "receipt", "aggregate"))
-    for name in ("plan", "enumeration", "products", "output", "weights", "directory"):
+    parser.add_argument("action", choices=("pack", "plan", "unpack", "selectors", "check-enumeration", "receipt", "aggregate", "requalification"))
+    for name in ("plan", "enumeration", "products", "output", "weights", "directory", "requalification-directory"):
         parser.add_argument("--" + name, type=Path)
     parser.add_argument("--index", type=int)
     args = parser.parse_args()
+    if args.action == "requalification":
+        require(os.environ.get("IOS_REQUALIFICATION_OUTCOME") == "success", "Focused native command did not succeed")
+        write_json(args.output, requalification(args.directory))
+        return
     if args.action == "pack":
         pack_product(args.products, args.output)
         return
@@ -380,7 +453,7 @@ def main():
         require(os.environ.get("IOS_UNIT_TEST_OUTCOME") == "success", "Native test command did not succeed")
         write_json(args.output, receipt(plan, args.index, args.directory))
     else:
-        aggregate(plan, args.directory, args.output)
+        aggregate(plan, args.directory, args.output, args.requalification_directory)
 
 
 if __name__ == "__main__":
