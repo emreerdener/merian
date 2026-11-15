@@ -2256,9 +2256,14 @@ process. No declared cross-suite state dependency was identified in review.
   nonempty summary, zero failures/skips, exact method-count reconciliation,
   exactly one occurrence of every assigned method, and only passed tree nodes.
   Parameterized methods must retain passed, uniquely identified argument leaves
-  bound to their method. Xcode's inventory supplies method identities, not an
-  independent expected count of dynamically generated argument rows; whole-suite
-  selection and unchanged compiled test bodies preserve their parameter inputs.
+  bound to their method. Argument URLs require exactly one `args` query value:
+  opaque, nonempty, even-length lowercase hexadecimal, capped at 4,096
+  characters. Xcode emits both short value encodings and 64-character
+  identities; no hash semantics are assumed. Extra keys, fragments, encoded
+  aliases, control characters and duplicate full URLs fail. Xcode's inventory
+  supplies method identities, not an independent expected count of dynamically
+  generated argument rows; whole-suite selection and unchanged compiled test
+  bodies preserve their parameter inputs.
 - The aggregate requires the build and entire matrix to succeed, then recomputes
   receipts from every raw summary, tree, qualifier and selected inventory. It
   rejects missing/extra shard artifacts, changed hashes, stale

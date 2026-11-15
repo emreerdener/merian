@@ -365,8 +365,12 @@ def result_methods(summary, tree, qualification):
         elif kind == "Arguments":
             require(parent == "Test Case" and not children, "Invalid parameter leaf")
             url = node.get("nodeIdentifierURL", "")
-            require(urlsplit(url)._replace(query="").geturl() == parent_url
-                    and re.fullmatch(r"args=[a-f0-9]{64}", urlsplit(url).query) and url not in arguments, "Missing or duplicate parameter identity")
+            parsed = urlsplit(url)
+            # Xcode emits opaque argument IDs, including short UTF-8 hex values.
+            # Bound their size without assuming they are SHA-256 digests.
+            require(not parsed.fragment and url == parent_url + "?" + parsed.query
+                    and re.fullmatch(r"args=(?:[a-f0-9]{2}){1,2048}", parsed.query)
+                    and url not in arguments, "Missing or duplicate parameter identity")
             arguments.add(url)
         else:
             require(children, "Empty native test container")

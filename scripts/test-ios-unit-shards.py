@@ -371,6 +371,28 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(methods, sorted(self.methods))
         self.assertEqual(leaves, 14)
 
+    def test_opaque_parameter_ids_preserve_short_hosted_values_and_boundaries(self):
+        methods = ["merianTests/Alpha/parameter(value:)"]
+        for value in ("2e6a706567", "2e707265666572726564", "ab", "ab" * 32, "ab" * 2048):
+            with self.subTest(length=len(value)):
+                tree = tree_for(methods)
+                case = first_case(tree)
+                case["children"][0]["nodeIdentifierURL"] = case["nodeIdentifierURL"] + "?args=" + value
+                self.assertEqual(shards.result_methods(summary_for(methods), tree, qualification()), (methods, 2))
+
+    def test_opaque_parameter_ids_reject_malformed_unbounded_and_aliased_urls(self):
+        methods = ["merianTests/Alpha/parameter(value:)"]
+        queries = ("args=", "args=a", "args=abc", "args=AG", "args=AB", "args=ab" + "ab" * 2048,
+                   "args=ab&x=1", "args=ab&args=cd", "args=%61%62", "args=ab#fragment",
+                   "args=ab#", "args=a\nb", "args= ab", "args=ab ", "args=ab\t", "other=ab")
+        for query in queries:
+            with self.subTest(query=query[:50]):
+                tree = tree_for(methods)
+                case = first_case(tree)
+                case["children"][0]["nodeIdentifierURL"] = case["nodeIdentifierURL"] + "?" + query
+                with self.assertRaisesRegex(ValueError, "parameter identity"):
+                    shards.result_methods(summary_for(methods), tree, qualification())
+
     def test_linux_aggregate_changes_workspace_but_not_source_run_or_attempt(self):
         with patch.dict(os.environ, {"GITHUB_WORKSPACE": "/home/runner/work/merian/merian"}):
             self.assertEqual(shards.load_plan(self.plan_file, require_workspace=False), self.plan)
@@ -398,6 +420,8 @@ class ShardTests(unittest.TestCase):
     def test_failed_skipped_duplicated_missing_and_misbound_parameter_rows_fail(self):
         methods = ["merianTests/Alpha/parameter(value:)"]
         original = tree_for(methods)
+        case = first_case(original)
+        case["children"][0]["nodeIdentifierURL"] = case["nodeIdentifierURL"] + "?args=2e6a706567"
         mutations = [lambda c: c["children"][0].update(result="Failed"),
                      lambda c: c["children"][0].update(result="Skipped"),
                      lambda c: c["children"].append(copy.deepcopy(c["children"][0])),

@@ -579,3 +579,22 @@ construction/validation and both success/error release paths are unchanged. This
 is a production access-control repair in addition to the test fixture
 correction; fresh native compilation and complete validation remain required
 before integration.
+
+## Opaque parameter identity repair
+
+In the same diagnostic run, shard 1 passed all 110 native methods with zero
+failures or skips, then failed result reconciliation. Its retained tree contains
+76 unique parent-bound argument leaves. Two passing cases of
+`MediaPreparationActorTests.prepareStillImageReturnsOnlyBoundedPayloads(_:)`
+identify `.jpeg` and `.preferred` using short hexadecimal values rather than
+64-character identities. The parser's fixed-length assumption rejected them.
+
+The verifier now accepts one nonempty even-length lowercase hexadecimal `args`
+value, bounded to 4,096 characters, with exact raw parent URL binding and global
+identity uniqueness. Malformed values, extra query keys, fragments, encoded
+aliases and control characters fail. Native success, zero skips, complete method
+coverage and protected 2/7/3 argument matrices remain required. No compiled test
+inputs, native assertions, workflow budgets or simulator identities change.
+Retained-artifact replay is local diagnostic evidence only; it cannot relabel
+the failed hosted run or clear a release gate. Fresh complete validation remains
+required, with PR152/main frozen and PR150 and History separate.
