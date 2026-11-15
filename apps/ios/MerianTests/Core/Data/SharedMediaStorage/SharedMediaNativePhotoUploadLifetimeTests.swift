@@ -373,7 +373,8 @@ struct NativePhotoUploadLifetimeTests {
         }
     }
 
-    @Test(arguments: ["cancel", "account", "timeout"])
+    // Contains the full durable fixture and drain, not a product upload budget.
+    @Test(.timeLimit(.minutes(3)), arguments: ["cancel", "account", "timeout"])
     func freshPutTerminationRetainsLeaseAndLocks(_ mode: String) async throws {
         let began = ContinuousClock.now
         var phase = "fixture"
@@ -398,9 +399,9 @@ struct NativePhotoUploadLifetimeTests {
                 try validate()
                 phase = "ticket-response"
                 let now = Int64(Date().timeIntervalSince1970 * 1000)
-                // A delayed ticket response leaves the same short PUT window;
-                // allocation preparation must not consume that window first.
-                let created = now - (mode == "timeout" ? 590_000 : 0)
+                // A delayed ticket leaves 60s for actual PUT admission and expiry.
+                // Hosted validation alone exceeded the former 10s fixture window.
+                let created = now - (mode == "timeout" ? 540_000 : 0)
                 let wire = try fixture.row(request.allocation, createdAtMilliseconds: created)
                 let signedExpiry = try #require(wire["signed_expires_at_ms"] as? Int64)
                 timing.withLock { $0.issued = now; $0.expiry = signedExpiry }
@@ -410,8 +411,8 @@ struct NativePhotoUploadLifetimeTests {
                     let signed = try #require(wire["signed_expires_at_ms"] as? Int64)
                     #expect(receipt == context.reserved.receipt)
                     #expect(created >= receipt.createdAtMilliseconds && created < receipt.expiresAtMilliseconds)
-                    #expect(receipt.expiresAtMilliseconds > now + 10_000)
-                    #expect(expiry == min(receipt.expiresAtMilliseconds, created + 600_000) && expiry == now + 10_000)
+                    #expect(receipt.expiresAtMilliseconds > now + 60_000)
+                    #expect(expiry == min(receipt.expiresAtMilliseconds, created + 600_000) && expiry == now + 60_000)
                     #expect(signed == (expiry / 1000) * 1000 && signed > now)
                 }
                 return try fixture.bytes(wire)
@@ -442,12 +443,17 @@ struct NativePhotoUploadLifetimeTests {
             try await pause.waitForEntry()
             phase = "completion-paused"
             #expect(observedStart && (mode != "timeout" || !call.isCancelled))
+            #expect(timing.withLock { $0.taskCreated != 0 && $0.started != 0 })
             #expect(try NativePhotoStatusRecoveryTests().saved(store).receipt == context.reserved.receipt)
             try await Task.sleep(for: .milliseconds(30))
             #expect(!finished && !drained && !acquired)
             #expect(try row(store) == held)
             pause.release()
-            await #expect(throws: (any Error).self) { _ = try await call.value }
+            if mode == "timeout" {
+                await #expect(throws: URLError(.timedOut)) { _ = try await call.value }
+            } else {
+                await #expect(throws: (any Error).self) { _ = try await call.value }
+            }
             await contender?.value
             #expect(finished && acquired)
             #expect(try row(store) == held)

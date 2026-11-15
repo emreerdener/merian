@@ -12683,6 +12683,21 @@ alone exceeded one minute, and the adjacent audit measured almost six seconds to
 sender entry, invalidating the former four-second polling watchdog. Focused
 event regressions cover admission, early failure and waiter cancellation.
 
+### Fresh PUT signed-expiry lifetime
+
+`NativePhotoUploadLifetimeTests.freshPutTerminationRetainsLeaseAndLocks` keeps
+caller cancellation, account shutdown and genuine signed-expiry timeout as
+separate rows. The timeout row receives a synthetic delayed ticket with 60
+seconds of signed validity, below the unchanged 300-second upload cap. It must
+reach actual task creation and upload start, remain uncancelled by the test,
+retain lease/coordinator exclusion through paused completion, then throw exactly
+`URLError.timedOut`. The original allocation receipt and saved row remain
+unchanged. A three-minute per-row limit contains fixture setup and teardown.
+Hosted durable handoff took over 14 seconds, so the earlier ten-second fixture
+expired before reaching the behavior this test asserts. Production clocks,
+expiry validation and the deterministic decoder boundary tests are unchanged;
+fresh hosted proof is required.
+
 ### Synthetic video fixture encoder ownership
 
 `VideoAudioFixture` serializes its complete preparation lifecycle across test

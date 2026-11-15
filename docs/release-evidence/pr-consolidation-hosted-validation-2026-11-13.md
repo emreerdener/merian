@@ -690,3 +690,25 @@ unarmed skip, historical result or separately unbound build can clear coverage.
 
 PR152/main remain frozen. PR150, active History resources and the local support
 report stay separate; no merge or deployment has occurred.
+
+## Fresh PUT signed-expiry fixture repair
+
+Shard 10 completed 614 methods: 612 passed, two failed, zero skipped. The video
+status paging case failed in the same legacy video fixture before exceeding its
+one-minute limit; the shared modern-receiver repair remains awaiting hosted
+proof. The new failure was the timeout row of
+`NativePhotoUploadLifetimeTests.freshPutTerminationRetainsLeaseAndLocks`. Upload
+construction was reached 7.33 seconds after ticket issuance, but its synthetic
+ten-second signed window expired before URLSession task creation. Sibling
+cancel/account rows reached actual start after 14.21 and 15.45 seconds.
+
+The timeout fixture now receives a delayed ticket with 60 seconds remaining,
+keeping the exact original receipt and capability-expiry formula. It still
+requires real task creation/start, no explicit cancellation, held ownership and
+coordinator exclusion through paused completion, and unchanged persisted state.
+The timeout outcome is strengthened from any error to exactly
+`URLError.timedOut`. A three-minute method limit bounds fixture setup and drain.
+No production deadline, immutable allocation TTL, clock, workflow budget or
+decoder assertion changes. Independent review favored this fixture-only repair
+over a new production clock or timeout seam. Fresh native validation is still
+required; this source change does not qualify the failed original run.
