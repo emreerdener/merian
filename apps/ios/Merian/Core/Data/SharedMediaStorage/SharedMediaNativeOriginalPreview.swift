@@ -65,17 +65,3 @@ struct SharedMediaNativeOriginalPreviewAccess {
         for proof in read.proofs { try verify(proof) }
     }
 }
-
-extension SharedMediaNativeOriginalOwner {
-    /// Preview stays inside receiving locks and the original accounting owner.
-    func previewReceivedAppOriginal(_ prepared: SharedMediaNativeReceivingIntent.Prepared, index: Int) async throws -> SharedMediaNativeOriginalPreview {
-        let read = try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-            try await self.appReceivingWorkflow(lock: lock) { try await $0.originalPreviewAccess(prepared).read(index: index) }
-        }
-        return .init(image: read.image, index: read.index, count: read.proofs.count, validate: {
-            try await self.withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
-                try await self.appReceivingWorkflow(lock: lock) { try $0.originalPreviewAccess(prepared).validate(read) }
-            }
-        })
-    }
-}

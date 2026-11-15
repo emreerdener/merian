@@ -1484,8 +1484,8 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let before = try revision(store)
         var writes = 0, reads = 0
         try owner.setMetadataFault { if $0 == .beforeSave { writes += 1 } }
-        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { _, _, validate in
-            try validate(); reads += 1; return Data("{\"status\":\"found\"}".utf8)
+        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { scan, account, validate in
+            try validate(); reads += 1; return try ScanObservationTestFixture.response(ownerID: account, scanID: scan, rowExists: true)
         }
         #expect(try await access.reserve(candidate) == nil)
         #expect(try await access.check(candidate))

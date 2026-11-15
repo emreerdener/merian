@@ -538,3 +538,44 @@ that replay neither relabels the failed hosted workflow nor proves the unrun
 shards. Fresh exact-SHA hosted qualification, complete matrix execution and all
 release prerequisites remain required. PR152/main stay frozen and PR150, History
 and the local-only support report remain separate.
+
+## Full-suite observation fixture repair
+
+Diagnostic `83e2de4e065d4e4921ec87d367e1996186da9bc6`, native run 43699310762
+attempt 1, passed the focused requalification and its evidence verifier.
+Independent artifact readback reconciled all 24 methods and 47 parameter leaves,
+including the protected argument matrices. All 7,317 compiled methods remain
+assigned across sixteen whole-suite shards. Fresh runners passed product
+transfer, simulator identity and selection reconciliation before executing their
+assigned suites. Current-source backend, critical UI, unsigned Release archive
+and package quality gates also passed.
+
+Full-suite execution exposed a stale fixture in
+`boundedAttemptsKeepStatusAndReleaseOnlyVerifiedApplications`: its status reader
+returned legacy `{"status":"found"}`. The existing observation-only reader
+requires the exact `observe-v1` envelope and correctly rejected that response
+with `MerianError.invalidResponse`. Independent source review confirmed the
+decoder path and the existing malformed-response regression that rejects this
+legacy shape.
+
+The test now uses `ScanObservationTestFixture.response`, binding the response to
+the requested account and scan with `rowExists: true`. It retains the complete
+capacity loop, read-only status assertions, exact replay and retained-attempt
+release checks. No production code, decoder rule, timing limit or assertion
+changes. The original failure remains retained; a complete passing native run
+and all exact-SHA release prerequisites are still required. PR152/main remain
+frozen and PR150 and active History work stay separate.
+
+Shard 2 completed with 305 passed methods, one failure and zero skips. The
+unchanged `receivingRequiresTheSealedCoordinatorGrant` assertion found that
+`withReceivingLocks` had become module-visible to serve the separate preview
+extension. Independent review confirmed that the generic callback should remain
+private to its grant-minting file. The repair restores `private` and moves only
+the unchanged owner-facing preview method into that file. Preview values and
+read access remain in `SharedMediaNativeOriginalPreview.swift`. Three blank
+separators between adjacent receiving methods are removed to keep the owner file
+within its existing 600-line limit. The capability-boundary test, grant
+construction/validation and both success/error release paths are unchanged. This
+is a production access-control repair in addition to the test fixture
+correction; fresh native compilation and complete validation remain required
+before integration.

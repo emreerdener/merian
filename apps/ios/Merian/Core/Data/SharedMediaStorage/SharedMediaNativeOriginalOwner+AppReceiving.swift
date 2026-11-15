@@ -226,14 +226,12 @@ extension SharedMediaNativeOriginalOwner {
             try await transport.recoverCompletion(admission, validate: validate)
         })
     }
-
     func recoverAppInitialAdmission(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                     readOriginal: @escaping @MainActor (SharedMediaNativePhotoAllocation, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data?) async throws -> InitialCompletionDocuments.CpmAdmission? {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().recoverInitialAdmission(prepared, readOriginal: readOriginal) }
         }
     }
-
     func recoverAppInitialCompletion(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                      readOriginal: @escaping @MainActor (InitialCompletionDocuments.CpmAdmission, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialCompletionDocuments.CpmAcquisition?) async throws -> InitialCompletionDocuments.CpmRecoveryRecord? {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
@@ -250,7 +248,6 @@ extension SharedMediaNativeOriginalOwner {
             }
         }
     }
-
     private func withPhotoTransfer<T: Sendable>(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                                 perform: @escaping @MainActor (NativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
@@ -470,7 +467,18 @@ extension SharedMediaNativeOriginalOwner {
         }
         return applied.map { .init(owner: self, prepared: prepared, cohort: $0) }
     }
-    func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
+    /// Preview stays inside receiving locks and the original accounting owner.
+    func previewReceivedAppOriginal(_ prepared: SharedMediaNativeReceivingIntent.Prepared, index: Int) async throws -> SharedMediaNativeOriginalPreview {
+        let read = try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) { try await $0.originalPreviewAccess(prepared).read(index: index) }
+        }
+        return .init(image: read.image, index: read.index, count: read.proofs.count, validate: {
+            try await self.withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+                try await self.appReceivingWorkflow(lock: lock) { try $0.originalPreviewAccess(prepared).validate(read) }
+            }
+        })
+    }
+    private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
                                          body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
         let held = await coordinator.acquireAll(scanIds: [queueID, observationID])
