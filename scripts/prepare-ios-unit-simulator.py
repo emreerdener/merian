@@ -171,10 +171,12 @@ def post_boot_device_state(device):
     return result
 
 
-def post_boot_spawn(device):
+def post_boot_spawn(device, *, standalone=False):
     """Failure-only dispatch evidence; never qualifies identity or retries it."""
-    # Do not use -s: that skips the booted device's bootstrap context.
-    result, raw = diagnostic_process(["xcrun", "simctl", "spawn", device, "/usr/bin/true"],
+    # The regular probe needs the booted bootstrap context. The optional -s
+    # control deliberately omits it; success cannot establish guest readiness.
+    arguments = ["xcrun", "simctl", "spawn"] + (["-s"] if standalone else [])
+    result, raw = diagnostic_process(arguments + [device, "/usr/bin/true"],
                                      capture="stderr", limit=DIAGNOSTIC_ERROR_LIMIT,
                                      timeout=SPAWN_DIAGNOSTIC_TIMEOUT)
     if result["outcome"] in ("nonzero", "timeout") and result["direct_process_reaped"]:
@@ -319,6 +321,14 @@ def prepare(*, run=command, environment=None, machine=None):
                 and error.diagnostics.get("identity_key") == "SIMULATOR_RUNTIME_VERSION"):
             error.diagnostics["post_boot_spawn"] = post_boot_spawn(device)
             error.diagnostics["post_probe_device_state"] = post_boot_device_state(device)
+            probe = error.diagnostics["post_boot_spawn"]
+            state = error.diagnostics["post_probe_device_state"]
+            if (error.diagnostics.get("direct_process_reaped") is True
+                    and probe.get("outcome") in ("timeout", "nonzero")
+                    and probe.get("direct_process_reaped") is True
+                    and state.get("outcome") == "observed" and state.get("state") == "Booted"
+                    and state.get("direct_process_reaped") is True):
+                error.diagnostics["null_bootstrap_control"] = post_boot_spawn(device, standalone=True)
         raise
     if observed != EXPECTED_ENVIRONMENT:
         raise ValueError("Booted simulator identity does not match the measured-transfer qualification: "

@@ -348,6 +348,59 @@ class IdentityProcessTests(unittest.TestCase):
             self.assertEqual(process.wait.call_args_list, [call(timeout=5)])
             process.kill.assert_called_once_with()
 
+    def test_null_bootstrap_control_is_bounded_and_not_a_readiness_probe(self):
+        observed = {"outcome": "passed", "returncode": 0, "direct_process_reaped": True}
+        with patch.object(simulator, "diagnostic_process", return_value=(observed, b"")) as capture:
+            result = simulator.post_boot_spawn(DEVICE, standalone=True)
+        capture.assert_called_once_with(["xcrun", "simctl", "spawn", "-s", DEVICE, "/usr/bin/true"],
+                                        capture="stderr", limit=8192, timeout=10)
+        self.assertEqual(result, observed)
+        self.assertNotIn("qualified", result)
+
+    def test_null_bootstrap_control_preserves_failure_and_runs_only_after_owned_booted_failure(self):
+        baseline_probe = {"outcome": "timeout", "direct_process_reaped": True}
+        baseline_state = {"outcome": "observed", "state": "Booted", "direct_process_reaped": True}
+        cases = [(True, baseline_probe, baseline_state, True),
+                 (True, dict(baseline_probe, outcome="nonzero"), baseline_state, True),
+                 (False, baseline_probe, baseline_state, False),
+                 (True, dict(baseline_probe, direct_process_reaped=False), baseline_state, False),
+                 (True, dict(baseline_probe, outcome="passed"), baseline_state, False),
+                 (True, dict(baseline_probe, outcome="unavailable"), baseline_state, False),
+                 (True, baseline_probe, dict(baseline_state, state="Shutdown"), False),
+                 (True, baseline_probe, dict(baseline_state, outcome="missing"), False),
+                 (True, baseline_probe, dict(baseline_state, direct_process_reaped=False), False)]
+        for reaped, probe, state, expected in cases:
+            for outcome in ("passed", "nonzero", "timeout", "unavailable"):
+                runner = Runner()
+                failure = simulator.IdentityQueryTimeout(self.arguments, 30, {
+                    "identity_key": "SIMULATOR_RUNTIME_VERSION", "direct_process_reaped": reaped})
+                def run(args, **kwargs):
+                    value = runner(args, **kwargs)
+                    if args == self.arguments:
+                        raise failure
+                    return value
+                events = []
+                def spawn(device, *, standalone=False):
+                    events.append("standalone" if standalone else "regular")
+                    return {"outcome": outcome} if standalone else probe
+                def snapshot(device):
+                    events.append("state")
+                    return state
+                with self.subTest(reaped=reaped, probe=probe, state=state, outcome=outcome), \
+                        patch.object(simulator, "post_boot_spawn", side_effect=spawn) as spawn_mock, \
+                        patch.object(simulator, "post_boot_device_state", side_effect=snapshot), \
+                        self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                    simulator.prepare(run=run, environment=HOST, machine="arm64")
+                self.assertIs(raised.exception, failure)
+                self.assertEqual(events, ["regular", "state"] + (["standalone"] if expected else []))
+                self.assertEqual(spawn_mock.call_args_list,
+                                 [call(DEVICE)] + ([call(DEVICE, standalone=True)] if expected else []))
+                self.assertEqual("null_bootstrap_control" in failure.diagnostics, expected)
+                if expected:
+                    self.assertEqual(failure.diagnostics["null_bootstrap_control"], {"outcome": outcome})
+                reads = [a for a, _ in runner.commands if a[:3] == ["xcrun", "simctl", "getenv"]]
+                self.assertEqual(reads, [self.arguments])
+
     def test_probe_launch_error_has_no_raw_error_or_environment(self):
         for error in (OSError, RuntimeError, ValueError):
             with self.subTest(error=error), patch.object(
@@ -657,8 +710,8 @@ class FailureDiagnosticTests(unittest.TestCase):
             self.assertEqual(process.wait.call_args_list, [call(timeout=5)])
 
     def test_failure_diagnostics_fit_unused_identity_read_budget(self):
-        diagnostic_maximum = (simulator.SPAWN_DIAGNOSTIC_TIMEOUT + simulator.STATE_DIAGNOSTIC_TIMEOUT
-                              + 2 * simulator.IDENTITY_CLEANUP_TIMEOUT)
+        diagnostic_maximum = (2 * simulator.SPAWN_DIAGNOSTIC_TIMEOUT + simulator.STATE_DIAGNOSTIC_TIMEOUT
+                              + 3 * simulator.IDENTITY_CLEANUP_TIMEOUT)
         self.assertLess(diagnostic_maximum, 2 * 30)
 
     def test_real_oversized_writer_is_stopped_at_capture_limit_and_reaped(self):
