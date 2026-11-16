@@ -1,6 +1,5 @@
 import AVFoundation
 import Foundation
-import os
 import Testing
 
 struct VideoAudioFixture: Sendable {
@@ -146,20 +145,12 @@ struct VideoAudioFixture: Sendable {
             writer.startSession(atSourceTime: .zero)
             print("VideoAudioFixture: receiver appends started")
             for frame in 0..<frameCount {
-                var stoppedStatus = writer.status.rawValue
-                var stoppedWithError = false
                 do {
-                    try await withReadinessDeadline(cancel: {
-                        stoppedStatus = writer.status.rawValue
-                        stoppedWithError = writer.error != nil
-                        print("VideoAudioFixture: receiver cancellation started")
-                        writer.cancelWriting()
-                        print("VideoAudioFixture: receiver cancellation completed")
-                    }) {
-                        try await receiver.append(pixels, with: CMTime(value: Int64(frame), timescale: 30))
+                    try await withReadinessDeadline {
+                        try receiver.appendImmediately(pixels, with: CMTime(value: Int64(frame), timescale: 30))
                     }
                 } catch ReadinessFailure.timedOut {
-                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(stoppedStatus), writer error present \(stoppedWithError)")
+                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(writer.status.rawValue), writer error present \(writer.error != nil)")
                     throw ReadinessFailure.timedOut
                 }
             }
@@ -218,44 +209,22 @@ struct VideoAudioFixture: Sendable {
 
     enum ReadinessFailure: Error { case timedOut }
 
-    /// Cancellation stops the writer, but ownership remains held until append
-    /// actually exits and both the deadline and cancellation tasks are joined.
+    /// Retry synchronous backpressure without leaving an append in flight.
+    /// The caller may cancel its writer only after this helper returns/throws.
     @MainActor static func withReadinessDeadline(
-        timeout: Duration = .seconds(5), cancel: @escaping @MainActor () -> Void,
-        operation: @MainActor () async throws -> Void
+        timeout: Duration = .seconds(5),
+        operation: @MainActor () throws -> Bool
     ) async throws {
         let deadline = ContinuousClock.now + timeout
-        let state = VideoFixtureDeadlineState(cancel: cancel)
-        let registration = OSAllocatedUnfairLock(initialState: VideoFixtureCancellationRegistration())
-        try await withTaskCancellationHandler {
-            let timer = Task { @MainActor in
-                do { try await Task.sleep(until: deadline, clock: .continuous) }
-                catch { return }
-                state.stop(timedOut: true)
-            }
-            let result: Result<Void, any Error>
-            do {
-                try Task.checkCancellation()
-                try await operation()
-                result = .success(())
-            } catch { result = .failure(error) }
-            timer.cancel()
-            await timer.value
-            let cancellation = registration.withLock { value in
-                value.closed = true
-                return value.task
-            }
-            await cancellation?.value
-            // A late scheduler wake must not turn an exceeded deadline into success.
-            if ContinuousClock.now >= deadline { state.stop(timedOut: true) }
-            if Task.isCancelled { state.stop(timedOut: false); throw CancellationError() }
-            if state.timedOut { throw ReadinessFailure.timedOut }
-            try result.get()
-        } onCancel: {
-            registration.withLock { value in
-                guard !value.closed, value.task == nil else { return }
-                value.task = Task { @MainActor in state.stop(timedOut: false) }
-            }
+        while true {
+            try Task.checkCancellation()
+            guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+            let appended = try operation()
+            try Task.checkCancellation()
+            // A slow synchronous append must not clear an expired deadline.
+            guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+            if appended { return }
+            try await Task.sleep(until: min(deadline, ContinuousClock.now + .milliseconds(5)), clock: .continuous)
         }
     }
 
@@ -282,22 +251,4 @@ private actor VideoFixtureWriterGate {
             waiters.removeFirst().resume()
         }
     }
-}
-
-@MainActor private final class VideoFixtureDeadlineState {
-    private let cancel: @MainActor () -> Void
-    private var stopped = false
-    private(set) var timedOut = false
-    init(cancel: @escaping @MainActor () -> Void) { self.cancel = cancel }
-    func stop(timedOut: Bool) {
-        self.timedOut = self.timedOut || timedOut
-        guard !stopped else { return }
-        stopped = true
-        cancel()
-    }
-}
-
-private struct VideoFixtureCancellationRegistration: Sendable {
-    var closed = false
-    var task: Task<Void, Never>?
 }

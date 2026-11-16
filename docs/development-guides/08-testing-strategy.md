@@ -12741,19 +12741,23 @@ fresh hosted proof is required.
 suites: silent-video writing, AAC preparation and composition export. The permit
 is released only after completion or error cleanup, including cancellation after
 waiting. On iOS 26 and later it attaches the input through Apple's pixel-buffer
-receiver and awaits each immutable buffer append. Earlier runtimes retain the
-legacy adaptor. Both paths keep the five-second readiness bound. The modern path
-cancels the writer on timeout or caller cancellation, awaits actual append exit,
-and cancels/joins its timer and cancellation task before returning. A late
-append success cannot clear an expired deadline. No task may cancel a writer
-after encoder ownership is released.
+receiver and uses
+[`appendImmediately(_:with:)`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/pixelbufferreceiver/appendimmediately(_:with:))
+for each immutable buffer. A false result reports backpressure; the fixture
+retries after a cancellation-aware five-millisecond sleep, within the same
+five-second absolute readiness bound. Earlier runtimes retain the legacy adaptor
+and its five-second bound. Deadline and cancellation checks bracket each
+synchronous append, so late success remains failure. Writer cancellation occurs
+in the caller's cleanup only after the append returns; it never races an
+outstanding asynchronous append. No timer or append task outlives the helper.
 
 This test-only guard does not serialize production capture or extraction. The
 concurrent fixture regression covers silent, mono and stereo outputs together
 with a pre-cancelled constructor and successful preparation afterward. It does
 not deterministically force cancellation while queued. A separate controlled
-append regression covers success, append error, timeout, caller cancellation and
-success racing a delayed deadline, including actual exit before return. Fixed
+append regression covers immediate success, backpressure followed by success,
+append error, timeout, cancellation while waiting and success after the
+deadline. It also checks that attempts stop after the helper returns. Fixed
 phase-only diagnostics distinguish gate admission, silent writing, AAC creation
 and composition export without recording media, paths or identities.
 `CaptureVideoReanalysisHostTests` waits for settlement with cancellation-aware
@@ -12765,6 +12769,16 @@ latter also timed out two real-media host tests before their one-minute limit.
 The retained logs do not locate their precise stalled phase. The modern receiver
 and cooperative waiter are test-harness repairs awaiting hosted proof, not
 evidence of a production media defect or a demonstrated performance fix.
+
+Diagnostic run 43812156963 located three failures at the fixture's receiver
+readiness boundary. Review found that the previous timeout cancelled the writer
+while its asynchronous append was outstanding, contrary to the writer's
+cancellation contract. Synchronous backpressure polling repairs that ordering
+without changing fixture deadlines, product assertions or workflow budgets;
+hosted proof remains required. A fourth test terminated after fixture export
+when the simulator host reported a force-unmounted backing vnode. That separate
+runner failure does not justify changing the changed-scope assertion or the
+production preparation path.
 
 ### Explicit source reservation delivery regressions
 

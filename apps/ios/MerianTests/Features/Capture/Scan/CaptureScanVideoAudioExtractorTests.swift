@@ -144,28 +144,26 @@ struct CaptureScanVideoAudioExtractorTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
-    @MainActor @Test(arguments: ["success", "failure", "timeout", "cancel", "late"])
-    func fixtureAppendDeadlineJoinsCancellationAndActualExit(_ boundary: String) async throws {
+    @MainActor @Test(arguments: ["success", "backpressure", "failure", "timeout", "cancel", "late"])
+    func fixtureAppendReadinessHonorsDeadlineAndCancellation(_ boundary: String) async throws {
         let probe = FixtureAppendDeadlineProbe()
         let entered = AsyncStream<Void>.makeStream()
         defer { entered.continuation.finish() }
         let work = Task { @MainActor in
             try await VideoAudioFixture.withReadinessDeadline(
-                timeout: ["timeout", "late"].contains(boundary) ? .milliseconds(10) : .seconds(5),
-                cancel: { probe.stop() }
+                timeout: ["timeout", "late"].contains(boundary) ? .milliseconds(10) : .seconds(5)
             ) {
+                probe.attempts += 1
                 if boundary == "failure" { throw FixtureAppendDeadlineProbe.Failure.append }
                 if boundary == "timeout" || boundary == "cancel" {
-                    await withCheckedContinuation { continuation in
-                        probe.pending = continuation
-                        entered.continuation.yield(())
-                    }
-                    probe.drained = true
+                    entered.continuation.yield(())
+                    return false
                 } else if boundary == "late" {
-                    // Force append success to race a delayed timer on this actor.
+                    // Synchronous success after the deadline must remain failure.
                     let until = ContinuousClock.now + .milliseconds(20)
                     while ContinuousClock.now < until {}
                 }
+                return boundary != "backpressure" || probe.attempts == 2
             }
         }
         if boundary == "cancel" {
@@ -175,7 +173,7 @@ struct CaptureScanVideoAudioExtractorTests {
         }
         do {
             try await work.value
-            #expect(boundary == "success")
+            #expect(boundary == "success" || boundary == "backpressure")
         } catch VideoAudioFixture.ReadinessFailure.timedOut {
             #expect(boundary == "timeout" || boundary == "late")
         } catch is CancellationError {
@@ -183,12 +181,13 @@ struct CaptureScanVideoAudioExtractorTests {
         } catch FixtureAppendDeadlineProbe.Failure.append {
             #expect(boundary == "failure")
         }
-        #expect(probe.stops == (["timeout", "cancel", "late"].contains(boundary) ? 1 : 0))
-        #expect(probe.pending == nil)
-        if boundary == "timeout" || boundary == "cancel" { #expect(probe.drained) }
-        // A cancelled deadline must not later touch a successful/failed writer.
+        if boundary == "backpressure" { #expect(probe.attempts == 2) }
+        if boundary == "success" || boundary == "failure" { #expect(probe.attempts == 1) }
+        if boundary == "cancel" { #expect(probe.attempts >= 1) }
+        let completedAttempts = probe.attempts
+        // No detached timer or pending append may touch a completed fixture.
         try await Task.sleep(for: .milliseconds(20))
-        #expect(probe.stops == (["timeout", "cancel", "late"].contains(boundary) ? 1 : 0))
+        #expect(probe.attempts == completedAttempts)
     }
 
     private func extractAndDiscard(_ fixture: VideoAudioFixture) async throws {
@@ -220,12 +219,5 @@ private actor AudioArtifactGate {
 
 @MainActor private final class FixtureAppendDeadlineProbe {
     enum Failure: Error { case append }
-    var pending: CheckedContinuation<Void, Never>?
-    var stops = 0
-    var drained = false
-    func stop() {
-        stops += 1
-        pending?.resume()
-        pending = nil
-    }
+    var attempts = 0
 }
