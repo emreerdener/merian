@@ -1356,11 +1356,17 @@ uses an in-memory store: this is interruption coverage, not disk relaunch proof.
 ### Benchmark methodology and supported metrics
 
 `merianPerformanceTests` is a separate unit bundle. The ordinary compiled CI
-gate builds it alongside the app and unit bundle in the unit job; the UI bundle
-builds in a separate job. Complete-unit execution still selects only
-`merianTests`. The audit selects benchmarks separately from acceptance; the
-ordinary Xcode scheme includes all test bundles, so use explicit selectors when
-running acceptance from the command line. UI benchmarks live in
+gate builds it alongside the app and unit bundle in the unit job. The
+independent UI job builds and executes with the generated `MerianCIUI` scheme,
+whose Debug test action contains only `merianUITests`. The ordinary `Merian`
+scheme retains all three test bundles: `-only-testing` limits execution but does
+not remove its other testables from `build-for-testing`. The separate UI scheme
+avoids compiling unit and performance bundles again under the UI compile budget.
+All six UI smoke selectors, simulator boot checks, exact source/toolchain checks
+and deadlines remain required. Complete-unit execution still selects every
+ordinary `merianTests` method through the compiled inventory and shard
+aggregate. The audit selects benchmarks separately from acceptance; use explicit
+selectors when running acceptance from the command line. UI benchmarks live in
 `RuntimePerformanceTests` and reuse `UITestAppLauncher`; no new production Debug
 arguments or services are introduced.
 

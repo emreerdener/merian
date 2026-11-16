@@ -3371,6 +3371,7 @@
 		05B5F39246D33D9B36BEA41E /* OfflineQueueStoragePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueStoragePolicy.swift; sourceTree = "<group>"; };
 		05BAC05AE71A086E0FA89E1B /* CaptureSubmissionEnvironmentContextSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSubmissionEnvironmentContextSnapshot.swift; sourceTree = "<group>"; };
 		05DBDF4DDE8ABF8C415722DC /* InsightChatAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightChatAPIModels.swift; sourceTree = "<group>"; };
+		05F4EE735323094E4EEAF162 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		05F973E327D914ED0782B109 /* DidYouKnowCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DidYouKnowCard.swift; sourceTree = "<group>"; };
 		05FE20557CDA3D26CCF25F63 /* SharedMediaNativeAccountLifetimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAccountLifetimeTests.swift; sourceTree = "<group>"; };
 		0604129299BA33276841D17B /* SharedMediaMembershipBootstrapRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaMembershipBootstrapRecord.swift; sourceTree = "<group>"; };
@@ -3726,7 +3727,6 @@
 		1EF56490158243342ACB205C /* ExploreFeedViewModel+Comments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExploreFeedViewModel+Comments.swift"; sourceTree = "<group>"; };
 		1EF56E15F72C5FC579713FD9 /* ManagePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlanView.swift; sourceTree = "<group>"; };
 		1F68AEDFA28FC1A56B520840 /* FeedbackSurveyChoiceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSurveyChoiceViews.swift; sourceTree = "<group>"; };
-		1F8286D3012156A7941E601D /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		1FB37D0858907B90AFAD6127 /* DiscoveryShareSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryShareSummary.swift; sourceTree = "<group>"; };
 		1FDE80AC690BF07FF8CB9560 /* CaptureWorkspaceViewModel+NativePhotoDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CaptureWorkspaceViewModel+NativePhotoDraft.swift"; sourceTree = "<group>"; };
 		1FF0401F3B8ED654B5318134 /* StagedVideoUploadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedVideoUploadTests.swift; sourceTree = "<group>"; };
@@ -3991,7 +3991,6 @@
 		35D283F9C8400C8546EE9329 /* ExploreUnavailableStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreUnavailableStateView.swift; sourceTree = "<group>"; };
 		35D5DA50F35250FFB4696217 /* CapturedMediaValuesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturedMediaValuesTests.swift; sourceTree = "<group>"; };
 		35EB88A7D8D838E5CA5278CD /* EnvironmentContextTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContextTestSupport.swift; sourceTree = "<group>"; };
-		35F47F023E3AD3E09FEB738D /* HistoryQualification.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = HistoryQualification.xcconfig; sourceTree = "<group>"; };
 		35FA6E27FBE33D7DDB8BEDFE /* InferenceIdentificationReviewCoordinator+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InferenceIdentificationReviewCoordinator+Live.swift"; sourceTree = "<group>"; };
 		35FF8A920E058832EF2CAF56 /* SharedMediaAssetReferenceCountRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaAssetReferenceCountRecord.swift; sourceTree = "<group>"; };
 		3600B12743B71637FA6ADD3A /* WhatsNewLaunchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewLaunchStore.swift; sourceTree = "<group>"; };
@@ -4173,6 +4172,7 @@
 		42EFC2ECDC20BD688CD2753D /* LocalAIIdentificationReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAIIdentificationReview.swift; sourceTree = "<group>"; };
 		42FEDB019CC2E131E046E35B /* ObservationHistoryEnrollmentIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationHistoryEnrollmentIntent.swift; sourceTree = "<group>"; };
 		4315E052B7A94C5533A69AA6 /* AsyncLocalImageDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncLocalImageDependencies.swift; sourceTree = "<group>"; };
+		433A7AE51FE91B6005401EC4 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		4342B424E02F9B737900F3C9 /* ExploreShellNavigationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreShellNavigationModels.swift; sourceTree = "<group>"; };
 		436F733C7BB358E86BF9E299 /* AudioRecordingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingViewModelTests.swift; sourceTree = "<group>"; };
 		436FABB5D0AEFD800729EF5F /* NonBiologicalRetentionPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonBiologicalRetentionPersistenceTests.swift; sourceTree = "<group>"; };
@@ -4779,6 +4779,7 @@
 		74476BB20FC75F3995003B54 /* StartupStoreDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupStoreDiagnostic.swift; sourceTree = "<group>"; };
 		744F9ED307DA4B36B6258DF3 /* SharedMediaConsumerLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaConsumerLookup.swift; sourceTree = "<group>"; };
 		746925B7D00D7C1521A1E0EB /* SharedMediaNativeAppPreparationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAppPreparationTests.swift; sourceTree = "<group>"; };
+		746AE355E6CD6873E07AC290 /* HistoryQualification.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = HistoryQualification.xcconfig; sourceTree = "<group>"; };
 		74708521AF440375D741C099 /* SpeciesDictionaryDetailArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryDetailArchitectureTests.swift; sourceTree = "<group>"; };
 		748122F4C368D6FDAED16277 /* ScanImageCloudEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanImageCloudEndpointTests.swift; sourceTree = "<group>"; };
 		7482944E6875E2925BB95184 /* ScanLibrarySearchActors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLibrarySearchActors.swift; sourceTree = "<group>"; };
@@ -5509,7 +5510,6 @@
 		AFED936C9F535026935401CC /* ExplorePostDetailViewModelDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostDetailViewModelDependencies.swift; sourceTree = "<group>"; };
 		B01846C2694C4EE2276B115B /* SharedMediaNativeOriginalDispositionAttempt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeOriginalDispositionAttempt.swift; sourceTree = "<group>"; };
 		B02AB002565531010395896B /* SelectedAnalysisNameConfirmationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedAnalysisNameConfirmationTests.swift; sourceTree = "<group>"; };
-		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B0412334EE55452F6FBE5268 /* ShareNaturebookCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareNaturebookCard.swift; sourceTree = "<group>"; };
 		B080D0C993E38FBC37B1E39B /* ObservationVideoUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationVideoUploadService.swift; sourceTree = "<group>"; };
 		B08DC52C5F615EDE31B4E591 /* OfflineQueueManager+SourceReservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+SourceReservation.swift"; sourceTree = "<group>"; };
@@ -9102,17 +9102,6 @@
 				361A3358B101F1AEA72B3AE2 /* SpeciesDictionaryResponseCache.swift */,
 			);
 			path = Caching;
-			sourceTree = "<group>";
-		};
-		4614202F6465E0F5BE4F99BA /* merian */ = {
-			isa = PBXGroup;
-			children = (
-				B03EAD808B1F5D84E75D030C /* Config.xcconfig */,
-				35F47F023E3AD3E09FEB738D /* HistoryQualification.xcconfig */,
-				1F8286D3012156A7941E601D /* Signing.xcconfig */,
-			);
-			name = merian;
-			path = .;
 			sourceTree = "<group>";
 		};
 		462362E443774BED410D6941 /* Composition */ = {
@@ -13487,13 +13476,13 @@
 				A073ED9A262582477010CCFF /* Explore */,
 				758F768268B1C0AED2735D91 /* fixtures */,
 				E025D08F366F9827D4C05CCB /* fixtures */,
-				4614202F6465E0F5BE4F99BA /* merian */,
 				E7702D88B7F7A1860DCB8689 /* Merian */,
 				5E1A15B98501144EA7097C18 /* MerianMessagesExtension */,
 				427564774B918248BA9D51EE /* MerianPerformanceTests */,
 				9741268D7000F3BC2013C753 /* MerianTests */,
 				5A0831598497419C6E21D259 /* MerianUITests */,
 				FA698C58EA619367BF3921C1 /* MerianWatch */,
+				F4C4F18B5A298AA456A20CA3 /* shard4-diagnosis */,
 				85EF8F23FFAD3F282CD96467 /* Shared */,
 				8C98F2E1D0DE82BBC0A412FB /* TestSupport */,
 				F420A3E8A335E1F061C6E39C /* Products */,
@@ -14995,6 +14984,17 @@
 				8F655B4C5746F1EA10DA482C /* InsightMediaPlaybackDependencies.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		F4C4F18B5A298AA456A20CA3 /* shard4-diagnosis */ = {
+			isa = PBXGroup;
+			children = (
+				433A7AE51FE91B6005401EC4 /* Config.xcconfig */,
+				746AE355E6CD6873E07AC290 /* HistoryQualification.xcconfig */,
+				05F4EE735323094E4EEAF162 /* Signing.xcconfig */,
+			);
+			name = "shard4-diagnosis";
+			path = .;
 			sourceTree = "<group>";
 		};
 		F556569C6CEDDE242A2907D4 /* Features */ = {
@@ -19013,7 +19013,7 @@
 		};
 		032559DC56F15716C2E1E589 /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19033,7 +19033,7 @@
 		};
 		072C28AF747B7398E622F4B8 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
@@ -19055,7 +19055,7 @@
 		};
 		086D6E7DE66261D7AAB76C4E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
@@ -19078,7 +19078,7 @@
 		};
 		09DAC6A27B3A610727EA668D /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
@@ -19103,7 +19103,7 @@
 		};
 		16E59262791D4BC7B239672B /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
@@ -19128,7 +19128,7 @@
 		};
 		1C38A198A570B517E75D2BAD /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
@@ -19150,7 +19150,7 @@
 		};
 		282882BE54172BD5BB02DF57 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
@@ -19173,7 +19173,7 @@
 		};
 		2A070EB1D51EB18C60B10AFC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -19203,7 +19203,7 @@
 		};
 		301E8FE096A2173E876D72C9 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19223,7 +19223,7 @@
 		};
 		63E2FCD72D2C4BB7FEB7197E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19243,7 +19243,7 @@
 		};
 		70027F99ABC1AAC485FEA98D /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19263,7 +19263,7 @@
 		};
 		7321322CCCD5B00EB9DD1C1F /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19283,7 +19283,7 @@
 		};
 		77DB4E3C534AB83AB7B69298 /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 35F47F023E3AD3E09FEB738D /* HistoryQualification.xcconfig */;
+			baseConfigurationReference = 746AE355E6CD6873E07AC290 /* HistoryQualification.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
@@ -19379,7 +19379,7 @@
 		};
 		7FEE85868C535789939F04A9 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -19405,7 +19405,7 @@
 		};
 		82DCFA9AE937B01BD48B7B98 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19425,7 +19425,7 @@
 		};
 		83A319257E8467F3C1A0C22D /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
@@ -19448,7 +19448,7 @@
 		};
 		9CBD7C69C4654A702F0D1486 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19468,7 +19468,7 @@
 		};
 		AABC477C3F875B4C694102E4 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
@@ -19493,7 +19493,7 @@
 		};
 		AF148D29A1D51A5273311335 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19580,7 +19580,7 @@
 		};
 		DE403FFF0AE676687AEC1597 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19600,7 +19600,7 @@
 		};
 		DE423473E1443CC508B4E35B /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19620,7 +19620,7 @@
 		};
 		DEF7F5BC7F05F5C0A189FC2C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
@@ -19708,7 +19708,7 @@
 		};
 		E818EFE03C8790346B16202E /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 35F47F023E3AD3E09FEB738D /* HistoryQualification.xcconfig */;
+			baseConfigurationReference = 746AE355E6CD6873E07AC290 /* HistoryQualification.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
@@ -19730,7 +19730,7 @@
 		};
 		E899FC2470956C8AD59061F2 /* HistoryTesting */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
@@ -19755,7 +19755,7 @@
 		};
 		E9FC6558CB4E522C363F7DDF /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 35F47F023E3AD3E09FEB738D /* HistoryQualification.xcconfig */;
+			baseConfigurationReference = 746AE355E6CD6873E07AC290 /* HistoryQualification.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -19781,7 +19781,7 @@
 		};
 		F7A0A4CB86EC0E3BC8B8C8FE /* HistoryQualification */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -19801,7 +19801,7 @@
 		};
 		FA85932515F575EB75458FFA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			baseConfigurationReference = 433A7AE51FE91B6005401EC4 /* Config.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -19827,7 +19827,7 @@
 		};
 		FCBD5E0F2FB1E5FB0991C1B3 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
+			baseConfigurationReference = 05F4EE735323094E4EEAF162 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;

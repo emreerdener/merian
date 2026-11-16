@@ -535,6 +535,47 @@ assert_file_count "$ui_job" 0 '-only-testing:merianPerformanceTests'
 assert_file_count "$ui_job" 1 '    timeout-minutes: 70'
 assert_file_count "$ui_job" 1 'xcodebuild build-for-testing'
 assert_file_count "$ui_job" 1 'xcodebuild test-without-building'
+assert_file_count "$ui_job" 2 '-scheme MerianCIUI'
+# Execution selectors do not prune a scheme's build-for-testing testables.
+# Keep the UI build independent without removing the unit lane's full bundles.
+python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+root = Path(sys.argv[1])
+project = root / "Merian.xcodeproj"
+if not project.is_dir():
+    project = root / "merian.xcodeproj"
+schemes = project / "xcshareddata/xcschemes"
+primary = ET.parse(schemes / "Merian.xcscheme").getroot()
+ui = ET.parse(schemes / "MerianCIUI.xcscheme").getroot()
+
+def testables(scheme):
+    action = scheme.find("TestAction")
+    assert action is not None and action.get("buildConfiguration") == "Debug"
+    references = action.findall("Testables/TestableReference")
+    assert all(item.get("skipped") == "NO" for item in references)
+    return [item.find("BuildableReference").get("BlueprintName") for item in references]
+
+assert testables(primary) == ["merianTests", "merianPerformanceTests", "merianUITests"]
+assert testables(ui) == ["merianUITests"]
+build = ui.find("BuildAction")
+assert build is not None and build.get("buildImplicitDependencies") == "YES"
+entries = build.findall("BuildActionEntries/BuildActionEntry")
+assert len(entries) == 1 and entries[0].get("buildForTesting") == "YES"
+assert entries[0].find("BuildableReference").get("BlueprintName") == "Merian"
+assert ui.find("TestAction").get("shouldUseLaunchSchemeArgsEnv") == "YES"
+assert ui.find("TestAction/MacroExpansion/BuildableReference").get("BlueprintName") == "Merian"
+def environment(scheme):
+    variables = scheme.findall("LaunchAction/EnvironmentVariables/EnvironmentVariable")
+    return sorted((item.get("key"), item.get("value"), item.get("isEnabled"))
+                  for item in variables)
+assert environment(ui) == environment(primary) == [
+    ("MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR", "1", "YES")
+]
+print("Independent UI build scheme preserves complete unit coverage")
+PY
 assert_file_count "$ui_job" 1 'bash scripts/validate-ios-focused-test-results.sh'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-evidence-'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-failure-'

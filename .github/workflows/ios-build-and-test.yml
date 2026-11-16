@@ -755,7 +755,7 @@ jobs:
             xcode_project="merian.xcodeproj"
           fi
           xcodebuild build-for-testing \
-            -scheme Merian \
+            -scheme MerianCIUI \
             -project "$xcode_project" \
             -configuration Debug \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
@@ -795,7 +795,7 @@ jobs:
             xcode_project="merian.xcodeproj"
           fi
           xcodebuild test-without-building \
-            -scheme Merian \
+            -scheme MerianCIUI \
             -project "$xcode_project" \
             -configuration Debug \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
