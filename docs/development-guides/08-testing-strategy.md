@@ -2250,6 +2250,37 @@ failure and nonqualification tests for this diagnostic. Hosted execution is
 still required to observe the actual service behavior; portable tests do not
 establish a simulator repair.
 
+The retained-product workflow now triggers only when its service-hub helper
+changes on the isolated diagnostic branch. Publishing the synthetic retry probe
+below does not launch another macOS experiment.
+
+### Synthetic failed-jobs retry diagnostic
+
+`ios-retry-contract-diagnostic.yml` is a temporary, nonqualifying Ubuntu
+experiment on the isolated diagnostic branch. Its path-filtered push trigger
+covers only that workflow and `diagnose-ios-retry-contract.py`; it has no PR,
+merge-queue or production-readiness connection. It creates one byte of synthetic
+input, uploads its immutable origin, and passes the artifact ID and digest
+through job outputs to two matrix slots. Slot 0 passes. Slot 1 retains a failed
+receipt and intentionally exits unsuccessfully on attempt 1. The aggregate
+retains that failure and fails too.
+
+After the initial run finishes, use **Re-run failed jobs** once. The expected
+observation is the same origin artifact and source/run identity, slot 0 from
+attempt 1, slot 1 from attempt 2, and a rerun aggregate selecting those two
+successes while retaining the earlier failure. Missing, duplicate, foreign,
+future-attempt, changed-input and repeated-success evidence is rejected. A full
+rerun or third attempt invalidates this deliberately bounded experiment.
+
+[GitHub documents](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+that dependent jobs rerun while unincluded jobs retain outputs. This probe
+checks the matrix and pinned artifact actions against that behavior. It neither
+runs native tests nor changes their current coherent-attempt contract. Every
+receipt remains `qualified=false` and `release_eligible=false`; a successful
+probe cannot replace a failed native result or qualify mixed-attempt coverage.
+Any future native retry implementation still needs independent contract review,
+complete raw-result reconciliation and its own validation.
+
 ### Complete unit sharding contract
 
 The user-approved CI recovery separates whole unit suites across disposable

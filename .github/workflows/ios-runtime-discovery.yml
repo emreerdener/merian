@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - codex/pr152-simulator-diagnostics-20261114
+    paths:
+      - scripts/diagnose-ios-service-hub.py
 
 permissions:
   contents: read

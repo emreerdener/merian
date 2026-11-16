@@ -1,0 +1,114 @@
+name: iOS Synthetic Retry Contract Diagnostic
+
+on:
+  push:
+    branches:
+      - codex/pr152-simulator-diagnostics-20261114
+    paths:
+      - .github/workflows/ios-retry-contract-diagnostic.yml
+      - scripts/diagnose-ios-retry-contract.py
+
+permissions:
+  contents: read
+
+jobs:
+  origin:
+    name: Create immutable synthetic origin
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      digest: ${{ steps.origin.outputs.digest }}
+      origin_attempt: ${{ steps.origin.outputs.attempt }}
+      origin_run: ${{ steps.origin.outputs.run }}
+      origin_sha: ${{ steps.origin.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: origin
+        run: python3 -B scripts/diagnose-ios-retry-contract.py origin --origin "$RUNNER_TEMP/probe-origin"
+      - id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retry-probe-origin-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/probe-origin
+          if-no-files-found: error
+          retention-days: 14
+
+  slot:
+    name: Synthetic slot ${{ matrix.slot }}
+    needs: origin
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [0, 1]
+    env:
+      PROBE_ORIGIN_ARTIFACT_ID: ${{ needs.origin.outputs.artifact_id }}
+      PROBE_ORIGIN_DIGEST: ${{ needs.origin.outputs.digest }}
+      PROBE_ORIGIN_ATTEMPT: ${{ needs.origin.outputs.origin_attempt }}
+      PROBE_ORIGIN_RUN: ${{ needs.origin.outputs.origin_run }}
+      PROBE_ORIGIN_SHA: ${{ needs.origin.outputs.origin_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.origin.outputs.artifact_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/probe-origin
+      - name: Record synthetic result and fail slot one on first attempt
+        run: |
+          python3 -B scripts/diagnose-ios-retry-contract.py slot --origin "$RUNNER_TEMP/probe-origin" \
+            --slot '${{ matrix.slot }}' --output "$RUNNER_TEMP/probe-slot/receipt.json"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retry-probe-receipt-${{ needs.origin.outputs.origin_run }}-${{ needs.origin.outputs.origin_attempt }}-${{ matrix.slot }}-execution-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/probe-slot/receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Reconcile synthetic retry evidence
+    if: always()
+    needs: [origin, slot]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PROBE_ORIGIN_ARTIFACT_ID: ${{ needs.origin.outputs.artifact_id }}
+      PROBE_ORIGIN_DIGEST: ${{ needs.origin.outputs.digest }}
+      PROBE_ORIGIN_ATTEMPT: ${{ needs.origin.outputs.origin_attempt }}
+      PROBE_ORIGIN_RUN: ${{ needs.origin.outputs.origin_run }}
+      PROBE_ORIGIN_SHA: ${{ needs.origin.outputs.origin_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.origin.outputs.artifact_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/probe-origin
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: retry-probe-receipt-${{ needs.origin.outputs.origin_run }}-${{ needs.origin.outputs.origin_attempt }}-*
+          merge-multiple: false
+          digest-mismatch: error
+          path: ${{ runner.temp }}/probe-receipts
+      - name: Validate exact retained origin and selected execution attempts
+        run: |
+          python3 -B scripts/diagnose-ios-retry-contract.py aggregate --origin "$RUNNER_TEMP/probe-origin" \
+            --receipts "$RUNNER_TEMP/probe-receipts" --output "$RUNNER_TEMP/probe-result/result.json"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retry-probe-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/probe-result/result.json
+          if-no-files-found: error
+          retention-days: 14

@@ -217,7 +217,8 @@ class DiscoveryTests(unittest.TestCase):
         workflow = json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
                               "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json", str(path)], text=True))
         self.assertEqual(workflow.get("on", workflow.get("true")),
-                         {"push": {"branches": ["codex/pr152-simulator-diagnostics-20261114"]}})
+                         {"push": {"branches": ["codex/pr152-simulator-diagnostics-20261114"],
+                                   "paths": ["scripts/diagnose-ios-service-hub.py"]}})
         self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
         job = workflow["jobs"]["discover"]
         self.assertEqual(job["timeout-minutes"], 70)

@@ -161,6 +161,7 @@ test-ios-ci-tooling:
 	python3 -B scripts/test-experiment-ios-runtime-import.py
 	python3 -B scripts/test-discover-ios27-simulator.py
 	python3 -B scripts/test-diagnose-ios-service-hub.py
+	python3 -B scripts/test-diagnose-ios-retry-contract.py
 	python3 -B scripts/test-ios-fast-preflight.py
 	python3 -B scripts/test-ios-device-review-schemes.py
 	python3 -B scripts/test-ios-runtime-audit.py
