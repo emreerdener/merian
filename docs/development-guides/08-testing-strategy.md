@@ -2206,6 +2206,50 @@ integration or an app release. The original consolidation packet preserves
 unfinished app work and leaves its activation/distribution acceptance with the
 app workstream.
 
+### Retained-product simulator service diagnostic
+
+The diagnostic branch's `ios-runtime-discovery.yml` performs one bounded
+setup-only experiment for the November 16 DTServiceHub failure. It consumes the
+fixed, retained products and plan from source
+`3d6ff61023e6b741ec2790ec8ee86f7baa08a25b`, run `43907897503`, attempt 1. It
+does not compile again or run a unit shard. `diagnose-ios-service-hub.py`
+verifies the original successful builder, artifact IDs and remote ZIP digests;
+the pinned download action fails on a digest mismatch. Local plan/product
+digests, checkout location and the unchanged hardened unpacker are checked
+before any simulator work. Missing, expired or changed inputs stop the
+experiment.
+
+The new harness keeps its real source/run/attempt throughout preparation and the
+single existing identity XCTest. A distinct `setup_only_host_diagnostic` receipt
+separates that execution provenance from the original product provenance. The
+unchanged attachment/tree validator validates only the new execution; its
+ordinary receipt is not published. The diagnostic always records
+`qualified=false` and `release_eligible=false`. Even successful identity
+observation cannot replace a failed shard, contribute to the aggregate, qualify
+the original source or authorize release.
+
+Pre/post observations retain only a root-UID boolean, free-space MiB, exact
+runtime availability, owned-device state and at most 64 allowlisted process
+roles with numeric PID/parent-PID/UID. Raw process lists, executable paths,
+arguments, environments, usernames, session state, other device inventories and
+crash bodies are not retained. Each observation command is bounded to five
+seconds and 512 KiB in memory; unavailable observations are explicit. Before
+preparation, only process/UID/disk metadata is observed. Before the test,
+runtime and boot facts come from the existing preparation receipt, with no extra
+CoreSimulator query. After the attempt, bounded runtime/device inventory queries
+are additional active probes, not passive observations. The experiment preserves
+the exact runtime/toolchain, ten-minute identity deadline and existing
+assertions, with no service reset, reinstall, hidden retry or readiness sleep.
+Uploads retain the diagnostic/preparation receipts, identity attachment, raw
+XCTest summary/tree and console log; full result bundles and compiled products
+are excluded. The ordinary hosted gate and its coherent-attempt retry rules
+below remain unchanged.
+
+`make test-ios-ci-tooling` includes provenance, tampering, archive, privacy,
+failure and nonqualification tests for this diagnostic. Hosted execution is
+still required to observe the actual service behavior; portable tests do not
+establish a simulator repair.
+
 ### Complete unit sharding contract
 
 The user-approved CI recovery separates whole unit suites across disposable
