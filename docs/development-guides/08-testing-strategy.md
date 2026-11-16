@@ -2206,11 +2206,13 @@ integration or an app release. The original consolidation packet preserves
 unfinished app work and leaves its activation/distribution acceptance with the
 app workstream.
 
-### Retained-product simulator service diagnostic
+### Retained-product simulator diagnostics
 
-The diagnostic branch's `ios-runtime-discovery.yml` performs one bounded
-setup-only experiment for the November 16 DTServiceHub failure. It consumes the
-fixed, retained products and plan from source
+The initial diagnostic branch experiment used `ios-runtime-discovery.yml` for
+one bounded setup-only investigation of the November 16 DTServiceHub failure.
+The current manual workflow retains that identity preflight and adds the one
+complete saved-video suite replay described below. It consumes the fixed,
+retained products and plan from source
 `3d6ff61023e6b741ec2790ec8ee86f7baa08a25b`, run `43907897503`, attempt 1. It
 does not compile again or run a unit shard. `diagnose-ios-service-hub.py`
 verifies the original successful builder, artifact IDs and remote ZIP digests;
@@ -2236,14 +2238,15 @@ crash bodies are not retained. Each observation command is bounded to five
 seconds and 512 KiB in memory; unavailable observations are explicit. Before
 preparation, only process/UID/disk metadata is observed. Before the test,
 runtime and boot facts come from the existing preparation receipt, with no extra
-CoreSimulator query. After the attempt, bounded runtime/device inventory queries
-are additional active probes, not passive observations. The experiment preserves
-the exact runtime/toolchain, ten-minute identity deadline and existing
-assertions, with no service reset, reinstall, hidden retry or readiness sleep.
-Uploads retain the diagnostic/preparation receipts, identity attachment, raw
-XCTest summary/tree and console log; full result bundles and compiled products
-are excluded. The diagnostic cannot contribute to the ordinary hosted gate or
-its retry receipts.
+CoreSimulator query. After the final test attempt, bounded runtime/device
+inventory queries are additional active probes, not passive observations. The
+experiment preserves the exact runtime/toolchain, ten-minute identity deadline
+and existing assertions, with no service reset, reinstall, hidden retry or
+readiness sleep. The compact upload retains diagnostic/preparation receipts, the
+identity attachment, raw XCTest summaries/trees, selected enumeration and
+console logs. Compiled products are excluded; a separate failure-only artifact
+retains the small saved-video suite result bundle for diagnosis. The diagnostic
+cannot contribute to the ordinary hosted gate or its retry receipts.
 
 `make test-ios-ci-tooling` includes provenance, tampering, archive, privacy,
 failure and nonqualification tests for this diagnostic. Hosted execution is
@@ -2255,6 +2258,39 @@ manual-only and restricted to the isolated diagnostic branch. Updating its
 hardened unpacker pin or publishing retry tooling does not launch another macOS
 experiment. The pinned unpacker still validates the fixed original product; that
 diagnostic does not load its historical plan through the new native gate.
+
+The current **retained saved-video suite diagnostic** adds one five-minute
+whole-suite enumeration, one ten-minute serial `test-without-building` execution
+and a five-minute postflight. Its job is bounded at 90 minutes, including
+existing product transfer/setup and evidence budgets. The ordinary native
+validation job/test budgets remain unchanged. The fixed selector is the complete
+`merianTests/CaptureSavedVideoPreviewTests` suite: two methods and seven
+argument leaves. `lateActivationCannotStartRetiredClip(_:)` has pause, close and
+scope cases; `lateReadCannotPublishIntoDepartedSavedScreen(_:)` has close,
+background, account and visible cases. Identity and both suite phases use the
+same owned device and the exact retained product. There are no test iterations,
+relaunch loops or retry/skip flags. Post-test host probes run only after the
+suite attempt.
+
+The preflight verifies the exact original plan digest, full selected/disabled
+inventory complement, both expected methods and the prior fresh identity
+observation. Postflight re-verifies them and requires successful enumeration and
+execution commands, a passing summary, zero failed/skipped tests, exactly two
+methods, seven distinct passed leaves, and the exact 3/4 per-method partition.
+It writes a separate `retained_product_suite_diagnostic` envelope with product
+versus harness provenance and evidence digests. Every outcome remains
+`qualified=false`, `release_eligible=false`; even a pass cannot replace shard 4,
+contribute native coverage or qualify the original source. The identity-only
+receipt remains separate.
+
+This replay addresses an evidence gap: the earlier local fixture replay passed
+only the first method's three leaves, while the fresh-host retained-product
+experiment ran only identity. A pass would narrow the remaining investigation
+toward larger-shard context or host pressure; a repeated receiver timeout would
+show reproducibility on the exact hosted product; a CoreSimulator termination
+would retain platform-failure evidence. None alone proves a fix or warrants
+changing fixture deadlines. Hosted execution and independent raw-result readback
+remain required.
 
 ### Synthetic failed-jobs retry diagnostic
 

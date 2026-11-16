@@ -10,9 +10,9 @@ permissions:
 jobs:
   discover:
     if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'
-    name: Diagnose retained-product simulator service
+    name: Diagnose retained saved-video suite
     runs-on: xcode-27
-    timeout-minutes: 70
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
@@ -82,12 +82,6 @@ jobs:
             -parallel-testing-enabled NO \
             -only-testing:merianTests/SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity \
             2>&1 | tee "$RUNNER_TEMP/host-diagnostic/identity/test.log"
-      - name: Observe host after identity attempt
-        if: always() && steps.simulator.outcome == 'success'
-        timeout-minutes: 2
-        run: |
-          python3 -B scripts/diagnose-ios-service-hub.py snapshot \
-            --directory "$RUNNER_TEMP/host-diagnostic" --phase after_test
       - name: Validate diagnostic identity only
         if: always()
         timeout-minutes: 5
@@ -104,13 +98,67 @@ jobs:
           fi
           python3 -B scripts/diagnose-ios-service-hub.py finish --directory "$RUNNER_TEMP/host-diagnostic"
           git diff --quiet --ignore-submodules --
+      - name: Enumerate complete retained saved-video suite
+        id: suite-enumeration
+        timeout-minutes: 5
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.identity-test.outcome }}
+        run: |
+          set -o pipefail
+          mkdir "$RUNNER_TEMP/host-diagnostic/suite"
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/diagnostic-products/tests.xctestproducts" \
+            -destination "${{ steps.simulator.outputs.destination }}" -parallel-testing-enabled NO \
+            -only-testing:merianTests/CaptureSavedVideoPreviewTests \
+            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
+            -test-enumeration-output-path "$RUNNER_TEMP/host-diagnostic/suite/enumeration.txt" \
+            2>&1 | tee "$RUNNER_TEMP/host-diagnostic/suite/enumeration.log"
+          python3 -B scripts/diagnose-ios-service-hub.py suite-enumeration \
+            --directory "$RUNNER_TEMP/host-diagnostic" --inputs "$RUNNER_TEMP/diagnostic-input"
+      - name: Run complete retained saved-video suite once
+        id: suite-test
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/diagnostic-products/tests.xctestproducts" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/host-diagnostic/suite/results.xcresult" \
+            -parallel-testing-enabled NO -only-testing:merianTests/CaptureSavedVideoPreviewTests \
+            2>&1 | tee "$RUNNER_TEMP/host-diagnostic/suite/test.log"
+      - name: Validate complete suite diagnostic only
+        if: always()
+        timeout-minutes: 5
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.identity-test.outcome }}
+          IOS_SUITE_ENUMERATION_OUTCOME: ${{ steps.suite-enumeration.outcome }}
+          IOS_SUITE_TEST_OUTCOME: ${{ steps.suite-test.outcome }}
+        run: |
+          evidence="$RUNNER_TEMP/host-diagnostic/suite"
+          if [ -d "$evidence/results.xcresult" ]; then
+            xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json" || true
+            xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json" || true
+          fi
+          python3 -B scripts/diagnose-ios-service-hub.py finish-suite \
+            --directory "$RUNNER_TEMP/host-diagnostic" --inputs "$RUNNER_TEMP/diagnostic-input"
+          git diff --quiet --ignore-submodules --
+      - name: Observe host after suite attempt
+        if: always() && steps.simulator.outcome == 'success'
+        timeout-minutes: 2
+        run: |
+          python3 -B scripts/diagnose-ios-service-hub.py snapshot \
+            --directory "$RUNNER_TEMP/host-diagnostic" --phase after_test
       - name: Retain nonqualifying diagnostic evidence
         if: always()
         timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-service-hub-diagnostic-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          name: ios-retained-suite-diagnostic-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/host-diagnostic/suite-diagnostic.json
+            ${{ runner.temp }}/host-diagnostic/suite/enumeration.txt
+            ${{ runner.temp }}/host-diagnostic/suite/enumeration.log
+            ${{ runner.temp }}/host-diagnostic/suite/summary.json
+            ${{ runner.temp }}/host-diagnostic/suite/tests.json
+            ${{ runner.temp }}/host-diagnostic/suite/test.log
             ${{ runner.temp }}/host-diagnostic/diagnostic.json
             ${{ runner.temp }}/host-diagnostic/before_prepare.json
             ${{ runner.temp }}/host-diagnostic/before_test.json
@@ -121,4 +169,14 @@ jobs:
             ${{ runner.temp }}/host-diagnostic/identity/attachments
             ${{ runner.temp }}/host-diagnostic/identity/test.log
           if-no-files-found: error
+          retention-days: 14
+      - name: Retain suite failure result
+        if: failure()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-retained-suite-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/host-diagnostic/suite/results.xcresult
+          include-hidden-files: true
+          if-no-files-found: ignore
           retention-days: 14

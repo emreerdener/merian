@@ -78,10 +78,13 @@ def base_receipt(env):
                                    "remote_metadata_verified": False, "unpack_verified": False}}
 
 
-def validate_receipt(receipt, env):
+def validate_receipt(receipt, env, *, observed=False):
     base = base_receipt(env)
-    require(set(receipt) == set(base))
-    for key in ("schema_version", "kind", "execution_provenance", "status"):
+    require(set(receipt) == set(base) | ({"observed_environment"} if observed else set()))
+    require(receipt["status"] == ("identity_observed" if observed else "incomplete"))
+    if observed:
+        require(receipt["observed_environment"] == module("ios-unit-shards.py").RUNTIME)
+    for key in ("schema_version", "kind", "execution_provenance"):
         require(receipt[key] == base[key])
     require(receipt["qualified"] is False and receipt["release_eligible"] is False)
     origin = receipt["product_provenance"]
@@ -247,22 +250,75 @@ def finish(receipt, directory, env):
     return receipt
 
 
+SUITE = "merianTests/CaptureSavedVideoPreviewTests"
+SUITE_ARGUMENTS = {SUITE + "/lateActivationCannotStartRetiredClip(_:)": 3,
+                   SUITE + "/lateReadCannotPublishIntoDepartedSavedScreen(_:)": 4}
+
+
+def suite_diagnostic(directory, inputs, env, *, completed):
+    """One fixed retained suite; this namespace never feeds native coverage."""
+    shards = module("ios-unit-shards.py")
+    receipt = shards.read_json(directory / "diagnostic.json")
+    validate_receipt(receipt, env, observed=True)
+    require(receipt["product_provenance"]["unpack_verified"] is True)
+    plan_path = inputs / "ios-unit-plan.json"
+    require(not plan_path.is_symlink() and digest(plan_path) == PLAN_HASH)
+    plan = shards.read_json(plan_path)
+    require(plan["source_sha"] == SOURCE and plan["run_id"] == str(RUN) and plan["run_attempt"] == "1"
+            and plan["build_workspace"] == env["GITHUB_WORKSPACE"] and plan["products_sha256"] == PRODUCT_HASH)
+    expected = sorted(m for m in plan["inventory"] if shards.suite(m) == SUITE)
+    require(expected == sorted(SUITE_ARGUMENTS))
+    qualification = module("discover-ios27-simulator.py").verify(directory / "identity", env=env)
+    require(qualification["observed_environment"] == shards.RUNTIME)
+    selected = directory / "suite"
+    require(shards.inventory(selected / "enumeration.txt", plan=plan) == expected)
+    result = {"schema_version": 1, "kind": "retained_product_suite_diagnostic",
+              "qualified": False, "release_eligible": False, "status": "inventory_verified",
+              "execution_provenance": execution(env), "product_provenance": receipt["product_provenance"],
+              "suite": SUITE, "expected_methods": expected, "expected_argument_counts": SUITE_ARGUMENTS,
+              "files": {"suite/enumeration.txt": digest(selected / "enumeration.txt"),
+                        "diagnostic.json": digest(directory / "diagnostic.json")},
+              "identity_files": qualification["files"]}
+    if completed:
+        require(env.get("IOS_SUITE_TEST_OUTCOME") == "success"
+                and env.get("IOS_SUITE_ENUMERATION_OUTCOME") == "success")
+        tree = shards.read_json(selected / "tests.json")
+        methods, leaves = shards.result_methods(shards.read_json(selected / "summary.json"), tree, qualification,
+            context={"source_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"], "run_attempt": env["GITHUB_RUN_ATTEMPT"]})
+        require(methods == expected and leaves == 7)
+        def counts(node):
+            if node.get("nodeType") == "Test Case":
+                method = shards.canonical("merianTests/" + node["nodeIdentifier"])
+                require(len(node.get("children", [])) == SUITE_ARGUMENTS[method])
+            for child in node.get("children", []):
+                counts(child)
+        for node in tree["testNodes"]:
+            counts(node)
+        result.update(status="passed", methods=methods, parameter_leaves=leaves)
+        result["files"].update({"suite/" + name: digest(selected / name) for name in ("summary.json", "tests.json")})
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("origin", "inputs", "snapshot", "finish"))
+    parser.add_argument("action", choices=("origin", "inputs", "snapshot", "finish", "suite-enumeration", "finish-suite"))
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--inputs", type=Path)
     parser.add_argument("--products", type=Path)
     parser.add_argument("--phase", choices=("before_prepare", "before_test", "after_test"))
     args = parser.parse_args()
     args.directory.mkdir(parents=True, exist_ok=True)
-    path = args.directory / "diagnostic.json"
+    is_suite = args.action in ("suite-enumeration", "finish-suite")
+    path = args.directory / ("suite-diagnostic.json" if is_suite else "diagnostic.json")
     receipt = base_receipt(os.environ)
     valid_receipt = False
     try:
         for name in HELPERS:
             require(digest(ROOT / "scripts" / name) == HELPERS[name])
-        if args.action == "origin":
+        if is_suite:
+            require(args.inputs is not None)
+            receipt = suite_diagnostic(args.directory, args.inputs, os.environ, completed=args.action == "finish-suite")
+        elif args.action == "origin":
             receipt = verify_origin(os.environ)
         elif args.action == "snapshot":
             require(args.phase is not None)
@@ -281,6 +337,8 @@ def main():
     except (ValueError, OSError, KeyError, TypeError) as error:
         if not valid_receipt:
             receipt = base_receipt(os.environ)
+        if is_suite:
+            receipt["kind"] = "retained_product_suite_diagnostic"
         receipt.update(status="failed", failure_kind=type(error).__name__)
         path.write_text(json.dumps(receipt, indent=2) + "\n")
         return 1

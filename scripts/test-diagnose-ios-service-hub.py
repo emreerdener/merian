@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Provenance, privacy and nonqualification boundaries for the host experiment."""
+import copy
 import importlib.util
+import os
 import io
 import json
 from pathlib import Path
@@ -161,6 +163,9 @@ class HostDiagnosticTests(unittest.TestCase):
     def identity_fixture(self, directory):
         identity = directory / "identity"; identity.mkdir()
         fixtures.DiscoveryTests().fixture(identity)
+        preparation = identity / "preparation.json"
+        prepared = json.loads(preparation.read_text()); prepared["schema_version"] = 1
+        preparation.write_text(json.dumps(prepared))
         payload = identity / "attachments/identity.txt"
         value = json.loads(payload.read_text()); value["model_identifier"] = "iPhone19,2"
         payload.write_text(json.dumps(value))
@@ -250,7 +255,117 @@ class HostDiagnosticTests(unittest.TestCase):
                     path.write_text(json.dumps(data))
                 with self.subTest(kind=kind), self.assertRaises(ValueError): d.finish(r, directory, env)
 
-    def test_workflow_only_consumes_fixed_artifacts_and_runs_one_selector(self):
+    def suite_fixture(self, directory):
+        r = self.identity_fixture(directory)
+        identity = d.finish(r, directory, ENV)
+        (directory / "diagnostic.json").write_text(json.dumps(identity))
+        helpers = load("test-ios-unit-shards.py")
+        methods = sorted(d.SUITE_ARGUMENTS)
+        all_methods = methods + ["merianTests/Other/testControl"]
+        plan = {"source_sha": d.SOURCE, "run_id": str(d.RUN), "run_attempt": "1",
+                "build_workspace": ENV["GITHUB_WORKSPACE"], "products_sha256": d.PRODUCT_HASH,
+                "inventory": sorted(all_methods)}
+        inputs = directory / "inputs"; inputs.mkdir()
+        (inputs / "ios-unit-plan.json").write_text(json.dumps(plan))
+        plan_pin = patch.object(d, "PLAN_HASH", d.digest(inputs / "ios-unit-plan.json"))
+        plan_pin.start(); self.addCleanup(plan_pin.stop)
+        # The identity receipt must retain the same independently pinned plan hash.
+        identity["product_provenance"]["plan_sha256"] = d.PLAN_HASH
+        (directory / "diagnostic.json").write_text(json.dumps(identity))
+        selected = directory / "suite"; selected.mkdir()
+        (selected / "enumeration.txt").write_text(helpers.enumeration_text(methods, full_inventory=all_methods))
+        tree = helpers.tree_for(methods)
+        tree["devices"][0]["deviceId"] = fixtures.DEVICE
+        for suite in tree["testNodes"][0]["children"][0]["children"]:
+            for case in suite["children"]:
+                method = "merianTests/" + case["nodeIdentifier"]
+                case["children"] = [{"nodeType": "Arguments", "result": "Passed",
+                    "nodeIdentifierURL": case["nodeIdentifierURL"] + "?args=" + format(i, "02x")}
+                    for i in range(d.SUITE_ARGUMENTS[method])]
+        (selected / "tests.json").write_text(json.dumps(tree))
+        (selected / "summary.json").write_text(json.dumps(helpers.summary_for(methods)))
+        env = dict(ENV, IOS_SUITE_TEST_OUTCOME="success", IOS_SUITE_ENUMERATION_OUTCOME="success")
+        return inputs, env
+
+    def test_replay_scope_has_independent_literal_methods_and_argument_counts(self):
+        self.assertEqual(d.SUITE_ARGUMENTS, {
+            "merianTests/CaptureSavedVideoPreviewTests/lateActivationCannotStartRetiredClip(_:)": 3,
+            "merianTests/CaptureSavedVideoPreviewTests/lateReadCannotPublishIntoDepartedSavedScreen(_:)": 4,
+        })
+
+    def test_suite_cli_failure_is_nonqualifying_and_does_not_overwrite_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            identity = directory / "diagnostic.json"; identity.write_text('{"sentinel": "preserve"}')
+            result = subprocess.run([__import__("sys").executable, "-B", str(ROOT / "scripts/diagnose-ios-service-hub.py"),
+                "finish-suite", "--directory", str(directory), "--inputs", str(directory / "missing")],
+                env=dict(os.environ, **ENV), capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0); self.assertNotIn("Traceback", result.stderr)
+            evidence = json.loads((directory / "suite-diagnostic.json").read_text())
+            self.assertEqual(evidence["kind"], "retained_product_suite_diagnostic")
+            self.assertEqual(evidence["status"], "failed")
+            self.assertFalse(evidence["qualified"]); self.assertFalse(evidence["release_eligible"])
+            self.assertEqual(identity.read_text(), '{"sentinel": "preserve"}')
+
+    def test_complete_retained_suite_is_seven_leaves_and_never_qualifies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary); inputs, env = self.suite_fixture(directory)
+            original = dict(env)
+            preflight = d.suite_diagnostic(directory, inputs, env, completed=False)
+            self.assertEqual(preflight["status"], "inventory_verified")
+            self.assertNotIn("methods", preflight)
+            result = d.suite_diagnostic(directory, inputs, env, completed=True)
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["kind"], "retained_product_suite_diagnostic")
+            self.assertEqual(len(result["methods"]), 2); self.assertEqual(result["parameter_leaves"], 7)
+            self.assertFalse(result["qualified"]); self.assertFalse(result["release_eligible"])
+            self.assertEqual(env, original)
+            self.assertEqual(result["product_provenance"]["source_sha"], d.SOURCE)
+            self.assertEqual(result["execution_provenance"]["harness_sha"], env["GITHUB_SHA"])
+            self.assertFalse((directory / "qualification.json").exists())
+
+    def test_suite_failure_skip_or_unrun_step_cannot_be_reported_passed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary); inputs, env = self.suite_fixture(directory)
+            for key in ("IOS_SUITE_TEST_OUTCOME", "IOS_SUITE_ENUMERATION_OUTCOME", "IOS_IDENTITY_TEST_OUTCOME"):
+                for value in ("failure", "skipped", "cancelled", ""):
+                    with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                        d.suite_diagnostic(directory, inputs, dict(env, **{key: value}), completed=True)
+            path = directory / "suite/summary.json"; original = json.loads(path.read_text())
+            for change in ({"result": "Failed"}, {"failedTests": 1}, {"skippedTests": 1}, {"passedTests": 1}):
+                path.write_text(json.dumps(dict(original, **change)))
+                with self.assertRaises(ValueError): d.suite_diagnostic(directory, inputs, env, completed=True)
+
+    def test_suite_rejects_wrong_argument_partition_even_if_total_remains_seven(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary); inputs, env = self.suite_fixture(directory)
+            path = directory / "suite/tests.json"; original = json.loads(path.read_text())
+            for mode in ("missing", "extra", "repartition", "failed", "duplicate"):
+                tree = copy.deepcopy(original); cases = tree["testNodes"][0]["children"][0]["children"][0]["children"]
+                if mode in ("missing", "repartition"): cases[0]["children"].pop()
+                if mode in ("extra", "repartition"):
+                    cases[1]["children"].append({"nodeType": "Arguments", "result": "Passed",
+                        "nodeIdentifierURL": cases[1]["nodeIdentifierURL"] + "?args=ff"})
+                if mode == "failed": cases[0]["children"][0]["result"] = "Failed"
+                if mode == "duplicate": cases[0]["children"][1] = copy.deepcopy(cases[0]["children"][0])
+                path.write_text(json.dumps(tree))
+                with self.subTest(mode=mode), self.assertRaises(ValueError):
+                    d.suite_diagnostic(directory, inputs, env, completed=True)
+
+    def test_suite_rejects_wrong_plan_narrow_inventory_or_stale_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary); inputs, env = self.suite_fixture(directory)
+            path = directory / "suite/enumeration.txt"; original = path.read_text()
+            path.write_text(original.replace("\tmerianTests/Other/testControl (disabled)\n", ""))
+            with self.assertRaises(ValueError): d.suite_diagnostic(directory, inputs, env, completed=False)
+            path.write_text(original)
+            identity_path = directory / "identity/preparation.json"; identity = json.loads(identity_path.read_text())
+            identity["run_attempt"] = "999"; identity_path.write_text(json.dumps(identity))
+            with self.assertRaises(ValueError): d.suite_diagnostic(directory, inputs, env, completed=True)
+            plan_path = inputs / "ios-unit-plan.json"; plan_path.write_text("changed")
+            with self.assertRaises(ValueError): d.suite_diagnostic(directory, inputs, env, completed=False)
+
+    def test_workflow_only_consumes_fixed_artifacts_and_runs_identity_then_whole_suite(self):
         path = ROOT / ".github/workflows/ios-runtime-discovery.yml"
         w = json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
                        "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json", str(path)], text=True))
@@ -264,14 +379,48 @@ class HostDiagnosticTests(unittest.TestCase):
             self.assertEqual(step["with"]["repository"], "emreerdener/merian")
             self.assertEqual(step["with"]["digest-mismatch"], "error")
         commands = "\n".join(s.get("run", "") for s in steps)
-        self.assertEqual(commands.count("xcodebuild test-without-building"), 1)
-        self.assertEqual(commands.count("-only-testing:"), 1)
+        self.assertEqual(commands.count("xcodebuild test-without-building"), 3)
+        self.assertEqual(commands.count("-only-testing:"), 3)
+        self.assertEqual(commands.count("-only-testing:merianTests/CaptureSavedVideoPreviewTests"), 2)
         for forbidden in ("build-for-testing", "-skip-testing", "killall", "simctl erase", "GITHUB_SHA=",
-                          "GITHUB_RUN_ID=", "GITHUB_RUN_ATTEMPT=", "qualification.json"):
+                          "GITHUB_RUN_ID=", "GITHUB_RUN_ATTEMPT=", "qualification.json", "-retry-tests-on-failure",
+                          "-test-iterations", "-run-tests-until-failure", "continue-on-error"):
             self.assertNotIn(forbidden, commands)
         self.assertEqual(next(s for s in steps if s.get("id") == "identity-test")["timeout-minutes"], 10)
         self.assertNotIn("environment", job)
-        upload = steps[-1]["with"]["path"]
+        for step in steps:
+            if "xcodebuild test-without-building" in step.get("run", ""):
+                self.assertEqual(step["run"].count("xcodebuild test-without-building"), 1)
+                self.assertIn("-parallel-testing-enabled NO", step["run"])
+                self.assertIn("set -o pipefail", step["run"])
+        self.assertEqual(job["timeout-minutes"], 90)
+        self.assertEqual(next(s for s in steps if s.get("id") == "suite-test")["timeout-minutes"], 10)
+        self.assertEqual(next(s for s in steps if s.get("id") == "suite-enumeration")["timeout-minutes"], 5)
+        enumeration = next(s for s in steps if s.get("id") == "suite-enumeration")["run"]
+        for flag in ("-enumerate-tests", "-test-enumeration-style flat", "-test-enumeration-format text",
+                     '-test-enumeration-output-path "$RUNNER_TEMP/host-diagnostic/suite/enumeration.txt"'):
+            self.assertIn(flag, enumeration)
+        self.assertNotIn("-resultBundlePath", enumeration)
+        self.assertIn("diagnose-ios-service-hub.py suite-enumeration", enumeration)
+        self.assertLess(enumeration.index("xcodebuild test-without-building"),
+                        enumeration.index("diagnose-ios-service-hub.py suite-enumeration"))
+        suite_run = next(s for s in steps if s.get("id") == "suite-test")["run"]
+        self.assertIn("-only-testing:merianTests/CaptureSavedVideoPreviewTests", suite_run)
+        self.assertIn('-resultBundlePath "$RUNNER_TEMP/host-diagnostic/suite/results.xcresult"', suite_run)
+        self.assertNotIn("-enumerate-tests", suite_run)
+        for flag in ("-retry-tests-on-failure", "-test-iterations", "-run-tests-until-failure", "-skip-testing"):
+            self.assertNotIn(flag, suite_run)
+        names = [step.get("name") for step in steps]
+        self.assertLess(names.index("Validate diagnostic identity only"), names.index("Enumerate complete retained saved-video suite"))
+        self.assertLess(names.index("Enumerate complete retained saved-video suite"), names.index("Run complete retained saved-video suite once"))
+        self.assertLess(names.index("Run complete retained saved-video suite once"), names.index("Validate complete suite diagnostic only"))
+        self.assertLess(names.index("Validate complete suite diagnostic only"), names.index("Observe host after suite attempt"))
+        final = next(s for s in steps if s.get("name") == "Validate complete suite diagnostic only")
+        self.assertEqual(final["if"], "always()")
+        self.assertEqual(final["env"], {"IOS_IDENTITY_TEST_OUTCOME": "${{ steps.identity-test.outcome }}",
+            "IOS_SUITE_ENUMERATION_OUTCOME": "${{ steps.suite-enumeration.outcome }}",
+            "IOS_SUITE_TEST_OUTCOME": "${{ steps.suite-test.outcome }}"})
+        upload = next(s for s in steps if s.get("name") == "Retain nonqualifying diagnostic evidence")["with"]["path"]
         self.assertNotIn("results.xcresult", upload); self.assertNotIn("diagnostic-products", upload)
 
 

@@ -221,9 +221,9 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
         job = workflow["jobs"]["discover"]
         self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'")
-        self.assertEqual(job["timeout-minutes"], 70)
+        self.assertEqual(job["timeout-minutes"], 90)
         self.assertIs(job["steps"][0]["with"]["persist-credentials"], False)
-        self.assertEqual(job["steps"][-1]["if"], "always()")
+        self.assertEqual(next(s for s in job["steps"] if s.get("name") == "Retain nonqualifying diagnostic evidence")["if"], "always()")
         self.assertNotIn("environment", job)
         budgets = {step.get("name"): step.get("timeout-minutes") for step in job["steps"]}
         self.assertEqual(budgets["Prepare exact preinstalled runtime on owned device"], 20)
