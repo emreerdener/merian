@@ -124,21 +124,27 @@ struct VideoAudioFixture: Sendable {
     @MainActor private static func writeSilentVideo(
         to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform
     ) async throws {
+        print("VideoAudioFixture: writer construction started")
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        print("VideoAudioFixture: writer construction completed")
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height
         ])
         input.transform = transform
+        print("VideoAudioFixture: writer input configured")
         // Keep encoder ownership until completion or cancellation, including
         // failure and the actual exit of every pending append.
         defer { if writer.status == .writing { writer.cancelWriting() } }
         if #available(iOS 26.0, *) {
             let receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
             let pixels = CVReadOnlyPixelBuffer(unsafeBuffer: try blackPixels(width: width, height: height))
+            print("VideoAudioFixture: receiver setup completed")
             try #require(writer.startWriting())
+            print("VideoAudioFixture: writer start completed")
             writer.startSession(atSourceTime: .zero)
+            print("VideoAudioFixture: receiver appends started")
             for frame in 0..<frameCount {
                 var stoppedStatus = writer.status.rawValue
                 var stoppedWithError = false
@@ -146,7 +152,9 @@ struct VideoAudioFixture: Sendable {
                     try await withReadinessDeadline(cancel: {
                         stoppedStatus = writer.status.rawValue
                         stoppedWithError = writer.error != nil
+                        print("VideoAudioFixture: receiver cancellation started")
                         writer.cancelWriting()
+                        print("VideoAudioFixture: receiver cancellation completed")
                     }) {
                         try await receiver.append(pixels, with: CMTime(value: Int64(frame), timescale: 30))
                     }
@@ -155,8 +163,10 @@ struct VideoAudioFixture: Sendable {
                     throw ReadinessFailure.timedOut
                 }
             }
+            print("VideoAudioFixture: receiver appends completed")
             writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
             receiver.finish()
+            print("VideoAudioFixture: receiver finish completed")
         } else {
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
                 assetWriterInput: input,
@@ -185,7 +195,9 @@ struct VideoAudioFixture: Sendable {
             writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
             input.markAsFinished()
         }
+        print("VideoAudioFixture: writer finalization started")
         await writer.finishWriting()
+        print("VideoAudioFixture: writer finalization completed")
         try #require(writer.status == .completed)
     }
 
