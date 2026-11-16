@@ -217,10 +217,10 @@ class DiscoveryTests(unittest.TestCase):
         workflow = json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
                               "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json", str(path)], text=True))
         self.assertEqual(workflow.get("on", workflow.get("true")),
-                         {"push": {"branches": ["codex/pr152-simulator-diagnostics-20261114"],
-                                   "paths": ["scripts/diagnose-ios-service-hub.py"]}})
+                         {"workflow_dispatch": None})
         self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
         job = workflow["jobs"]["discover"]
+        self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'")
         self.assertEqual(job["timeout-minutes"], 70)
         self.assertIs(job["steps"][0]["with"]["persist-credentials"], False)
         self.assertEqual(job["steps"][-1]["if"], "always()")

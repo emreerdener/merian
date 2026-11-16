@@ -61,6 +61,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 310
     outputs:
+      build_attempt: ${{ steps.plan.outputs.build_attempt }}
       matrix: ${{ steps.plan.outputs.matrix }}
       plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
       products_id: ${{ steps.products.outputs.artifact-id }}
@@ -399,6 +400,10 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
       IOS_UNIT_PLAN_SHA256: ${{ needs.ios-unit-build.outputs.plan_sha256 }}
+      IOS_UNIT_BUILD_ATTEMPT: ${{ needs.ios-unit-build.outputs.build_attempt }}
+      IOS_UNIT_PRODUCTS_ID: ${{ needs.ios-unit-build.outputs.products_id }}
+      IOS_UNIT_PLAN_ID: ${{ needs.ios-unit-build.outputs.plan_id }}
+      IOS_UNIT_REQUALIFICATION_ID: ${{ needs.ios-unit-build.outputs.requalification_id }}
       IOS_UNIT_SHARD: ${{ matrix.index }}
     steps:
       - name: Checkout exact workflow SHA
@@ -466,6 +471,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/ios-unit-identity/test.log"
 
       - name: Verify exact guest identity evidence
+        id: identity-receipt
         if: always() && steps.ios-identity-test.outcome != 'skipped'
         timeout-minutes: 5
         env:
@@ -492,6 +498,7 @@ jobs:
           retention-days: 14
 
       - name: Reconcile selected compiled inventory
+        id: enumeration
         timeout-minutes: 10
         run: |
           set -o pipefail
@@ -521,6 +528,7 @@ jobs:
             2>&1 | tee -a "$RUNNER_TEMP/ios-unit-shard.log"
 
       - name: Verify shard execution against compiled inventory
+        id: receipt
         if: always()
         env:
           IOS_UNIT_TEST_OUTCOME: ${{ steps.xcode-tests.outcome }}
@@ -534,11 +542,24 @@ jobs:
             --index "$IOS_UNIT_SHARD" --directory "$RUNNER_TEMP/ios-unit-evidence" \
             --output "$RUNNER_TEMP/ios-unit-evidence/receipt.json"
 
+      - name: Record terminal shard execution
+        if: always()
+        env:
+          IOS_UNIT_IDENTITY_OUTCOME: ${{ steps.identity-receipt.outcome }}
+          IOS_UNIT_ENUMERATION_OUTCOME: ${{ steps.enumeration.outcome }}
+          IOS_UNIT_NATIVE_OUTCOME: ${{ steps.xcode-tests.outcome }}
+          IOS_UNIT_RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
+        run: |
+          python3 -B scripts/ios-unit-shards.py execution \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --index "$IOS_UNIT_SHARD" --directory "$RUNNER_TEMP/ios-unit-evidence" \
+            --output "$RUNNER_TEMP/ios-unit-evidence/execution.json"
+
       - name: Retain shard coverage evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-unit-shard-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}
+          name: ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}
           path: ${{ runner.temp }}/ios-unit-evidence
           if-no-files-found: error
           retention-days: 14
@@ -563,6 +584,10 @@ jobs:
     timeout-minutes: 15
     env:
       IOS_UNIT_PLAN_SHA256: ${{ needs.ios-unit-build.outputs.plan_sha256 }}
+      IOS_UNIT_BUILD_ATTEMPT: ${{ needs.ios-unit-build.outputs.build_attempt }}
+      IOS_UNIT_PRODUCTS_ID: ${{ needs.ios-unit-build.outputs.products_id }}
+      IOS_UNIT_PLAN_ID: ${{ needs.ios-unit-build.outputs.plan_id }}
+      IOS_UNIT_REQUALIFICATION_ID: ${{ needs.ios-unit-build.outputs.requalification_id }}
     steps:
       - name: Require successful build and every shard
         env:
@@ -591,10 +616,10 @@ jobs:
           digest-mismatch: error
           path: ${{ runner.temp }}/ios-unit-input
 
-      - name: Download all current-attempt shard evidence
+      - name: Download all build-origin shard evidence
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: ios-unit-shard-${{ github.run_id }}-attempt-${{ github.run_attempt }}-*
+          pattern: ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-*-*
           merge-multiple: false
           digest-mismatch: error
           path: ${{ runner.temp }}/ios-unit-shards

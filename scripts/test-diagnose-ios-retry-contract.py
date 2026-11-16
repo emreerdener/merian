@@ -142,7 +142,7 @@ class RetryProbeTests(unittest.TestCase):
                     self.assertEqual(step["with"]["digest-mismatch"], "error")
         native = yaml(".github/workflows/ios-runtime-discovery.yml")
         native_trigger = native.get("on", native.get("true"))
-        self.assertEqual(native_trigger["push"]["paths"], ["scripts/diagnose-ios-service-hub.py"])
+        self.assertEqual(native_trigger, {"workflow_dispatch": None})
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ ARTIFACTS = {
                  "feb6d4f4886ad273b7d64680e506c2c6318e7383686f5ec7795f39de4b1e0e8d"),
 }
 HELPERS = {
-    "ios-unit-shards.py": "96cfa3098f45d291d0dd825cb3dd5bba3d4f40c745aca88835fd60645066a0ea",
+    "ios-unit-shards.py": "379567fd6c8d595fc45b36c391080233c711e66c8b687029e998734a6e235feb",
     "discover-ios27-simulator.py": "3aaef05f33ba32ad96dcadb6338345424b74c3f8c87c9f9d023ad439f3539cf8",
     "prepare-ios-unit-simulator.py": "510486d673fe6a439772fb83d822afd5429782f9e1c58d213ee78dcb09987e67",
 }

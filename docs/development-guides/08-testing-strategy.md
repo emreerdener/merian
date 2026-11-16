@@ -2242,17 +2242,19 @@ the exact runtime/toolchain, ten-minute identity deadline and existing
 assertions, with no service reset, reinstall, hidden retry or readiness sleep.
 Uploads retain the diagnostic/preparation receipts, identity attachment, raw
 XCTest summary/tree and console log; full result bundles and compiled products
-are excluded. The ordinary hosted gate and its coherent-attempt retry rules
-below remain unchanged.
+are excluded. The diagnostic cannot contribute to the ordinary hosted gate or
+its retry receipts.
 
 `make test-ios-ci-tooling` includes provenance, tampering, archive, privacy,
 failure and nonqualification tests for this diagnostic. Hosted execution is
 still required to observe the actual service behavior; portable tests do not
 establish a simulator repair.
 
-The retained-product workflow now triggers only when its service-hub helper
-changes on the isolated diagnostic branch. Publishing the synthetic retry probe
-below does not launch another macOS experiment.
+After the November 16 successful diagnostic, the retained-product workflow is
+manual-only and restricted to the isolated diagnostic branch. Updating its
+hardened unpacker pin or publishing retry tooling does not launch another macOS
+experiment. The pinned unpacker still validates the fixed original product; that
+diagnostic does not load its historical plan through the new native gate.
 
 ### Synthetic failed-jobs retry diagnostic
 
@@ -2275,11 +2277,16 @@ rerun or third attempt invalidates this deliberately bounded experiment.
 [GitHub documents](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
 that dependent jobs rerun while unincluded jobs retain outputs. This probe
 checks the matrix and pinned artifact actions against that behavior. It neither
-runs native tests nor changes their current coherent-attempt contract. Every
-receipt remains `qualified=false` and `release_eligible=false`; a successful
-probe cannot replace a failed native result or qualify mixed-attempt coverage.
-Any future native retry implementation still needs independent contract review,
-complete raw-result reconciliation and its own validation.
+runs native tests nor supplies native coverage. Every receipt remains
+`qualified=false` and `release_eligible=false`; a successful probe cannot
+replace a failed native result or qualify mixed-attempt coverage. The November
+16 probe passed after exactly one failed-jobs retry: the original artifact and
+passing slot were retained, the failed slot and aggregate reran, and the earlier
+failure remained available. GitHub cloned some retained job metadata into the
+second attempt, so job IDs and the latest API `run_attempt` are not evidence of
+re-execution. Immutable artifact receipts bind the actual execution. Native use
+requires the independently reviewed contract below and its own hosted
+validation; the synthetic success cannot qualify native tests.
 
 ### Complete unit sharding contract
 
@@ -2315,7 +2322,7 @@ review.
   remains assigned either to exactly one hosted shard or to the one explicit
   separate integration. Empty, malformed, duplicate or foreign-target method
   entries fail. Only exact trailing `()` normalization bridges XCTest result
-  spelling; Swift argument labels remain intact. The version-3 plan also binds
+  spelling; Swift argument labels remain intact. The version-4 plan also binds
   the exact separate integration selector and raw full-enumeration SHA-256;
   focused and aggregate verification recheck the original bytes as well as all
   methods. Hosted enumeration has established this framing; successful hosted
@@ -2339,8 +2346,11 @@ review.
   concurrent shard jobs per workflow. Runtime and runner availability still
   determine elapsed time; additional simulator startup adds compute overhead.
 - The build emits one `.xctestproducts` archive, a SHA-256-bound transport
-  archive, and a SHA-256-bound plan naming source SHA, workflow run, attempt,
-  toolchain, runtime, configuration and method assignments. Download actions use
+  archive, and a SHA-256-bound version-4 plan naming `source_sha`,
+  `origin_run_id`, `build_attempt`, toolchain, runtime, configuration and method
+  assignments. The builder outputs bind the plan digest, build attempt and
+  immutable product, plan and requalification artifact IDs. These outputs remain
+  authoritative when the successful builder is not rerun. Download actions use
   the build's artifact IDs and fail on digest mismatch. Each shard verifies the
   plan and product digests before extraction. Extraction rejects escaping paths,
   link traversal, duplicate entries and special files, while preserving
@@ -2366,28 +2376,61 @@ review.
   generated argument rows; whole-suite selection and unchanged compiled test
   bodies preserve their parameter inputs.
 - The aggregate requires the build and entire matrix to succeed, then recomputes
-  receipts from every raw summary, tree, qualifier and selected inventory. It
-  rejects missing/extra shard artifacts, changed hashes, stale
-  source/run/attempt, unexpected test nodes, duplicate methods/argument
-  identities and incomplete ordinary-suite union coverage. Its receipt records
-  `scope=hosted-unit-suites`, `complete_target=false`, `release_eligible=false`,
-  the full compiled count and the separate integration with
-  `status=not-executed`. Historical evidence never changes that status. It wraps
-  the raw trees without editing their suites or cases and invokes
-  `validate-ios-critical-test-results.sh` unchanged. Production readiness
-  depends on **Hosted iOS unit tests**, plus the unchanged UI and Release
-  archive gates. Its summary explicitly disclaims native/SQL integration
-  qualification. A green hosted result is not a full app acceptance or
-  distribution decision.
+  receipts from every selected raw summary, tree, qualifier and inventory. It
+  validates the original requalification against the build execution context and
+  each selected shard against its explicit execution context without changing
+  the aggregate process identity. It rejects missing/extra shard artifacts,
+  changed hashes, stale source/run/build/execution identities, unexpected test
+  nodes, duplicate methods/argument identities and incomplete ordinary-suite
+  union coverage. Its receipt records `scope=hosted-unit-suites`,
+  `complete_target=false`, `release_eligible=false`, the full compiled count and
+  the separate integration with `status=not-executed`. Historical evidence never
+  changes that status. It wraps the raw trees without editing their suites or
+  cases and invokes `validate-ios-critical-test-results.sh` unchanged.
+  Production readiness depends on **Hosted iOS unit tests**, plus the unchanged
+  UI and Release archive gates. Its summary explicitly disclaims native/SQL
+  integration qualification. A green hosted result is not a full app acceptance
+  or distribution decision.
 
-A retry must use **Re-run all jobs** so products, plan and every shard receipt
-belong to one attempt. Rerunning only failed jobs intentionally cannot combine
-old successful shard artifacts with a new attempt. Compiled products are
-retained seven days; plans, compact per-shard/aggregate evidence and available
-failure bundles are retained fourteen days. A timeout, failed qualifier, missing
-artifact or unreadable result remains a failed gate. None of this qualifies
-Release/device responsiveness, changes app runtime behavior, or authorizes
-publication, deployment or distribution.
+For a version-4 run, inspect the failures after the workflow finishes. One
+operator-initiated **Re-run failed jobs** may retain the original successful
+builder and passing shards while rerunning failed groups and their aggregate.
+There is no automatic retry, per-test retry, smaller selector or changed
+assertion. Each retried group runs its complete assigned suites on a fresh
+hosted runner and independently proves the same toolchain/runtime identity. The
+execution attempt must be the build attempt or exactly one greater; a second
+recovery attempt is rejected. Persistent failures require diagnosis and a new
+build origin, not repeated retries until green.
+
+Every shard has an `if: always()` terminal step that writes `execution.json`
+after receipt verification and before artifact upload. Its strict step outcomes
+are identity, enumeration, native execution and receipt verification. It binds
+source, origin run, build and execution attempts, artifact IDs, plan/product
+hashes, suite/method assignment hash, toolchain/runtime and every available raw
+evidence digest. Only all-success outcomes plus a recomputed passing receipt
+produce a passing envelope. Failed envelopes retain available diagnostic bytes
+and never provide coverage. Missing envelopes, including an interrupted runner
+that cannot upload one, block aggregation.
+
+Artifact names include the origin run, build attempt, execution attempt and
+shard index. The aggregate downloads the build's artifacts without flattening
+directories and requires exactly one original envelope per group. An original
+pass must have no retry. An original failure must retain its failure envelope
+and have exactly one passing retry. Names and internal provenance must agree;
+foreign, extra, missing, future, duplicate or relabelled evidence fails closed.
+The final coverage receipt lists selected executions and hashes of retained
+failures. Every ordinary compiled method still appears exactly once in the
+selected passing union, and the unchanged critical regression validator still
+runs. UI and archive gates remain mandatory.
+
+Version-3 plans and old receipts cannot be retroactively qualified by this
+contract. A full workflow rerun creates a new build origin and cannot reuse the
+old origin's shard evidence. Compiled products are retained seven days; plans,
+compact per-shard/aggregate evidence and available failure bundles are retained
+fourteen days. An unresolved timeout, failed qualifier, missing artifact or
+unreadable result remains a failed gate. None of this qualifies Release/device
+responsiveness, changes app runtime behavior, or authorizes publication,
+deployment or distribution.
 
 Portable verification includes adversarial inventory, parameter, provenance,
 archive and workflow tests through `make test-ios-ci-tooling`. Hosted product
@@ -2502,20 +2545,20 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                                               | Artifact or local action                                                                                                                                                                                  |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Simulator identity                                                    | Inspect `ios-unit-build-identity-<run-id>-attempt-<attempt>` or `ios-unit-identity-<run-id>-attempt-<attempt>-<index>`; host preparation and a model observation alone do not qualify resources.          |
-| Focused runtime requalification                                       | Inspect `ios-unit-requalification-<run-id>-attempt-<attempt>`; require its exact product/plan digests, all three compiled suites and every protected parameter case.                                      |
-| Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                |
-| Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-attempt-<attempt>-<index>` coverage receipt. |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; rerun all workflow jobs together. Do not weaken inventory reconciliation or the critical-suite validator.             |
-| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.                                        |
-| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator.                                |
-| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.                                    |
-| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                              |
-| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                |
-| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                  |
+| Failure                                                               | Artifact or local action                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulator identity                                                    | Inspect `ios-unit-build-identity-<run-id>-attempt-<attempt>` or `ios-unit-identity-<run-id>-attempt-<attempt>-<index>`; host preparation and a model observation alone do not qualify resources.                                                                                                                      |
+| Focused runtime requalification                                       | Inspect `ios-unit-requalification-<run-id>-attempt-<attempt>`; require its exact product/plan digests, all three compiled suites and every protected parameter case.                                                                                                                                                  |
+| Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                                                                                                                            |
+| Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-build-<build-attempt>-attempt-<execution-attempt>-<index>` coverage receipt.                                                                             |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; inspect original and retry envelopes; use one **Re-run failed jobs** only under the version-4 contract, otherwise diagnose and create a new build origin. Do not weaken inventory reconciliation or the critical-suite validator. |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.                                                                                                                                                    |
+| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator.                                                                                                                                            |
+| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.                                                                                                                                                |
+| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                                                                                                                                          |
+| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                                                                                                                            |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                                                                                                                            |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                                                                                                                              |
 
 For a unit shard failure, inspect Xcode's structured result summary
 (`summary.json`) and result tree (`tests.json`) in its retained coverage

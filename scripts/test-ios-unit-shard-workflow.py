@@ -41,7 +41,7 @@ def validate(workflow):
     check(shards["needs"] == "ios-unit-build" and shards["if"] == "needs.ios-unit-build.result == 'success'", "Shard build bypass")
     check(shards["strategy"] == {"fail-fast": False, "max-parallel": 4,
           "matrix": "${{ fromJSON(needs.ios-unit-build.outputs.matrix) }}"}, "Incomplete/unbounded matrix")
-    check(build["outputs"] == {"matrix": "${{ steps.plan.outputs.matrix }}",
+    check(build["outputs"] == {"build_attempt": "${{ steps.plan.outputs.build_attempt }}", "matrix": "${{ steps.plan.outputs.matrix }}",
           "plan_sha256": "${{ steps.plan.outputs.plan_sha256 }}",
           "products_id": "${{ steps.products.outputs.artifact-id }}",
           "plan_id": "${{ steps.plan-artifact.outputs.artifact-id }}",
@@ -139,7 +139,25 @@ def validate(workflow):
     script(shards, verify["name"], "xcresulttool get test-results summary", "xcresulttool get test-results tests",
            "scripts/ios-unit-shards.py receipt")
     check(step(shards, "Retain shard coverage evidence")["with"]["name"] ==
-          "ios-unit-shard-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}", "Evidence collision")
+          "ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}", "Evidence collision")
+    terminal = step(shards, "Record terminal shard execution")
+    check(terminal["if"] == "always()" and terminal["env"] == {
+          "IOS_UNIT_IDENTITY_OUTCOME": "${{ steps.identity-receipt.outcome }}",
+          "IOS_UNIT_ENUMERATION_OUTCOME": "${{ steps.enumeration.outcome }}",
+          "IOS_UNIT_NATIVE_OUTCOME": "${{ steps.xcode-tests.outcome }}",
+          "IOS_UNIT_RECEIPT_OUTCOME": "${{ steps.receipt.outcome }}"}, "Terminal outcomes are not authoritative")
+    script(shards, terminal["name"], "scripts/ios-unit-shards.py execution", '--index "$IOS_UNIT_SHARD"',
+           '--output "$RUNNER_TEMP/ios-unit-evidence/execution.json"')
+    names = [s.get("name") for s in shards["steps"]]
+    check(names.index(verify["name"]) < names.index(terminal["name"]) < names.index("Retain shard coverage evidence"),
+          "Terminal envelope must follow verification and precede retention")
+    check(verify.get("id") == "receipt" and step(shards, "Verify exact guest identity evidence").get("id") == "identity-receipt"
+          and step(shards, "Reconcile selected compiled inventory").get("id") == "enumeration", "Outcome step ID mismatch")
+    for job in (shards, aggregate):
+        for key, output in (("BUILD_ATTEMPT", "build_attempt"), ("PRODUCTS_ID", "products_id"),
+                            ("PLAN_ID", "plan_id"), ("REQUALIFICATION_ID", "requalification_id")):
+            check(job["env"].get("IOS_UNIT_" + key) == "${{ needs.ios-unit-build.outputs." + output + " }}",
+                  "Immutable build output is not bound: " + key)
     check(aggregate["name"] == "Hosted iOS unit tests" and aggregate["needs"] == ["scope", "ios-unit-build", "ios-unit-shards"],
           "Aggregate bypasses a prerequisite")
     check(aggregate["if"] == "always() && needs.scope.outputs.should_run == 'true'", "Aggregate hidden on failures")
@@ -152,9 +170,9 @@ def validate(workflow):
     script(aggregate, require["name"], 'test "$BUILD_RESULT" = success', 'test "$SHARD_RESULT" = success')
     script(aggregate, "Verify aggregate source revision", 'test "$actual_sha" = "$GITHUB_SHA"', "git diff --quiet")
     check(aggregate["steps"][2]["name"] == "Verify aggregate source revision", "Aggregate source must be verified after checkout")
-    download = step(aggregate, "Download all current-attempt shard evidence")["with"]
-    check(download["pattern"] == "ios-unit-shard-${{ github.run_id }}-attempt-${{ github.run_attempt }}-*"
-          and download["merge-multiple"] is False, "Evidence attempts mixed or directories flattened")
+    download = step(aggregate, "Download all build-origin shard evidence")["with"]
+    check(download["pattern"] == "ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-*-*"
+          and download["merge-multiple"] is False, "Evidence origin unbound or directories flattened")
     check(step(aggregate, "Download exact runtime requalification evidence")["with"]["artifact-ids"] ==
           "${{ needs.ios-unit-build.outputs.requalification_id }}", "Focused artifact not bound to current build")
     combined = script(aggregate, "Reconcile hosted suites and protected regressions", "scripts/ios-unit-shards.py aggregate",
@@ -186,6 +204,15 @@ class WorkflowTests(unittest.TestCase):
 
     def test_mutated_gates_fail_closed(self):
         mutations = [
+            lambda j: j["ios-unit-build"]["outputs"].update(build_attempt="${{ github.run_attempt }}"),
+            lambda j: j["ios-unit-shards"]["env"].update(IOS_UNIT_BUILD_ATTEMPT="${{ github.run_attempt }}"),
+            lambda j: j["ios-unit-tests"]["env"].update(IOS_UNIT_PLAN_ID="arbitrary"),
+            lambda j: next(s for s in j["ios-unit-shards"]["steps"] if s.get("name") ==
+                           "Record terminal shard execution").update(**{"if": "success()"}),
+            lambda j: next(s for s in j["ios-unit-shards"]["steps"] if s.get("name") ==
+                           "Record terminal shard execution")["env"].update(IOS_UNIT_NATIVE_OUTCOME="success"),
+            lambda j: next(s for s in j["ios-unit-tests"]["steps"] if s.get("name") ==
+                           "Download all build-origin shard evidence")["with"].update(pattern="ios-unit-shard-*"),
             lambda j: j["ios-unit-shards"]["strategy"].update(**{"fail-fast": True}),
             lambda j: j["ios-unit-shards"]["strategy"].update(**{"max-parallel": 16}),
             lambda j: j["ios-unit-shards"].update(**{"continue-on-error": True}),

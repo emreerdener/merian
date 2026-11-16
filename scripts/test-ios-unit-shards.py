@@ -18,7 +18,8 @@ SPEC = importlib.util.spec_from_file_location("shards", Path(__file__).with_name
 shards = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(shards)
 DEVICE = "11111111-1111-4111-8111-111111111111"
-ENV = {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "1234", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_WORKSPACE": "/Users/runner/work/merian/merian"}
+ENV = {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "1234", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_WORKSPACE": "/Users/runner/work/merian/merian",
+       "IOS_UNIT_PRODUCTS_ID": "101", "IOS_UNIT_PLAN_ID": "102", "IOS_UNIT_REQUALIFICATION_ID": "103"}
 
 
 EXPECTED_RUNTIME = {"SIMULATOR_RUNTIME_VERSION": "27.2", "SIMULATOR_RUNTIME_BUILD_VERSION": "24B8117",
@@ -116,13 +117,15 @@ class ShardTests(unittest.TestCase):
         root = self.root / "evidence"
         root.mkdir()
         for shard in self.plan["shards"]:
-            directory = root / f"ios-unit-shard-1234-attempt-1-{shard['index']}"
+            directory = root / f"ios-unit-shard-1234-build-1-attempt-1-{shard['index']}"
             directory.mkdir()
             (directory / "enumeration.txt").write_text(enumeration_text(shard["methods"], full_inventory=self.methods))
             shards.write_json(directory / "summary.json", summary_for(shard["methods"]))
             shards.write_json(directory / "tests.json", tree_for(shard["methods"]))
             shards.write_json(directory / "qualification.json", qualification())
             shards.write_json(directory / "receipt.json", shards.receipt(self.plan, shard["index"], directory))
+            shards.write_json(directory / "execution.json", shards.execution(self.plan, shard["index"], directory,
+                              {key: "success" for key in shards.OUTCOME_KEYS}))
         return root
 
     def test_partition_is_complete_deterministic_and_never_splits_suite(self):
@@ -342,7 +345,7 @@ class ShardTests(unittest.TestCase):
     def test_shard_reconciliation_rejects_disabled_assigned_or_enabled_unassigned_method(self):
         root = self.evidence()
         selected = self.plan["shards"][0]
-        directory = root / "ios-unit-shard-1234-attempt-1-0"
+        directory = root / "ios-unit-shard-1234-build-1-attempt-1-0"
         path = directory / "enumeration.txt"
         original = path.read_text()
         assigned = selected["methods"][0]
@@ -508,7 +511,7 @@ class ShardTests(unittest.TestCase):
         shards.aggregate(self.plan, evidence, output, self.focused)
         self.assertEqual(shards.read_json(output / "summary.json"), summary_for(self.ordinary))
         raw = shards.read_json(output / "tests.json")["shards"]
-        self.assertEqual(raw, [shards.read_json(evidence / f"ios-unit-shard-1234-attempt-1-{i}" / "tests.json")
+        self.assertEqual(raw, [shards.read_json(evidence / f"ios-unit-shard-1234-build-1-attempt-1-{i}" / "tests.json")
                                for i in range(len(self.plan["shards"]))])
         self.assertEqual(shards.read_json(output / "coverage.json")["parameter_leaves"], 14)
         coverage = shards.read_json(output / "coverage.json")
@@ -538,6 +541,195 @@ class ShardTests(unittest.TestCase):
         shards.write_json(path, value)
         with self.assertRaises(ValueError):
             shards.aggregate(self.plan, evidence, self.root / "output", self.focused)
+
+    def selective_retry(self):
+        evidence = self.evidence()
+        original = evidence / shards.shard_artifact(self.plan, 0, "1")
+        retry = evidence / shards.shard_artifact(self.plan, 0, "2")
+        import shutil
+        shutil.copytree(original, retry)
+        (original / "receipt.json").unlink()
+        failed = summary_for(self.plan["shards"][0]["methods"])
+        failed.update(result="Failed", failedTests=1, passedTests=failed["totalTestCount"] - 1)
+        shards.write_json(original / "summary.json", failed)
+        outcomes = {key: "success" for key in shards.OUTCOME_KEYS}
+        outcomes.update(native="failure", receipt="failure")
+        shards.write_json(original / "execution.json", shards.execution(self.plan, 0, original, outcomes))
+        os.environ.update(GITHUB_RUN_ATTEMPT="2", IOS_UNIT_BUILD_ATTEMPT="1")
+        shards.write_json(retry / "qualification.json", qualification())
+        shards.write_json(retry / "receipt.json", shards.receipt(self.plan, 0, retry))
+        shards.write_json(retry / "execution.json", shards.execution(self.plan, 0, retry,
+                          {key: "success" for key in shards.OUTCOME_KEYS}))
+        return evidence, original, retry
+
+    def test_one_failed_group_retry_preserves_build_coverage_and_original_failure(self):
+        evidence, original, retry = self.selective_retry()
+        self.assertEqual(shards.load_plan(self.plan_file), self.plan)
+        self.assertEqual(shards.requalification(self.focused)["execution_attempt"], "1")
+        shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+        value = shards.read_json(self.root / "out/coverage.json")
+        self.assertEqual(value["build_attempt"], "1")
+        self.assertEqual(value["execution_attempt"], "2")
+        self.assertEqual(value["selected_executions"][0]["execution_attempt"], "2")
+        self.assertTrue(all(v["execution_attempt"] == "1" for v in value["selected_executions"][1:]))
+        self.assertEqual(value["failed_executions"], [{"shard": 0, "artifact": original.name,
+                         "execution_sha256": shards.digest(original / "execution.json")}])
+        self.assertEqual(shards.read_json(self.root / "out/summary.json"), summary_for(self.ordinary))
+        self.assertEqual(os.environ["GITHUB_RUN_ATTEMPT"], "2")
+
+    def test_second_retry_fails_even_with_complete_prior_passing_results(self):
+        evidence, _, _ = self.selective_retry()
+        os.environ["GITHUB_RUN_ATTEMPT"] = "3"
+        with self.assertRaisesRegex(ValueError, "Only one"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_failed_retry_does_not_select_prior_failed_or_current_failed_results(self):
+        evidence, _, retry = self.selective_retry()
+        (retry / "receipt.json").unlink()
+        outcomes = {key: "success" for key in shards.OUTCOME_KEYS}
+        outcomes.update(native="failure", receipt="failure")
+        shards.write_json(retry / "execution.json", shards.execution(self.plan, 0, retry, outcomes))
+        with self.assertRaisesRegex(ValueError, "no passing execution"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_retry_cannot_drop_original_failed_envelope(self):
+        evidence, original, _ = self.selective_retry()
+        import shutil
+        shutil.rmtree(original)
+        with self.assertRaisesRegex(ValueError, "Missing original"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_retry_cannot_rerun_previously_passing_group(self):
+        evidence, original, _ = self.selective_retry()
+        with patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "1"}):
+            shards.write_json(original / "summary.json", summary_for(self.plan["shards"][0]["methods"]))
+            shards.write_json(original / "receipt.json", shards.receipt(self.plan, 0, original))
+            shards.write_json(original / "execution.json", shards.execution(self.plan, 0, original,
+                              {key: "success" for key in shards.OUTCOME_KEYS}))
+        with self.assertRaisesRegex(ValueError, "Previously passing"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_retry_rejects_old_qualification_even_with_current_receipt(self):
+        evidence, _, retry = self.selective_retry()
+        value = shards.read_json(retry / "qualification.json")
+        value["run_attempt"] = "1"
+        shards.write_json(retry / "qualification.json", value)
+        with self.assertRaisesRegex(ValueError, "Stale simulator"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_origin_and_execution_envelope_fields_cannot_be_relabelled(self):
+        evidence, _, retry = self.selective_retry()
+        path = retry / "execution.json"
+        original = shards.read_json(path)
+        changes = {"origin_run_id": "5678", "build_attempt": "2", "execution_attempt": "1",
+                   "source_sha": "b" * 40, "plan_sha256": "b" * 64, "products_sha256": "b" * 64,
+                   "assignment_sha256": "b" * 64, "shard": 1, "runtime": {}, "toolchain": "other",
+                   "artifact_ids": {"products": "201", "plan": "102", "requalification": "103"}}
+        for key, value in changes.items():
+            shards.write_json(path, dict(original, **{key: value}))
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "envelope mismatch"):
+                shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+        shards.write_json(path, original)
+
+    def test_execution_schema_rejects_bool_index_and_unknown_version(self):
+        evidence = self.evidence()
+        path = evidence / shards.shard_artifact(self.plan, 1, "1") / "execution.json"
+        original = shards.read_json(path)
+        for change in ({"schema_version": True}, {"schema_version": 2}, {"shard": True}):
+            shards.write_json(path, dict(original, **change))
+            with self.assertRaisesRegex(ValueError, "Invalid execution schema"):
+                shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_base_failure_bytes_are_verified_even_when_retry_passes(self):
+        evidence, original, _ = self.selective_retry()
+        (original / "summary.json").write_text("changed failure evidence")
+        with self.assertRaisesRegex(ValueError, "envelope mismatch"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_old_plan_schema_cannot_be_retroqualified(self):
+        self.plan["schema_version"] = 3
+        self.save_plan()
+        with self.assertRaisesRegex(ValueError, "qualification mismatch"):
+            shards.load_plan(self.plan_file)
+
+    def test_new_build_origin_cannot_reuse_old_plan_or_receipts(self):
+        evidence, _, _ = self.selective_retry()
+        os.environ["IOS_UNIT_BUILD_ATTEMPT"] = "2"
+        with self.assertRaisesRegex(ValueError, "build attempt mismatch"):
+            shards.load_plan(self.plan_file)
+        self.plan["build_attempt"] = "2"
+        self.save_plan()
+        with self.assertRaisesRegex(ValueError, "another plan"):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_full_rerun_creates_new_origin_and_rejects_old_artifact_set(self):
+        import shutil
+        old_evidence = self.evidence()
+        os.environ.update(GITHUB_RUN_ATTEMPT="2", IOS_UNIT_BUILD_ATTEMPT="2",
+                          IOS_UNIT_PRODUCTS_ID="201", IOS_UNIT_PLAN_ID="202", IOS_UNIT_REQUALIFICATION_ID="203")
+        self.plan = shards.make_plan(self.enumeration, self.products, {"Alpha": 50})
+        self.save_plan()
+        shutil.rmtree(self.focused)
+        self.focused = self.requalification_evidence()
+        evidence = self.root / "build-2-evidence"
+        evidence.mkdir()
+        for shard in self.plan["shards"]:
+            index = shard["index"]
+            directory = evidence / shards.shard_artifact(self.plan, index, "2")
+            shutil.copytree(old_evidence / f"ios-unit-shard-1234-build-1-attempt-1-{index}", directory)
+            shards.write_json(directory / "qualification.json", qualification())
+            shards.write_json(directory / "receipt.json", shards.receipt(self.plan, index, directory))
+            shards.write_json(directory / "execution.json", shards.execution(self.plan, index, directory,
+                              {key: "success" for key in shards.OUTCOME_KEYS}))
+        shards.aggregate(shards.load_plan(self.plan_file), evidence, self.root / "new-out", self.focused)
+        value = shards.read_json(self.root / "new-out/coverage.json")
+        self.assertEqual(value["build_attempt"], "2")
+        self.assertTrue(all(item["execution_attempt"] == "2" for item in value["selected_executions"]))
+        self.assertEqual(value["failed_executions"], [])
+        self.assertEqual(value["artifact_ids"], {"products": "201", "plan": "202", "requalification": "203"})
+        with self.assertRaisesRegex(ValueError, "stale shard artifact"):
+            shards.aggregate(self.plan, old_evidence, self.root / "rejected", self.focused)
+
+    def test_artifact_name_cannot_alias_different_execution(self):
+        evidence, original, retry = self.selective_retry()
+        temporary = original.rename(evidence / "swap")
+        retry.rename(original)
+        temporary.rename(retry)
+        with self.assertRaises(ValueError):
+            shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_missing_or_reassigned_builder_artifact_id_blocks_aggregation(self):
+        evidence = self.evidence()
+        for key, value in (("IOS_UNIT_PRODUCTS_ID", ""), ("IOS_UNIT_PLAN_ID", "101"),
+                           ("IOS_UNIT_REQUALIFICATION_ID", "999")):
+            with self.subTest(key=key), patch.dict(os.environ, {key: value}), self.assertRaises(ValueError):
+                shards.aggregate(self.plan, evidence, self.root / "out", self.focused)
+
+    def test_terminal_failure_before_identity_is_retained_but_cannot_pass(self):
+        directory = self.root / "early-failure"
+        directory.mkdir()
+        outcomes = dict(identity="failure", enumeration="skipped", native="skipped", receipt="failure")
+        value = shards.execution(self.plan, 0, directory, outcomes)
+        self.assertEqual(value["status"], "failed")
+        self.assertEqual(value["files"], {})
+        with self.assertRaisesRegex(ValueError, "Missing passed"):
+            shards.execution(self.plan, 0, directory, {key: "success" for key in shards.OUTCOME_KEYS})
+        for invalid in ({}, dict(outcomes, native="unknown"), dict(outcomes, hidden="success")):
+            with self.assertRaisesRegex(ValueError, "Invalid execution outcomes"):
+                shards.execution(self.plan, 0, directory, invalid)
+
+    def test_terminal_cli_retains_real_failure_without_claiming_native_success(self):
+        directory = self.root / "terminal"
+        directory.mkdir()
+        outcomes = dict(IDENTITY="failure", ENUMERATION="skipped", NATIVE="skipped", RECEIPT="failure")
+        with patch.dict(os.environ, {"IOS_UNIT_" + k + "_OUTCOME": v for k, v in outcomes.items()}):
+            result = subprocess.run([sys.executable, "-B", str(Path(__file__).with_name("ios-unit-shards.py")),
+                "execution", "--plan", str(self.plan_file), "--index", "0", "--directory", str(directory),
+                "--output", str(directory / "execution.json")], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        value = shards.read_json(directory / "execution.json")
+        self.assertEqual(value["status"], "failed")
+        self.assertEqual(value["execution_attempt"], "1")
 
     def test_duplicate_json_keys_are_not_silently_accepted(self):
         self.plan_file.write_text('{"status":"failed","status":"passed"}')

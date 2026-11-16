@@ -1,11 +1,7 @@
 name: iOS Candidate Runtime Discovery
 
 on:
-  push:
-    branches:
-      - codex/pr152-simulator-diagnostics-20261114
-    paths:
-      - scripts/diagnose-ios-service-hub.py
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,6 +9,7 @@ permissions:
 
 jobs:
   discover:
+    if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'
     name: Diagnose retained-product simulator service
     runs-on: xcode-27
     timeout-minutes: 70
