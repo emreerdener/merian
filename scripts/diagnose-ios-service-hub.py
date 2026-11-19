@@ -250,9 +250,13 @@ def finish(receipt, directory, env):
     return receipt
 
 
-SUITE = "merianTests/CaptureSavedVideoPreviewTests"
-SUITE_ARGUMENTS = {SUITE + "/lateActivationCannotStartRetiredClip(_:)": 3,
-                   SUITE + "/lateReadCannotPublishIntoDepartedSavedScreen(_:)": 4}
+SUITE = "merianTests/ObservationReanalysisLocalVideoInputTests"
+SUITE_ARGUMENTS = {
+    SUITE + "/chosenClipAndTextStayFrozenThroughPreparationAndRecovery(withText:)": 2,
+    SUITE + "/freezeRejectsChangedAuthorityBeforeAndAfterCopy(reason:afterCopy:)": 12,
+    SUITE + "/interruptedPreparationRetainsExactCohortAndChild(boundary:)": 3,
+    SUITE + "/unsupportedAttachmentsNeverBecomeChoices(reason:)": 6,
+}
 
 
 def suite_diagnostic(directory, inputs, env, *, completed):
@@ -285,7 +289,7 @@ def suite_diagnostic(directory, inputs, env, *, completed):
         tree = shards.read_json(selected / "tests.json")
         methods, leaves = shards.result_methods(shards.read_json(selected / "summary.json"), tree, qualification,
             context={"source_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"], "run_attempt": env["GITHUB_RUN_ATTEMPT"]})
-        require(methods == expected and leaves == 7)
+        require(methods == expected and leaves == 23)
         def counts(node):
             if node.get("nodeType") == "Test Case":
                 method = shards.canonical("merianTests/" + node["nodeIdentifier"])

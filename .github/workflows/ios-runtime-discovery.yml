@@ -10,7 +10,7 @@ permissions:
 jobs:
   discover:
     if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'
-    name: Diagnose retained saved-video suite
+    name: Diagnose retained local-video input suite
     runs-on: xcode-27
     timeout-minutes: 90
     env:
@@ -98,7 +98,7 @@ jobs:
           fi
           python3 -B scripts/diagnose-ios-service-hub.py finish --directory "$RUNNER_TEMP/host-diagnostic"
           git diff --quiet --ignore-submodules --
-      - name: Enumerate complete retained saved-video suite
+      - name: Enumerate complete retained local-video input suite
         id: suite-enumeration
         timeout-minutes: 5
         env:
@@ -108,13 +108,13 @@ jobs:
           mkdir "$RUNNER_TEMP/host-diagnostic/suite"
           xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/diagnostic-products/tests.xctestproducts" \
             -destination "${{ steps.simulator.outputs.destination }}" -parallel-testing-enabled NO \
-            -only-testing:merianTests/CaptureSavedVideoPreviewTests \
+            -only-testing:merianTests/ObservationReanalysisLocalVideoInputTests \
             -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
             -test-enumeration-output-path "$RUNNER_TEMP/host-diagnostic/suite/enumeration.txt" \
             2>&1 | tee "$RUNNER_TEMP/host-diagnostic/suite/enumeration.log"
           python3 -B scripts/diagnose-ios-service-hub.py suite-enumeration \
             --directory "$RUNNER_TEMP/host-diagnostic" --inputs "$RUNNER_TEMP/diagnostic-input"
-      - name: Run complete retained saved-video suite once
+      - name: Run complete retained local-video input suite once
         id: suite-test
         timeout-minutes: 10
         run: |
@@ -122,7 +122,7 @@ jobs:
           xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/diagnostic-products/tests.xctestproducts" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -resultBundlePath "$RUNNER_TEMP/host-diagnostic/suite/results.xcresult" \
-            -parallel-testing-enabled NO -only-testing:merianTests/CaptureSavedVideoPreviewTests \
+            -parallel-testing-enabled NO -only-testing:merianTests/ObservationReanalysisLocalVideoInputTests \
             2>&1 | tee "$RUNNER_TEMP/host-diagnostic/suite/test.log"
       - name: Validate complete suite diagnostic only
         if: always()

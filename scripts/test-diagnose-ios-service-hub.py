@@ -289,8 +289,10 @@ class HostDiagnosticTests(unittest.TestCase):
 
     def test_replay_scope_has_independent_literal_methods_and_argument_counts(self):
         self.assertEqual(d.SUITE_ARGUMENTS, {
-            "merianTests/CaptureSavedVideoPreviewTests/lateActivationCannotStartRetiredClip(_:)": 3,
-            "merianTests/CaptureSavedVideoPreviewTests/lateReadCannotPublishIntoDepartedSavedScreen(_:)": 4,
+            "merianTests/ObservationReanalysisLocalVideoInputTests/chosenClipAndTextStayFrozenThroughPreparationAndRecovery(withText:)": 2,
+            "merianTests/ObservationReanalysisLocalVideoInputTests/freezeRejectsChangedAuthorityBeforeAndAfterCopy(reason:afterCopy:)": 12,
+            "merianTests/ObservationReanalysisLocalVideoInputTests/interruptedPreparationRetainsExactCohortAndChild(boundary:)": 3,
+            "merianTests/ObservationReanalysisLocalVideoInputTests/unsupportedAttachmentsNeverBecomeChoices(reason:)": 6,
         })
 
     def test_suite_cli_failure_is_nonqualifying_and_does_not_overwrite_identity(self):
@@ -307,7 +309,7 @@ class HostDiagnosticTests(unittest.TestCase):
             self.assertFalse(evidence["qualified"]); self.assertFalse(evidence["release_eligible"])
             self.assertEqual(identity.read_text(), '{"sentinel": "preserve"}')
 
-    def test_complete_retained_suite_is_seven_leaves_and_never_qualifies(self):
+    def test_complete_retained_suite_is_twenty_three_leaves_and_never_qualifies(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary); inputs, env = self.suite_fixture(directory)
             original = dict(env)
@@ -317,7 +319,7 @@ class HostDiagnosticTests(unittest.TestCase):
             result = d.suite_diagnostic(directory, inputs, env, completed=True)
             self.assertEqual(result["status"], "passed")
             self.assertEqual(result["kind"], "retained_product_suite_diagnostic")
-            self.assertEqual(len(result["methods"]), 2); self.assertEqual(result["parameter_leaves"], 7)
+            self.assertEqual(len(result["methods"]), 4); self.assertEqual(result["parameter_leaves"], 23)
             self.assertFalse(result["qualified"]); self.assertFalse(result["release_eligible"])
             self.assertEqual(env, original)
             self.assertEqual(result["product_provenance"]["source_sha"], d.SOURCE)
@@ -336,7 +338,7 @@ class HostDiagnosticTests(unittest.TestCase):
                 path.write_text(json.dumps(dict(original, **change)))
                 with self.assertRaises(ValueError): d.suite_diagnostic(directory, inputs, env, completed=True)
 
-    def test_suite_rejects_wrong_argument_partition_even_if_total_remains_seven(self):
+    def test_suite_rejects_wrong_argument_partition_even_if_total_remains_twenty_three(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary); inputs, env = self.suite_fixture(directory)
             path = directory / "suite/tests.json"; original = json.loads(path.read_text())
@@ -381,7 +383,7 @@ class HostDiagnosticTests(unittest.TestCase):
         commands = "\n".join(s.get("run", "") for s in steps)
         self.assertEqual(commands.count("xcodebuild test-without-building"), 3)
         self.assertEqual(commands.count("-only-testing:"), 3)
-        self.assertEqual(commands.count("-only-testing:merianTests/CaptureSavedVideoPreviewTests"), 2)
+        self.assertEqual(commands.count("-only-testing:merianTests/ObservationReanalysisLocalVideoInputTests"), 2)
         for forbidden in ("build-for-testing", "-skip-testing", "killall", "simctl erase", "GITHUB_SHA=",
                           "GITHUB_RUN_ID=", "GITHUB_RUN_ATTEMPT=", "qualification.json", "-retry-tests-on-failure",
                           "-test-iterations", "-run-tests-until-failure", "continue-on-error"):
@@ -405,15 +407,15 @@ class HostDiagnosticTests(unittest.TestCase):
         self.assertLess(enumeration.index("xcodebuild test-without-building"),
                         enumeration.index("diagnose-ios-service-hub.py suite-enumeration"))
         suite_run = next(s for s in steps if s.get("id") == "suite-test")["run"]
-        self.assertIn("-only-testing:merianTests/CaptureSavedVideoPreviewTests", suite_run)
+        self.assertIn("-only-testing:merianTests/ObservationReanalysisLocalVideoInputTests", suite_run)
         self.assertIn('-resultBundlePath "$RUNNER_TEMP/host-diagnostic/suite/results.xcresult"', suite_run)
         self.assertNotIn("-enumerate-tests", suite_run)
         for flag in ("-retry-tests-on-failure", "-test-iterations", "-run-tests-until-failure", "-skip-testing"):
             self.assertNotIn(flag, suite_run)
         names = [step.get("name") for step in steps]
-        self.assertLess(names.index("Validate diagnostic identity only"), names.index("Enumerate complete retained saved-video suite"))
-        self.assertLess(names.index("Enumerate complete retained saved-video suite"), names.index("Run complete retained saved-video suite once"))
-        self.assertLess(names.index("Run complete retained saved-video suite once"), names.index("Validate complete suite diagnostic only"))
+        self.assertLess(names.index("Validate diagnostic identity only"), names.index("Enumerate complete retained local-video input suite"))
+        self.assertLess(names.index("Enumerate complete retained local-video input suite"), names.index("Run complete retained local-video input suite once"))
+        self.assertLess(names.index("Run complete retained local-video input suite once"), names.index("Validate complete suite diagnostic only"))
         self.assertLess(names.index("Validate complete suite diagnostic only"), names.index("Observe host after suite attempt"))
         final = next(s for s in steps if s.get("name") == "Validate complete suite diagnostic only")
         self.assertEqual(final["if"], "always()")
