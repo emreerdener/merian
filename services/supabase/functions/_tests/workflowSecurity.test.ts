@@ -735,16 +735,19 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
       const job = source.slice(0, definition.index).match(
         /^ {2}[A-Za-z0-9_-]+:$/gm,
       )?.at(-1);
-      // Only the native unit builder/requalification and isolated shards have
-      // larger validation budgets. Aggregation, diagnostics and every
-      // production job retain the common cap. The workflow contract separately
-      // locks 60m compilation, 120m focused tests and 240m shard tests.
+      // Only the native unit builder/requalification, isolated shards and the
+      // named manual fixture diagnostic have larger validation budgets.
+      // Aggregation, other diagnostics and production retain the common cap.
+      // Native contracts lock 60m compilation, 120m focused and 240m shard tests;
+      // the separate fixture contract locks 90m compilation and unchanged tests.
       const nativeValidationLimits: Record<string, number> = {
         "  ios-unit-build:": 310,
         "  ios-unit-shards:": 350,
       };
       const limit = name === "ios-build-and-test.yml"
         ? (nativeValidationLimits[job ?? ""] ?? 120)
+        : name === "ios-runtime-discovery.yml" && job === "  fixture-readiness:"
+        ? 150
         : 120;
       assert(
         minutes <= limit,

@@ -2334,24 +2334,36 @@ this change does not claim to eliminate every conversion or prove the failure's
 cause. Buffer ownership, receiver attributes, frame count, black content,
 encoding, cancellation and the five-second deadline remain unchanged.
 
+The first BGRA run (`228dabf72`, run `44779974395`) reached the diagnostic's
+60-minute compile cap before guest identity or selected tests could run. Its
+retained build log reports no compiler error and shows continued unit-source
+compilation near the deadline. The preceding instrumented build completed in 50
+minutes 49 seconds. The next diagnostic allows 90 minutes for compilation within
+a 150-minute job, retaining the three- and ten-minute test invocations, all
+assertions and the same complete suite selection. This adds bounded build
+headroom for one diagnostic attempt; if it exhausts, retain its evidence and
+reassess instead of repeating it unchanged. It does not classify the unexecuted
+BGRA tests as passed or establish that the fixture change resolves backpressure.
+The ordinary native build gate and its budgets remain unchanged.
+
 The manual workflow's `diagnostic` choice defaults to `retained-video` and keeps
 that replay unchanged. Explicit `fixture-readiness` selects a separate,
 nonqualifying job on the diagnostic branch. It resolves the checked-in package
 lock, compiles fresh unit products once with pinned Xcode 27.0/27A266a, and
 verifies the same iOS 27.2/24B8117/iPhone19,2 guest identity. Compilation keeps
-its existing 60-minute limit; the job is bounded at 120 minutes. It runs the
-complete video-audio extractor suite (including eight readiness boundary cases)
-and then the complete completion and resume suites together, in two invocations
-bounded at three and ten minutes respectively. The combined consumer invocation
-is a compatibility check, not an isolated causal comparison; it disables
-parallel testing and preserves both suites' serialized shared offline-queue
-state. Every step is bounded; their ceilings total 117 minutes, leaving three
-minutes inside the job cap for runner overhead. Only this diagnostic uses
-five-minute package resolution and ten-minute preinstalled-runtime preparation
-bounds; the ordinary native gate and retained-product replay remain unchanged. A
-failed extractor invocation does not suppress the consumer evidence, but both
-require successful identity validation. No ordinary unit matrix, UI run or
-archive is started by this diagnostic choice.
+a 90-minute limit; the job is bounded at 150 minutes. It runs the complete
+video-audio extractor suite (including eight readiness boundary cases) and then
+the complete completion and resume suites together, in two invocations bounded
+at three and ten minutes respectively. The combined consumer invocation is a
+compatibility check, not an isolated causal comparison; it disables parallel
+testing and preserves both suites' serialized shared offline-queue state. Every
+step is bounded; their ceilings total 147 minutes, leaving three minutes inside
+the job cap for runner overhead. Only this diagnostic uses five-minute package
+resolution and ten-minute preinstalled-runtime preparation bounds; the ordinary
+native gate and retained-product replay remain unchanged. A failed extractor
+invocation does not suppress the consumer evidence, but both require successful
+identity validation. No ordinary unit matrix, UI run or archive is started by
+this diagnostic choice.
 
 Raw summaries and trees must match all 20 selected methods and 65 argument
 leaves, with no failed, skipped or unrun cases, before the diagnostic can report

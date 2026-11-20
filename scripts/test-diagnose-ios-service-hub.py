@@ -489,9 +489,11 @@ class FixtureReadinessWorkflowTests(unittest.TestCase):
         job = workflow["jobs"]["fixture-readiness"]
         self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'fixture-readiness'")
         self.assertEqual(workflow["jobs"]["discover"]["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'retained-video'")
-        self.assertEqual(job["timeout-minutes"], 120)
+        self.assertEqual(job["timeout-minutes"], 150)
         self.assertNotIn("environment", job)
-        self.assertLessEqual(sum(step["timeout-minutes"] for step in job["steps"]), 117)
+        compile_step = next(step for step in job["steps"] if step.get("name") == "Compile app and unit test targets")
+        self.assertEqual(compile_step["timeout-minutes"], 90)
+        self.assertLessEqual(sum(step["timeout-minutes"] for step in job["steps"]), 147)
         self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
         commands = "\n".join(step.get("run", "") for step in job["steps"])
         self.assertEqual(commands.count("xcodebuild build-for-testing"), 1)
