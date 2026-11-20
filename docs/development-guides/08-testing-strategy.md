@@ -2213,7 +2213,7 @@ one bounded setup-only investigation of the November 16 DTServiceHub failure.
 The current manual workflow retains that identity preflight and adds the one
 complete local-video input suite replay described below. It consumes the fixed,
 retained products and plan from source
-`3d6ff61023e6b741ec2790ec8ee86f7baa08a25b`, run `43907897503`, attempt 1. It
+`bd9e71193f071f26700dae5804731511aad24d34`, run `44641770666`, attempt 1. It
 does not compile again or run a unit shard. `diagnose-ios-service-hub.py`
 verifies the original successful builder, artifact IDs and remote ZIP digests;
 the pinned download action fails on a digest mismatch. Local plan/product
@@ -2245,7 +2245,7 @@ and existing assertions, with no service reset, reinstall, hidden retry or
 readiness sleep. The compact upload retains diagnostic/preparation receipts, the
 identity attachment, raw XCTest summaries/trees, selected enumeration and
 console logs. Compiled products are excluded; a separate failure-only artifact
-retains the selected suite result bundle for diagnosis. The diagnostic cannot
+retains the selected suite result bundles for diagnosis. The diagnostic cannot
 contribute to the ordinary hosted gate or its retry receipts.
 
 `make test-ios-ci-tooling` includes provenance, tampering, archive, privacy,
@@ -2263,43 +2263,43 @@ The November 16 retained saved-video diagnostic passed both methods and all
 seven argument leaves on the exact original product. It remains nonqualifying;
 that isolated pass did not replace the failed original shard.
 
-The current **retained local-video input suite diagnostic** addresses the final
-shard 12 failure from the same original run. The false argument of
-`chosenClipAndTextStayFrozenThroughPreparationAndRecovery(withText:)` timed out
-after fixture composition export had completed; audio-overload messages appeared
-during subsequent preparation. This is not the saved-video fixture receiver
-failure. The log alone does not identify the exact timed-out derivation stage or
-prove a host cause.
+The November 19 retained local-video diagnostic passed four methods and all 23
+argument leaves on the earlier `3d6ff6102` product. Its later full native
+qualification on `bd9e71193` passed that suite and 13 of 16 ordinary groups, but
+four different tests failed in groups 4, 6 and 11. Three failures reached the
+synthetic writer's five-second readiness cap; the fourth reached the
+retained-clip production timeout before the cohort's first `.retained` callback.
+These are completed test failures, not qualifying infrastructure retries.
 
-One five-minute whole-suite enumeration precedes one ten-minute serial
-`test-without-building` execution and a five-minute postflight. The job remains
-bounded at 90 minutes, including existing transfer/setup and evidence budgets.
-The fixed selector is the complete
-`merianTests/ObservationReanalysisLocalVideoInputTests` suite: four methods and
-23 argument leaves. The frozen-input recovery method has two cases, authority
-rejection has twelve, interrupted preparation has three, and unsupported
-attachments has six. Identity and both suite phases use the same owned device
-and exact retained product. There are no test iterations, relaunch loops or
-retry/skip flags. Post-test host probes run only after the suite attempt. Native
-source, fixtures, assertions and all production/ordinary validation deadlines
-are unchanged.
+The current **retained video failure suites diagnostic** consumes only the
+successful `bd9e71193` builder's immutable products and schema-v4 plan. It runs
+`CaptureVideoSavedModelTests`, `ObservationVideoCompletionTests` and
+`ObservationVideoResumeSubmissionTests`: 19 methods and 56 argument leaves. One
+complete selected/disabled inventory enumeration precedes three separate,
+sequential `test-without-building` invocations, one per complete suite. Each
+suite keeps a ten-minute command bound; the diagnostic job remains bounded at 90
+minutes. Separate invocations prevent Swift Testing cross-suite overlap from
+being mistaken for isolated execution. A failed suite does not suppress the
+remaining diagnostic suites, but every outcome is retained and any failed,
+skipped or unrun suite prevents a passing diagnostic receipt.
 
-The preflight verifies the original plan digest, full selected/disabled
-inventory complement, all four expected methods and the fresh identity
-observation. Postflight re-verifies them and requires successful enumeration and
-execution, a passing summary, zero failed/skipped tests, exactly four methods,
-23 distinct passed leaves, and the exact 2/12/3/6 per-method partition. It
-writes a separate `retained_product_suite_diagnostic` envelope with product
-versus harness provenance and evidence digests. Every outcome remains
-`qualified=false` and `release_eligible=false`; a pass cannot replace shard 12,
-contribute native coverage or qualify the original source. The identity-only
-receipt stays separate.
+All invocations use the same freshly verified owned device and exact retained
+product. The verifier checks each suite's raw result separately against its
+literal method and argument partition, then reconciles the full 19-method,
+56-leaf union. The suite sizes are 6/8/5 methods and 3/33/20 argument leaves in
+the execution order above. Nonparameterized methods remain required; failure
+messages or runtime warnings are not argument leaves. There are no iterations,
+relaunch loops, retry flags or skipped tests. Native source, fixtures,
+assertions, production deadlines and ordinary validation gates are unchanged.
 
-This one replay distinguishes reproducibility on the unchanged compiled suite
-from a larger-shard or host-context dependency. A pass alone cannot prove
-platform stability or justify increasing a deadline. A repeated timeout requires
-analysis of its retained evidence before another native action. Hosted execution
-and independent raw-result readback remain required.
+Every diagnostic outcome remains `qualified=false` and `release_eligible=false`.
+A pass cannot replace failed groups, contribute to ordinary coverage, establish
+the underlying cause or authorize release. This bounded replay tests whether
+failures recur outside the larger group context. A repeated timeout requires
+narrower append or transcode-stage evidence before a behavioral repair. A pass
+alone cannot justify extending a deadline or reclassifying the original failures
+as infrastructure-only. Hosted execution and independent raw-result readback
+remain required.
 
 ### Synthetic failed-jobs retry diagnostic
 

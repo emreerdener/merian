@@ -12,16 +12,16 @@ import sys
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = "3d6ff61023e6b741ec2790ec8ee86f7baa08a25b"
-RUN = 43907897503
-BUILD_JOB = 133442418275
-PLAN_HASH = "832e05c7eca54237e033e136576d8f0514d291c64611fa97365560910558eb41"
-PRODUCT_HASH = "c8691d3f117182812f95364cefa3e710cbe2ab1f36f5da5b985960c3669ef352"
+SOURCE = "bd9e71193f071f26700dae5804731511aad24d34"
+RUN = 44641770666
+BUILD_JOB = 135974923152
+PLAN_HASH = "1ec4faa33e9c449b99c5d65fd0317e516fa4584dc0563469e7508fe4d39da408"
+PRODUCT_HASH = "a45d5a8bda7b1d4fc20c62090c6807b45955aec9e54d6fe6bacf014cf053d4f0"
 ARTIFACTS = {
-    "plan": (14255320920, "ios-unit-plan-43907897503-attempt-1", 316598,
-             "337d8a0a8967cafe066eb99e082b2b84958ed5afcc553047ece08c17bc5954eb"),
-    "products": (14254796716, "ios-unit-products-43907897503-attempt-1", 340270904,
-                 "feb6d4f4886ad273b7d64680e506c2c6318e7383686f5ec7795f39de4b1e0e8d"),
+    "plan": (14594256119, "ios-unit-plan-44641770666-attempt-1", 316596,
+             "bdaf1a18e6b42f605bfdf3f4991801c1ebc26716cf1874ece058b9d6a5a7f82a"),
+    "products": (14593931710, "ios-unit-products-44641770666-attempt-1", 340267486,
+                 "9bd84e38f1d1f7e9d0313a2221912a2e6b0ec79328664900fb02a537b13a2bcf"),
 }
 HELPERS = {
     "ios-unit-shards.py": "379567fd6c8d595fc45b36c391080233c711e66c8b687029e998734a6e235feb",
@@ -148,7 +148,8 @@ def verify_inputs(receipt, directory, destination, env):
     require(not plan_path.is_symlink() and not products.is_symlink())
     require(digest(plan_path) == PLAN_HASH and digest(products) == PRODUCT_HASH)
     plan = json.loads(plan_path.read_bytes())
-    require(plan["source_sha"] == SOURCE and plan["run_id"] == str(RUN) and plan["run_attempt"] == "1"
+    require(type(plan.get("schema_version")) is int and plan["schema_version"] == 4
+            and plan["source_sha"] == SOURCE and plan["origin_run_id"] == str(RUN) and plan["build_attempt"] == "1"
             and plan["build_workspace"] == env["GITHUB_WORKSPACE"]
             and plan["products_sha256"] == PRODUCT_HASH)
     # The exact immutable plan is already digest-bound. Use the unchanged hardened
@@ -250,17 +251,36 @@ def finish(receipt, directory, env):
     return receipt
 
 
-SUITE = "merianTests/ObservationReanalysisLocalVideoInputTests"
+SUITES = {
+    'merianTests/CaptureVideoSavedModelTests',
+    'merianTests/ObservationVideoCompletionTests',
+    'merianTests/ObservationVideoResumeSubmissionTests',
+}
 SUITE_ARGUMENTS = {
-    SUITE + "/chosenClipAndTextStayFrozenThroughPreparationAndRecovery(withText:)": 2,
-    SUITE + "/freezeRejectsChangedAuthorityBeforeAndAfterCopy(reason:afterCopy:)": 12,
-    SUITE + "/interruptedPreparationRetainsExactCohortAndChild(boundary:)": 3,
-    SUITE + "/unsupportedAttachmentsNeverBecomeChoices(reason:)": 6,
+    'merianTests/CaptureVideoSavedModelTests/failedRefreshClearsRowsSelectionAndCannotInventAbsenceOrActions': 0,
+    'merianTests/CaptureVideoSavedModelTests/inertFactoryKeepsUnknownUploadWithoutExecutionOrFileRepair': 0,
+    'merianTests/CaptureVideoSavedModelTests/latePageCannotRestorePrivateState(_:)': 3,
+    'merianTests/CaptureVideoSavedModelTests/lateResumeCannotReopenClosedPresentation': 0,
+    'merianTests/CaptureVideoSavedModelTests/onlyExplicitSelectionAndFinalTapOpenExactOriginalBeforeTask': 0,
+    'merianTests/CaptureVideoSavedModelTests/realPagesReplaceAndForwardOpaqueCursorWithoutAutomaticSelection': 0,
+    'merianTests/ObservationVideoCompletionTests/changedScopeCannotAppendOrRetire(reason:)': 9,
+    'merianTests/ObservationVideoCompletionTests/exactRequestBindingRejectsIdentityDigestManifestAndVersionDrift': 0,
+    'merianTests/ObservationVideoCompletionTests/receivedResultSettlesCancelledRunningOrHeldWork(audio:held:)': 4,
+    'merianTests/ObservationVideoCompletionTests/syncedLegacyUppercaseParentRequiresExactStoredParent(forgedLowerParent:)': 2,
+    'merianTests/ObservationVideoCompletionTests/syncedResultMustBeByteIdentical(conflict:)': 3,
+    'merianTests/ObservationVideoCompletionTests/syncedSettlementReaderRejectsUnprovenOrChangedWork(reason:)': 13,
+    'merianTests/ObservationVideoCompletionTests/uncertainSaveReopensWithOnlySettlementOrReceipt(committed:)': 2,
+    'merianTests/ObservationVideoCompletionTests/unconsumedAndStaleSnapshotsCannotComplete': 0,
+    'merianTests/ObservationVideoResumeSubmissionTests/explicitContinuationKeepsOriginalChildAndPermittedPhase(_:)': 8,
+    'merianTests/ObservationVideoResumeSubmissionTests/incompletePreparationDoesNotRegenerateFiles': 0,
+    'merianTests/ObservationVideoResumeSubmissionTests/nonExecutableReservationStatesRemainHeldAfterReopen(_:)': 4,
+    'merianTests/ObservationVideoResumeSubmissionTests/throwingStageCannotReturnDispatchEvenAfterCommit(_:commit:)': 4,
+    'merianTests/ObservationVideoResumeSubmissionTests/uncertainAttemptNeverAdvancesOrRearms(_:)': 4,
 }
 
 
 def suite_diagnostic(directory, inputs, env, *, completed):
-    """One fixed retained suite; this namespace never feeds native coverage."""
+    """Three fixed complete retained suites; this namespace never feeds native coverage."""
     shards = module("ios-unit-shards.py")
     receipt = shards.read_json(directory / "diagnostic.json")
     validate_receipt(receipt, env, observed=True)
@@ -268,9 +288,10 @@ def suite_diagnostic(directory, inputs, env, *, completed):
     plan_path = inputs / "ios-unit-plan.json"
     require(not plan_path.is_symlink() and digest(plan_path) == PLAN_HASH)
     plan = shards.read_json(plan_path)
-    require(plan["source_sha"] == SOURCE and plan["run_id"] == str(RUN) and plan["run_attempt"] == "1"
+    require(type(plan.get("schema_version")) is int and plan["schema_version"] == 4
+            and plan["source_sha"] == SOURCE and plan["origin_run_id"] == str(RUN) and plan["build_attempt"] == "1"
             and plan["build_workspace"] == env["GITHUB_WORKSPACE"] and plan["products_sha256"] == PRODUCT_HASH)
-    expected = sorted(m for m in plan["inventory"] if shards.suite(m) == SUITE)
+    expected = sorted(m for m in plan["inventory"] if shards.suite(m) in SUITES)
     require(expected == sorted(SUITE_ARGUMENTS))
     qualification = module("discover-ios27-simulator.py").verify(directory / "identity", env=env)
     require(qualification["observed_environment"] == shards.RUNTIME)
@@ -279,27 +300,40 @@ def suite_diagnostic(directory, inputs, env, *, completed):
     result = {"schema_version": 1, "kind": "retained_product_suite_diagnostic",
               "qualified": False, "release_eligible": False, "status": "inventory_verified",
               "execution_provenance": execution(env), "product_provenance": receipt["product_provenance"],
-              "suite": SUITE, "expected_methods": expected, "expected_argument_counts": SUITE_ARGUMENTS,
+              "suites": sorted(SUITES), "expected_methods": expected, "expected_argument_counts": SUITE_ARGUMENTS,
               "files": {"suite/enumeration.txt": digest(selected / "enumeration.txt"),
                         "diagnostic.json": digest(directory / "diagnostic.json")},
               "identity_files": qualification["files"]}
     if completed:
-        require(env.get("IOS_SUITE_TEST_OUTCOME") == "success"
-                and env.get("IOS_SUITE_ENUMERATION_OUTCOME") == "success")
-        tree = shards.read_json(selected / "tests.json")
-        methods, leaves = shards.result_methods(shards.read_json(selected / "summary.json"), tree, qualification,
-            context={"source_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"], "run_attempt": env["GITHUB_RUN_ATTEMPT"]})
-        require(methods == expected and leaves == 23)
-        def counts(node):
-            if node.get("nodeType") == "Test Case":
-                method = shards.canonical("merianTests/" + node["nodeIdentifier"])
-                require(len(node.get("children", [])) == SUITE_ARGUMENTS[method])
-            for child in node.get("children", []):
-                counts(child)
-        for node in tree["testNodes"]:
-            counts(node)
-        result.update(status="passed", methods=methods, parameter_leaves=leaves)
-        result["files"].update({"suite/" + name: digest(selected / name) for name in ("summary.json", "tests.json")})
+        require(env.get("IOS_SUITE_ENUMERATION_OUTCOME") == "success")
+        methods, leaves = [], 0
+        outcomes = {
+            "merianTests/CaptureVideoSavedModelTests": "IOS_SAVED_MODEL_OUTCOME",
+            "merianTests/ObservationVideoCompletionTests": "IOS_COMPLETION_OUTCOME",
+            "merianTests/ObservationVideoResumeSubmissionTests": "IOS_RESUME_OUTCOME",
+        }
+        for suite in sorted(SUITES):
+            require(env.get(outcomes[suite]) == "success")
+            name = suite.split("/")[1]
+            evidence = selected / name
+            tree = shards.read_json(evidence / "tests.json")
+            executed, arguments = shards.result_methods(shards.read_json(evidence / "summary.json"), tree, qualification,
+                context={"source_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"], "run_attempt": env["GITHUB_RUN_ATTEMPT"]})
+            require(executed == [m for m in expected if shards.suite(m) == suite])
+            def counts(node):
+                if node.get("nodeType") == "Test Case":
+                    method = shards.canonical("merianTests/" + node["nodeIdentifier"])
+                    require(len(node.get("children", [])) == SUITE_ARGUMENTS[method])
+                for child in node.get("children", []):
+                    counts(child)
+            for node in tree["testNodes"]:
+                counts(node)
+            methods.extend(executed)
+            leaves += arguments
+            result["files"].update({"suite/" + name + "/" + file: digest(evidence / file)
+                                    for file in ("summary.json", "tests.json")})
+        require(sorted(methods) == expected and leaves == 56)
+        result.update(status="passed", methods=sorted(methods), parameter_leaves=leaves)
     return result
 
 
