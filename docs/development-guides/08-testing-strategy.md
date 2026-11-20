@@ -2210,8 +2210,8 @@ app workstream.
 
 The initial diagnostic branch experiment used `ios-runtime-discovery.yml` for
 one bounded setup-only investigation of the November 16 DTServiceHub failure.
-The current manual workflow retains that identity preflight and adds the one
-complete local-video input suite replay described below. It consumes the fixed,
+The current manual workflow retains that identity preflight and adds the three
+complete video failure suite replays described below. It consumes the fixed,
 retained products and plan from source
 `bd9e71193f071f26700dae5804731511aad24d34`, run `44641770666`, attempt 1. It
 does not compile again or run a unit shard. `diagnose-ios-service-hub.py`
@@ -2300,6 +2300,50 @@ narrower append or transcode-stage evidence before a behavioral repair. A pass
 alone cannot justify extending a deadline or reclassifying the original failures
 as infrastructure-only. Hosted execution and independent raw-result readback
 remain required.
+
+The November 20 replay at harness `550440509` reproduced fixture readiness
+timeouts in two argument cases of
+`receivedResultSettlesCancelledRunningOrHeldWork(audio:held:)`, both at frame 4
+with a writing-state encoder and no writer error. The saved-model and resume
+suites passed. All 19 methods and 56 argument leaves were present, with no
+skips; the original four failing methods passed in this replay. This establishes
+that the fixture timeout can occur within a single complete suite; it does not
+prove why the encoder stalled or clear the original qualification failures.
+
+The next test-only fixture diagnostics preserve the five-second deadline and
+synchronous append/cancellation ordering. They retain only timeout observations:
+attempt and backpressure counts, last returned Boolean result, total and longest
+synchronous append duration, and elapsed readiness time. No raw codec errors,
+paths or media are logged. Boundary tests distinguish expired admission,
+backpressure, slow accepted/rejected calls, thrown errors and cancellation;
+success and cancellation do not emit timeout observations.
+
+The manual workflow's `diagnostic` choice defaults to `retained-video` and keeps
+that replay unchanged. Explicit `fixture-readiness` selects a separate,
+nonqualifying job on the diagnostic branch. It resolves the checked-in package
+lock, compiles fresh unit products once with pinned Xcode 27.0/27A266a, and
+verifies the same iOS 27.2/24B8117/iPhone19,2 guest identity. Compilation keeps
+its existing 60-minute limit; the job is bounded at 120 minutes. It runs the
+readiness boundary method's eight cases and then the complete completion suite
+in separate invocations, bounded at three and ten minutes respectively. Every
+step is bounded; their ceilings total 117 minutes, leaving three minutes inside
+the job cap for runner overhead. Only this diagnostic uses five-minute package
+resolution and ten-minute preinstalled-runtime preparation bounds; the ordinary
+native gate and retained-product replay remain unchanged. A failed boundary
+probe does not suppress the completion evidence, but both require successful
+identity validation. No ordinary unit matrix, UI run or archive is started by
+this diagnostic choice.
+
+Raw summaries and trees must match all nine selected methods and 41 argument
+leaves, with no failed, skipped or unrun cases, before the diagnostic can report
+a pass. The receipt remains `qualified=false` and `release_eligible=false`;
+missing or failed evidence leaves it incomplete. Evidence includes the actual
+identity attachment and result trees, not an ordinary simulator qualification
+receipt or compiled product upload. A passed diagnostic receipt binds the
+identity and result files by digest, and validation uses explicit failure checks
+that remain active under Python optimization. Hosted compilation and execution
+are still required; portable workflow checks and SwiftLint alone do not validate
+Swift compilation or establish the encoder's failure mode.
 
 ### Synthetic failed-jobs retry diagnostic
 

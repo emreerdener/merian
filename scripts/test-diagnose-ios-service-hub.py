@@ -474,5 +474,63 @@ class HostDiagnosticTests(unittest.TestCase):
         self.assertNotIn("results.xcresult", upload); self.assertNotIn("diagnostic-products", upload)
 
 
+class FixtureReadinessWorkflowTests(unittest.TestCase):
+    def workflow(self):
+        return json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
+            "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json",
+            str(ROOT / ".github/workflows/ios-runtime-discovery.yml")], text=True))
+
+    def test_fresh_diagnostic_is_explicit_and_cannot_start_retained_or_release_work(self):
+        workflow = self.workflow()
+        trigger = workflow.get("on", workflow.get("true"))
+        self.assertEqual(trigger["workflow_dispatch"]["inputs"]["diagnostic"], {
+            "description": "Fixed diagnostic to execute; neither qualifies release", "type": "choice",
+            "default": "retained-video", "options": ["retained-video", "fixture-readiness"]})
+        job = workflow["jobs"]["fixture-readiness"]
+        self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'fixture-readiness'")
+        self.assertEqual(workflow["jobs"]["discover"]["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'retained-video'")
+        self.assertEqual(job["timeout-minutes"], 120)
+        self.assertNotIn("environment", job)
+        self.assertLessEqual(sum(step["timeout-minutes"] for step in job["steps"]), 117)
+        self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
+        commands = "\n".join(step.get("run", "") for step in job["steps"])
+        self.assertEqual(commands.count("xcodebuild build-for-testing"), 1)
+        self.assertEqual(commands.count("xcodebuild test-without-building"), 3)
+        for forbidden in ("-skip-testing", "-retry-tests-on-failure", "-test-iterations", "-run-tests-until-failure",
+                          "continue-on-error", "simctl erase", "GITHUB_SHA=", "GITHUB_RUN_ID=", "GITHUB_RUN_ATTEMPT="):
+            self.assertNotIn(forbidden, commands)
+        self.assertIn("-onlyUsePackageVersionsFromResolvedFile", commands)
+        self.assertIn("-disableAutomaticPackageResolution", commands)
+
+    def test_both_probes_require_valid_identity_and_raw_results_fail_closed(self):
+        steps = self.workflow()["jobs"]["fixture-readiness"]["steps"]
+        probes = [step for step in steps if step.get("id") in ("readiness-boundaries", "readiness-completion")]
+        self.assertEqual(len(probes), 2)
+        self.assertEqual([step["timeout-minutes"] for step in probes], [3, 10])
+        for probe in probes:
+            self.assertEqual(probe["if"], "always() && steps.readiness-identity.outcome == 'success'")
+            self.assertIn("set -o pipefail", probe["run"])
+            self.assertIn("-parallel-testing-enabled NO", probe["run"])
+        self.assertIn("fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)", probes[0]["run"])
+        self.assertIn("-only-testing:merianTests/ObservationVideoCompletionTests", probes[1]["run"])
+        final = next(step for step in steps if step.get("name") == "Verify nonqualifying fixture diagnostic")
+        self.assertEqual(final["if"], "always()")
+        self.assertEqual(final["env"], {
+            "IOS_IDENTITY_TEST_OUTCOME": "${{ steps.ios-identity-test.outcome }}",
+            "READINESS_BOUNDARIES_OUTCOME": "${{ steps.readiness-boundaries.outcome }}",
+            "READINESS_COMPLETION_OUTCOME": "${{ steps.readiness-completion.outcome }}"})
+        code = final["run"].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+        import ast
+        self.assertFalse(any(isinstance(node, ast.Assert) for node in ast.walk(ast.parse(code))))
+        compile(code, "fixture-result-validator", "exec")
+        for required in ("'qualified': False", "'release_eligible': False", "== 'success'",
+                         "reader.result_methods", "reader.require(methods == sorted(expected)", "reader.require(observed == expected",
+                         "hashlib.sha256", "identity[\"files\"]", "parameter_leaves=41, files=files"):
+            self.assertIn(required, code)
+        upload = next(step for step in steps if step.get("name") == "Retain fixture diagnostic evidence")
+        self.assertNotIn("fixture-diagnostic-identity.json", upload["with"]["path"])
+        self.assertNotIn("tests.xctestproducts", upload["with"]["path"])
+
+
 if __name__ == "__main__":
     unittest.main()

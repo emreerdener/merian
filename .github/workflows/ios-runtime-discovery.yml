@@ -2,6 +2,14 @@ name: iOS Candidate Runtime Discovery
 
 on:
   workflow_dispatch:
+    inputs:
+      diagnostic:
+        description: Fixed diagnostic to execute; neither qualifies release
+        type: choice
+        default: retained-video
+        options:
+          - retained-video
+          - fixture-readiness
 
 permissions:
   contents: read
@@ -9,7 +17,7 @@ permissions:
 
 jobs:
   discover:
-    if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'
+    if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'retained-video'
     name: Diagnose retained video failure suites
     runs-on: xcode-27
     timeout-minutes: 90
@@ -211,4 +219,288 @@ jobs:
           path: ${{ runner.temp }}/host-diagnostic/suite/*/results.xcresult
           include-hidden-files: true
           if-no-files-found: ignore
+          retention-days: 14
+
+  fixture-readiness:
+    if: github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'fixture-readiness'
+    name: Diagnose fixture append readiness
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    steps:
+      - timeout-minutes: 2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize runner-local unit-test paths
+        timeout-minutes: 1
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/ios-unit-package-cache"
+            echo "XCODE_DERIVED_DATA=$RUNNER_TEMP/ios-unit-derived-data"
+            echo "XCODE_RESULT_BUNDLE=$RUNNER_TEMP/ios-unit-tests.xcresult"
+            echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-unit-xcodebuild.log"
+            echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-unit-package-resolution.log"
+            echo "XCODE_TEST_SUMMARY=$RUNNER_TEMP/ios-unit-test-summary.json"
+            echo "XCODE_TEST_TREE=$RUNNER_TEMP/ios-unit-test-tree.json"
+            echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-unit-test-evidence.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact source revision
+        timeout-minutes: 1
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Checkout is dirty before the iOS build." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified source revision $actual_sha"
+
+      - name: Verify pinned Xcode toolchain
+        timeout-minutes: 1
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version | tee "${RUNNER_TEMP}/ios-unit-xcode-version.txt"
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 27.0" ]; then
+            echo "This gate requires Xcode 27.0." >&2
+            exit 1
+          fi
+          if [ "$(xcodebuild -version | sed -n '2p')" != "Build version 27A266a" ]; then
+            echo "This gate requires the reviewed Xcode 27.0 build 27A266a." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
+          sw_vers
+          df -h "$RUNNER_TEMP"
+
+      - name: Verify generated project source membership
+        timeout-minutes: 2
+        run: |
+          bash scripts/test-ios-project-source-membership.sh
+          bash scripts/check-ios-project-source-membership.sh
+
+      - name: Restore locked Swift package checkouts
+        timeout-minutes: 2
+        id: swift-package-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
+
+      - name: Save locked Swift package checkouts
+        timeout-minutes: 1
+        if: steps.swift-package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Prepare candidate unit-test simulator
+        timeout-minutes: 10
+        id: ios-test-simulator
+        run: |
+          mkdir "$RUNNER_TEMP/ios-unit-identity"
+          destination="$(python3 -B scripts/discover-ios27-simulator.py --prepare-only \
+            --evidence "$RUNNER_TEMP/ios-unit-identity/preparation.json")"
+          echo "destination=${destination}" >> "$GITHUB_OUTPUT"
+          echo "Selected ${destination}"
+
+      - name: Compile app and unit test targets
+        timeout-minutes: 60
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild build-for-testing \
+            -scheme Merian \
+            -configuration Debug \
+            -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            -only-testing:merianTests \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$XCODE_BUILD_LOG"
+
+      - name: Observe exact guest identity inside XCTest
+        timeout-minutes: 10
+        id: ios-identity-test
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-unit-identity/results.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests/SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-identity/test.log"
+
+      - name: Verify exact guest identity evidence
+        timeout-minutes: 3
+        id: readiness-identity
+        if: always() && steps.ios-identity-test.outcome != 'skipped'
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.ios-identity-test.outcome }}
+        run: |
+          evidence="$RUNNER_TEMP/ios-unit-identity"
+          xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json"
+          xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json"
+          xcrun xcresulttool export attachments --path "$evidence/results.xcresult" \
+            --test-id 'SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity()' \
+            --output-path "$evidence/attachments"
+          python3 -B scripts/discover-ios27-simulator.py --verify-directory "$evidence" \
+            --evidence "$RUNNER_TEMP/fixture-diagnostic-identity.json"
+          git diff --quiet --ignore-submodules --
+
+      - name: Run readiness boundary cases once
+        timeout-minutes: 3
+        id: readiness-boundaries
+        if: always() && steps.readiness-identity.outcome == 'success'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/fixture-diagnostic/boundaries"
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/fixture-diagnostic/boundaries/results.xcresult" \
+            -parallel-testing-enabled NO \
+            '-only-testing:merianTests/CaptureScanVideoAudioExtractorTests/fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)' \
+            2>&1 | tee "$RUNNER_TEMP/fixture-diagnostic/boundaries/test.log"
+      - name: Run complete instrumented completion suite once
+        timeout-minutes: 10
+        id: readiness-completion
+        if: always() && steps.readiness-identity.outcome == 'success'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/fixture-diagnostic/completion"
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/fixture-diagnostic/completion/results.xcresult" \
+            -parallel-testing-enabled NO -only-testing:merianTests/ObservationVideoCompletionTests \
+            2>&1 | tee "$RUNNER_TEMP/fixture-diagnostic/completion/test.log"
+      - name: Verify nonqualifying fixture diagnostic
+        timeout-minutes: 3
+        if: always()
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.ios-identity-test.outcome }}
+          READINESS_BOUNDARIES_OUTCOME: ${{ steps.readiness-boundaries.outcome }}
+          READINESS_COMPLETION_OUTCOME: ${{ steps.readiness-completion.outcome }}
+        run: |
+          for scope in boundaries completion; do
+            evidence="$RUNNER_TEMP/fixture-diagnostic/$scope"
+            if [ -d "$evidence/results.xcresult" ]; then
+              xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json" || true
+              xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json" || true
+            fi
+          done
+          python3 -B - <<'PY'
+          import hashlib, importlib.util, json, os
+          from pathlib import Path
+          def load(name):
+              spec = importlib.util.spec_from_file_location(name, Path('scripts') / name)
+              result = importlib.util.module_from_spec(spec); spec.loader.exec_module(result); return result
+          root = Path(os.environ['RUNNER_TEMP'])
+          output = root / 'fixture-diagnostic/diagnostic.json'
+          output.parent.mkdir(parents=True, exist_ok=True)
+          receipt = {'kind': 'fixture_readiness_diagnostic', 'qualified': False, 'release_eligible': False,
+                     'source_sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+                     'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'], 'status': 'incomplete'}
+          output.write_text(json.dumps(receipt, indent=2) + '\n')
+          identity = load('discover-ios27-simulator.py').verify(root / 'ios-unit-identity', env=os.environ)
+          reader = load('ios-unit-shards.py')
+          expected_completion = {key: value for key, value in load('diagnose-ios-service-hub.py').SUITE_ARGUMENTS.items()
+                                 if key.startswith('merianTests/ObservationVideoCompletionTests/')}
+          selections = {
+              'boundaries': {'merianTests/CaptureScanVideoAudioExtractorTests/fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)': 8},
+              'completion': expected_completion,
+          }
+          reader.require(len(expected_completion) == 8 and sum(expected_completion.values()) == 33, "Wrong completion manifest")
+          files = {"ios-unit-identity/" + name: digest for name, digest in identity["files"].items()}
+          for scope, expected in selections.items():
+              reader.require(os.environ['READINESS_' + scope.upper() + '_OUTCOME'] == 'success', 'Failed or unrun diagnostic')
+              evidence = root / 'fixture-diagnostic' / scope
+              tree = reader.read_json(evidence / 'tests.json')
+              methods, leaves = reader.result_methods(reader.read_json(evidence / 'summary.json'), tree, identity,
+                  context={key: receipt[key] for key in ('source_sha', 'run_id', 'run_attempt')})
+              reader.require(methods == sorted(expected) and leaves == sum(expected.values()), "Wrong executed selection")
+              observed = {}
+              def visit(node):
+                  if node.get('nodeType') == 'Test Case':
+                      key = reader.canonical('merianTests/' + node['nodeIdentifier'])
+                      reader.require(key not in observed, "Duplicate executed method")
+                      observed[key] = len(node.get('children', []))
+                  for child in node.get('children', []): visit(child)
+              for node in tree['testNodes']: visit(node)
+              reader.require(observed == expected, "Wrong argument partition")
+              for name in ("summary.json", "tests.json"):
+                  files["fixture-diagnostic/" + scope + "/" + name] = hashlib.sha256((evidence / name).read_bytes()).hexdigest()
+          receipt.update(status='passed', methods=9, parameter_leaves=41, files=files)
+          output.write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+          git diff --quiet --ignore-submodules --
+      - name: Retain fixture diagnostic evidence
+        timeout-minutes: 3
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-fixture-readiness-diagnostic-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/fixture-diagnostic/diagnostic.json
+            ${{ runner.temp }}/fixture-diagnostic/*/summary.json
+            ${{ runner.temp }}/fixture-diagnostic/*/tests.json
+            ${{ runner.temp }}/fixture-diagnostic/*/test.log
+            ${{ runner.temp }}/ios-unit-identity/preparation.json
+            ${{ runner.temp }}/ios-unit-identity/summary.json
+            ${{ runner.temp }}/ios-unit-identity/tests.json
+            ${{ runner.temp }}/ios-unit-identity/attachments
+            ${{ runner.temp }}/ios-unit-identity/test.log
+            ${{ runner.temp }}/ios-unit-xcodebuild.log
+          if-no-files-found: error
           retention-days: 14

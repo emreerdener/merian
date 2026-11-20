@@ -1753,9 +1753,13 @@ modern append uses synchronous `appendImmediately` and polls backpressure within
 the same five-second cap. Deadline and cancellation checks surround each call;
 writer cancellation happens only after an append returns. Timeout evidence
 records the frame, pre-cancellation writer status and error presence without raw
-codec error text. Fixed phase logs distinguish admission, video writing, AAC and
-export. This test-only gate does not serialize production capture or change
-extraction behavior.
+codec error text. Failure-only observations also record append attempts,
+backpressure returns, the last returned result, total and longest synchronous
+append duration, and elapsed readiness time. These distinguish repeated
+backpressure from a slow synchronous call without changing the deadline or
+leaving work in flight. Fixed phase logs distinguish admission, video writing,
+AAC and export. This test-only gate does not serialize production capture or
+change extraction behavior.
 
 ## Native warning checks
 

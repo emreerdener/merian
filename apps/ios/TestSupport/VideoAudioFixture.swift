@@ -145,13 +145,10 @@ struct VideoAudioFixture: Sendable {
             writer.startSession(atSourceTime: .zero)
             print("VideoAudioFixture: receiver appends started")
             for frame in 0..<frameCount {
-                do {
-                    try await withReadinessDeadline {
-                        try receiver.appendImmediately(pixels, with: CMTime(value: Int64(frame), timescale: 30))
-                    }
-                } catch ReadinessFailure.timedOut {
-                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(writer.status.rawValue), writer error present \(writer.error != nil)")
-                    throw ReadinessFailure.timedOut
+                try await withReadinessDeadline(onTimeout: { observation in
+                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(writer.status.rawValue), writer error present \(writer.error != nil); \(observation.summary)")
+                }) {
+                    try receiver.appendImmediately(pixels, with: CMTime(value: Int64(frame), timescale: 30))
                 }
             }
             print("VideoAudioFixture: receiver appends completed")
@@ -209,22 +206,59 @@ struct VideoAudioFixture: Sendable {
 
     enum ReadinessFailure: Error { case timedOut }
 
+    struct ReadinessTimeoutObservation: Sendable {
+        let attempts: Int
+        let backpressureCount: Int
+        let lastAppendResult: Bool?
+        let appendDuration: Duration
+        let longestAppendDuration: Duration
+        let elapsed: Duration
+
+        var summary: String {
+            let result = lastAppendResult.map { $0 ? "accepted" : "backpressure" } ?? "not-attempted"
+            return "attempts \(attempts), backpressure returns \(backpressureCount), last result \(result), total append time \(appendDuration), longest append \(longestAppendDuration), elapsed \(elapsed)"
+        }
+    }
+
     /// Retry synchronous backpressure without leaving an append in flight.
     /// The caller may cancel its writer only after this helper returns/throws.
     @MainActor static func withReadinessDeadline(
         timeout: Duration = .seconds(5),
+        onTimeout: @MainActor (ReadinessTimeoutObservation) -> Void = { _ in },
         operation: @MainActor () throws -> Bool
     ) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while true {
-            try Task.checkCancellation()
-            guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
-            let appended = try operation()
-            try Task.checkCancellation()
-            // A slow synchronous append must not clear an expired deadline.
-            guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
-            if appended { return }
-            try await Task.sleep(until: min(deadline, ContinuousClock.now + .milliseconds(5)), clock: .continuous)
+        let started = ContinuousClock.now
+        let deadline = started + timeout
+        var attempts = 0
+        var backpressureCount = 0
+        var lastAppendResult: Bool?
+        var appendDuration = Duration.zero
+        var longestAppendDuration = Duration.zero
+        do {
+            while true {
+                try Task.checkCancellation()
+                guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+                attempts += 1
+                let appendStarted = ContinuousClock.now
+                let appended = try operation()
+                let duration = appendStarted.duration(to: .now)
+                appendDuration += duration
+                longestAppendDuration = max(longestAppendDuration, duration)
+                lastAppendResult = appended
+                if !appended { backpressureCount += 1 }
+                try Task.checkCancellation()
+                // A slow synchronous append must not clear an expired deadline.
+                guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+                if appended { return }
+                try await Task.sleep(until: min(deadline, ContinuousClock.now + .milliseconds(5)), clock: .continuous)
+            }
+        } catch ReadinessFailure.timedOut {
+            onTimeout(ReadinessTimeoutObservation(
+                attempts: attempts, backpressureCount: backpressureCount, lastAppendResult: lastAppendResult,
+                appendDuration: appendDuration, longestAppendDuration: longestAppendDuration,
+                elapsed: started.duration(to: .now)
+            ))
+            throw ReadinessFailure.timedOut
         }
     }
 
