@@ -400,7 +400,7 @@ jobs:
             --evidence "$RUNNER_TEMP/fixture-diagnostic-identity.json"
           git diff --quiet --ignore-submodules --
 
-      - name: Run readiness boundary cases once
+      - name: Run complete video-audio fixture suite once
         timeout-minutes: 3
         id: readiness-boundaries
         if: always() && steps.readiness-identity.outcome == 'success'
@@ -411,29 +411,30 @@ jobs:
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -resultBundlePath "$RUNNER_TEMP/fixture-diagnostic/boundaries/results.xcresult" \
             -parallel-testing-enabled NO \
-            '-only-testing:merianTests/CaptureScanVideoAudioExtractorTests/fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)' \
+            -only-testing:merianTests/CaptureScanVideoAudioExtractorTests \
             2>&1 | tee "$RUNNER_TEMP/fixture-diagnostic/boundaries/test.log"
-      - name: Run complete instrumented completion suite once
+      - name: Run complete completion and resume suites together once
         timeout-minutes: 10
-        id: readiness-completion
+        id: readiness-consumers
         if: always() && steps.readiness-identity.outcome == 'success'
         run: |
           set -o pipefail
-          mkdir -p "$RUNNER_TEMP/fixture-diagnostic/completion"
+          mkdir -p "$RUNNER_TEMP/fixture-diagnostic/consumers"
           xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
-            -resultBundlePath "$RUNNER_TEMP/fixture-diagnostic/completion/results.xcresult" \
+            -resultBundlePath "$RUNNER_TEMP/fixture-diagnostic/consumers/results.xcresult" \
             -parallel-testing-enabled NO -only-testing:merianTests/ObservationVideoCompletionTests \
-            2>&1 | tee "$RUNNER_TEMP/fixture-diagnostic/completion/test.log"
+            -only-testing:merianTests/ObservationVideoResumeSubmissionTests \
+            2>&1 | tee "$RUNNER_TEMP/fixture-diagnostic/consumers/test.log"
       - name: Verify nonqualifying fixture diagnostic
         timeout-minutes: 3
         if: always()
         env:
           IOS_IDENTITY_TEST_OUTCOME: ${{ steps.ios-identity-test.outcome }}
           READINESS_BOUNDARIES_OUTCOME: ${{ steps.readiness-boundaries.outcome }}
-          READINESS_COMPLETION_OUTCOME: ${{ steps.readiness-completion.outcome }}
+          READINESS_CONSUMERS_OUTCOME: ${{ steps.readiness-consumers.outcome }}
         run: |
-          for scope in boundaries completion; do
+          for scope in boundaries consumers; do
             evidence="$RUNNER_TEMP/fixture-diagnostic/$scope"
             if [ -d "$evidence/results.xcresult" ]; then
               xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json" || true
@@ -457,11 +458,22 @@ jobs:
           reader = load('ios-unit-shards.py')
           expected_completion = {key: value for key, value in load('diagnose-ios-service-hub.py').SUITE_ARGUMENTS.items()
                                  if key.startswith('merianTests/ObservationVideoCompletionTests/')}
+          expected_resume = {key: value for key, value in load('diagnose-ios-service-hub.py').SUITE_ARGUMENTS.items()
+                             if key.startswith('merianTests/ObservationVideoResumeSubmissionTests/')}
           selections = {
-              'boundaries': {'merianTests/CaptureScanVideoAudioExtractorTests/fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)': 8},
-              'completion': expected_completion,
+              'boundaries': {
+                  'merianTests/CaptureScanVideoAudioExtractorTests/preservesAACVideoAudioAsCanonicalInferenceWAV(channels:)': 2,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/videoWithoutAudioProducesNoSidecar': 0,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/cancellationAndUnacceptedResultsLeaveNoSidecars': 0,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/concurrentFixturePreparationAndCancellationReleaseEncoderOwnership': 0,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/lateCanonicalResultDiscardsIntermediateAndRespectsCancellation(cancel:)': 2,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/workerFailureDiscardsRegisteredArtifactBeforeReturning': 0,
+                  'merianTests/CaptureScanVideoAudioExtractorTests/fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)': 8,
+              },
+              'consumers': {**expected_completion, **expected_resume},
           }
           reader.require(len(expected_completion) == 8 and sum(expected_completion.values()) == 33, "Wrong completion manifest")
+          reader.require(len(expected_resume) == 5 and sum(expected_resume.values()) == 20, "Wrong resume manifest")
           files = {"ios-unit-identity/" + name: digest for name, digest in identity["files"].items()}
           for scope, expected in selections.items():
               reader.require(os.environ['READINESS_' + scope.upper() + '_OUTCOME'] == 'success', 'Failed or unrun diagnostic')
@@ -479,9 +491,14 @@ jobs:
                   for child in node.get('children', []): visit(child)
               for node in tree['testNodes']: visit(node)
               reader.require(observed == expected, "Wrong argument partition")
+              if scope == 'consumers':
+                  for manifest in (expected_completion, expected_resume):
+                      suite = reader.suite(next(iter(manifest)))
+                      bucket = {key: value for key, value in observed.items() if reader.suite(key) == suite}
+                      reader.require(bucket == manifest, "Wrong consumer suite partition")
               for name in ("summary.json", "tests.json"):
                   files["fixture-diagnostic/" + scope + "/" + name] = hashlib.sha256((evidence / name).read_bytes()).hexdigest()
-          receipt.update(status='passed', methods=9, parameter_leaves=41, files=files)
+          receipt.update(status='passed', methods=20, parameter_leaves=65, files=files)
           output.write_text(json.dumps(receipt, indent=2) + '\n')
           PY
           git diff --quiet --ignore-submodules --

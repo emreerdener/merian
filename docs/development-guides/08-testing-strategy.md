@@ -2310,7 +2310,7 @@ skips; the original four failing methods passed in this replay. This establishes
 that the fixture timeout can occur within a single complete suite; it does not
 prove why the encoder stalled or clear the original qualification failures.
 
-The next test-only fixture diagnostics preserve the five-second deadline and
+The test-only fixture diagnostics preserve the five-second deadline and
 synchronous append/cancellation ordering. They retain only timeout observations:
 attempt and backpressure counts, last returned Boolean result, total and longest
 synchronous append duration, and elapsed readiness time. No raw codec errors,
@@ -2318,32 +2318,54 @@ paths or media are logged. Boundary tests distinguish expired admission,
 backpressure, slow accepted/rejected calls, thrown errors and cancellation;
 success and cancellation do not emit timeout observations.
 
+The fresh `cabf85703` diagnostic passed all eight readiness boundary cases but
+failed one completion argument case at frame 4. Its 754 append attempts all
+returned backpressure over 5.093 seconds; total synchronous append time was
+0.0103 seconds and the longest call was 0.000125 seconds. The writer was still
+writing with no error. This establishes sustained input backpressure in that
+failure, not a slow synchronous call. It does not identify why the encoder
+stopped accepting frames. The failing case used a silent fixture, so AAC and
+composition are not necessary to reproduce this timeout.
+
+The next fixture-only candidate changes both pixel-buffer allocation and the
+legacy adaptor format from ARGB to BGRA, the RGB format recommended by the
+AVFoundation SDK's `AVAssetWriterInput.h`. H.264 still has native YUV formats;
+this change does not claim to eliminate every conversion or prove the failure's
+cause. Buffer ownership, receiver attributes, frame count, black content,
+encoding, cancellation and the five-second deadline remain unchanged.
+
 The manual workflow's `diagnostic` choice defaults to `retained-video` and keeps
 that replay unchanged. Explicit `fixture-readiness` selects a separate,
 nonqualifying job on the diagnostic branch. It resolves the checked-in package
 lock, compiles fresh unit products once with pinned Xcode 27.0/27A266a, and
 verifies the same iOS 27.2/24B8117/iPhone19,2 guest identity. Compilation keeps
 its existing 60-minute limit; the job is bounded at 120 minutes. It runs the
-readiness boundary method's eight cases and then the complete completion suite
-in separate invocations, bounded at three and ten minutes respectively. Every
-step is bounded; their ceilings total 117 minutes, leaving three minutes inside
-the job cap for runner overhead. Only this diagnostic uses five-minute package
-resolution and ten-minute preinstalled-runtime preparation bounds; the ordinary
-native gate and retained-product replay remain unchanged. A failed boundary
-probe does not suppress the completion evidence, but both require successful
-identity validation. No ordinary unit matrix, UI run or archive is started by
-this diagnostic choice.
+complete video-audio extractor suite (including eight readiness boundary cases)
+and then the complete completion and resume suites together, in two invocations
+bounded at three and ten minutes respectively. The combined consumer invocation
+is a compatibility check, not an isolated causal comparison; it disables
+parallel testing and preserves both suites' serialized shared offline-queue
+state. Every step is bounded; their ceilings total 117 minutes, leaving three
+minutes inside the job cap for runner overhead. Only this diagnostic uses
+five-minute package resolution and ten-minute preinstalled-runtime preparation
+bounds; the ordinary native gate and retained-product replay remain unchanged. A
+failed extractor invocation does not suppress the consumer evidence, but both
+require successful identity validation. No ordinary unit matrix, UI run or
+archive is started by this diagnostic choice.
 
-Raw summaries and trees must match all nine selected methods and 41 argument
+Raw summaries and trees must match all 20 selected methods and 65 argument
 leaves, with no failed, skipped or unrun cases, before the diagnostic can report
-a pass. The receipt remains `qualified=false` and `release_eligible=false`;
-missing or failed evidence leaves it incomplete. Evidence includes the actual
-identity attachment and result trees, not an ordinary simulator qualification
-receipt or compiled product upload. A passed diagnostic receipt binds the
-identity and result files by digest, and validation uses explicit failure checks
-that remain active under Python optimization. Hosted compilation and execution
-are still required; portable workflow checks and SwiftLint alone do not validate
-Swift compilation or establish the encoder's failure mode.
+a pass. Exact per-suite partitions require seven extractor methods and 12
+leaves, eight completion methods and 33 leaves, and five resume methods and 20
+leaves. The combined consumer tree must match both maps independently. The
+receipt remains `qualified=false` and `release_eligible=false`; missing or
+failed evidence leaves it incomplete. Evidence includes the actual identity
+attachment and result trees, not an ordinary simulator qualification receipt or
+compiled product upload. A passed diagnostic receipt binds the identity and
+result files by digest, and validation uses explicit failure checks that remain
+active under Python optimization. Hosted compilation and execution are still
+required; portable workflow checks and SwiftLint alone do not validate Swift
+compilation or establish the encoder's failure mode.
 
 ### Synthetic failed-jobs retry diagnostic
 

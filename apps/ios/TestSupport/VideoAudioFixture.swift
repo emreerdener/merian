@@ -159,7 +159,7 @@ struct VideoAudioFixture: Sendable {
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
                 assetWriterInput: input,
                 sourcePixelBufferAttributes: [
-                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
                     kCVPixelBufferWidthKey as String: width,
                     kCVPixelBufferHeightKey as String: height
                 ]
@@ -192,7 +192,8 @@ struct VideoAudioFixture: Sendable {
     private static func blackPixels(width: Int, height: Int) throws -> CVPixelBuffer {
         var pixelBuffer: CVPixelBuffer?
         #expect(CVPixelBufferCreate(
-            kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB,
+            // AVAssetWriter recommends BGRA when supplying RGB buffers on iOS.
+            kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA,
             nil, &pixelBuffer
         ) == kCVReturnSuccess)
         let pixels = try #require(pixelBuffer)

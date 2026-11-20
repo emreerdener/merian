@@ -142,7 +142,11 @@ class RetryProbeTests(unittest.TestCase):
                     self.assertEqual(step["with"]["digest-mismatch"], "error")
         native = yaml(".github/workflows/ios-runtime-discovery.yml")
         native_trigger = native.get("on", native.get("true"))
-        self.assertEqual(native_trigger, {"workflow_dispatch": None})
+        self.assertEqual(set(native_trigger), {"workflow_dispatch"})
+        self.assertEqual(native_trigger["workflow_dispatch"]["inputs"]["diagnostic"], {
+            "description": "Fixed diagnostic to execute; neither qualifies release",
+            "type": "choice", "default": "retained-video",
+            "options": ["retained-video", "fixture-readiness"]})
 
 
 if __name__ == "__main__":

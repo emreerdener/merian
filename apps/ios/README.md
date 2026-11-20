@@ -1747,7 +1747,10 @@ Ownership lasts until preparation completes or error cleanup finishes; an
 incomplete writer is cancelled before release. Cancellation while queued is
 checked after admission, before starting the next writer. The fixture retains
 all 30 frames and the one-second media range, with bounded readiness waits and
-frame/status diagnostics. On iOS 26 and later, the pixel-buffer receiver
+frame/status diagnostics. Its black pixel buffers and legacy adaptor use BGRA,
+the recommended RGB input format for AVAssetWriter on iOS. This fixture-only
+choice preserves the encoded H.264 contract and does not establish the cause of
+previous simulator backpressure. On iOS 26 and later, the pixel-buffer receiver
 replaces legacy readiness polling; earlier runtimes retain the adaptor. Each
 modern append uses synchronous `appendImmediately` and polls backpressure within
 the same five-second cap. Deadline and cancellation checks surround each call;

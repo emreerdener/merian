@@ -217,10 +217,13 @@ class DiscoveryTests(unittest.TestCase):
         workflow = json.loads(subprocess.check_output(["ruby", "-ryaml", "-rjson", "-e",
                               "puts YAML.safe_load(File.read(ARGV[0]), aliases: false).to_json", str(path)], text=True))
         self.assertEqual(workflow.get("on", workflow.get("true")),
-                         {"workflow_dispatch": None})
+                         {"workflow_dispatch": {"inputs": {"diagnostic": {
+                             "description": "Fixed diagnostic to execute; neither qualifies release",
+                             "type": "choice", "default": "retained-video",
+                             "options": ["retained-video", "fixture-readiness"]}}}})
         self.assertEqual(workflow["permissions"], {"contents": "read", "actions": "read"})
         job = workflow["jobs"]["discover"]
-        self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114'")
+        self.assertEqual(job["if"], "github.ref == 'refs/heads/codex/pr152-simulator-diagnostics-20261114' && inputs.diagnostic == 'retained-video'")
         self.assertEqual(job["timeout-minutes"], 90)
         self.assertIs(job["steps"][0]["with"]["persist-credentials"], False)
         self.assertEqual(next(s for s in job["steps"] if s.get("name") == "Retain nonqualifying diagnostic evidence")["if"], "always()")

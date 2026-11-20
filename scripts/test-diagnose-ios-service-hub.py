@@ -504,28 +504,31 @@ class FixtureReadinessWorkflowTests(unittest.TestCase):
 
     def test_both_probes_require_valid_identity_and_raw_results_fail_closed(self):
         steps = self.workflow()["jobs"]["fixture-readiness"]["steps"]
-        probes = [step for step in steps if step.get("id") in ("readiness-boundaries", "readiness-completion")]
+        probes = [step for step in steps if step.get("id") in ("readiness-boundaries", "readiness-consumers")]
         self.assertEqual(len(probes), 2)
         self.assertEqual([step["timeout-minutes"] for step in probes], [3, 10])
         for probe in probes:
             self.assertEqual(probe["if"], "always() && steps.readiness-identity.outcome == 'success'")
             self.assertIn("set -o pipefail", probe["run"])
             self.assertIn("-parallel-testing-enabled NO", probe["run"])
-        self.assertIn("fixtureAppendReadinessHonorsDeadlineAndCancellation(_:)", probes[0]["run"])
+        self.assertIn("-only-testing:merianTests/CaptureScanVideoAudioExtractorTests", probes[0]["run"])
+        self.assertNotIn("-only-testing:merianTests/CaptureScanVideoAudioExtractorTests/", probes[0]["run"])
         self.assertIn("-only-testing:merianTests/ObservationVideoCompletionTests", probes[1]["run"])
+        self.assertIn("-only-testing:merianTests/ObservationVideoResumeSubmissionTests", probes[1]["run"])
+        self.assertEqual(probes[1]["run"].count("-only-testing:"), 2)
         final = next(step for step in steps if step.get("name") == "Verify nonqualifying fixture diagnostic")
         self.assertEqual(final["if"], "always()")
         self.assertEqual(final["env"], {
             "IOS_IDENTITY_TEST_OUTCOME": "${{ steps.ios-identity-test.outcome }}",
             "READINESS_BOUNDARIES_OUTCOME": "${{ steps.readiness-boundaries.outcome }}",
-            "READINESS_COMPLETION_OUTCOME": "${{ steps.readiness-completion.outcome }}"})
+            "READINESS_CONSUMERS_OUTCOME": "${{ steps.readiness-consumers.outcome }}"})
         code = final["run"].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
         import ast
         self.assertFalse(any(isinstance(node, ast.Assert) for node in ast.walk(ast.parse(code))))
         compile(code, "fixture-result-validator", "exec")
         for required in ("'qualified': False", "'release_eligible': False", "== 'success'",
-                         "reader.result_methods", "reader.require(methods == sorted(expected)", "reader.require(observed == expected",
-                         "hashlib.sha256", "identity[\"files\"]", "parameter_leaves=41, files=files"):
+                         "reader.result_methods", "reader.require(methods == sorted(expected)", "reader.require(observed == expected", "reader.require(bucket == manifest",
+                         "hashlib.sha256", "identity[\"files\"]", "parameter_leaves=65, files=files"):
             self.assertIn(required, code)
         upload = next(step for step in steps if step.get("name") == "Retain fixture diagnostic evidence")
         self.assertNotIn("fixture-diagnostic-identity.json", upload["with"]["path"])
