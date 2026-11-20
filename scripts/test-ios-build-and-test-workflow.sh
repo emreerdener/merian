@@ -355,12 +355,12 @@ assert_no_runner_context_in_job_env() {
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
-assert_contains "    name: Full iOS unit tests"
-assert_count 1 'name: Prepare qualified unit-test simulator'
-assert_count 1 'name: Prepare qualified shard simulator'
-assert_count 2 'python3 -B scripts/prepare-ios-unit-simulator.py'
-assert_count 2 'ios-unit-simulator-qualification.json'
-assert_before 'name: Prepare qualified unit-test simulator' 'name: Compile app, unit, and performance test targets'
+assert_contains "    name: Hosted iOS unit tests"
+assert_count 1 'name: Prepare candidate unit-test simulator'
+assert_count 1 'name: Prepare candidate shard simulator'
+assert_count 2 'python3 -B scripts/discover-ios27-simulator.py --prepare-only'
+assert_count 3 'ios-unit-simulator-qualification.json'
+assert_before 'name: Prepare candidate unit-test simulator' 'name: Compile app, unit, and performance test targets'
 assert_file_contains "$repo_root/Makefile" 'python3 -B scripts/test-prepare-ios-unit-simulator.py'
 python3 -B "$repo_root/scripts/test-ios-unit-shard-workflow.py"
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
@@ -429,8 +429,8 @@ assert_count 6 "persist-credentials: false"
 assert_action_release "actions/checkout" 6 7
 assert_action_release "actions/cache/restore" 3 6
 assert_action_release "actions/cache/save" 1 6
-assert_action_release "actions/upload-artifact" 11 7
-assert_action_release "actions/download-artifact" 4 8
+assert_action_release "actions/upload-artifact" 14 7
+assert_action_release "actions/download-artifact" 5 8
 assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
@@ -463,7 +463,7 @@ assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
-assert_contains 'Every inventoried method and every observed parameter leaf passed; no skipped or duplicated coverage.'
+assert_contains 'Every ordinary inventoried method and observed parameter leaf passed; no skipped or duplicated hosted coverage. The opt-in native/SQL integration requires separate qualification.'
 assert_contains 'Exact analyzing, live-to-queue, retry, completion, protected chat, and explicit refresh UX regressions: \`passed\`'
 assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
@@ -535,6 +535,47 @@ assert_file_count "$ui_job" 0 '-only-testing:merianPerformanceTests'
 assert_file_count "$ui_job" 1 '    timeout-minutes: 70'
 assert_file_count "$ui_job" 1 'xcodebuild build-for-testing'
 assert_file_count "$ui_job" 1 'xcodebuild test-without-building'
+assert_file_count "$ui_job" 2 '-scheme MerianCIUI'
+# Execution selectors do not prune a scheme's build-for-testing testables.
+# Keep the UI build independent without removing the unit lane's full bundles.
+python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+root = Path(sys.argv[1])
+project = root / "Merian.xcodeproj"
+if not project.is_dir():
+    project = root / "merian.xcodeproj"
+schemes = project / "xcshareddata/xcschemes"
+primary = ET.parse(schemes / "Merian.xcscheme").getroot()
+ui = ET.parse(schemes / "MerianCIUI.xcscheme").getroot()
+
+def testables(scheme):
+    action = scheme.find("TestAction")
+    assert action is not None and action.get("buildConfiguration") == "Debug"
+    references = action.findall("Testables/TestableReference")
+    assert all(item.get("skipped") == "NO" for item in references)
+    return [item.find("BuildableReference").get("BlueprintName") for item in references]
+
+assert testables(primary) == ["merianTests", "merianPerformanceTests", "merianUITests"]
+assert testables(ui) == ["merianUITests"]
+build = ui.find("BuildAction")
+assert build is not None and build.get("buildImplicitDependencies") == "YES"
+entries = build.findall("BuildActionEntries/BuildActionEntry")
+assert len(entries) == 1 and entries[0].get("buildForTesting") == "YES"
+assert entries[0].find("BuildableReference").get("BlueprintName") == "Merian"
+assert ui.find("TestAction").get("shouldUseLaunchSchemeArgsEnv") == "YES"
+assert ui.find("TestAction/MacroExpansion/BuildableReference").get("BlueprintName") == "Merian"
+def environment(scheme):
+    variables = scheme.findall("LaunchAction/EnvironmentVariables/EnvironmentVariable")
+    return sorted((item.get("key"), item.get("value"), item.get("isEnabled"))
+                  for item in variables)
+assert environment(ui) == environment(primary) == [
+    ("MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR", "1", "YES")
+]
+print("Independent UI build scheme preserves complete unit coverage")
+PY
 assert_file_count "$ui_job" 1 'bash scripts/validate-ios-focused-test-results.sh'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-evidence-'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-failure-'
@@ -646,12 +687,11 @@ fi
 # immutable inventory and aggregate reconciliation prevents selected green subsets.
 # The UI bundle still executes exactly its six protected regressions.
 assert_count 1 "-only-testing:merianPerformanceTests"
-assert_count 2 "-only-testing:merianTests"
+assert_count 10 "-only-testing:merianTests"
 assert_count 7 "-only-testing:merianUITests"
 assert_count 6 "-only-testing:merianUITests/"
-if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
-  fail "Handwritten unit suite selectors must not replace the complete compiled inventory."
-fi
+# The Python contract confines handwritten selectors to identity and focused
+# prerequisites; complete inventory and shards still require the immutable plan.
 if grep -Fq -- "-skip-testing:merianTests" "$workflow"; then
   fail "The production gate must not skip any merianTests suite."
 fi

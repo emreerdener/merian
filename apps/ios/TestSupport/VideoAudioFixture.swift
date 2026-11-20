@@ -23,7 +23,9 @@ struct VideoAudioFixture: Sendable {
             at: outputDirectory,
             withIntermediateDirectories: true
         )
+        print("VideoAudioFixture: waiting for encoder ownership")
         await Self.writerGate.acquire()
+        print("VideoAudioFixture: encoder ownership acquired")
         do {
             try Task.checkCancellation()
             try await prepare(
@@ -43,16 +45,20 @@ struct VideoAudioFixture: Sendable {
         channels: Int?, amplitude: Double, width: Int, height: Int,
         frameCount: Int, transform: CGAffineTransform
     ) async throws {
+        print("VideoAudioFixture: silent video started")
         let silentURL = root.appendingPathComponent("silent.mp4")
         try await Self.writeSilentVideo(
             to: silentURL, width: width, height: height, frameCount: frameCount, transform: transform
         )
+        print("VideoAudioFixture: silent video completed")
         guard let channels else {
             try FileManager.default.copyItem(at: silentURL, to: videoURL)
             return
         }
         let audioURL = root.appendingPathComponent("tone.m4a")
+        print("VideoAudioFixture: AAC started")
         try Self.writeAAC(to: audioURL, channels: channels, amplitude: amplitude, frameCount: frameCount)
+        print("VideoAudioFixture: AAC completed")
         let composition = AVMutableComposition()
         for (url, mediaType) in [(silentURL, AVMediaType.video), (audioURL, .audio)] {
             let asset = AVURLAsset(url: url)
@@ -72,7 +78,9 @@ struct VideoAudioFixture: Sendable {
             asset: composition,
             presetName: AVAssetExportPresetPassthrough
         ))
+        print("VideoAudioFixture: composition export started")
         try await exporter.export(to: videoURL, as: .mp4)
+        print("VideoAudioFixture: composition export completed")
     }
 
     func outputFiles() throws -> [URL] {
@@ -112,35 +120,80 @@ struct VideoAudioFixture: Sendable {
 
     private static let writerGate = VideoFixtureWriterGate()
 
-    private static func writeSilentVideo(
+    @MainActor private static func writeSilentVideo(
         to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform
     ) async throws {
+        print("VideoAudioFixture: writer construction started")
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        print("VideoAudioFixture: writer construction completed")
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height
         ])
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: input,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-                kCVPixelBufferWidthKey as String: width,
-                kCVPixelBufferHeightKey as String: height
-            ]
-        )
         input.transform = transform
-        writer.add(input)
+        print("VideoAudioFixture: writer input configured")
         // Keep encoder ownership until completion or cancellation, including
-        // failed assertions and cancellation during fixture preparation.
-        defer {
-            if writer.status == .writing { writer.cancelWriting() }
+        // failure and the actual exit of every pending append.
+        defer { if writer.status == .writing { writer.cancelWriting() } }
+        if #available(iOS 26.0, *) {
+            let receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
+            let pixels = CVReadOnlyPixelBuffer(unsafeBuffer: try blackPixels(width: width, height: height))
+            print("VideoAudioFixture: receiver setup completed")
+            try #require(writer.startWriting())
+            print("VideoAudioFixture: writer start completed")
+            writer.startSession(atSourceTime: .zero)
+            print("VideoAudioFixture: receiver appends started")
+            for frame in 0..<frameCount {
+                try await withReadinessDeadline(onTimeout: { observation in
+                    Issue.record("Fixture receiver exceeded five-second readiness deadline at frame \(frame), pre-cancel status \(writer.status.rawValue), writer error present \(writer.error != nil); \(observation.summary)")
+                }) {
+                    try receiver.appendImmediately(pixels, with: CMTime(value: Int64(frame), timescale: 30))
+                }
+            }
+            print("VideoAudioFixture: receiver appends completed")
+            writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
+            receiver.finish()
+            print("VideoAudioFixture: receiver finish completed")
+        } else {
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+                assetWriterInput: input,
+                sourcePixelBufferAttributes: [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height
+                ]
+            )
+            writer.add(input)
+            try #require(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+            let pixels = try blackPixels(width: width, height: height)
+            for frame in 0..<frameCount {
+                try Task.checkCancellation()
+                let deadline = ContinuousClock.now + .seconds(5)
+                while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(5))
+                }
+                try #require(
+                    input.isReadyForMoreMediaData,
+                    "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
+                )
+                try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
+            }
+            writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
+            input.markAsFinished()
         }
-        try #require(writer.startWriting())
-        writer.startSession(atSourceTime: .zero)
+        print("VideoAudioFixture: writer finalization started")
+        await writer.finishWriting()
+        print("VideoAudioFixture: writer finalization completed")
+        try #require(writer.status == .completed)
+    }
+
+    private static func blackPixels(width: Int, height: Int) throws -> CVPixelBuffer {
         var pixelBuffer: CVPixelBuffer?
         #expect(CVPixelBufferCreate(
-            kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB,
+            // AVAssetWriter recommends BGRA when supplying RGB buffers on iOS.
+            kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA,
             nil, &pixelBuffer
         ) == kCVReturnSuccess)
         let pixels = try #require(pixelBuffer)
@@ -149,23 +202,67 @@ struct VideoAudioFixture: Sendable {
             memset(base, 0, CVPixelBufferGetDataSize(pixels))
         }
         CVPixelBufferUnlockBaseAddress(pixels, [])
-        for frame in 0..<frameCount {
-            try Task.checkCancellation()
-            let deadline = ContinuousClock.now + .seconds(5)
-            while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(5))
-            }
-            try #require(
-                input.isReadyForMoreMediaData,
-                "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
-            )
-            try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
-        }
-        writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
-        input.markAsFinished()
-        await writer.finishWriting()
-        try #require(writer.status == .completed)
+        return pixels
     }
+
+    enum ReadinessFailure: Error { case timedOut }
+
+    struct ReadinessTimeoutObservation: Sendable {
+        let attempts: Int
+        let backpressureCount: Int
+        let lastAppendResult: Bool?
+        let appendDuration: Duration
+        let longestAppendDuration: Duration
+        let elapsed: Duration
+
+        var summary: String {
+            let result = lastAppendResult.map { $0 ? "accepted" : "backpressure" } ?? "not-attempted"
+            return "attempts \(attempts), backpressure returns \(backpressureCount), last result \(result), total append time \(appendDuration), longest append \(longestAppendDuration), elapsed \(elapsed)"
+        }
+    }
+
+    /// Retry synchronous backpressure without leaving an append in flight.
+    /// The caller may cancel its writer only after this helper returns/throws.
+    @MainActor static func withReadinessDeadline(
+        timeout: Duration = .seconds(5),
+        onTimeout: @MainActor (ReadinessTimeoutObservation) -> Void = { _ in },
+        operation: @MainActor () throws -> Bool
+    ) async throws {
+        let started = ContinuousClock.now
+        let deadline = started + timeout
+        var attempts = 0
+        var backpressureCount = 0
+        var lastAppendResult: Bool?
+        var appendDuration = Duration.zero
+        var longestAppendDuration = Duration.zero
+        do {
+            while true {
+                try Task.checkCancellation()
+                guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+                attempts += 1
+                let appendStarted = ContinuousClock.now
+                let appended = try operation()
+                let duration = appendStarted.duration(to: .now)
+                appendDuration += duration
+                longestAppendDuration = max(longestAppendDuration, duration)
+                lastAppendResult = appended
+                if !appended { backpressureCount += 1 }
+                try Task.checkCancellation()
+                // A slow synchronous append must not clear an expired deadline.
+                guard ContinuousClock.now < deadline else { throw ReadinessFailure.timedOut }
+                if appended { return }
+                try await Task.sleep(until: min(deadline, ContinuousClock.now + .milliseconds(5)), clock: .continuous)
+            }
+        } catch ReadinessFailure.timedOut {
+            onTimeout(ReadinessTimeoutObservation(
+                attempts: attempts, backpressureCount: backpressureCount, lastAppendResult: lastAppendResult,
+                appendDuration: appendDuration, longestAppendDuration: longestAppendDuration,
+                elapsed: started.duration(to: .now)
+            ))
+            throw ReadinessFailure.timedOut
+        }
+    }
+
 }
 
 // Synthetic encoders share process resources even when Swift Testing runs

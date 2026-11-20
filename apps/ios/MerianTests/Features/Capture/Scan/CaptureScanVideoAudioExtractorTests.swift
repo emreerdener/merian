@@ -144,6 +144,73 @@ struct CaptureScanVideoAudioExtractorTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
+    @MainActor @Test(arguments: ["success", "backpressure", "failure", "timeout", "cancel", "late", "late-backpressure", "expired"])
+    func fixtureAppendReadinessHonorsDeadlineAndCancellation(_ boundary: String) async throws {
+        let probe = FixtureAppendDeadlineProbe()
+        let entered = AsyncStream<Void>.makeStream()
+        defer { entered.continuation.finish() }
+        let work = Task { @MainActor in
+            try await VideoAudioFixture.withReadinessDeadline(
+                timeout: boundary == "expired" ? .zero
+                    : (["timeout", "late", "late-backpressure"].contains(boundary) ? .milliseconds(10) : .seconds(5)),
+                onTimeout: { probe.timeouts.append($0) }
+            ) {
+                probe.attempts += 1
+                if boundary == "failure" { throw FixtureAppendDeadlineProbe.Failure.append }
+                if boundary == "timeout" || boundary == "cancel" {
+                    entered.continuation.yield(())
+                    return false
+                } else if boundary == "late" || boundary == "late-backpressure" {
+                    // Either synchronous result after the deadline must remain failure.
+                    let until = ContinuousClock.now + .milliseconds(20)
+                    while ContinuousClock.now < until {}
+                    return boundary == "late"
+                }
+                return boundary != "backpressure" || probe.attempts == 2
+            }
+        }
+        if boundary == "cancel" {
+            var iterator = entered.stream.makeAsyncIterator()
+            _ = await iterator.next()
+            work.cancel()
+        }
+        do {
+            try await work.value
+            #expect(boundary == "success" || boundary == "backpressure")
+        } catch VideoAudioFixture.ReadinessFailure.timedOut {
+            #expect(["timeout", "late", "late-backpressure", "expired"].contains(boundary))
+        } catch is CancellationError {
+            #expect(boundary == "cancel")
+        } catch FixtureAppendDeadlineProbe.Failure.append {
+            #expect(boundary == "failure")
+        }
+        if boundary == "backpressure" { #expect(probe.attempts == 2) }
+        if boundary == "success" || boundary == "failure" { #expect(probe.attempts == 1) }
+        if boundary == "cancel" { #expect(probe.attempts >= 1) }
+        if ["timeout", "late", "late-backpressure", "expired"].contains(boundary) {
+            let observation = try #require(probe.timeouts.first)
+            #expect(probe.timeouts.count == 1)
+            #expect(observation.attempts == probe.attempts)
+            #expect(observation.elapsed >= observation.appendDuration)
+            #expect(observation.appendDuration >= observation.longestAppendDuration)
+            if boundary == "expired" {
+                #expect(observation.attempts == 0)
+                #expect(observation.lastAppendResult == nil)
+            } else if probe.attempts > 0 {
+                #expect(observation.lastAppendResult == (boundary == "late"))
+                #expect(observation.backpressureCount == (boundary == "late" ? 0 : probe.attempts))
+                if boundary.hasPrefix("late") { #expect(observation.longestAppendDuration >= .milliseconds(20)) }
+            }
+        } else {
+            #expect(probe.timeouts.isEmpty)
+        }
+        let completedAttempts = probe.attempts
+        // No detached timer or pending append may touch a completed fixture.
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(probe.attempts == completedAttempts)
+        #expect(probe.timeouts.count <= 1)
+    }
+
     private func extractAndDiscard(_ fixture: VideoAudioFixture) async throws {
         let lease = try #require(await CaptureScanVideoAudioExtractor.extract(
             videoURL: fixture.videoURL,
@@ -169,4 +236,10 @@ private actor AudioArtifactGate {
         }
         return !leases.isEmpty
     }
+}
+
+@MainActor private final class FixtureAppendDeadlineProbe {
+    enum Failure: Error { case append }
+    var attempts = 0
+    var timeouts: [VideoAudioFixture.ReadinessTimeoutObservation] = []
 }

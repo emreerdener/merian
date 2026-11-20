@@ -164,7 +164,10 @@ struct ObservationAnalysisReviewEndpointTests {
                 headerFields: ["SB-Error-Code": "NOT_FOUND"]))
             return (response, Data("{\"code\":\"NOT_FOUND\"}".utf8))
         }
-        await #expect(throws: MerianError.edgeFunctionUnavailable) {
+        // Gateway headers do not turn the Reject/Undo database RPC into an Edge route.
+        let expected: MerianError = confirmation ? .edgeFunctionUnavailable
+            : .httpError(statusCode: 404, message: "{\"code\":\"NOT_FOUND\"}")
+        await #expect(throws: expected) {
             try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {})
         }
         #expect(calls.withLock { $0 } == 1)

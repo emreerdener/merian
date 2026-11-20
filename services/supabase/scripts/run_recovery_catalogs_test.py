@@ -114,8 +114,11 @@ class RecoveryTests(unittest.TestCase):
 
     def test_container_name_running_port_and_immutable_id_are_required(self):
         project = "merian-migration-recovery-123-explore"
-        with tempfile.TemporaryDirectory(prefix="merian-migration-recovery.") as directory:
-            root = Path(directory)
+        with tempfile.TemporaryDirectory() as directory:
+            # Python's random temporary suffix can contain underscores. Keep
+            # it outside the basename checked by the production ownership guard.
+            root = Path(directory) / "merian-migration-recovery.A1"
+            root.mkdir()
             (root / "supabase").mkdir()
             (root / "supabase/config.toml").write_text('project_id="' + project + '"\n[db]\nport=55432\n')
             info = {"Name": "/supabase_db_" + project, "State": {"Running": True},
@@ -130,6 +133,18 @@ class RecoveryTests(unittest.TestCase):
                     recovery.owned_container(root, project, {}, run)
             with self.assertRaises(RuntimeError):
                 recovery.owned_container(root, "merian-history", {}, run)
+
+    def test_invalid_workdir_is_rejected_before_container_inspection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "merian-migration-recovery.A_1"
+            root.mkdir()
+            calls = []
+            def run(*args, **kwargs):
+                calls.append(args)
+                self.fail("Invalid workdir reached container inspection")
+            with self.assertRaisesRegex(RuntimeError, "Owned recovery workdir required"):
+                recovery.owned_container(root, "merian-migration-recovery-123-explore", {}, run)
+            self.assertEqual(calls, [])
 
     def test_query_is_bounded_local_container_exec_without_remote_dsn(self):
         calls = []

@@ -334,6 +334,27 @@ schemes:
     archive:
       config: Release
 
+  # UI build-for-testing must not compile the independent unit/performance bundles.
+  MerianCIUI:
+    build:
+      targets:
+        Merian: all
+    run:
+      config: Debug
+      environmentVariables:
+        MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR: "1"
+    test:
+      config: Debug
+      targets:
+        - name: merianUITests
+          parallelizable: false
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
   # Guided synthetic device review; no live history installation or rollout.
   Merian Device - History:
     build:

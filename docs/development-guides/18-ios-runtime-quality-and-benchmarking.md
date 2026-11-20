@@ -210,6 +210,24 @@ and app/test hashes, unchanged native candidate and public wire digests against
 the SQL record. Do not add the unarmed selector to a mandatory ordinary audit or
 count its skip as success.
 
+The November 15 hosted planner retains this exact method in the full compiled
+inventory and classifies its whole suite separately. All other methods remain
+mandatory, with zero skips/failures. Hosted receipts explicitly report the
+integration as not executed; they cannot claim complete-target qualification.
+The successful November 9 `completion286-join02` execution remains historical
+evidence: one method/case, 116 SQL checks, 12 fixture assertions, exact literal
+parity and verified owned cleanup. The test itself is unchanged in the
+consolidation candidate, but supporting source and migration state have changed.
+That earlier result is not a current-source pass.
+
+For the backend/web consolidation, review those deltas against current native
+unit and backend candidate evidence. The packet preserves unfinished native
+work; it does not qualify an app release or activate this path. Keep remaining
+native integration acceptance with the feature's activation/app-release review.
+Do not require a new local database or toolchain merely to turn an intentionally
+unarmed integration into an ordinary unit test. Where a current integration
+claim is required, use the armed execution and evidence reconciliation above.
+
 The existing `initial_cpm_runtime_contract.py` request journey accepts the
 bounded native packet via `initial_cpm_native_bridge.py`; native code consumes
 only public allocation/recovery projections. Private SQL

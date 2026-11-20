@@ -1583,12 +1583,16 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
 Hosted **iOS Build and Test** compiles and inventories the complete unit target
-once, executes whole suites serially across isolated runner/simulator shards,
-and requires an aggregate proving every inventoried method passed exactly once.
+once, retains the existing opt-in native/SQL integration as a separate
+qualification, and executes all other whole suites serially across isolated
+runner/simulator shards. **Hosted iOS unit tests** proves every ordinary
+inventoried method passed exactly once; the receipt explicitly records the
+integration as not executed and does not claim complete-target qualification.
 All parameter rows, durable fixtures, assertions and shared-state guards remain.
 The six critical scan UI smokes and Release archive stay independent. Production
 readiness requires the unit aggregate and both of those gates at the exact
-commit and pinned toolchain. The unit build also compiles the report-only
+commit and pinned toolchain. That result does not clear the separate integration
+or app-release requirements. The unit build also compiles the report-only
 performance bundle; sharding does not qualify device performance. See the
 [complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
 for artifact provenance, process-isolation limits and the requirement to rerun
@@ -1743,8 +1747,22 @@ Ownership lasts until preparation completes or error cleanup finishes; an
 incomplete writer is cancelled before release. Cancellation while queued is
 checked after admission, before starting the next writer. The fixture retains
 all 30 frames and the one-second media range, with bounded readiness waits and
-frame/status diagnostics. This test-only gate does not serialize production
-capture or change extraction behavior.
+frame/status diagnostics. Its black pixel buffers and legacy adaptor use BGRA,
+the recommended RGB input format for AVAssetWriter on iOS. This fixture-only
+choice preserves the encoded H.264 contract and does not establish the cause of
+previous simulator backpressure. On iOS 26 and later, the pixel-buffer receiver
+replaces legacy readiness polling; earlier runtimes retain the adaptor. Each
+modern append uses synchronous `appendImmediately` and polls backpressure within
+the same five-second cap. Deadline and cancellation checks surround each call;
+writer cancellation happens only after an append returns. Timeout evidence
+records the frame, pre-cancellation writer status and error presence without raw
+codec error text. Failure-only observations also record append attempts,
+backpressure returns, the last returned result, total and longest synchronous
+append duration, and elapsed readiness time. These distinguish repeated
+backpressure from a slow synchronous call without changing the deadline or
+leaving work in flight. Fixed phase logs distinguish admission, video writing,
+AAC and export. This test-only gate does not serialize production capture or
+change extraction behavior.
 
 ## Native warning checks
 

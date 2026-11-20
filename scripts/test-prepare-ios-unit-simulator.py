@@ -205,12 +205,73 @@ class QualificationTests(unittest.TestCase):
                     self.prepare(failed)
                 self.assertEqual(len(calls), 1)
 
-    def test_ci_qualification_matches_unchanged_transport_safety_contract(self):
+    def assert_transport_receiver_contract(self, source):
+        # Compare the complete admission block, not disconnected substrings that
+        # would still pass after adding a third tuple or an unconditional bypass.
+        begin, end = "var measuredReceiver = false", "return PinnedPhotoUploadTask(owned: config"
+        self.assertEqual(source.count(begin), 1)
+        self.assertEqual(source.count(end), 1)
+        actual = source.split(begin, 1)[1].split(end, 1)[0]
+        expected = '''
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningTests, let injected = withSessionLock({ storedOverridingSession?.configuration }) {
+            config.protocolClasses = injected.protocolClasses
+            if let scope = injected.httpAdditionalHeaders?["X-Merian-Test-Scope"] as? String, UUID(uuidString: scope) != nil {
+                config.httpAdditionalHeaders = ["X-Merian-Test-Scope": scope]
+                #if targetEnvironment(simulator) && arch(arm64)
+                let env = ProcessInfo.processInfo.environment
+                let matchesReceiverRuntime = (env["SIMULATOR_RUNTIME_VERSION"] == "26.5"
+                    && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "23F77"
+                    && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone18,1")
+                    || (env["SIMULATOR_RUNTIME_VERSION"] == "27.2"
+                        && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "24B8117"
+                        && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")
+                if let classes = config.protocolClasses, classes.count == 1, let receiver = classes.first {
+                    measuredReceiver = NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"
+                        && Bundle(for: receiver).bundleURL.pathExtension == "xctest"
+                        && matchesReceiverRuntime
+                }
+                #endif
+            }
+        }
+        #endif
+        '''
+        self.assertEqual(actual.split(), expected.split())
+        self.assertIn("var hasPurgedMeasuredTransfer: Bool { measuredReceiver && acknowledgedOwnedSessionEnd }", source)
+
+    def test_ci_runtime_pins_match_exact_debug_receiver_contract(self):
         source = (ROOT / "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift").read_text()
-        for key, value in simulator.EXPECTED_ENVIRONMENT.items():
-            self.assertIn(f'env["{key}"] == "{value}"', source)
-        self.assertIn("#if targetEnvironment(simulator) && arch(arm64)", source)
-        self.assertIn('NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"', source)
+        self.assert_transport_receiver_contract(source)
+        self.assertEqual(simulator.EXPECTED_ENVIRONMENT, {
+            "SIMULATOR_RUNTIME_VERSION": "26.5", "SIMULATOR_RUNTIME_BUILD_VERSION": "23F77",
+            "SIMULATOR_MODEL_IDENTIFIER": "iPhone18,1"})
+        spec = importlib.util.spec_from_file_location("receiver_shards", ROOT / "scripts/ios-unit-shards.py")
+        shards = importlib.util.module_from_spec(spec); spec.loader.exec_module(shards)
+        self.assertEqual(shards.RUNTIME, {
+            "SIMULATOR_RUNTIME_VERSION": "27.2", "SIMULATOR_RUNTIME_BUILD_VERSION": "24B8117",
+            "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,2"})
+
+    def test_debug_receiver_contract_rejects_broadened_admission(self):
+        source = (ROOT / "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift").read_text()
+        mutations = (
+            ('&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")',
+             '&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2") || true'),
+            ('&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")',
+             '&& env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2") || (env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone99,1")'),
+            ('if TestExecutionCoordinator.isRunningTests,', 'if true,'),
+            ('UUID(uuidString: scope) != nil', 'true'),
+            ('#if targetEnvironment(simulator) && arch(arm64)', '#if targetEnvironment(simulator)'),
+            ('classes.count == 1', 'classes.count >= 1'),
+            ('"merianTests.ScopedMockURLProtocol"', '"OtherReceiver"'),
+            ('&& Bundle(for: receiver).bundleURL.pathExtension == "xctest"', ''),
+            ('&& matchesReceiverRuntime', '|| matchesReceiverRuntime'),
+            ('measuredReceiver && acknowledgedOwnedSessionEnd', 'measuredReceiver || acknowledgedOwnedSessionEnd'),
+        )
+        for before, after in mutations:
+            with self.subTest(before=before):
+                self.assertIn(before, source)
+                with self.assertRaises(AssertionError):
+                    self.assert_transport_receiver_contract(source.replace(before, after))
 
     def test_failure_retains_nonpassing_requirement_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -287,6 +348,7 @@ class IdentityProcessTests(unittest.TestCase):
                     evidence = Path(directory) / "qualification.json"
                     original = simulator.prepare
                     with patch.object(simulator, "post_boot_spawn", return_value={"outcome": outcome}) as probe, \
+                            patch.object(simulator, "post_boot_device_state", return_value={"outcome": "missing"}) as state, \
                             patch.object(simulator, "prepare", side_effect=lambda: original(
                                 run=run, environment=HOST, machine="arm64")), \
                             patch("sys.argv", ["prepare", "--evidence", str(evidence)]):
@@ -303,28 +365,31 @@ class IdentityProcessTests(unittest.TestCase):
                     self.assertEqual(reads, list(simulator.EXPECTED_ENVIRONMENT)[:reads.index(key) + 1])
                     if key == "SIMULATOR_RUNTIME_VERSION":
                         probe.assert_called_once_with(DEVICE)
+                        state.assert_called_once_with(DEVICE)
                         self.assertEqual(receipt["identity_query_diagnostics"]["post_boot_spawn"]["outcome"], outcome)
+                        self.assertEqual(receipt["identity_query_diagnostics"]["post_probe_device_state"], {"outcome": "missing"})
                     else:
                         probe.assert_not_called()
+                        state.assert_not_called()
 
     def test_success_never_probes_and_phase_evidence_has_no_output(self):
-        with patch.object(simulator, "post_boot_spawn") as probe:
+        with patch.object(simulator, "post_boot_spawn") as probe, \
+                patch.object(simulator, "post_boot_device_state") as state:
             receipt = simulator.prepare(run=Runner(), environment=HOST, machine="arm64")
         probe.assert_not_called()
+        state.assert_not_called()
         self.assertTrue(receipt["qualified"])
         for phase in receipt["phase_diagnostics"]:
             self.assertEqual(set(phase), {"phase", "outcome", "elapsed_ms"})
 
-    def test_spawn_diagnostic_bounds_and_discards_both_output_streams(self):
+    def test_spawn_diagnostic_is_scoped_and_uses_bounded_capture(self):
         for code in (0, 1):
-            process = Mock()
-            process.wait.return_value = code
-            with patch.object(simulator.subprocess, "Popen", return_value=process) as popen:
+            observed = {"outcome": "passed" if code == 0 else "nonzero", "returncode": code,
+                        "direct_process_reaped": True}
+            with patch.object(simulator, "diagnostic_process", return_value=(observed, b"")) as capture:
                 result = simulator.post_boot_spawn(DEVICE)
-            popen.assert_called_once_with(["xcrun", "simctl", "spawn", DEVICE, "/usr/bin/true"],
-                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            process.wait.assert_called_once_with(timeout=10)
-            process.kill.assert_not_called()
+            capture.assert_called_once_with(["xcrun", "simctl", "spawn", DEVICE, "/usr/bin/true"],
+                                            capture="stderr", limit=8192, timeout=10)
             self.assertEqual(result["outcome"], "passed" if code == 0 else "nonzero")
             self.assertEqual(result["returncode"], code)
             self.assertTrue(result["direct_process_reaped"])
@@ -333,15 +398,69 @@ class IdentityProcessTests(unittest.TestCase):
         for reaped in (True, False):
             process = Mock()
             process.poll.return_value = None
-            process.wait.side_effect = [subprocess.TimeoutExpired(["probe"], 10),
-                                        -9 if reaped else subprocess.TimeoutExpired(["probe"], 5)]
-            with patch.object(simulator.subprocess, "Popen", return_value=process):
+            process.wait.side_effect = [-9 if reaped else subprocess.TimeoutExpired(["probe"], 5)]
+            with patch.object(simulator.subprocess, "Popen", return_value=process), \
+                    patch.object(simulator.os, "set_blocking"), \
+                    patch.object(simulator, "SPAWN_DIAGNOSTIC_TIMEOUT", 0):
                 result = simulator.post_boot_spawn(DEVICE)
             self.assertEqual(result["outcome"], "timeout")
             self.assertTrue(result["direct_process_running_at_timeout"])
             self.assertEqual(result["direct_process_reaped"], reaped)
-            self.assertEqual(process.wait.call_args_list, [call(timeout=10), call(timeout=5)])
+            self.assertEqual(process.wait.call_args_list, [call(timeout=5)])
             process.kill.assert_called_once_with()
+
+    def test_null_bootstrap_control_is_bounded_and_not_a_readiness_probe(self):
+        observed = {"outcome": "passed", "returncode": 0, "direct_process_reaped": True}
+        with patch.object(simulator, "diagnostic_process", return_value=(observed, b"")) as capture:
+            result = simulator.post_boot_spawn(DEVICE, standalone=True)
+        capture.assert_called_once_with(["xcrun", "simctl", "spawn", "-s", DEVICE, "/usr/bin/true"],
+                                        capture="stderr", limit=8192, timeout=10)
+        self.assertEqual(result, observed)
+        self.assertNotIn("qualified", result)
+
+    def test_null_bootstrap_control_preserves_failure_and_runs_only_after_owned_booted_failure(self):
+        baseline_probe = {"outcome": "timeout", "direct_process_reaped": True}
+        baseline_state = {"outcome": "observed", "state": "Booted", "direct_process_reaped": True}
+        cases = [(True, baseline_probe, baseline_state, True),
+                 (True, dict(baseline_probe, outcome="nonzero"), baseline_state, True),
+                 (False, baseline_probe, baseline_state, False),
+                 (True, dict(baseline_probe, direct_process_reaped=False), baseline_state, False),
+                 (True, dict(baseline_probe, outcome="passed"), baseline_state, False),
+                 (True, dict(baseline_probe, outcome="unavailable"), baseline_state, False),
+                 (True, baseline_probe, dict(baseline_state, state="Shutdown"), False),
+                 (True, baseline_probe, dict(baseline_state, outcome="missing"), False),
+                 (True, baseline_probe, dict(baseline_state, direct_process_reaped=False), False)]
+        for reaped, probe, state, expected in cases:
+            for outcome in ("passed", "nonzero", "timeout", "unavailable"):
+                runner = Runner()
+                failure = simulator.IdentityQueryTimeout(self.arguments, 30, {
+                    "identity_key": "SIMULATOR_RUNTIME_VERSION", "direct_process_reaped": reaped})
+                def run(args, **kwargs):
+                    value = runner(args, **kwargs)
+                    if args == self.arguments:
+                        raise failure
+                    return value
+                events = []
+                def spawn(device, *, standalone=False):
+                    events.append("standalone" if standalone else "regular")
+                    return {"outcome": outcome} if standalone else probe
+                def snapshot(device):
+                    events.append("state")
+                    return state
+                with self.subTest(reaped=reaped, probe=probe, state=state, outcome=outcome), \
+                        patch.object(simulator, "post_boot_spawn", side_effect=spawn) as spawn_mock, \
+                        patch.object(simulator, "post_boot_device_state", side_effect=snapshot), \
+                        self.assertRaises(simulator.IdentityQueryTimeout) as raised:
+                    simulator.prepare(run=run, environment=HOST, machine="arm64")
+                self.assertIs(raised.exception, failure)
+                self.assertEqual(events, ["regular", "state"] + (["standalone"] if expected else []))
+                self.assertEqual(spawn_mock.call_args_list,
+                                 [call(DEVICE)] + ([call(DEVICE, standalone=True)] if expected else []))
+                self.assertEqual("null_bootstrap_control" in failure.diagnostics, expected)
+                if expected:
+                    self.assertEqual(failure.diagnostics["null_bootstrap_control"], {"outcome": outcome})
+                reads = [a for a, _ in runner.commands if a[:3] == ["xcrun", "simctl", "getenv"]]
+                self.assertEqual(reads, [self.arguments])
 
     def test_probe_launch_error_has_no_raw_error_or_environment(self):
         for error in (OSError, RuntimeError, ValueError):
@@ -372,6 +491,7 @@ class IdentityProcessTests(unittest.TestCase):
             receipt = json.loads(evidence.read_text())
             self.assertFalse(receipt["qualified"])
             self.assertEqual(receipt["identity_query_diagnostics"]["post_boot_spawn"]["outcome"], "unavailable")
+            self.assertEqual(receipt["identity_query_diagnostics"]["post_probe_device_state"]["outcome"], "unavailable")
             self.assertNotIn("private-sentinel", evidence.read_text())
 
     def test_phase_failure_retains_only_bounded_metadata_and_stops(self):
@@ -521,6 +641,194 @@ class IdentityProcessTests(unittest.TestCase):
                 simulator.command(self.arguments, timeout=.05)
         self.assertTrue(raised.exception.diagnostics["direct_process_reaped"])
         self.assertIsNotNone(processes[0].poll())
+
+
+class FailureDiagnosticTests(unittest.TestCase):
+    error = (b"An error was encountered processing the command "
+             b"(domain=com.apple.CoreSimulator.SimError, code=405):\n"
+             b"private-sentinel\nUnderlying error "
+             b"(domain=com.apple.SimLaunchHostService.RequestError, code=3):\n"
+             b"private-sentinel")
+
+    def inventory(self, state="Booted", **extra):
+        return json.dumps({"devices": {simulator.RUNTIME: [
+            dict(udid=DEVICE, state=state, name="private-sentinel", **extra)]}}).encode()
+
+    def test_error_identity_retains_only_allowlisted_domains_and_numeric_codes(self):
+        result = simulator.diagnostic_error_identity(self.error)
+        self.assertEqual(result, {"outcome": "recognized", "errors": [
+            {"domain": "com.apple.CoreSimulator.SimError", "code": 405},
+            {"domain": "com.apple.SimLaunchHostService.RequestError", "code": 3}]})
+        self.assertNotIn("private-sentinel", json.dumps(result))
+        self.assertEqual(simulator.diagnostic_error_identity(self.error + b"\n" + self.error), result)
+
+    def test_error_identity_rejects_unknown_malformed_and_oversized_output(self):
+        cases = [(b"", "empty"), (b"\xff", "unrecognized"), (b"private-sentinel", "unrecognized"),
+                 (self.error.replace(b"com.apple.CoreSimulator.SimError", b"private.sentinel")
+                  .split(b"Underlying")[0], "unrecognized"),
+                 (b"Underlying error (domain=NSPOSIXErrorDomain, code=123456):", "unrecognized"),
+                 (self.error + b" " * simulator.DIAGNOSTIC_ERROR_LIMIT, "oversized")]
+        for raw, outcome in cases:
+            with self.subTest(outcome=outcome):
+                self.assertEqual(simulator.diagnostic_error_identity(raw), {"outcome": outcome})
+        self.assertEqual(simulator.diagnostic_error_identity(
+            b"Underlying error (domain=NSPOSIXErrorDomain, code=2):"),
+            {"outcome": "recognized", "errors": [{"domain": "NSPOSIXErrorDomain", "code": 2}]})
+
+    def test_owned_state_discards_names_paths_and_other_devices(self):
+        for state in simulator.DEVICE_STATES:
+            raw = json.loads(self.inventory(state, availabilityError="private-sentinel"))
+            raw["devices"]["private-runtime"] = [{"udid": "private-device", "state": "private-sentinel"}]
+            result = simulator.owned_device_state(json.dumps(raw).encode(), DEVICE.lower())
+            self.assertEqual(result, {"outcome": "observed", "state": state})
+            self.assertNotIn("private", json.dumps(result))
+
+    def test_state_parser_rejects_malformed_missing_ambiguous_and_unknown(self):
+        duplicate = json.loads(self.inventory())
+        duplicate["devices"][simulator.RUNTIME] *= 2
+        cases = [(b"[]", "invalid"), (b"\xff", "invalid"), (b"{", "invalid"),
+                 (b'{"devices": []}', "invalid"), (b'{"devices": {"x": [null]}}', "invalid"),
+                 (b'{"devices": {}}', "missing"), (json.dumps(duplicate).encode(), "ambiguous"),
+                 (self.inventory("private-sentinel"), "unrecognized"),
+                 (self.inventory(None), "unrecognized"), (b" " * (simulator.DEVICE_STATE_LIMIT + 1), "oversized")]
+        for raw, outcome in cases:
+            with self.subTest(outcome=outcome):
+                self.assertEqual(simulator.owned_device_state(raw, DEVICE), {"outcome": outcome})
+
+    def test_state_read_is_scoped_bounded_and_reaps_only_its_direct_process(self):
+        real_popen = subprocess.Popen
+        handles = []
+        processes = []
+        def start(args, **options):
+            self.assertEqual(args, ["xcrun", "simctl", "list", "devices", DEVICE, "--json"])
+            self.assertEqual(options, {"bufsize": 0, "stdout": subprocess.PIPE, "stderr": subprocess.DEVNULL})
+            process = real_popen([sys.executable, "-c", f"import sys;sys.stdout.buffer.write({self.inventory('Shutdown')!r})"], **options)
+            handles.append(process.stdout)
+            processes.append(process)
+            return process
+        with patch.object(simulator.subprocess, "Popen", side_effect=start):
+            result = simulator.post_boot_device_state(DEVICE)
+        self.assertEqual(result["state"], "Shutdown")
+        self.assertTrue(result["direct_process_reaped"])
+        self.assertTrue(handles[0].closed)
+        self.assertEqual(processes[0].returncode, 0)
+
+    def test_state_timeout_never_uses_partial_inventory(self):
+        for reaped in (True, False):
+            process = Mock()
+            process.poll.return_value = None
+            process.wait.side_effect = [-9 if reaped else subprocess.TimeoutExpired(["state"], 5)]
+            with patch.object(simulator.subprocess, "Popen", return_value=process), \
+                    patch.object(simulator.os, "set_blocking"), \
+                    patch.object(simulator, "STATE_DIAGNOSTIC_TIMEOUT", 0):
+                result = simulator.post_boot_device_state(DEVICE)
+            self.assertEqual(result["outcome"], "timeout")
+            self.assertEqual(result["direct_process_reaped"], reaped)
+            self.assertNotIn("state", result)
+            self.assertEqual(process.wait.call_args_list, [call(timeout=5)])
+            process.kill.assert_called_once_with()
+
+    def test_state_nonzero_does_not_parse_stdout(self):
+        with patch.object(simulator, "diagnostic_process", return_value=(
+                {"outcome": "nonzero", "returncode": 149}, b"private-sentinel")), \
+                patch.object(simulator, "owned_device_state") as parse:
+            result = simulator.post_boot_device_state(DEVICE)
+        self.assertEqual(result["outcome"], "nonzero")
+        self.assertEqual(result["returncode"], 149)
+        parse.assert_not_called()
+
+    def test_spawn_error_capture_is_bounded_private_and_never_changes_outcome(self):
+        real_popen = subprocess.Popen
+        for code in (0, 149):
+            handles = []
+            def start(args, **options):
+                self.assertEqual(options, {"bufsize": 0, "stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE})
+                process = real_popen([sys.executable, "-c",
+                                      f"import sys;sys.stderr.buffer.write({self.error!r});sys.exit({code})"], **options)
+                handles.append(process.stderr)
+                return process
+            with patch.object(simulator.subprocess, "Popen", side_effect=start):
+                result = simulator.post_boot_spawn(DEVICE)
+            self.assertTrue(handles[0].closed)
+            self.assertEqual(result["returncode"], code)
+            self.assertNotIn("private-sentinel", json.dumps(result))
+            if code:
+                self.assertEqual(result["error_identity"]["errors"][0]["code"], 405)
+            else:
+                self.assertNotIn("error_identity", result)
+
+    def test_diagnostic_cancellation_propagates_after_bounded_owned_cleanup(self):
+        for diagnostic in (simulator.post_boot_spawn, simulator.post_boot_device_state):
+            process = Mock()
+            process.poll.return_value = None
+            process.wait.return_value = -9
+            with patch.object(simulator.subprocess, "Popen", return_value=process), \
+                    patch.object(simulator.os, "set_blocking"), \
+                    patch.object(simulator.os, "read", side_effect=KeyboardInterrupt()), \
+                    self.assertRaises(KeyboardInterrupt):
+                diagnostic(DEVICE)
+            process.kill.assert_called_once_with()
+            self.assertEqual(process.wait.call_args_list, [call(timeout=5)])
+
+    def test_failure_diagnostics_fit_unused_identity_read_budget(self):
+        diagnostic_maximum = (2 * simulator.SPAWN_DIAGNOSTIC_TIMEOUT + simulator.STATE_DIAGNOSTIC_TIMEOUT
+                              + 3 * simulator.IDENTITY_CLEANUP_TIMEOUT)
+        self.assertLess(diagnostic_maximum, 2 * 30)
+
+    def test_real_oversized_writer_is_stopped_at_capture_limit_and_reaped(self):
+        for capture, descriptor in (("stdout", 1), ("stderr", 2)):
+            started = time.monotonic()
+            result, raw = simulator.diagnostic_process(
+                [sys.executable, "-c", f"import os,time;os.write({descriptor},b'x'*1000000);time.sleep(10)"],
+                capture=capture, limit=512, timeout=2)
+            self.assertEqual(result["outcome"], "oversized")
+            self.assertTrue(result["direct_process_reaped"])
+            self.assertEqual(len(raw), 512)
+            self.assertLess(time.monotonic() - started, 3)
+
+    def test_real_diagnostic_timeout_reaps_and_closes_capture(self):
+        result, raw = simulator.diagnostic_process(
+            [sys.executable, "-c", "import time;time.sleep(10)"],
+            capture="stderr", limit=512, timeout=.05)
+        self.assertEqual(result["outcome"], "timeout")
+        self.assertTrue(result["direct_process_running_at_timeout"])
+        self.assertTrue(result["direct_process_reaped"])
+        self.assertEqual(raw, b"")
+
+    def test_diagnostic_direct_exit_does_not_wait_for_inherited_pipe_eof(self):
+        child = ("import pathlib,sys,time; p=pathlib.Path(sys.argv[1]); deadline=time.monotonic()+10\n"
+                 "while not p.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+                 "pathlib.Path(sys.argv[2]).write_text('done')\n")
+        with tempfile.TemporaryDirectory() as directory:
+            release, done = Path(directory) / "release", Path(directory) / "done"
+            parent = ("import subprocess,sys\n"
+                      f"subprocess.Popen([sys.executable,'-c',{child!r},{str(release)!r},{str(done)!r}],"
+                      "stdin=subprocess.DEVNULL)\n"
+                      f"sys.stderr.buffer.write({self.error!r});sys.stderr.flush();sys.exit(149)\n")
+            try:
+                result, raw = simulator.diagnostic_process([sys.executable, "-c", parent],
+                                                           capture="stderr", limit=8192, timeout=2)
+                self.assertEqual(result["outcome"], "nonzero")
+                self.assertEqual(result["returncode"], 149)
+                self.assertEqual(raw, self.error)
+                self.assertTrue(result["direct_process_reaped"])
+                self.assertFalse(done.exists(), "Owned descendant must still hold the descriptor")
+            finally:
+                release.write_text("release")
+                deadline = time.monotonic() + 5
+                while not done.exists() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(done.exists(), "Owned fixture descendant must finish")
+
+    def test_capture_setup_failure_cleans_up_started_child_without_raw_error(self):
+        with patch.object(simulator.os, "set_blocking", side_effect=OSError("private-sentinel")):
+            result, raw = simulator.diagnostic_process(
+                [sys.executable, "-c", "import time;time.sleep(10)"],
+                capture="stderr", limit=512, timeout=2)
+        self.assertEqual(result["outcome"], "unavailable")
+        self.assertTrue(result["direct_process_reaped"])
+        self.assertEqual(raw, b"")
+        self.assertNotIn("private-sentinel", json.dumps(result))
 
 
 if __name__ == "__main__":

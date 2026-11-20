@@ -1356,11 +1356,17 @@ uses an in-memory store: this is interruption coverage, not disk relaunch proof.
 ### Benchmark methodology and supported metrics
 
 `merianPerformanceTests` is a separate unit bundle. The ordinary compiled CI
-gate builds it alongside the app and unit bundle in the unit job; the UI bundle
-builds in a separate job. Complete-unit execution still selects only
-`merianTests`. The audit selects benchmarks separately from acceptance; the
-ordinary Xcode scheme includes all test bundles, so use explicit selectors when
-running acceptance from the command line. UI benchmarks live in
+gate builds it alongside the app and unit bundle in the unit job. The
+independent UI job builds and executes with the generated `MerianCIUI` scheme,
+whose Debug test action contains only `merianUITests`. The ordinary `Merian`
+scheme retains all three test bundles: `-only-testing` limits execution but does
+not remove its other testables from `build-for-testing`. The separate UI scheme
+avoids compiling unit and performance bundles again under the UI compile budget.
+All six UI smoke selectors, simulator boot checks, exact source/toolchain checks
+and deadlines remain required. Complete-unit execution still selects every
+ordinary `merianTests` method through the compiled inventory and shard
+aggregate. The audit selects benchmarks separately from acceptance; use explicit
+selectors when running acceptance from the command line. UI benchmarks live in
 `RuntimePerformanceTests` and reuse `UITestAppLauncher`; no new production Debug
 arguments or services are introduced.
 
@@ -1469,7 +1475,9 @@ baseline.
 `.github/workflows/ios-build-and-test.yml` is the authoritative compiled
 verification gate for iOS changes. It reports a stable
 `iOS Build and Test / Production readiness` check on main pushes and optional
-pull requests. The complete exact-SHA result gates release, not entry into main.
+pull requests. This exact-SHA hosted result is one release prerequisite, not
+complete app acceptance. The repository permits ordinary main development; the
+consolidation packet separately requires its scoped prerequisites before merge.
 A fail-closed scope job starts the macOS work for:
 
 > **Current consent candidate:** the former Terms-link compile defect and
@@ -1492,8 +1500,8 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and all three macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, all six critical scan UI smokes, and
-Release-archive gate.
+replace the ordinary hosted unit suites, all six critical scan UI smokes, and
+Release-archive gate. Dedicated integration remains separately qualified.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
 does not report a completed required check when an entire workflow is skipped by
@@ -1721,65 +1729,87 @@ app-owned local files. The loader fixture verifies rejection happens before an
 HTTP request is dispatched. See the
 [iOS App Transport Security Contract](./17-ios-transport-security.md).
 
-1. **Full iOS unit tests** is the complete-coverage aggregate for a single
+1. **Hosted iOS unit tests** is the ordinary-suite aggregate for a single
    exact-SHA compiled unit product. A build job resolves only locked package
    versions, verifies generated-project source membership, and compiles the app,
    unit and performance bundles into Xcode's portable `.xctestproducts` format.
-   Xcode enumerates the complete `merianTests` target; the planner assigns whole
-   suites to at most sixteen isolated runner/simulator jobs. No handwritten
-   suite allowlist or skip selector can replace that inventory. Each shard runs
-   serially, with Xcode process-level parallel testing disabled. The aggregate
-   reconciles every compiled method exactly once, checks all parameter leaves,
-   and applies the unchanged critical-result validator to the raw shard trees.
-   Before compilation and separately on every shard,
-   `prepare-ios-unit-simulator.py` prepares the existing measured-transfer
-   qualification: arm64, iOS 26.5 build `23F77`, iPhone 17 Pro model
-   `iPhone18,1`. On a disposable GitHub-hosted runner only, it requests Apple's
-   exact build `23F77` when absent (not the release-number selector `26.5`),
-   independently verifies the installed build and supported device type, waits
-   for Apple's dyld shared-cache preparation for that exact runtime identifier,
-   creates its own simulator, and reads the three identity variables from the
-   booted device. It never injects those values or falls back to the newest
-   runtime. Installation, cache, identity or boot failure blocks the full unit
-   lane; accepted-transfer cases are not skipped and the transport's
-   drain/measurement fence is unchanged. The qualification receipt is retained
-   with the unit-test artifact. The setup step is bounded at 25 minutes,
-   including ten minutes for runtime cache completion and the unchanged
-   five-minute cold-boot allowance. The cache command uses the verified runtime
-   identifier, never `--all`, `--force`, a retry, or warn-and-continue behavior.
-   Cache readiness does not qualify the simulator without subsequent boot and
-   identity proof. Each of the three sequential identity reads has a 30-second
-   deadline and fails closed without retry on timeout. Each identity query
-   writes to an automatically removed temporary file and waits for the direct
-   process, so a descendant retaining stdout cannot make pipe EOF a
-   prerequisite. Success still requires exit code zero and the exact ASCII
-   identity, with a 64-byte output limit. Timeout diagnostics retain only the
-   key, direct-process status, output-presence/exact-match booleans and cleanup
-   outcome; partial output never qualifies the device. Cleanup kills only the
-   query process and allows at most five seconds to reap it. Only after the
-   first identity query times out, a failure-only
-   `simctl spawn <owned-UDID>
-   /usr/bin/true` diagnostic checks process
-   dispatch without `-s`. It discards both output streams, waits at most ten
-   seconds, and allows five seconds to reap only its own process. Its outcome,
-   duration, return code and cleanup flags supplement the original failed
-   identity receipt; even a successful probe never retries or qualifies
-   identity. Cache-update and boot phases retain only outcome and elapsed
-   milliseconds alongside existing failure diagnostics. This adds evidence to
-   distinguish dispatch from environment query failure, not a proven readiness
-   fix. Because the first-query failure skips the remaining two 30-second
-   queries, the diagnostic fits inside the existing bound. Helper command maxima
-   total 1,390 seconds, or 1,395 including timeout cleanup, within the unchanged
-   25-minute step. Cache or boot timeouts retain bounded command progress in the
-   non-passing failure receipt. UI and startup jobs retain their current
-   simulator selection. The build/inventory job has a 95-minute bound; each
-   shard has a 240-minute test step inside a 330-minute job, and aggregate
-   reconciliation has fifteen minutes. The previous single-process 120-minute
-   run 43615068314 timed out while executing cases; a partial log is not a pass.
-   These budgets bound execution rather than assert performance. At most four
-   shards run concurrently per workflow, each with a separate simulator and
-   filesystem. Every suite and parameterized method stays intact, with unchanged
-   fixtures, resource guards and assertions. The
+   Xcode enumerates the complete `merianTests` target. The planner retains the
+   existing opt-in `SharedMediaNativeLiteralRecoveryTests` method in a separate
+   integration classification and assigns all other whole suites to at most
+   sixteen isolated runner/simulator jobs. That integration requires an owned
+   disposable SQL bridge and has its own qualification record; an unarmed skip
+   never qualifies it. No other method may leave the hosted partition. Each
+   shard runs serially, with Xcode process-level parallel testing disabled. The
+   aggregate reconciles every ordinary compiled method exactly once, checks all
+   parameter leaves, and applies the unchanged critical-result validator to the
+   raw shard trees. The candidate lane pins the observed arm64 iOS 27.2 build
+   `24B8117` on an iPhone 18 Pro, guest model `iPhone19,2`, in
+   `scripts/ios-unit-shards.py`. The Debug transport guard admits that exact
+   tuple for requalification while preserving its previous measured tuple and
+   every test/session/receiver guard. Identity observation does not qualify
+   transport resources or full coverage; both focused and ordinary native gates
+   below remain mandatory. Dedicated integration and app acceptance remain
+   separately scoped requirements.
+
+   `discover-ios27-simulator.py --prepare-only` requires the uniquely installed
+   matching runtime and supported device type on a disposable GitHub-hosted
+   runner, waits for that runtime's cache, creates a fresh owned simulator and
+   boots it. It neither installs a fallback nor injects identity values.
+   Preparation takes at most twenty minutes, including ten for cache readiness
+   and five for boot. Preparation alone cannot qualify a simulator.
+
+   After compilation, the builder launches the single
+   `SimulatorRuntimeIdentityTests` case through Xcode. Every shard repeats that
+   probe on its own owned simulator using its verified transferred product. Each
+   ten-minute probe must produce exactly one passed, unskipped XCTest result and
+   one bounded identity attachment. The five-minute verifier binds the case,
+   guest runtime/build, device UUID, architecture, configuration, source SHA and
+   run/attempt. Console text never supplies identity. The resulting observation
+   receipt remains `qualified: false` and `release_eligible: false`; hosted-unit
+   reconciliation additionally requires its exact pinned tuple. Each job retains
+   the probe's native evidence.
+
+   The builder enumerates every compiled unit method, requires all seven iOS 27
+   Foundation parser methods, packs the product and records its SHA-256 in an
+   immutable plan. It then verifies and unpacks that same archive into a fresh
+   directory for focused requalification. Every compiled method in
+   `PinnedPhotoUploadTaskTests`, `CaptureNativePhotoRoleAllocationTests` and
+   `AppleFoundationVisualCueProviderTests` must pass. The resource success and
+   cancellation method must have two argument leaves; the frozen-capture
+   transition method seven; the first-original-PUT method three. These exact
+   counts, unique argument identities and zero skips are also enforced when
+   those methods execute in the full shards. Resource assertions and the
+   session-drain fence remain unchanged.
+
+   Focused evidence includes the full and selected inventories, native summary
+   and tree, identity receipt, plan and product digests. Only after the focused
+   gate passes can the build job publish products for shard execution. The
+   aggregate downloads the focused artifact by its exact build output ID and
+   recomputes its receipt against the same plan before reconciling every shard
+   and the unchanged critical-result validator. Focused success never replaces
+   complete target coverage.
+
+   The builder has a 340-minute job limit, including a 90-minute compilation
+   limit and a 120-minute focused-test limit. Its explicit step ceilings total
+   320 minutes, preserving twenty minutes for orchestration and finalization. A
+   verified fresh unit build took 67 minutes 42 seconds; the compilation
+   allowance accommodates that observation without extending any test deadline.
+   The historical Capture suite scheduling evidence is 4,429 seconds; a
+   thirty-minute focused limit would undercut that evidence. Each shard retains
+   its 240-minute test limit inside a 350-minute job, including its own identity
+   check and evidence retention. Aggregate reconciliation has fifteen minutes.
+   These are ceilings, not performance claims. At most four of the sixteen
+   whole-suite shards run concurrently. UI and archive gates remain independent.
+
+   The required iOS 27 Foundation parser coverage uses the pinned iOS 27.2
+   runtime above. Earlier iOS 26.5 installation experiments and runtime
+   discovery observations are historical diagnostic evidence, not required
+   workflows or substitutes for complete native validation. The retained
+   simulator helper provides shared bounded process utilities; its legacy
+   preparation path does not qualify the ordinary iOS 27.2 workflow.
+
+   Every suite and parameterized method stays intact, with unchanged resource
+   guards and assertions. The
    [complete-unit sharding contract](#complete-unit-sharding-contract) defines
    artifact provenance, coverage checks, process-isolation limits and reruns. UI
    and archive validation remain independent gates. The result gate fails if
@@ -2094,31 +2124,64 @@ unexpectedly skipped jobs fail the check. The portable workflow contract
 executes this decision across every unit/UI/archive outcome combination. UI,
 archive and unit compilation depend directly on scope; the unit pipeline
 continues through the shard matrix and the aggregate, which requires successful
-compilation and every shard. Release evidence remains the complete unit target,
-all six UI cases, and the archive on one exact SHA; no smaller test selection
-replaces it.
+compilation and every shard. Hosted evidence remains all ordinary unit suites,
+all six UI cases, and the archive on one exact SHA; no smaller ordinary-suite
+selection replaces it. It does not qualify the separately recorded native/SQL
+integration or an app release. The original consolidation packet preserves
+unfinished app work and leaves its activation/distribution acceptance with the
+app workstream.
 
 ### Complete unit sharding contract
 
 The user-approved CI recovery separates whole unit suites across disposable
 GitHub-hosted runners. This revises the former single-process target execution;
-it does not add intra-runner test workers or reduce the target. The source-side
-`SharedProcessStateTestTrait` and `OfflineQueueTestCase` lease shared resources
-and restore queue context per case. They remain unchanged, as do their owning
-architecture tests. Isolation removes concurrent singleton sharing across
-runners. Each test still owns completion of its asynchronous tasks. A task leak
-can no longer perturb a suite on a different runner; that incidental
-cross-suite/process interaction coverage is not equivalent to the former one
-process. No declared cross-suite state dependency was identified in review.
+it does not add intra-runner test workers or omit compiled inventory. The
+November 15 classification below separates the existing opt-in integration from
+ordinary hosted execution; it does not mark that integration passed. The
+source-side `SharedProcessStateTestTrait` and `OfflineQueueTestCase` lease
+shared resources and restore queue context per case. They remain unchanged, as
+do their owning architecture tests. Isolation removes concurrent singleton
+sharing across runners. Each test still owns completion of its asynchronous
+tasks. A task leak can no longer perturb a suite on a different runner; that
+incidental cross-suite/process interaction coverage is not equivalent to the
+former one process. No declared cross-suite state dependency was identified in
+review.
 
 `scripts/ios-unit-shards.py` owns these controls:
 
 - The full compiled inventory comes from Xcode 27's `-enumerate-tests` with flat
-  text identifiers. Empty, malformed, duplicate or foreign-target entries fail.
-  Only exact trailing `()` normalization bridges XCTest result spelling; Swift
-  argument labels remain intact. The first hosted run must prove the actual
-  Xcode enumeration/result mapping; portable parser fixtures cannot.
-- A deterministic, complete, disjoint partition keeps whole suites together.
+  text identifiers: one exact `Plan Merian` header and one tab before each
+  selector. The full target also reports the two support-only XCTest bases
+  `merianTests/ConsentManagerTestCase` and `merianTests/OfflineQueueTestCase`.
+  Neither declares a test method. The parser requires exactly those two bare
+  entries in the full inventory, records them in the plan, and rejects unknown
+  bare selectors, duplicates or executable methods under either base. Selected
+  shard and focused enumerations retain the entire target, with an exact
+  `(disabled)` suffix on every unselected method and both support bases. The
+  verifier requires their complete union to equal the immutable full plan and
+  the enabled set to equal exactly the assigned methods. It never filters away
+  an unchecked disabled entry. Full-target enumeration rejects any disabled
+  marker. These are selection metadata, not skipped test results: every method
+  remains assigned either to exactly one hosted shard or to the one explicit
+  separate integration. Empty, malformed, duplicate or foreign-target method
+  entries fail. Only exact trailing `()` normalization bridges XCTest result
+  spelling; Swift argument labels remain intact. The version-4 plan also binds
+  the exact separate integration selector and raw full-enumeration SHA-256;
+  focused and aggregate verification recheck the original bytes as well as all
+  methods. Hosted enumeration has established this framing; successful hosted
+  result reconciliation and complete execution remain required.
+- Focused enumeration is reconciled against the exact plan before the lengthy
+  resource tests start, then checked again with the retained results afterward.
+  A missing complement, unexpected enabled method, disabled assigned method or
+  malformed marker fails the gate. The same complete selection-state checks
+  apply before every shard and during aggregate evidence verification.
+- A deterministic, complete, disjoint partition keeps ordinary suites together.
+  The separate classification is exactly
+  `merianTests/SharedMediaNativeLiteralRecoveryTests/nativeCandidateAndSQLRepliesRemainLiteralThroughDurableRecovery`.
+  A missing selector, additional method in its suite, changed classification or
+  overlap with a hosted shard fails plan validation. Unknown ordinary suites
+  cannot be silently classified as integrations. The full compiled inventory
+  remains unchanged; the ordinary union plus this selector must equal it.
   `scripts/config/ios-unit-shard-weights.json` contains historical scheduling
   hints, including the later measured photo-role suite. These are not comparable
   performance baselines or pass thresholds. Unknown suites remain mandatory and
@@ -2126,8 +2189,11 @@ process. No declared cross-suite state dependency was identified in review.
   concurrent shard jobs per workflow. Runtime and runner availability still
   determine elapsed time; additional simulator startup adds compute overhead.
 - The build emits one `.xctestproducts` archive, a SHA-256-bound transport
-  archive, and a SHA-256-bound plan naming source SHA, workflow run, attempt,
-  toolchain, runtime, configuration and method assignments. Download actions use
+  archive, and a SHA-256-bound version-4 plan naming `source_sha`,
+  `origin_run_id`, `build_attempt`, toolchain, runtime, configuration and method
+  assignments. The builder outputs bind the plan digest, build attempt and
+  immutable product, plan and requalification artifact IDs. These outputs remain
+  authoritative when the successful builder is not rerun. Download actions use
   the build's artifact IDs and fail on digest mismatch. Each shard verifies the
   plan and product digests before extraction. Extraction rejects escaping paths,
   link traversal, duplicate entries and special files, while preserving
@@ -2144,32 +2210,77 @@ process. No declared cross-suite state dependency was identified in review.
   nonempty summary, zero failures/skips, exact method-count reconciliation,
   exactly one occurrence of every assigned method, and only passed tree nodes.
   Parameterized methods must retain passed, uniquely identified argument leaves
-  bound to their method. Xcode's inventory supplies method identities, not an
-  independent expected count of dynamically generated argument rows; whole-suite
-  selection and unchanged compiled test bodies preserve their parameter inputs.
+  bound to their method. Argument URLs require exactly one `args` query value:
+  opaque, nonempty, even-length lowercase hexadecimal, capped at 4,096
+  characters. Xcode emits both short value encodings and 64-character
+  identities; no hash semantics are assumed. Extra keys, fragments, encoded
+  aliases, control characters and duplicate full URLs fail. Xcode's inventory
+  supplies method identities, not an independent expected count of dynamically
+  generated argument rows; whole-suite selection and unchanged compiled test
+  bodies preserve their parameter inputs.
 - The aggregate requires the build and entire matrix to succeed, then recomputes
-  receipts from every raw summary, tree, qualifier and selected inventory. It
-  rejects missing/extra shard artifacts, changed hashes, stale
-  source/run/attempt, unexpected test nodes, duplicate methods/argument
-  identities and incomplete union coverage. It wraps the raw trees without
-  editing their suites or cases and invokes
-  `validate-ios-critical-test-results.sh` unchanged. Production readiness
-  depends on this aggregate under the existing **Full iOS unit tests** check
-  name, plus the unchanged UI and Release archive gates.
+  receipts from every selected raw summary, tree, qualifier and inventory. It
+  validates the original requalification against the build execution context and
+  each selected shard against its explicit execution context without changing
+  the aggregate process identity. It rejects missing/extra shard artifacts,
+  changed hashes, stale source/run/build/execution identities, unexpected test
+  nodes, duplicate methods/argument identities and incomplete ordinary-suite
+  union coverage. Its receipt records `scope=hosted-unit-suites`,
+  `complete_target=false`, `release_eligible=false`, the full compiled count and
+  the separate integration with `status=not-executed`. Historical evidence never
+  changes that status. It wraps the raw trees without editing their suites or
+  cases and invokes `validate-ios-critical-test-results.sh` unchanged.
+  Production readiness depends on **Hosted iOS unit tests**, plus the unchanged
+  UI and Release archive gates. Its summary explicitly disclaims native/SQL
+  integration qualification. A green hosted result is not a full app acceptance
+  or distribution decision.
 
-A retry must use **Re-run all jobs** so products, plan and every shard receipt
-belong to one attempt. Rerunning only failed jobs intentionally cannot combine
-old successful shard artifacts with a new attempt. Compiled products are
-retained seven days; plans, compact per-shard/aggregate evidence and available
-failure bundles are retained fourteen days. A timeout, failed qualifier, missing
-artifact or unreadable result remains a failed gate. None of this qualifies
-Release/device responsiveness, changes app runtime behavior, or authorizes
-publication, deployment or distribution.
+For a version-4 run, inspect the failures after the workflow finishes. One
+operator-initiated **Re-run failed jobs** may retain the original successful
+builder and passing shards while rerunning failed groups and their aggregate.
+There is no automatic retry, per-test retry, smaller selector or changed
+assertion. Each retried group runs its complete assigned suites on a fresh
+hosted runner and independently proves the same toolchain/runtime identity. The
+execution attempt must be the build attempt or exactly one greater; a second
+recovery attempt is rejected. Persistent failures require diagnosis and a new
+build origin, not repeated retries until green.
+
+Every shard has an `if: always()` terminal step that writes `execution.json`
+after receipt verification and before artifact upload. Its strict step outcomes
+are identity, enumeration, native execution and receipt verification. It binds
+source, origin run, build and execution attempts, artifact IDs, plan/product
+hashes, suite/method assignment hash, toolchain/runtime and every available raw
+evidence digest. Only all-success outcomes plus a recomputed passing receipt
+produce a passing envelope. Failed envelopes retain available diagnostic bytes
+and never provide coverage. Missing envelopes, including an interrupted runner
+that cannot upload one, block aggregation.
+
+Artifact names include the origin run, build attempt, execution attempt and
+shard index. The aggregate downloads the build's artifacts without flattening
+directories and requires exactly one original envelope per group. An original
+pass must have no retry. An original failure must retain its failure envelope
+and have exactly one passing retry. Names and internal provenance must agree;
+foreign, extra, missing, future, duplicate or relabelled evidence fails closed.
+The final coverage receipt lists selected executions and hashes of retained
+failures. Every ordinary compiled method still appears exactly once in the
+selected passing union, and the unchanged critical regression validator still
+runs. UI and archive gates remain mandatory.
+
+Version-3 plans and old receipts cannot be retroactively qualified by this
+contract. A full workflow rerun creates a new build origin and cannot reuse the
+old origin's shard evidence. Compiled products are retained seven days; plans,
+compact per-shard/aggregate evidence and available failure bundles are retained
+fourteen days. An unresolved timeout, failed qualifier, missing artifact or
+unreadable result remains a failed gate. None of this qualifies Release/device
+responsiveness, changes app runtime behavior, or authorizes publication,
+deployment or distribution.
 
 Portable verification includes adversarial inventory, parameter, provenance,
 archive and workflow tests through `make test-ios-ci-tooling`. Hosted product
-transfer, enumeration compatibility, the full assigned matrix and every
-exact-SHA release prerequisite remain required before merge.
+transfer, enumeration compatibility and the full ordinary assigned matrix remain
+required before consolidation, together with its scoped backend/web and external
+control prerequisites. Dedicated native/SQL and app acceptance remain separate
+activation/distribution requirements; the hosted result does not clear them.
 
 ### Repository Rule Setup
 
@@ -2179,21 +2290,25 @@ allow ordinary main pushes without a required PR or pre-push status check,
 retain administrator enforcement, and prohibit force pushes and branch deletion.
 
 `iOS Build and Test / Production readiness` remains the stable result to inspect
-for the exact main commit. A release requires the full unit target, all four
-critical UI smokes, and Release archive on that SHA; a scope-only success cannot
-substitute. Existing PR and merge-group triggers remain optional validation
-support, not a required development path. A direct main push runs the applicable
-iOS gate once and needs no merge or post-merge rerun. Admin Vercel promotion
-still requires its same-commit Deployment Check independently of branch rules.
+for the exact main commit. Hosted validation requires every ordinary unit suite,
+all six critical UI smokes, and Release archive on that SHA; a scope-only
+success cannot substitute. Dedicated integration and app-release acceptance are
+separate requirements; see the
+[literal qualification contract](./18-ios-runtime-quality-and-benchmarking.md#literal-native-disposable-sql-recovery-qualification).
+Existing PR and merge-group triggers remain optional validation support, not a
+required development path. A direct main push runs the applicable iOS gate once
+and needs no merge or post-merge rerun. Admin Vercel promotion still requires
+its same-commit Deployment Check independently of branch rules.
 
 ### Xcode Organizer Distribution Contract
 
-Distribution is deliberately outside CI. After exact-SHA **iOS Build and Test**
-passes, an operator archives the clean revision with Xcode and uploads it with
-Organizer **TestFlight & App Store**. Automatic signing and **Manage version and
-build number** remain enabled. Apple credentials stay in Xcode and the macOS
-Keychain; no workflow receives signing certificates or App Store Connect private
-keys.
+Distribution is deliberately outside CI. Only after exact-SHA **iOS Build and
+Test**, applicable dedicated integration and app-release acceptance pass, and
+distribution is explicitly authorized, an operator archives the clean revision
+with Xcode and uploads it with Organizer **TestFlight & App Store**. Automatic
+signing and **Manage version and build number** remain enabled. Apple
+credentials stay in Xcode and the macOS Keychain; no workflow receives signing
+certificates or App Store Connect private keys.
 
 `scripts/test-ios-xcode-release-workflow.sh` proves that:
 
@@ -2273,18 +2388,20 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                                               | Artifact or local action                                                                                                                                                                                  |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                |
-| Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-attempt-<attempt>-<index>` coverage receipt. |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; rerun all workflow jobs together. Do not weaken inventory reconciliation or the critical-suite validator.             |
-| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.                                        |
-| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator.                                |
-| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.                                    |
-| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                              |
-| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                |
-| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                  |
+| Failure                                                               | Artifact or local action                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulator identity                                                    | Inspect `ios-unit-build-identity-<run-id>-attempt-<attempt>` or `ios-unit-identity-<run-id>-attempt-<attempt>-<index>`; host preparation and a model observation alone do not qualify resources.                                                                                                                      |
+| Focused runtime requalification                                       | Inspect `ios-unit-requalification-<run-id>-attempt-<attempt>`; require its exact product/plan digests, all three compiled suites and every protected parameter case.                                                                                                                                                  |
+| Unit compilation or inventory                                         | Inspect `ios-unit-build-<run-id>-attempt-<attempt>` for build and enumeration diagnostics.                                                                                                                                                                                                                            |
+| Unit shard execution                                                  | Inspect `ios-unit-failure-<run-id>-attempt-<attempt>-<index>` for that shard's `.xcresult` and execution log, and its corresponding `ios-unit-shard-<run-id>-build-<build-attempt>-attempt-<execution-attempt>-<index>` coverage receipt.                                                                             |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run-id>-attempt-<attempt>` and the shard receipts; inspect original and retry envelopes; use one **Re-run failed jobs** only under the version-4 contract, otherwise diagnose and create a new build origin. Do not weaken inventory reconciliation or the critical-suite validator. |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact six protected cases.                                                                                                                                                    |
+| Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator.                                                                                                                                            |
+| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.                                                                                                                                                |
+| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                                                                                                                                          |
+| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                                                                                                                            |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                                                                                                                            |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                                                                                                                              |
 
 For a unit shard failure, inspect Xcode's structured result summary
 (`summary.json`) and result tree (`tests.json`) in its retained coverage
@@ -12550,18 +12667,80 @@ explicit generation replacement and stale-claim denial. Known-answer settlement
 is tested after cancellation without granting dispatch permission. The separate
 audio handoff and retained delivery owner are not established by these tests.
 
+### Saved allocation cancellation admission
+
+`NativeAllocationStatusRecoveryTests.cancellationRetainsOwnerUntilSenderReturns`
+waits for an explicit sender-entry event after the request's validation and
+settlement checks. Early operation failure finishes that event stream;
+cancellation unwinds it into release, operation join and owner drain. The test
+still requires both caller cancellation and account shutdown to retain ownership
+until the sender returns, reject late success and preserve the saved row. A
+three-minute per-row test limit contains the entire durable fixture and cleanup;
+it is not a product recovery or sender-entry SLA. Hosted fixture construction
+alone exceeded one minute, and the adjacent audit measured almost six seconds to
+sender entry, invalidating the former four-second polling watchdog. Focused
+event regressions cover admission, early failure and waiter cancellation.
+
+### Fresh PUT signed-expiry lifetime
+
+`NativePhotoUploadLifetimeTests.freshPutTerminationRetainsLeaseAndLocks` keeps
+caller cancellation, account shutdown and genuine signed-expiry timeout as
+separate rows. The timeout row receives a synthetic delayed ticket with 60
+seconds of signed validity, below the unchanged 300-second upload cap. It must
+reach actual task creation and upload start, remain uncancelled by the test,
+retain lease/coordinator exclusion through paused completion, then throw exactly
+`URLError.timedOut`. The original allocation receipt and saved row remain
+unchanged. A three-minute per-row limit contains fixture setup and teardown.
+Hosted durable handoff took over 14 seconds, so the earlier ten-second fixture
+expired before reaching the behavior this test asserts. Production clocks,
+expiry validation and the deterministic decoder boundary tests are unchanged;
+fresh hosted proof is required.
+
 ### Synthetic video fixture encoder ownership
 
 `VideoAudioFixture` serializes its complete preparation lifecycle across test
 suites: silent-video writing, AAC preparation and composition export. The permit
 is released only after completion or error cleanup, including cancellation after
-waiting. The five-second writer readiness bound is unchanged. This test-only
-guard does not serialize production capture or extraction. The concurrent
-fixture regression covers silent, mono and stereo outputs together with a
-pre-cancelled constructor and successful preparation afterward. It does not
-deterministically force cancellation while queued. CI iOS887 exposed a
-writer-readiness timeout; overlapping fixture exports are a supported contention
-hypothesis, not evidence of a production media defect.
+waiting. Its black pixel buffers and legacy adaptor use BGRA; fixture frame
+count, dimensions, timestamps and readiness deadlines remain unchanged. On iOS
+26 and later it attaches the input through Apple's pixel-buffer receiver and
+uses
+[`appendImmediately(_:with:)`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/pixelbufferreceiver/appendimmediately(_:with:))
+for each immutable buffer. A false result reports backpressure; the fixture
+retries after a cancellation-aware five-millisecond sleep, within the same
+five-second absolute readiness bound. Earlier runtimes retain the legacy adaptor
+and its five-second bound. Deadline and cancellation checks bracket each
+synchronous append, so late success remains failure. Writer cancellation occurs
+in the caller's cleanup only after the append returns; it never races an
+outstanding asynchronous append. No timer or append task outlives the helper.
+
+This test-only guard does not serialize production capture or extraction. The
+concurrent fixture regression covers silent, mono and stereo outputs together
+with a pre-cancelled constructor and successful preparation afterward. It does
+not deterministically force cancellation while queued. A separate controlled
+append regression covers immediate success, backpressure followed by success,
+append error, timeout, cancellation while waiting, success or backpressure after
+the deadline, and an already-expired deadline. It also checks that attempts stop
+after the helper returns. Fixed phase-only diagnostics distinguish gate
+admission, silent writing, AAC creation and composition export without recording
+media, paths or identities. Failure-only readiness observations record bounded
+attempt/backpressure counts, append and elapsed durations, frame position and
+allowlisted writer status, without raw codec error text.
+`CaptureVideoReanalysisHostTests` waits for settlement with cancellation-aware
+short sleeps instead of a tight yield loop and cancels/joins host work before
+propagating cancellation to fixture teardown; its one-minute test limit remains.
+
+Earlier hosted diagnostics exposed fixture writer-readiness failures and an
+unsafe cancellation order around asynchronous append. Synchronous polling
+repairs that order; failure-only observations later distinguished sustained
+backpressure from a slow append call. The BGRA fixture candidate subsequently
+passed all 20 selected methods and 65 parameter leaves with zero failures or
+skips in diagnostic run
+[44794130187](https://github.com/emreerdener/merian/actions/runs/44794130187) on
+`ec2dbb7fbfeafea1e1a892320828718e30caba7e`. This is supporting fixture evidence,
+not proof of the underlying encoder cause or complete coverage for a successor
+commit. Final exact-SHA native validation, including the complete unit matrix,
+UI and archive gates, remains required.
 
 ### Explicit source reservation delivery regressions
 

@@ -635,6 +635,31 @@ allocation expiry. Production expiry rules, parser checks and clocks are
 unchanged. Exact-source review and compilation passed. The November 1 focused
 run below records execution; full integration qualification remains pending.
 
+### November 15 — hosted fixture admission and signed expiry
+
+Diagnostic run 43699310762 showed that the historical four-second status-entry
+watchdog and ten-second synthetic PUT capability window do not accommodate this
+host's durable validation work. The cancellation test now waits for a sender
+event after validation, with a three-minute whole-fixture containment limit.
+Early operation exit and cancellation unwind into release, join and owner drain;
+both cancellation rows and saved-state assertions remain.
+
+The fresh PUT timeout fixture now models a ticket created 540,000 ms before its
+response, leaving 60,000 ms under the unchanged
+`min(allocationExpiry, created + 600000)` rule. The hosted cancel/account rows
+reached actual upload start 14.21 and 15.45 seconds after ticket issuance; the
+ten-second row expired before task creation. The new fixture still binds the
+original immutable allocation receipt, rounds signed expiry down to seconds,
+requires actual task creation/start and waits for real signed-expiry timeout
+without explicitly cancelling the timeout row. It now requires the exact
+`URLError.timedOut` outcome while retaining lease/coordinator exclusion until
+completion returns. Its three-minute per-row limit contains the complete fixture
+and drain, not product timing. No allocation refresh, clock injection,
+production TTL, 300-second upload maximum or workflow budget changes. The
+deterministic decoder expiry-edge cases remain unchanged. The earlier
+ten-second/four-second results below are historical evidence; these hosted
+fixture repairs still require fresh complete native validation.
+
 ### November 1 — original failures and corrected account fault qualified
 
 `hq028-audit-read-runtime01-reconciled.json` reconciles 29 selected methods / 49

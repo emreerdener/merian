@@ -13,13 +13,23 @@ struct ObservationVideoReservationLifecycleTests {
 
     func staged(audio: Bool = true) async throws -> (Seed, Store.Snapshot) {
         let fixture = ObservationVideoDurabilityTests(), seed = try await fixture.seed(audio: audio)
+        var producerCompleted = false
         do {
             _ = try await fixture.producer(seed).prepare(seed.preparation, source: seed.source, cohort: seed.cohort,
                 container: seed.container, isCurrent: { true })
+            producerCompleted = true
             let snapshot = try Store.stage(.init(video: seed.preparation.request), proof: seed.proof,
                 container: seed.container, isCurrent: { true })
             return (seed, snapshot)
-        } catch { seed.remove(); throw error }
+        } catch {
+            if producerCompleted {
+                Issue.record("Video fixture reservation staging failed after producer completion")
+            } else {
+                Issue.record("Video fixture producer failed after cohort completion")
+            }
+            seed.remove()
+            throw error
+        }
     }
 
     func reply(_ snapshot: Store.Snapshot, state: String = "reserved", owner: UUID? = nil) throws -> ObservationVideoSourceReservationReply {
