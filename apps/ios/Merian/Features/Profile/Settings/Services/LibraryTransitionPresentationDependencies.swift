@@ -3,6 +3,8 @@ import Foundation
 /// Live library effects stay outside Settings presentation. The snapshot closure
 /// reads observable restoration state so progress continues to invalidate views.
 @MainActor
+// Matches the presentation owner and its dependency file.
+// swiftlint:disable:next type_name
 struct LibraryTransitionPresentationDependencies {
     struct Restoration {
         let accountID: UUID?

@@ -299,9 +299,14 @@ struct OfflineQueueAdmissionArchitectureTests {
             "InferenceFundingReconciliationOwner("
         ))
         let drain = try #require(auth.range(
-            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition() async"
+            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition( "
+                + "recoveryAuthority: AuthRecoveryAuthority? = nil) async -> Bool {"
         ))
-        let drainSource = auth[drain.lowerBound...]
+        let nextFunction = try #require(auth.range(
+            of: "private func verifiedExpectedSession(",
+            range: drain.upperBound..<auth.endIndex
+        ))
+        let drainSource = auth[drain.lowerBound..<nextFunction.lowerBound]
         let settlement = try #require(drainSource.range(
             of: ".cancelAndAwaitInferenceFundingSettlementForAuthTransition()"
         ))
@@ -309,6 +314,27 @@ struct OfflineQueueAdmissionArchitectureTests {
             of: ".quiesceBackgroundAccountWorkForAuthTransition("
         ))
         #expect(settlement.lowerBound < background.lowerBound)
+        let retained = try #require(drainSource.range(
+            of: ".awaitRetainedSyncQuiescenceForAuthTransition()"
+        ))
+        #expect(background.lowerBound < retained.lowerBound)
+        let leases = try #require(drainSource.range(
+            of: "authRuntimeState.awaitAccountWorkDrain()"
+        ))
+        #expect(retained.lowerBound < leases.lowerBound)
+        let queueDrain = try contents(of: repository.appendingPathComponent(
+            "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+ReanalysisExecution.swift"
+        ))
+        #expect(queueDrain.contains("reanalysisExecutionOwner.invalidate()"))
+        #expect(queueDrain.contains("await awaitCollectionSyncQuiescenceForAuthTransition()"))
+        #expect(queueDrain.contains("await reanalysisExecutionOwner.cancelAndAwait()"))
+        #expect(queueDrain.contains("analysisReviewDeliveryOwner.cancel()"))
+        #expect(queueDrain.contains("await analysisReviewDeliveryOwner.cancelAndAwait()"))
+        let backgroundSource = try contents(of: repository.appendingPathComponent(
+            "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift"))
+        let reviews = try #require(backgroundSource.range(of: "await analysisReviewDeliveryOwner.cancelAndAwait()"))
+        let transport = try #require(backgroundSource.range(of: "let tasks = await backgroundSession.allTasks"))
+        #expect(reviews.lowerBound < transport.lowerBound)
     }
 
     private static let serviceDirectories = [

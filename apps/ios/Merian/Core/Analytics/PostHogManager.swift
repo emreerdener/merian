@@ -255,6 +255,7 @@ final class PostHogManager {
 
     /// Configures the PostHog SDK.
     private func configure() {
+        guard MerianEnvironment.allowsAncillaryHostedIntegrations else { return }
         var configurationContext: (generation: UInt, userId: String?)?
         lock.withLock {
             guard _hasConsent, !_isConfigured, !_isConfiguring else { return }

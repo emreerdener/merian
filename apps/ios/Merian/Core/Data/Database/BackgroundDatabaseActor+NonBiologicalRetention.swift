@@ -15,12 +15,14 @@ extension BackgroundDatabaseActor {
         /// Persisted scan rows actually removed by this transaction.
         let deletedRecordCount: Int
         let localMediaPaths: [String]
+        var childIDs: [String] = []
     }
 
-    private struct NonBiologicalDeletionCommit {
+    struct NonBiologicalDeletionCommit: Sendable {
         let committedErasureCount: Int
         let deletedRecordCount: Int
         let localMediaPaths: [String]
+        var childIDs: [String] = []
     }
 
     /// Deletes non-biological scans and queues their cloud erasure atomically.
@@ -33,6 +35,14 @@ extension BackgroundDatabaseActor {
         try commitNonBiologicalScanDeletion(payloads: payloads, requestingAccountID: requestingAccountID,
                                            origin: .explicitUserDeletion)
             .localMediaPaths
+    }
+
+    /// Returns transport cleanup only after the same durable parent/child commit.
+    func bulkDeleteNonBiologicalScansWithQueueCleanup(
+        payloads: [ScanErasurePayload], requestingAccountID: UUID? = nil
+    ) throws -> NonBiologicalDeletionCommit {
+        try commitNonBiologicalScanDeletion(payloads: payloads, requestingAccountID: requestingAccountID,
+                                           origin: .explicitUserDeletion)
     }
 
     private func commitNonBiologicalScanDeletion(
@@ -54,6 +64,7 @@ extension BackgroundDatabaseActor {
         var committedErasureCount = 0
         var deletedRecordCount = 0
         var localMediaPathsToDelete: [String] = []
+        var childIDs: [String] = []
 
         do {
             for payload in payloads {
@@ -65,6 +76,13 @@ extension BackgroundDatabaseActor {
                 )
                 descriptor.fetchLimit = 1
                 let record = try context.fetch(descriptor).first
+
+                // Recheck both the row marker and reverse ledger ownership.
+                // A missing/downgraded scan cannot expose native paths from a
+                // stale UI payload to generic cleanup or cloud deletion.
+                if let record, !SharedMediaConsumerAuthority.permitsLegacyScanRemoval(
+                    raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID) { continue }
+                if try SharedMediaConsumerLookup.hasScanOwner(scanId, in: context) { continue }
 
                 // The UI snapshots eligible rows before crossing into this
                 // actor. Revalidate here so a concurrent reconciliation that
@@ -78,7 +96,11 @@ extension BackgroundDatabaseActor {
                 if origin == .explicitUserDeletion {
                     try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(scanId, context: context)
                 }
+                let children = try ObservationReanalysisErasure.removeChildren(of: scanId, context: context)
+                childIDs += children.childIDs
                 try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
+                try ObservationAnalysisReviewPersistence.removeForDeletion(scanId, context: context)
+                try ProtectedInsightChatPersistence.removeForDeletion(scanId, context: context)
                 if let record {
                     context.delete(record)
                     deletedRecordCount += 1
@@ -98,7 +120,7 @@ extension BackgroundDatabaseActor {
             return NonBiologicalDeletionCommit(
                 committedErasureCount: committedErasureCount,
                 deletedRecordCount: deletedRecordCount,
-                localMediaPaths: localMediaPathsToDelete
+                localMediaPaths: localMediaPathsToDelete, childIDs: childIDs
             )
         } catch {
             context.rollback()
@@ -139,6 +161,9 @@ extension BackgroundDatabaseActor {
             let read = ModelContext(modelContainer)
             let page = try read.fetch(descriptor)
             for record in page where payloads.count < limit {
+                guard SharedMediaConsumerAuthority.permitsLegacyScanRemoval(
+                    raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID),
+                    try !SharedMediaConsumerLookup.hasScanOwner(record.id, in: read) else { continue }
                 guard try !ObservationHistoryEnrollmentIntent.holds(record.id, context: read) else { continue }
                 let media = record.capturedMediaSnapshot
                 payloads.append(.init(id: record.id, mediaPaths: media.thumbnailImagePaths + media.audioPaths + media.videoPaths))
@@ -155,7 +180,7 @@ extension BackgroundDatabaseActor {
         return ExpiredNonBiologicalPurgeResult(
             committedErasureCount: commit.committedErasureCount,
             deletedRecordCount: commit.deletedRecordCount,
-            localMediaPaths: commit.localMediaPaths
+            localMediaPaths: commit.localMediaPaths, childIDs: commit.childIDs
         )
     }
 }

@@ -5,6 +5,68 @@ import SwiftData
 @MainActor
 @Observable
 final class QueuedContentViewModel {
+    enum ObservationState: Equatable {
+        case idle, checking, unavailable
+        case observed(ScanObservationResponse)
+    }
+    private(set) var observationState: ObservationState = .idle
+    var hasObservationAction: Bool { dependencies.readObservation != nil }
+    var canCheckObservation: Bool { observationVisible && hasObservationAction && observationTask == nil && observationCleanup == nil }
+    struct ObservationTicket { fileprivate let generation: UUID }
+    private var observationVisible = false
+    func setObservationVisible(_ visible: Bool) {
+        observationVisible = visible
+        if !visible { closeObservation() }
+    }
+    func observationTicket() -> ObservationTicket? {
+        canCheckObservation ? ObservationTicket(generation: observationGeneration) : nil
+    }
+    private var observationTask: Task<Void, Never>?
+    private var observationCleanup: Task<Void, Never>?
+    @ObservationIgnored private var observed: QueuedContentDependencies.Observation?
+    @ObservationIgnored private var observationGeneration = UUID()
+
+    func checkObservation(scanID: String, queueManager: OfflineQueueManager, ticket: ObservationTicket,
+                          isCurrent: @escaping @MainActor () -> Bool) async {
+        guard canCheckObservation, ticket.generation == observationGeneration, isCurrent(), let read = dependencies.readObservation else { return }
+        let generation = UUID(); observationGeneration = generation
+        observed = nil; observationState = .checking
+        let task = Task { [self] in
+            let current = { self.observationVisible && self.observationGeneration == generation && isCurrent() }
+            do {
+                try Task.checkCancellation()
+                let result = try await read(queueManager, scanID, current)
+                try Task.checkCancellation(); try result.validate()
+                guard current() else { return }
+                observed = result; observationState = .observed(result.value)
+            } catch {
+                if current() { observationState = .unavailable }
+            }
+        }
+        observationTask = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        if observationGeneration == generation { observationTask = nil }
+    }
+
+    func validateObservation() {
+        guard let observed else { return }
+        do { try observed.validate() } catch { self.observed = nil; observationState = .unavailable }
+    }
+
+    func closeObservation() {
+        observationGeneration = UUID(); observed = nil; observationState = .idle
+        guard let task = observationTask else { return }
+        task.cancel(); observationTask = nil
+        let previous = observationCleanup
+        observationCleanup = Task { [self] in
+            await previous?.value; await task.value; observationCleanup = nil
+        }
+    }
+
+    func closeObservationAndWait() async {
+        closeObservation(); await observationCleanup?.value
+    }
+
     struct RetryRefreshRequest: Equatable {
         let id = UUID()
         let scanID: String

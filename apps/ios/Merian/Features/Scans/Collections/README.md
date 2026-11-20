@@ -105,6 +105,12 @@ and
 
 ## Smart Collections and Map Entry
 
+Smart collections show every eligible suggestion without an overall count cap.
+Every location with at least three biological scans can appear. Location cards
+follow Recent finds, Explore posts, Invasive finds, and Potential hazards;
+places are ordered by scan count, then newest scan. Taxonomy categories belong
+to Scans filters and do not create smart collections.
+
 Smart collections are local projections. They never create `ScanCollection` rows
 or enter the cloud payload. `SmartCollectionSuggester` receives the public share
 lookup as an injected value, and hidden smart IDs remain device-local

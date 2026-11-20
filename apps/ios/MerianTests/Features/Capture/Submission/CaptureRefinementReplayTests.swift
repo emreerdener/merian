@@ -4,6 +4,86 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testEnrollmentBeforeOrDuringAdmissionPreservesLegacyDraftWithoutEnqueue() async throws {
+        let queue = OfflineQueueManager.shared, previous = OfflineQueueManager.shared.modelContext
+        let wasOnline = queue.isOnline
+        defer { queue.modelContext = previous; queue.isOnline = wasOnline; ScanAdmissionManager.shared.resetForTesting() }
+        queue.isOnline = true
+        for visual in [false, true] {
+            for before in [false, true] {
+                let context = try makeModelContext()
+                queue.modelContext = context
+                let original = LocalScanRecord(speciesId: "refinement-fence", scientificName: "Danaus plexippus", commonName: "Monarch")
+                context.insert(original); try context.save()
+                let vm = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+                vm.baseRefinementContext = RefinementScanContext(record: original)
+                let note = ObservationContext(freeText: "Additional evidence")
+                vm.stagedCapture.observationContexts = [StagedObservationContext(context: note)]
+                if visual { vm.commitPreparedStagedImages([makePreparedStagedImage()]) }
+                let nodes = vm.stagedCapture.orderedNodes.map(\.id)
+                let protect = {
+                    _ = try ObservationHistoryEnrollmentIntent.stage(observationID: XCTUnwrap(UUID(uuidString: original.id)), ownerID: UUID(), context: context)
+                    try context.save()
+                }
+                if before { try protect() }
+                var previews = 0
+                ScanAdmissionManager.shared.overridingPreview = { _ in
+                    previews += 1
+                    do { try protect() } catch { XCTFail("Unable to stage enrollment") }
+                    return ScanAdmissionPreview(decision: .allowed, effectivePlan: "pro_paid", dailyLimit: nil, dailyRemaining: nil)
+                }
+                if visual {
+                    await vm.submitStagedCapture(modelContext: context)
+                } else {
+                    let accepted = await vm.submitNonVisualCapture(audioFileNames: [], observationContexts: [note],
+                        mediaTimeline: [.description(note)], modelContext: context, targetEradicationScanId: original.id)
+                    XCTAssertFalse(accepted)
+                }
+                XCTAssertEqual(previews, before ? 0 : 1)
+                XCTAssertEqual(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()), 0)
+                XCTAssertEqual(try context.fetchCount(FetchDescriptor<LocalScanRecord>()), 1)
+                XCTAssertEqual(vm.stagedCapture.orderedNodes.map(\.id), nodes)
+                XCTAssertEqual(vm.baseRefinementContext?.scanId, original.id)
+                XCTAssertNil(vm.pendingAnalyzeScanId)
+            }
+        }
+    }
+
+    func testNonvisualAdmissionCannotOutliveCanceledOrChangedRefinementTarget() async throws {
+        let queue = OfflineQueueManager.shared, previous = OfflineQueueManager.shared.modelContext
+        let wasOnline = queue.isOnline
+        defer { queue.modelContext = previous; queue.isOnline = wasOnline; ScanAdmissionManager.shared.resetForTesting() }
+        queue.isOnline = true
+        for replace in [false, true] {
+            let context = try makeModelContext()
+            queue.modelContext = context
+            let original = LocalScanRecord(speciesId: "refinement-fence", scientificName: "Danaus plexippus", commonName: "Monarch")
+            context.insert(original); try context.save()
+            let vm = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+            vm.baseRefinementContext = RefinementScanContext(record: original)
+            let note = ObservationContext(freeText: "Additional evidence")
+            vm.stagedCapture.observationContexts = [StagedObservationContext(context: note)]
+            let nodes = vm.stagedCapture.orderedNodes.map(\.id)
+            var previews = 0
+            ScanAdmissionManager.shared.overridingPreview = { _ in
+                previews += 1
+                vm.cancelRefinementStaging()
+                if replace {
+                    vm.baseRefinementContext = RefinementScanContext(record: LocalScanRecord(
+                        speciesId: "different-source", scientificName: "Strix varia", commonName: "Barred Owl"))
+                }
+                return ScanAdmissionPreview(decision: .allowed, effectivePlan: "pro_paid", dailyLimit: nil, dailyRemaining: nil)
+            }
+            let accepted = await vm.submitNonVisualCapture(audioFileNames: [], observationContexts: [note],
+                mediaTimeline: [.description(note)], modelContext: context, targetEradicationScanId: original.id)
+            XCTAssertFalse(accepted)
+            XCTAssertEqual(previews, 1)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()), 0)
+            XCTAssertEqual(vm.stagedCapture.orderedNodes.map(\.id), nodes)
+            XCTAssertNil(vm.pendingAnalyzeScanId)
+        }
+    }
+
     func testRefinementThreeItemQueueReplayMatchesForegroundProjection() async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }
@@ -28,6 +108,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
             let original = LocalScanRecord(
                 speciesId: "refinement-replay", scientificName: "Strix varia", commonName: "Barred Owl"
             )
+            context.insert(original)
+            try context.save()
             viewModel.baseRefinementContext = RefinementScanContext(record: original)
             viewModel.commitPreparedStagedImages([makePreparedStagedImage()])
             if addsAudio {

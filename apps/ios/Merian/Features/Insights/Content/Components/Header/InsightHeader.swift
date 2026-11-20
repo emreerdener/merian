@@ -14,6 +14,9 @@ struct InsightHeader: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareCommunityConsent: CommunityConsentPreparation?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var confidenceReviewControls = ConfidenceReviewControls()
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
     var alternativeCommonNames: [String]?
@@ -33,7 +36,10 @@ struct InsightHeader: View {
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
                     aiScientificName: aiScientificName,
-                    onAskCommunity: onAskCommunity
+                    onAskCommunity: onAskCommunity,
+                    prepareCommunityConsent: prepareCommunityConsent,
+                    prepareSavedReanalysis: prepareSavedReanalysis,
+                    confidenceReviewControls: confidenceReviewControls
                 )
 
             if let primaryRankDescription {
@@ -53,8 +59,8 @@ struct InsightHeader: View {
                         .italic()
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // MARK: - Common Name
@@ -63,6 +69,8 @@ struct InsightHeader: View {
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(hazardType != "none" ? [] : .isHeader)
                     .accessibilityHint(hasPicker ? "Tap to choose a preferred name" : "")
                     .background(

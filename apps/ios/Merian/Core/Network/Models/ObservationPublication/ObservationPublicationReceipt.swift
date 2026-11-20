@@ -29,6 +29,22 @@ struct ObservationPublicationReceipt: Equatable, Sendable {
         return Self(request, status: status)
     }
 
+    /// Only explicit JSON null denotes absence. A discovered receipt cannot restore private consent.
+    static func decodeTarget(_ data: Data, request: ObservationPublicationTargetRequest) throws -> Self? {
+        guard data.count <= 4096,
+              let root = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) else {
+            throw MerianError.invalidResponse
+        }
+        if root is NSNull { return nil }
+        let row = try ObservationPublicationWire.object(data,
+            keys: ["schema_version", "operation_id", "observation_id", "analysis_id", "status"])
+        let expected = try ObservationPublicationStatusRequest(
+            operationID: ObservationPublicationWire.uuid(row["operation_id"]),
+            observationID: request.observationID,
+            analysisID: ObservationPublicationWire.uuid(row["analysis_id"]))
+        return try decodeStatus(data, request: expected)
+    }
+
     static func decodeAdmission(_ data: Data, request: ObservationPublicationRequest) throws -> Self {
         let row = try ObservationPublicationWire.object(data,
             keys: ["schema_version", "operation_id", "observation_id", "analysis_id", "status", "admitted_at"])

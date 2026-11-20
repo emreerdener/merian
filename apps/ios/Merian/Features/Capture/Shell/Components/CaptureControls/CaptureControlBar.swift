@@ -150,7 +150,8 @@ struct CaptureControlBar: View {
                     await viewModel.requestPhotoPickerEntryAdmission(
                         maximumSelectionCount: viewModel.photoPickerSelectionLimit
                     )
-                }
+                },
+                onPresentationChange: { viewModel.isPhotoLibraryPresented = $0 }
             )
             .opacity(
                 presentation.showsPhotoLibrary
@@ -326,7 +327,7 @@ struct CaptureControlBar: View {
         guard audioRecordingStartTask == nil else { return }
         audioRecordingStartTask = Task {
             defer { audioRecordingStartTask = nil }
-            guard await requestAudioScanAdmission() else { return }
+            guard viewModel.hasAvailableStagedCaptureSlot else { return }
             guard let operation = viewModel.audioDraftOperation,
                   viewModel.draftSession.contains(operation),
                   operation.id == audioCaptureManager.recordingID else { return }
@@ -349,7 +350,7 @@ struct CaptureControlBar: View {
                 }
             }
             do {
-                guard await requestAudioScanAdmission() else { return }
+                guard viewModel.hasAvailableStagedCaptureSlot else { return }
                 guard scenePhase == .active, viewModel.draftSession.contains(operation) else { return }
                 try await audioCaptureManager
                     .requestMicrophonePermissionForRecording()
@@ -374,14 +375,6 @@ struct CaptureControlBar: View {
                 }
             }
         }
-    }
-
-    private func requestAudioScanAdmission() async -> Bool {
-        guard viewModel.hasAvailableStagedCaptureSlot else { return false }
-        let route = await viewModel.requestScanAdmission(
-            flashFallbackEligible: viewModel.isProspectiveFreeMediaEligible(audio: 1)
-        )
-        return route != nil && viewModel.hasAvailableStagedCaptureSlot
     }
 
     private func handleDescribeAction() {

@@ -1,7 +1,11 @@
 import Foundation
 
 enum MessageScanShareCacheConstants {
+    #if MERIAN_HISTORY_QUALIFICATION
+    static let appGroupIdentifier = "group.app.merian.historyqualification"
+    #else
     static let appGroupIdentifier = "group.app.merian.shared"
+    #endif
     static let maxRecordCount = 100
     static let thumbnailMaxDimension = 512
     static let attachmentMaxDimension = 1600

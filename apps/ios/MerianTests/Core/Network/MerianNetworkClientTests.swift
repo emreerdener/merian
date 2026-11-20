@@ -861,6 +861,31 @@ struct MerianNetworkClientTests {
         #expect(response.mediaTypeCounts.isEmpty)
     }
 
+    @Test(arguments: [false, true])
+    func completionScopeTransportDoesNotRecoverAuthWhileLeased(allowsRecovery: Bool) async throws {
+        let requests = NetworkRequestProbe()
+        let refresh = SendableCallbackProbe()
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            let attempt = requests.record(idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"))
+            return (HTTPURLResponse(url: try #require(request.url), statusCode: attempt == 1 ? 401 : 200,
+                httpVersion: nil, headerFields: ["X-Merian-Handler": "1"])!,
+                Data((attempt == 1 ? #"{"code":"invalid_session_token","error":"Unauthorized: Invalid or expired session token."}"# : "{}").utf8))
+        }
+        MerianNetworkClient.shared.overridingAuthSessionRefresh = { refresh.mark(); return true }
+        defer { MerianNetworkClient.shared.overridingAuthSessionRefresh = nil }
+        var request = URLRequest(url: URL(string: "https://example.com/functions/v1/identify-multimodal")!)
+        request.httpBody = Data("{}".utf8)
+        do {
+            _ = try await MerianNetworkClient.shared.performAuthenticatedInferenceRequest(
+                .init(request: request, expectedAuthUserID: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!),
+                timeoutInterval: 5, allowsTransientTransportRetry: false, onRequestBodySent: nil,
+                allowsUnauthorizedSessionRecovery: allowsRecovery)
+            #expect(allowsRecovery)
+        } catch { #expect(!allowsRecovery) }
+        #expect(refresh.wasMarked == allowsRecovery)
+        #expect(requests.count == (allowsRecovery ? 2 : 1))
+    }
+
     @Test func testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry() async throws {
         let requestProbe = NetworkRequestProbe()
         let refreshProbe = SendableCallbackProbe()

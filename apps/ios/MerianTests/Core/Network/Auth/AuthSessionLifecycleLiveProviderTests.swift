@@ -4,21 +4,32 @@ import Supabase
 import XCTest
 
 private actor AuthSessionLifecycleLiveSuspensionGate {
+    private enum Failure: Error { case readinessTimedOut }
     private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
 
     func wait() async {
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if released || Task.isCancelled { continuation.resume() }
+                else { self.continuation = continuation }
+            }
+        } onCancel: {
+            Task { await self.release() }
         }
     }
 
-    func waitUntilSuspended() async {
+    func waitUntilSuspended() async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
         while continuation == nil {
-            await Task.yield()
+            try Task.checkCancellation()
+            guard ContinuousClock.now < deadline else { throw Failure.readinessTimedOut }
+            try await Task.sleep(for: .milliseconds(10))
         }
     }
 
     func release() {
+        released = true
         let continuation = continuation
         self.continuation = nil
         continuation?.resume()
@@ -388,7 +399,7 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         provider.cancel()
     }
 
-    func testRestartCancelsTrailingEffectFromSuspendedListener() async {
+    func testRestartCancelsTrailingEffectFromSuspendedListener() async throws {
         let userID = UUID()
         let state = AuthSessionLifecycleSDKState(
             user: Self.user(id: userID, isAnonymous: false),
@@ -411,7 +422,7 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         let liveDependencies = dependencies.dependencies()
         provider.start(dependencies: liveDependencies)
         stream.send(state)
-        await gate.waitUntilSuspended()
+        try await gate.waitUntilSuspended()
 
         provider.start(dependencies: liveDependencies)
         await gate.release()
@@ -446,6 +457,124 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         provider = nil
 
         XCTAssertNil(releasedProvider)
+    }
+
+    func testInitialSignedOutJoinWaitsForIdentityCleanupExit() async throws {
+        let state = AuthSessionLifecycleSDKState(user: nil, isExpired: false, origin: .initialRestoration)
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: UUID())
+        let gate = AuthSessionLifecycleLiveSuspensionGate()
+        dependencies.coordinatorHarness.suspendSignOut = { await gate.wait() }
+        let provider = stream.makeProvider()
+        defer { provider.cancel() }
+        provider.start(dependencies: dependencies.dependencies())
+        stream.send(state)
+        try await gate.waitUntilSuspended()
+        let early = try await provider.waitForInitialSignedOutForTesting(timeout: .milliseconds(20))
+        XCTAssertFalse(early)
+        XCTAssertFalse(dependencies.events.contains("resume-revocation"))
+        await gate.release()
+        let joined = try await provider.waitForInitialSignedOutForTesting(timeout: .seconds(2))
+        XCTAssertTrue(joined)
+        XCTAssertEqual(dependencies.coordinatorHarness.diagnostics.last, .processed)
+        XCTAssertTrue(dependencies.events.contains("resume-revocation"))
+        await stream.sendAndWait(.init(user: nil, isExpired: false, origin: .runtimeTransition))
+        let stale = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(stale)
+    }
+
+    func testInitialSignedOutJoinFailsClosedWithoutInitialEventAndCancelsWaiter() async throws {
+        let state = AuthSessionLifecycleSDKState(user: nil, isExpired: false, origin: .initialRestoration)
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let provider = stream.makeProvider()
+        defer { provider.cancel() }
+        provider.start(dependencies: LifecycleLiveDependenciesHarness(userID: UUID()).dependencies())
+        let absent = try await provider.waitForInitialSignedOutForTesting(timeout: .milliseconds(20))
+        XCTAssertFalse(absent)
+        let waiter = Task { try await provider.waitForInitialSignedOutForTesting() }
+        waiter.cancel()
+        do { _ = try await waiter.value; XCTFail("Cancelled wait must throw") }
+        catch is CancellationError {} catch { XCTFail("Unexpected cancellation error") }
+        await stream.sendAndWait(state)
+        let joined = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertTrue(joined, "Cancelling a waiter must preserve the real listener")
+    }
+
+    func testInitialSignedOutJoinRejectsDeferredAndReplacedListenerCompletion() async throws {
+        let state = AuthSessionLifecycleSDKState(user: nil, isExpired: false, origin: .initialRestoration)
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: UUID())
+        let provider = stream.makeProvider()
+        defer { provider.cancel() }
+        dependencies.hasActiveTransition = true
+        provider.start(dependencies: dependencies.dependencies())
+        await stream.sendAndWait(state)
+        dependencies.hasActiveTransition = false
+        let deferred = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(deferred)
+        provider.cancel()
+        let replacementStream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let replacement = replacementStream.makeProvider()
+        defer { replacement.cancel() }
+        let gate = AuthSessionLifecycleLiveSuspensionGate()
+        dependencies.coordinatorHarness.suspendSignOut = { await gate.wait() }
+        replacement.start(dependencies: dependencies.dependencies())
+        replacementStream.send(state)
+        try await gate.waitUntilSuspended()
+        replacement.start(dependencies: dependencies.dependencies())
+        await gate.release()
+        let replaced = try await replacement.waitForInitialSignedOutForTesting(timeout: .milliseconds(30))
+        XCTAssertFalse(replaced, "The cancelled old listener cannot satisfy the new initial join")
+    }
+
+    func testInitialSignedOutJoinInvalidatesBeforeTransitionAndReconciliation() async throws {
+        let state = AuthSessionLifecycleSDKState(user: nil, isExpired: false, origin: .initialRestoration)
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: UUID())
+        let provider = stream.makeProvider()
+        defer { provider.cancel() }
+        provider.start(dependencies: dependencies.dependencies())
+        await stream.sendAndWait(state)
+        provider.authTransitionWillBegin()
+        let transitioning = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(transitioning)
+        await stream.sendAndWait(state)
+        let gate = AuthSessionLifecycleLiveSuspensionGate()
+        dependencies.coordinatorHarness.suspendSignOut = { await gate.wait() }
+        let prior = dependencies.coordinatorHarness.diagnostics.count
+        XCTAssertTrue(provider.scheduleCurrentSessionReconciliation(authGeneration: dependencies.generation,
+            force: true, dependencies: dependencies.dependencies()))
+        try await gate.waitUntilSuspended()
+        let reconciling = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(reconciling)
+        await gate.release()
+        await waitUntil { dependencies.coordinatorHarness.diagnostics.count > prior }
+        let replayed = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(replayed, "Runtime reconciliation is not an initial-handler completion")
+    }
+
+    func testInitialJoinCannotRepublishWhileSameGenerationReplayIsPending() async throws {
+        let state = AuthSessionLifecycleSDKState(user: nil, isExpired: false, origin: .initialRestoration)
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: UUID())
+        let initial = AuthSessionLifecycleLiveSuspensionGate(), replay = AuthSessionLifecycleLiveSuspensionGate()
+        var calls = 0
+        dependencies.coordinatorHarness.suspendSignOut = {
+            calls += 1
+            if calls == 1 { await initial.wait() } else { await replay.wait() }
+        }
+        let provider = stream.makeProvider()
+        defer { provider.cancel() }
+        provider.start(dependencies: dependencies.dependencies()); stream.send(state)
+        try await initial.waitUntilSuspended()
+        XCTAssertTrue(provider.scheduleCurrentSessionReconciliation(authGeneration: dependencies.generation,
+            force: true, dependencies: dependencies.dependencies()))
+        try await replay.waitUntilSuspended(); await initial.release()
+        await waitUntil { dependencies.events.contains("resume-revocation") }
+        let joined = try await provider.waitForInitialSignedOutForTesting(timeout: .zero)
+        XCTAssertFalse(joined, "An invalidated initial handler cannot republish while replay is pending")
+        await replay.release()
+        await waitUntil { dependencies.coordinatorHarness.diagnostics.count == 2 }
     }
 
     private func waitUntil(

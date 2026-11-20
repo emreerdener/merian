@@ -1,7 +1,12 @@
 """Deterministic pre-admission window scheduling; no database or wall sleeps."""
 import math
+import json
+import subprocess
 import unittest
-from initial_atomic_admission_counter_order import require_counter_runway
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+from initial_atomic_admission_counter_window import require_counter_runway, prepare_counter_window
+from initial_atomic_admission_counter_images import counter_image_cases
 
 
 class Clock:
@@ -80,6 +85,66 @@ class CounterWindowTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'policy unsupported'):
                 require_counter_runway(lambda _:sample,waits.append,lambda:0)
             self.assertEqual(waits,[])
+
+    def test_database_sample_is_read_only_bounded_and_retained(self):
+        qualification=SimpleNamespace(command=['owned-disposable-psql'],record={},save=Mock())
+        sample=dict(epoch=86400,user_window_seconds=60,ip_window_seconds=60,daily_enabled=True)
+        with patch('initial_atomic_admission_counter_window.subprocess.run',
+                   return_value=subprocess.CompletedProcess([],0,json.dumps(sample),'')) as run:
+            prepare_counter_window(qualification,'counter_images')
+        self.assertEqual(run.call_args.args,(qualification.command,))
+        self.assertEqual(run.call_args.kwargs['timeout'],5)
+        self.assertTrue(run.call_args.kwargs['input'].startswith('BEGIN READ ONLY;'))
+        self.assertIn("statement_timeout='2s'",run.call_args.kwargs['input'])
+        receipt=qualification.record['counter_window_preconditions'][0]
+        self.assertEqual(receipt['phase'],'counter_images')
+        self.assertEqual(receipt['required_runway_seconds'],50)
+        self.assertEqual(len(receipt['samples']),1)
+        qualification.save.assert_called_once()
+
+    def test_failed_database_sample_never_records_passing_precondition(self):
+        for result in [subprocess.CompletedProcess([],1,'',''),
+                       subprocess.CompletedProcess([],0,'','unexpected diagnostic'),
+                       subprocess.CompletedProcess([],0,'invalid json','')]:
+            qualification=SimpleNamespace(command=['owned-disposable-psql'],record={},save=Mock())
+            with self.subTest(result=result), patch(
+                    'initial_atomic_admission_counter_window.subprocess.run',return_value=result):
+                with self.assertRaises((RuntimeError,ValueError)):
+                    prepare_counter_window(qualification,'counter_images')
+            self.assertNotIn('counter_window_preconditions',qualification.record)
+            qualification.save.assert_not_called()
+
+    def test_counter_images_establishes_window_before_all_three_admissions(self):
+        events=[]
+        qualification=SimpleNamespace(record={},execute=Mock())
+        fixture=Mock(foreign='foreign-owner')
+        def admit(**kwargs):
+            events.append('admit')
+            return SimpleNamespace(scan_id='synthetic-'+str(len(events)))
+        fixture.admit_one.side_effect=admit
+        with patch('initial_atomic_admission_counter_images.AdmissionFixture',return_value=fixture), \
+                patch('initial_atomic_admission_counter_images.prepare_counter_window',
+                      side_effect=lambda q,phase:events.append('window')) as window:
+            counter_image_cases(qualification)
+        self.assertEqual(events,['window','admit','admit','admit'])
+        window.assert_called_once_with(qualification,'counter_images')
+        fixture.close.assert_called_once()
+        self.assertEqual([call.args[0] for call in qualification.execute.call_args_list],
+                         ['prove_three_admitted_counter_topology','shared_two_to_one',
+                          'shared_one_to_absent','unrelated_one_to_absent',
+                          'fresh_exact_replay_preserves_empty_counters'])
+
+    def test_counter_images_closes_fixture_without_admission_when_window_fails(self):
+        qualification=SimpleNamespace(record={},execute=Mock())
+        fixture=Mock()
+        with patch('initial_atomic_admission_counter_images.AdmissionFixture',return_value=fixture), \
+                patch('initial_atomic_admission_counter_images.prepare_counter_window',
+                      side_effect=RuntimeError('same-window fixture runway unavailable')):
+            with self.assertRaisesRegex(RuntimeError,'runway unavailable'):
+                counter_image_cases(qualification)
+        fixture.admit_one.assert_not_called()
+        fixture.close.assert_called_once()
+        qualification.execute.assert_not_called()
 
 
 if __name__=='__main__':

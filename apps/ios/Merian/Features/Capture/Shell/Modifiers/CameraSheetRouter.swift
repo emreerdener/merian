@@ -11,6 +11,24 @@ struct CameraSheetRouter: ViewModifier {
     @State private var isPresentingInsight = false
     @State private var hasDisplayedWhatsNew = false
 
+    private var insightContent: some View {
+        InsightSheetView(isPresented: Binding(
+            get: { viewModel.activeSheet == .insight },
+            set: {
+                if !$0 && viewModel.activeSheet == .insight {
+                    inferenceEngine.dismissAnalyzingPresentation()
+                    isPresentingInsight = false
+                    viewModel.dismissActivePresentation()
+                }
+            }
+        ), inferenceEngine: inferenceEngine)
+        .onAppear {
+            isPresentingInsight = true
+            appSettings.hasUnseenScan = false
+            AppIconBadgeCoordinator.updateAppIconBadge()
+        }
+    }
+
     func body(content: Content) -> some View {
         content
             .sheet(item: Binding(
@@ -44,23 +62,19 @@ struct CameraSheetRouter: ViewModifier {
                 hasDisplayedWhatsNew = false
                 onDismiss()
             }) { presentation in
-                Group {
+                LibraryAccountAccessView(title: presentation.destination.libraryAccessTitle) {
                     switch presentation.destination {
                     case .insight:
-                        InsightSheetView(isPresented: Binding(
-                            get: { viewModel.activeSheet == .insight },
-                            set: {
-                                if !$0 && viewModel.activeSheet == .insight {
-                                    inferenceEngine.dismissAnalyzingPresentation()
-                                    isPresentingInsight = false
-                                    viewModel.dismissActivePresentation()
-                                }
-                            }
-                        ), inferenceEngine: inferenceEngine)
-                        .onAppear {
-                            isPresentingInsight = true
-                            appSettings.hasUnseenScan = false
-                            AppIconBadgeCoordinator.updateAppIconBadge()
+                        if let scanID = presentation.localScanID {
+                            LocalScanInsightLoader(scanId: scanID) { insightContent }
+                        } else { insightContent }
+                    case .nativeRecovery:
+                        if let model = viewModel.nativeRecoveryModel {
+                            CaptureNativeRecoverySheet(model: model, close: viewModel.dismissNativeRecovery)
+                        }
+                    case .reanalysis:
+                        if let editor = viewModel.reanalysisEditor {
+                            CaptureReanalysisSheet(editor: editor, close: { viewModel.dismissActivePresentation() })
                         }
                     case .whatsNew:
                         WhatsNewSheet()
@@ -131,6 +145,17 @@ struct CameraSheetRouter: ViewModifier {
                     presentation.destination == .whatsNew ? .visible : .hidden
                 )
             }
+    }
+}
+
+extension CaptureWorkspaceViewModel.ActiveSheet {
+    var libraryAccessTitle: String? {
+        switch self {
+        case .scans: "Scans"
+        case .profile: "Profile"
+        case .insight, .reanalysis, .achievement, .nativeRecovery: "Library"
+        case .explore, .paywall, .notificationPrompt, .whatsNew: nil
+        }
     }
 }
 

@@ -6,6 +6,12 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Collections
+
+- Category browsing stays in Scans filters instead of duplicate smart
+  collections. All eligible smart collections and locations can now appear
+  without the former six-collection and two-location caps.
+
 ### Library preservation during account changes
 
 - Sign-in and sign-out check pending library changes and offer review and retry
@@ -27,11 +33,13 @@ TestFlight, App Store, support, and QA.
 
 ### What’s New
 
-- A short update sheet introduces location search in Scans and Explore maps,
-  descriptions available to everyone to help improve accuracy, marking AI
-  identifications as incorrect, identification history to revisit earlier
-  results after reanalysis, emoji reactions on Explore posts, and louder
-  previews for quiet recordings.
+- Scans is now Book in the main navigation, with a book icon. Find your saved
+  scans and collections in Book, your personal record of nature discoveries.
+- A short update sheet introduces map improvements including search, terrain
+  view by default, zoom controls and a distance scale, descriptions available to
+  everyone to help improve accuracy, marking AI identifications as incorrect,
+  identification history to revisit earlier results after reanalysis, emoji
+  reactions on Explore posts, and louder previews for quiet recordings.
 - Existing users see each set of highlights once after updating. Reopen it from
   Settings → Resources → What’s new.
 

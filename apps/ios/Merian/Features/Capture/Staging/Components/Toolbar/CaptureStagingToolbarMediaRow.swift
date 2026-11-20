@@ -26,7 +26,7 @@ struct CaptureStagingToolbarMediaRow: View {
                         } else {
                             Image(systemName: "plus")
                                 .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(.primary.opacity(0.5))
+                                .foregroundStyle(.primary)
                         }
                     }
                     .frame(width: 48, height: 48)
@@ -48,7 +48,7 @@ struct CaptureStagingToolbarMediaRow: View {
                 Button(action: onUpgradeTap) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.5))
+                        .foregroundStyle(.primary)
                         .frame(width: 48, height: 48)
                         .modifier(CaptureStagingNodeSurface(isEmpty: true))
                         .overlay(alignment: .bottom) {

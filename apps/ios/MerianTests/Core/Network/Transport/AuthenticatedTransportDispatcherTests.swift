@@ -5,6 +5,41 @@ import Testing
 
 @Suite("Authenticated Transport Dispatcher")
 struct AuthenticatedTransportDispatcherTests {
+    @Test(arguments: ["upload-observation-evidence", "upload-observation-audio", "upload-observation-video"])
+    func liveAuthHeaderMergePreservesBinaryEndpoints(route: String) throws {
+        let url = try #require(URL(string: "https://example.supabase.co/functions/v1/\(route)"))
+        var request = URLRequest(url: url, timeoutInterval: 130)
+        request.httpMethod = "POST"
+        request.httpBody = Data([0, 0, 0, 2, 123, 125, 255, 216, 255])
+        request.setValue("application/octet-stream", forHTTPHeaderField: "content-type")
+        request.setValue("Bearer stale-test-session", forHTTPHeaderField: "Authorization")
+        request.setValue("stale-test-key", forHTTPHeaderField: "apikey")
+        request.setValue("stable-test-identity", forHTTPHeaderField: "Idempotency-Key")
+        let merged = AuthenticatedTransportDispatcher.applyingValidatedAuthHeaders([
+            "CONTENT-TYPE": "application/json", "Authorization": "Bearer fresh-test-session", "apikey": "fresh-test-key"
+        ], to: request)
+        #expect(merged.value(forHTTPHeaderField: "Content-Type") == "application/octet-stream")
+        #expect(merged.value(forHTTPHeaderField: "Authorization") == "Bearer fresh-test-session")
+        #expect(merged.value(forHTTPHeaderField: "apikey") == "fresh-test-key")
+        #expect(merged.value(forHTTPHeaderField: "Idempotency-Key") == "stable-test-identity")
+        #expect(merged.httpBody == request.httpBody)
+        #expect(merged.httpMethod == request.httpMethod)
+        #expect(merged.url == request.url)
+        #expect(merged.timeoutInterval == request.timeoutInterval)
+    }
+
+    @Test(arguments: [nil, "application/json", "application/json; charset=utf-8"] as [String?])
+    func liveAuthHeaderMergeKeepsJSONCompatibility(contentType: String?) throws {
+        let url = try #require(URL(string: "https://example.supabase.co/rest/v1/rpc/test"))
+        var request = URLRequest(url: url)
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        let merged = AuthenticatedTransportDispatcher.applyingValidatedAuthHeaders([
+            "Content-Type": "application/json", "Authorization": "Bearer test-session"
+        ], to: request)
+        #expect(merged.value(forHTTPHeaderField: "Content-Type") == (contentType ?? "application/json"))
+        #expect(merged.value(forHTTPHeaderField: "Authorization") == "Bearer test-session")
+    }
+
     @Test func injectedIdentityBuildsExactAuthenticatedPayloadBoundary()
         async throws {
         let userID = UUID()
@@ -46,6 +81,7 @@ struct AuthenticatedTransportDispatcherTests {
 
     @MainActor
     @Test func withdrawalBetweenPreparationAndDispatchNeverSendsBody() async throws {
+        let allowed = MainActorTestValue(true)
         let userID = UUID()
         let transport = ScopedMockTransport()
         let session = transport.makeSession()
@@ -58,9 +94,9 @@ struct AuthenticatedTransportDispatcherTests {
         pinned.overridingSession = session
         let dispatcher = AuthenticatedTransportDispatcher(sessionTransport: pinned)
         dispatcher.overridingAuthUserID = userID
-        var allowed = true
+
         let authorization = IdentificationDispatchAuthorization(recipient: .openAI) {
-            if !allowed { throw MerianError.openAIConsentRequired }
+            if !allowed.value { throw MerianError.openAIConsentRequired }
         }
         let body = Data("{}".utf8)
         let request = try await dispatcher.makeAuthenticatedJSONRequest(
@@ -70,7 +106,7 @@ struct AuthenticatedTransportDispatcherTests {
         #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
         #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "6")
         #expect(request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "3")
-        allowed = false
+        allowed.value = false
         await #expect(throws: MerianError.openAIConsentRequired) {
             try await dispatcher.perform(.init(
                 request: request, body: body, onRequestBodySent: nil,

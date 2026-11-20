@@ -1,7 +1,15 @@
+import Foundation
 import SwiftData
 
 @MainActor
 struct QueuedContentDependencies {
+    typealias ObservationRead = @MainActor (OfflineQueueManager, String, @escaping @MainActor () -> Bool) async throws -> Observation
+    struct Observation {
+        let value: ScanObservationResponse
+        let validate: NativeReceivedStatusTransport.Validator
+    }
+    let readObservation: ObservationRead?
+
     let scheduleNextPersistedWake: @MainActor (
         _ queueManager: OfflineQueueManager
     ) -> Void
@@ -18,6 +26,7 @@ struct QueuedContentDependencies {
     let errorFeedback: @MainActor () -> Void
 
     init(
+        readObservation: ObservationRead? = nil,
         scheduleNextPersistedWake: @escaping @MainActor (
             _ queueManager: OfflineQueueManager
         ) -> Void = { _ in },
@@ -33,6 +42,7 @@ struct QueuedContentDependencies {
         selectionFeedback: @escaping @MainActor () -> Void = {},
         errorFeedback: @escaping @MainActor () -> Void = {}
     ) {
+        self.readObservation = readObservation
         self.scheduleNextPersistedWake = scheduleNextPersistedWake
         self.retryQueuedScanNow = retryQueuedScanNow
         self.loadQueuedContext = loadQueuedContext
@@ -45,6 +55,7 @@ struct QueuedContentDependencies {
         let container = AppDIContainer.shared
         let hapticManager = container.hapticManager
         return Self(
+            readObservation: qualifiedObservation(container),
             scheduleNextPersistedWake: { queueManager in
                 OfflineJobScheduler.shared.scheduleNextPersistedWake(
                     using: queueManager

@@ -71,11 +71,13 @@ shipping test behavior in Release builds.
 ## Queue, media, and incident contract
 
 `ScansShellDataStore` copies visible queue rows into `QueuedScanSnapshot` values
-before any backing SwiftData model can detach. `ScansShellViewModel` owns the
-bounded 1.5-second presentation refresh and the state-bearing task identity. It
-polls only while at least one visible row can progress under current online,
-constrained-network, large-upload, and explicit-override policy. Retry authority
-remains in `OfflineQueueManager`.
+before any backing SwiftData model can detach. Only ordinary work becomes a
+standalone queued card; qualified reanalysis and malformed linkage remain held
+for observation-scoped presentation and cannot duplicate the parent in the grid.
+`ScansShellViewModel` owns the bounded 1.5-second presentation refresh and the
+state-bearing task identity. It polls only while at least one visible row can
+progress under current online, constrained-network, large-upload, and
+explicit-override policy. Retry authority remains in `OfflineQueueManager`.
 
 `ScansThumbnailPipeline` prefetches only the leading 18 scan presentations,
 submits deduplicated cloud-image repairs to their serial actor, and delegates

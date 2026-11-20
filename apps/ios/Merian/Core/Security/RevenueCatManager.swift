@@ -217,7 +217,7 @@ import UIKit
         stablePurchasePrincipal: Bool,
         legacyIdentityAttributes: RevenueCatIdentityContext?
     ) async {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
+        guard MerianEnvironment.allowsAncillaryHostedIntegrations && !TestExecutionCoordinator.isRunningTests else { return }
 
         let normalizedAccountKind = RevenueCatAccountMutationPolicy
             .normalizedAccountKind(accountKind)

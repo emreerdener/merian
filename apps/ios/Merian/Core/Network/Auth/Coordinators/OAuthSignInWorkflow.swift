@@ -30,7 +30,7 @@ enum OAuthSignInWorkflow {
                 currentSession(),
                 wasCancelled ? .cancelled : .failed
             )
-            if wasCancelled {
+            if wasCancelled && !(error is QualificationAuthStorage.SettlementFailure) {
                 throw CancellationError()
             }
             throw error

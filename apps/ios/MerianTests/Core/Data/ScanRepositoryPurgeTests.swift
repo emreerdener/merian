@@ -9,7 +9,100 @@ import Testing
     .sharedProcessState(.offlineQueueManager)
 )
 struct ScanRepositoryPurgeTests {
-    @Test func purgeRemovesSpeciesPreferencesAndCompatibilityValues() throws {
+    @Test func repositoryCompletionRechecksScopeBeforeResetsOrJournalAdvancement() async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container), repository = ScanRepository()
+        let source = UUID(), destination = UUID()
+        let generation = repository.libraryRestoration.begin(accountID: source)
+        repository.libraryRestoration.finish(generation: generation, complete: true)
+        var journal = LibrarySignOutJournal(sourceUserID: source)
+        journal.phase = .sourceCleared
+        var data: Data? = try JSONEncoder().encode(journal)
+        let store = LibrarySignOutJournalStore(dependencies: .init(read: { data }, write: { data = $0; return true }, remove: { data = nil }))
+        var current = true, loseAuthority = true, derivedResets = 0, acknowledgements = 0, destinations = 0
+        var session: AuthTransitionSession?
+        let scope = try #require(store.recoveryScope(expected: journal, validateContext: { current }))
+        let suite = "merian.tests.repository-scope." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
+        let recovery = LibrarySignOutRecoveryCoordinator(store: store, dependencies: .init(
+            currentSession: { session }, clearSourceSession: { _ in Issue.record("Source already cleared"); return false },
+            clearLibrary: { expected in
+                #expect(expected == journal)
+                let completed = await repository.purgeAllData(modelContext: context, userDefaults: defaults,
+                    resetDerivedState: { derivedResets += 1 },
+                    resetRuntimeState: { if loseAuthority { current = false } }, validateAuthorization: { scope.allowsLibraryPurge })
+                if completed { acknowledgements += 1 }
+                return completed
+            }, createDestination: {
+                destinations += 1; session = .init(userID: destination, isAnonymous: true); return session
+            }, completePurchases: { _ in true }))
+        #expect(await recovery.resume() == false)
+        #expect(derivedResets == 0 && acknowledgements == 0 && destinations == 0)
+        #expect(repository.libraryRestoration.status == .complete && repository.libraryRestoration.accountID == source)
+        #expect(try store.load() == journal)
+        current = true; loseAuthority = false
+        #expect(await recovery.resume())
+        #expect(derivedResets == 1 && acknowledgements == 1 && destinations == 1)
+        #expect(repository.libraryRestoration.status == .notStarted && repository.libraryRestoration.accountID == nil)
+        #expect(try store.load() == nil)
+    }
+
+    @Test(arguments: ["before", "photo", "reanalysis"])
+    func lostDestructiveAuthorityStopsLaterPurgeStages(boundary: String) async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(OfflineJobRecord(id: "synthetic-authority-sentinel", kind: .scanIngestion)); try context.save()
+        let suite = "merian.tests.authorized-purge." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+        var current = boundary != "before", resets = 0, erasures = 0
+        let result = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: {
+                await Task.yield(); if boundary == "photo" { current = false }
+            }, validateAuthorization: { current }, eraseReanalysis: {
+                erasures += 1; await Task.yield(); if boundary == "reanalysis" { current = false }
+            })
+        #expect(!result && resets == 0 && erasures == (boundary == "reanalysis" ? 1 : 0))
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == (boundary == "reanalysis" ? 0 : 1))
+        #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        current = true
+        #expect(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, validateAuthorization: { current }, eraseReanalysis: {}))
+        #expect(resets == 1 && !FieldNotesStore.hasStoredValues(userDefaults: defaults))
+    }
+
+    @Test func photoPreparationRequiresOwnerCleanupBeforeLegacyPurge() async throws {
+        let h = try PhotoPreparationTestHarness(); defer { h.cleanup() }
+        let owner = try h.owner(), bytes = PhotoPreparationTestHarness.image()
+        let handle = try await owner.acquire(packageID: UUID(), draftGeneration: UUID(), ordinal: 0,
+            sourceKind: "picker", load: { bytes })
+        let context = ModelContext(h.container)
+        context.insert(OfflineJobRecord(id: "synthetic-purge-sentinel", kind: .scanIngestion))
+        try context.save()
+        let name = "nco1-purge-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var resets = 0, laterErasure = 0
+        #expect(!(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: { laterErasure += 1 })))
+        #expect(resets == 0 && laterErasure == 0)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        #expect(try await owner.originalData(handle) == bytes)
+        #expect(!(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: { throw PhotoPreparationFailure.cleanupPending },
+            eraseReanalysis: { laterErasure += 1 })))
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        #expect(await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, erasePhotoPreparation: { try await owner.purge() },
+            eraseReanalysis: { laterErasure += 1 }))
+        #expect(resets == 1 && laterErasure == 1)
+        #expect(try !PhotoPreparationRepository.hasLiabilities(in: ModelContext(h.container)))
+    }
+
+    @Test func purgeRemovesSpeciesPreferencesAndCompatibilityValues() async throws {
         let schema = Schema(CurrentSchema.models)
         let configuration = ModelConfiguration(
             schema: schema,
@@ -97,7 +190,7 @@ struct ScanRepositoryPurgeTests {
 
         var resetCount = 0
         var runtimeResetCount = 0
-        let didPurge = ScanRepository.shared.purgeAllData(
+        let didPurge = await ScanRepository.shared.purgeAllData(
             modelContext: context,
             userDefaults: defaults,
             resetDerivedState: { resetCount += 1 },
@@ -134,7 +227,7 @@ struct ScanRepositoryPurgeTests {
             defaults.string(forKey: UserDefaultsKeys.themeMode) == "dark"
         )
 
-        #expect(ScanRepository.shared.purgeAllData(
+        #expect(await ScanRepository.shared.purgeAllData(
             modelContext: context,
             userDefaults: defaults,
             resetDerivedState: { resetCount += 1 },
@@ -142,6 +235,98 @@ struct ScanRepositoryPurgeTests {
         ))
         #expect(resetCount == 2)
         #expect(runtimeResetCount == 2)
+    }
+
+    @Test func fileFailureKeepsPreferencesAndRuntimeUntilSuccessfulRetry() async throws {
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(OfflineJobRecord(id: "orphaned-child", kind: .observationReanalysisSync))
+        try context.save()
+        let suite = "merian.tests.file-purge.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+        var resets = 0, erasures = 0
+        let failed = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: {
+                erasures += 1
+                #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+                #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+                throw CocoaError(.fileWriteUnknown)
+            })
+        #expect(!failed && resets == 0 && erasures == 1)
+        #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        let completed = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+            resetRuntimeState: { resets += 1 }, eraseReanalysis: { erasures += 1 })
+        #expect(completed && resets == 1 && erasures == 2)
+        #expect(!FieldNotesStore.hasStoredValues(userDefaults: defaults))
+    }
+
+    @Test(arguments: [false, true])
+    func everySharedMediaRecordBlocksBeforeAnyPurgeCallback(saved: Bool) async throws {
+        for row in sharedMediaPurgeBlockers() {
+            let schema = Schema(CurrentSchema.models)
+            let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            context.insert(OfflineJobRecord(id: "shared-storage-purge-sentinel", kind: .scanIngestion))
+            try context.save()
+            context.insert(row)
+            if saved { try context.save() }
+            let suite = "merian.tests.shared-purge." + UUID().uuidString
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            FieldNotesStore.setFieldNotes("Synthetic note", for: "fixture", userDefaults: defaults)
+            var callbacks = 0
+            let result = await ScanLibraryPurgeService.purge(modelContext: context, userDefaults: defaults,
+                resetRuntimeState: { callbacks += 1 }, erasePhotoPreparation: { callbacks += 1 },
+                eraseReanalysis: { callbacks += 1 })
+            #expect(!result && callbacks == 0)
+            #expect(try SharedMediaStorageRepository.hasLiabilities(in: context))
+            #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+            #expect(FieldNotesStore.hasStoredValues(userDefaults: defaults))
+        }
+    }
+
+    private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
+        [
+            SharedMediaReceivingIntentRecord(packageID: UUID(), inventoryID: UUID(),
+                inventoryGeneration: UUID(), ownerID: UUID(), draftGeneration: UUID(),
+                operationID: UUID(), preparedData: Data("synthetic-prepared".utf8),
+                preparedSHA256: String(repeating: "a", count: 64)),
+            SharedMediaAcquisitionReceiptRecord(operationID: UUID(), inventoryID: UUID(),
+                inventoryGeneration: UUID(), ownerID: UUID(), requestFingerprint: String(repeating: "a", count: 64),
+                packageID: UUID(), assetID: UUID(), requestData: Data("synthetic-request".utf8)),
+            SharedMediaConsumerRecord(id: UUID(), kindRaw: "queue", consumerID: "fixture", originQueueID: "fixture",
+                observationID: "fixture", inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: UUID(),
+                packageID: UUID(), draftGeneration: UUID(), frozenPackageRevision: 1,
+                contractVersion: PhotoPreparationPolicy.contract, digestVersion: 1,
+                cohortSHA256: String(repeating: "a", count: 64), executionKindRaw: "ordinaryV1", inferenceGeneration: UUID()),
+            SharedMediaPendingMembershipRecord(packageID: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), draftGeneration: UUID(), membersData: Data()),
+            SharedMediaMembershipBootstrapRecord(inventoryID: UUID(), inventoryGeneration: UUID()),
+            SharedMediaAssetReferenceCountRecord(assetID: UUID(), assetGeneration: UUID(), inventoryID: UUID(),
+                inventoryGeneration: UUID(), ownerID: UUID(), liveCount: 1),
+            SharedMediaDerivativePairRecord(id: UUID(), nonce: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(), expectedInventoryRevision: 0, ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), originalReferenceID: UUID(), originalReferenceRevision: 0, originalAssetID: UUID(), originalAssetGeneration: UUID(), ordinal: 0, expectedPackageRevision: 0, aiWorkID: UUID(), displayWorkID: UUID()),
+            SharedMediaDerivativeWorkRecord(id: UUID(), pairID: UUID(), roleRaw: "aiInput", assetID: UUID(), assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), writerEpoch: UUID(), byteCount: 1, sha256: String(repeating: "a", count: 64), contentType: "image/jpeg"),
+            SharedMediaInventoryRecord(id: UUID(), rootIdentity: "fixture", storeIdentity: "fixture",
+                generation: UUID(), revision: 0, modeRaw: "qualification", phaseRaw: "closed", cursor: ""),
+            SharedMediaAllocationRecord(id: UUID(), inventoryID: UUID(), accountID: nil, packageID: nil,
+                namespaceRaw: "fixture", fileToken: "fixture", poolRaw: "durable", stateRaw: "retiring",
+                materializedBytes: 0, reservedBytes: 1, physicalIdentity: nil),
+            SharedMediaReferenceRecord(id: UUID(), allocationID: UUID(), accountID: nil,
+                ownerID: "fixture", roleRaw: "source", stateRaw: "live", revision: 0),
+            SharedMediaLeaseRecord(id: UUID(), allocationID: UUID(), processEpoch: UUID(),
+                purposeRaw: "unknown", stateRaw: "unknown"),
+            SharedMediaInboxSourceRecord(id: UUID(), inventoryID: UUID(), generation: UUID(),
+                receivedAt: Date(), rootIdentity: "fixture", maximumBytes: 1, workID: UUID(), writerEpoch: UUID()),
+            SharedMediaInboxHandoffRecord(id: UUID(), nonce: UUID(), sourceID: UUID(), sourceGeneration: UUID(),
+                sourceRevision: 0, inventoryGeneration: UUID(), expectedInventoryRevision: 0,
+                ownerID: UUID(), packageID: UUID(), draftGeneration: UUID(), assetID: UUID(),
+                assetGeneration: UUID(), referenceID: UUID(), leaseID: UUID(), sourceHoldID: UUID(),
+                ordinal: 0, byteCount: 1, sha256: String(repeating: "a", count: 64), writerEpoch: UUID())
+        ]
     }
 
     @Test func purgeInventoryTracksEveryCurrentSchemaEntity() {
@@ -156,14 +341,20 @@ struct ScanRepositoryPurgeTests {
             UserSpeciesPreference.self,
             OfflineJobRecord.self,
             OfflineQueueEvent.self,
-            ActiveOfflineQueuedScanGoalHint.self
+            ActiveOfflineQueuedScanGoalHint.self,
+            // Released by the explicit P1 owner before ordinary row erasure.
+            PhotoPreparationRecord.self, PhotoPreparationAsset.self,
+            PhotoPreparationReference.self, PhotoPreparationLease.self
         ]
 
-        #expect(
-            Set(purgedModelTypes.map(ObjectIdentifier.init))
-                == Set(CurrentSchema.models.map(ObjectIdentifier.init)),
-            "Every active-schema entity must participate in account purge"
-        )
+        // Shared owners require their own release protocol: these rows block purge
+        // before callbacks. The test above exercises saved and unsaved liabilities.
+        let blockedModelTypes = sharedMediaPurgeBlockers().map { type(of: $0) }
+        let purged = Set(purgedModelTypes.map(ObjectIdentifier.init))
+        let blocked = Set(blockedModelTypes.map(ObjectIdentifier.init))
+        #expect(purged.isDisjoint(with: blocked))
+        #expect(purged.union(blocked) == Set(CurrentSchema.models.map(ObjectIdentifier.init)),
+            "Every active-schema entity must be purged by its owner or block purge")
 
         let purgedModelNames = [
             "CapturedMediaEntry",

@@ -6,9 +6,10 @@ struct ScanDeletionService {
         case notRequested
         case alreadyAbsent
         case deleted
+        case ownershipHeld
 
         var shouldCompletePresentation: Bool {
-            self != .notRequested
+            self == .alreadyAbsent || self == .deleted
         }
     }
 
@@ -20,7 +21,7 @@ struct ScanDeletionService {
         let eradicateRecord: @MainActor (
             _ record: LocalScanRecord,
             _ modelContext: ModelContext
-        ) -> Void
+        ) -> Bool
         let triggerDestructiveFeedback: @MainActor () -> Void
 
         @MainActor
@@ -38,7 +39,7 @@ struct ScanDeletionService {
                     container.scanRepository.eradicateScan(
                         record: record,
                         modelContext: modelContext
-                    )
+                    ) != nil
                 },
                 triggerDestructiveFeedback: {
                     container.hapticManager.triggerErrorThump()
@@ -65,8 +66,10 @@ struct ScanDeletionService {
             return .alreadyAbsent
         }
 
+        guard SharedMediaConsumerAuthority.permitsLegacyScanRemoval(raw: record.mediaAuthorityRaw, consumerID: record.sharedMediaConsumerID),
+              (try? SharedMediaConsumerLookup.hasScanOwner(record.id, in: modelContext)) == false else { return .ownershipHeld }
         dependencies.triggerDestructiveFeedback()
-        dependencies.eradicateRecord(record, modelContext)
+        guard dependencies.eradicateRecord(record, modelContext) else { return .ownershipHeld }
         return .deleted
     }
 }

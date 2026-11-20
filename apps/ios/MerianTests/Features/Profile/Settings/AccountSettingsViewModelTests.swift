@@ -35,7 +35,7 @@ final class AccountSettingsViewModelTests: XCTestCase {
             )
         )
 
-        let didDelete = await viewModel.deleteAccount {
+        let didDelete = await viewModel.deleteAccount { _ in
             XCTFail("Local data must not be purged while purchase continuity is pending")
             return true
         }
@@ -55,12 +55,15 @@ final class AccountSettingsViewModelTests: XCTestCase {
             dependencies: makeDeletionDependencies(
                 deleteAccount: { purgeLocalData in
                     deleteCallCount += 1
-                    XCTAssertTrue(purgeLocalData())
+                    let purged = await purgeLocalData(.init(expectedState: .cleanupPending, expectedCapability: nil,
+                        capabilityStore: AccountDeletionSecureStoreStub().makeCapabilityStore(), readState: { .cleanupPending },
+                        validateSession: { true }, validateLibrary: { _ in true }))
+                    XCTAssertTrue(purged)
                 }
             )
         )
 
-        let didDelete = await viewModel.deleteAccount {
+        let didDelete = await viewModel.deleteAccount { _ in
             didPurge = true
             return true
         }
@@ -86,7 +89,7 @@ final class AccountSettingsViewModelTests: XCTestCase {
             )
         )
 
-        let didDelete = await viewModel.deleteAccount { true }
+        let didDelete = await viewModel.deleteAccount { _ in true }
 
         XCTAssertFalse(didDelete)
         XCTAssertEqual(deleteCallCount, 0)
@@ -107,7 +110,7 @@ final class AccountSettingsViewModelTests: XCTestCase {
             )
         )
 
-        let didDelete = await viewModel.deleteAccount { true }
+        let didDelete = await viewModel.deleteAccount { _ in true }
 
         XCTAssertFalse(didDelete)
         XCTAssertEqual(loggedFailureCount, 1)
@@ -134,14 +137,14 @@ final class AccountSettingsViewModelTests: XCTestCase {
         )
 
         let activeTask = Task {
-            await viewModel.deleteAccount { true }
+            await viewModel.deleteAccount { _ in true }
         }
         while pendingDeletion == nil {
             await Task.yield()
         }
 
         purchaseContinuityIsPending = true
-        let overlappingResult = await viewModel.deleteAccount { true }
+        let overlappingResult = await viewModel.deleteAccount { _ in true }
         XCTAssertFalse(overlappingResult)
         XCTAssertNil(viewModel.errorMessage)
 
@@ -214,10 +217,10 @@ final class AccountSettingsViewModelTests: XCTestCase {
             @escaping @MainActor () -> Bool = { false },
         isRecoveryPending: @escaping @MainActor () -> Bool = { false },
         deleteAccount: @escaping @MainActor (
-            @MainActor @escaping () -> Bool
+            @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
         ) async throws -> Void = { _ in },
         resumeDeletion: @escaping @MainActor (
-            @MainActor @escaping () -> Bool
+            @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
         ) async -> Bool = { _ in true },
         stableErrorCode: @escaping @MainActor (Error) -> String? = { _ in
             nil

@@ -277,6 +277,15 @@ fallback, UI-test prompt suppression, declaration ownership, and focused line
 ceilings. The focused matrix currently contains 34 deterministic tests. The
 retired root model and aggregate test files must not be recreated.
 
+Debug unit-test hosts select inert location hardware at the controller's
+existing dependency boundary, before constructing `CLLocationManager` or reading
+system authorization. The synthetic denied state returns no location and cannot
+prompt or start tracking. `TestExecutionCoordinator.isRunningUnitTests` excludes
+UI-test processes even when XCTest is loaded. UI tests retain live hardware and
+the separate prompt-suppression contract above; Release always uses live
+hardware. This prevents a stalled simulator location service from blocking
+unit-test host startup. It does not qualify physical-device location behavior.
+
 Before release, verify Environment Context on a signed physical device. Grant,
 deny, and revoke Location access while the camera is active and while a shutter
 one-shot is pending; a revoked facade must stop exposing its retained fix and

@@ -5,39 +5,24 @@ struct ShareNaturebookCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "person.2.fill")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 14, weight: .semibold))
-
-                        Text("SHARE NATUREBOOK")
-                            .font(.system(.caption, design: .monospaced))
-                            .fontWeight(.bold)
-                            .foregroundColor(.secondary)
-                            .tracking(1)
-                    }
-
-                    Text("Share Naturebook")
-                        .font(.system(.title2, design: .serif))
-                        .fontWeight(.bold)
+                    Text("Invite a friend")
+                        .font(.title2.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(.primary)
-                }
 
-                Spacer()
+                    Text("Help a friend identify what they find outside.")
+                        .font(.system(.subheadline))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineSpacing(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image("heart")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 56, height: 56)
             }
-
-            Text(
-                "Share Naturebook with someone who would love identifying what they find outside."
-            )
-                .font(.system(.subheadline))
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .lineSpacing(2)
 
             Button(action: {
                 AppShareContent.presentShareSheet()

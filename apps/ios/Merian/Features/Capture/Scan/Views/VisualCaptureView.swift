@@ -2,6 +2,7 @@ import SwiftUI
 
 struct VisualCaptureView: View {
     let viewModel: CaptureWorkspaceViewModel
+    var isCameraVisible: Bool = false
     @Binding var isVerticalZooming: Bool
     
     @Environment(CameraManager.self) private var cameraManager
@@ -66,6 +67,11 @@ struct VisualCaptureView: View {
 
             // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
             CameraControlsLayer(
+                isCameraVisible: isCameraVisible,
+                hasEmptyDraft: viewModel.stagedCapture.isEmpty && viewModel.descriptionDraft.isEmpty,
+                isCapturing: viewModel.isCapturing || viewModel.isPreparingVideo
+                    || viewModel.isCheckingScanAdmission || viewModel.isQueueingStagedCapture,
+                claimIntroduction: viewModel.dependencies.claimViewfinderIntroduction,
                 activeScanImages: viewModel.stagedCapture.images.map(\.uiImage)
                     + viewModel.stagedCapture.videos.compactMap { $0.coverImage?.uiImage },
                 isRefining: viewModel.baseRefinementContext != nil,
@@ -89,6 +95,10 @@ struct VisualCaptureView: View {
 
 // MARK: - Camera Controls Layer
 private struct CameraControlsLayer: View {
+    let isCameraVisible: Bool
+    let hasEmptyDraft: Bool
+    let isCapturing: Bool
+    let claimIntroduction: @MainActor () -> Bool
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
     var isVideoRecording: Bool = false
@@ -99,6 +109,10 @@ private struct CameraControlsLayer: View {
 
     var body: some View {
         MainOverlayView(
+            isCameraVisible: isCameraVisible,
+            hasEmptyDraft: hasEmptyDraft,
+            isCapturing: isCapturing,
+            claimIntroduction: claimIntroduction,
             activeScanImages: activeScanImages,
             isRefining: isRefining,
             isVideoRecording: isVideoRecording,

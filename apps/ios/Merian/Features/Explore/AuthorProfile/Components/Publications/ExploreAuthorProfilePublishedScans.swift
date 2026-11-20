@@ -11,15 +11,16 @@ struct ExploreAuthorProfilePublishedPreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Published scans")
-                    .font(.title3.weight(.bold))
-
-                Spacer()
-
-                Text(profile.publishedPostCount.formatted(.number.notation(.compactName)))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    sectionTitle.fixedSize()
+                    Spacer()
+                    scanCount.fixedSize()
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionTitle
+                    scanCount
+                }
             }
 
             if posts.isEmpty {
@@ -27,11 +28,6 @@ struct ExploreAuthorProfilePublishedPreview: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
             } else {
                 ExploreAuthorProfileGrid(
                     posts: posts,
@@ -46,7 +42,7 @@ struct ExploreAuthorProfilePublishedPreview: View {
             if profile.publishedPostCount > ExploreAuthorProfilePresentation.previewLimit {
                 Button(action: onShowLibrary) {
                     HStack(spacing: 4) {
-                        Text("View more scans")
+                        Text("View all scans")
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .bold))
                     }
@@ -62,10 +58,28 @@ struct ExploreAuthorProfilePublishedPreview: View {
                         Capsule()
                             .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
                     }
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+
+    private var sectionTitle: some View {
+        Text("Published scans")
+            .font(.title2.weight(.bold))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var scanCount: some View {
+        Text(profile.publishedPostCount.formatted(.number.notation(.compactName)))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
     }
 }
 

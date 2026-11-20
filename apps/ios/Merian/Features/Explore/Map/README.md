@@ -36,20 +36,24 @@ before changing either boundary.
   `ExplorePostStore`.
 - `Components/Shared/` owns Map-only loading/error/status presentation.
 
+Explore preview cards compose Core UI's `ScanPreviewCard` for shared layout,
+surface, and the discovery button. This feature retains its post metadata,
+media, overflow menu, social controls, and interaction callbacks.
+
 Views and components do not perform direct networking.
 
 The map layer extends through the top safe area beneath the transparent
 navigation toolbar, with its top scroll-edge effect hidden. Overlay controls
 keep their safe-area positioning so the map remains visible behind the toolbar.
-The native distance scale stays visible at the bottom trailing edge, opposite
-the Apple Maps attribution and below the floating controls and preview carousel.
+The native distance scale stays visible directly above the trailing map
+navigation toolbar. It moves with the floating controls when the preview
+carousel appears, leaving the Apple Maps attribution clear below them.
 
-The native user-location annotation uses Core UI's shared blue person pin,
-anchored at its tip. Its enclosing MapKit annotation receives maximum normal and
-selected Z priorities plus required display priority so it stays above clusters
-and observation waypoints, including the selected observation. MapKit retains
-ownership of live location updates; SwiftUI declaration order alone does not
-establish annotation stacking.
+The user-location annotation uses MapKit's standard `UserAnnotation()`
+indicator. Core UI's `MapObservationPriority` places clusters and observation
+waypoints below it, with the selected observation above other observations.
+MapKit retains the default location appearance and live updates; SwiftUI
+declaration order alone does not establish annotation stacking.
 
 The bottom preview carousel uses native regular Liquid Glass on iOS 26 and
 later, retaining its 32-point corners and 20-point content padding. Older iOS

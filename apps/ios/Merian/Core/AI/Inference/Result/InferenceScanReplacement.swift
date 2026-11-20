@@ -20,7 +20,10 @@ enum InferenceScanReplacement {
               !originalScanId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !replacementScanId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               originalScanId.caseInsensitiveCompare(replacementScanId) != .orderedSame,
-              let context = modelContext else { return nil }
+              let context = modelContext,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: originalScanId, container: context.container
+              ) else { return nil }
 
         do {
             // A pending insert in the presentation context is not durable proof.
@@ -60,9 +63,10 @@ enum InferenceScanReplacement {
 
             do {
                 if carriesReview {
-                    try IdentificationReviewSyncService().carryRejection(from: original, to: replacement, context: context)
+                    try IdentificationReviewSyncService().carryRejection(from: original, to: replacement, context: context, save: saveMetadata)
+                } else {
+                    try saveMetadata(context)
                 }
-                try saveMetadata(context)
             } catch {
                 // Restore only our staged values. A context-wide rollback would
                 // discard unrelated user edits in the presentation context.

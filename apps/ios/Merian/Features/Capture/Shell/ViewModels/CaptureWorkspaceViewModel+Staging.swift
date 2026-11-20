@@ -31,10 +31,15 @@ extension CaptureWorkspaceViewModel {
         hasPendingRequiredGalleryCrop || isCropPresented
     }
 
-    var shouldAutoSubmitStagedCapture: Bool {
-        diContainer.appSettings.autoSubmitScans && draftSession.automaticAttempt != nil
+    var isAutomaticSubmissionArmed: Bool {
+        !usesNativePhotoComposition && diContainer.appSettings.autoSubmitScans && draftSession.automaticAttempt != nil
+            && !dependencies.submission.admission.isLibraryAccessBlocked()
+            && draftSession.allowsAccount(dependencies.submission.admission.accountID())
             && automaticPreferenceRevision == diContainer.appSettings.autoSubmitRevision
-            && isDraftReadyForSubmission && !stagedCapture.isEmpty
+    }
+
+    var shouldAutoSubmitStagedCapture: Bool {
+        isAutomaticSubmissionArmed && isDraftReadyForSubmission && !stagedCapture.isEmpty
     }
 
     var shouldPresentActiveScanToolbar: Bool {
@@ -83,6 +88,15 @@ extension CaptureWorkspaceViewModel {
     }
 
     func cancelRequiredGalleryCrop(for imageID: UUID) {
+        if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
+            removeNativePhoto(imageID: imageID)
+            return
+        }
+        if dependencies.photoOriginalPreparation != nil,
+           let index = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
+            removePhotoPreparationImage(index)
+            return
+        }
         revokeAutomaticSubmission()
         cancelActiveCropTask()
         operationState.removeRequiredGalleryCrop(imageID: imageID)
@@ -95,8 +109,19 @@ extension CaptureWorkspaceViewModel {
         presentNextRequiredGalleryCrop()
     }
 
-    func clearStagedCaptureAndCropState(discardStagedMediaFiles: Bool = false) {
-        guard !isQueueingStagedCapture else { return }
+    func clearStagedCaptureAndCropState(
+        discardStagedMediaFiles: Bool = false,
+        allowingPendingQueue: Bool = false
+    ) {
+        guard !isQueueingStagedCapture || allowingPendingQueue else { return }
+        if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
+            if discardStagedMediaFiles { discardNativePhotoDraft() }
+            return
+        }
+        if let access = dependencies.photoOriginalPreparation {
+            if discardStagedMediaFiles { discardPhotoPreparationDraft(access) }
+            return
+        }
         cancelAllVisualCaptureWork()
         cancelActiveCropTask()
         operationState.removeAllRequiredGalleryCrops()
@@ -145,7 +170,7 @@ extension CaptureWorkspaceViewModel {
         text: String,
         pendingDraft: inout ObservationContext
     ) {
-        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             removeStagedDescription(at: index, pendingDraft: &pendingDraft)
@@ -156,11 +181,13 @@ extension CaptureWorkspaceViewModel {
             pendingDraft = ObservationContext()
         }
         stagedCapture.observationContexts[index].context.freeText = trimmed
+        schedulePhotoPreparationPersistence()
     }
 
     func removeStagedDescription(at index: Int, pendingDraft: inout ObservationContext) {
-        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let removed = stagedCapture.observationContexts.remove(at: index)
+        schedulePhotoPreparationPersistence()
         resetReviewIfEmpty()
         if baseRefinementContext != nil, removed.isRefinementSupplement {
             pendingDraft = ObservationContext()

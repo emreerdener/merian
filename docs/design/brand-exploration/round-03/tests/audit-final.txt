@@ -1,0 +1,21 @@
+
+=== n-monarch-color-study.svg  (2660 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 2: #000000 #c96b26 · gradients 0 · anchors 87
+margins L28.0 R25.7 T18.8 B24.0 · bbox fill 0.658
+▲ WARN [tiny-detail] 4 sub-shape(s) smaller than 1/48 of the canvas (≈1 px at 48 px): 4.4×4.4 at (143,26); 4.4×4.4 at (140,36); 4.4×4.4 at (223,48); 4.4×4.4 at (220,57). They vanish when small — enlarge, merge or remove them, or provide a small-size version.
+production-readiness score: 92/100 (heuristic)
+
+=== n-monarch-mono.svg  (2600 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 87
+margins L28.0 R25.7 T18.8 B24.0 · bbox fill 0.658
+▲ WARN [tiny-detail] 4 sub-shape(s) smaller than 1/48 of the canvas (≈1 px at 48 px): 4.4×4.4 at (143,26); 4.4×4.4 at (140,36); 4.4×4.4 at (223,48); 4.4×4.4 at (220,57). They vanish when small — enlarge, merge or remove them, or provide a small-size version.
+production-readiness score: 92/100 (heuristic)
+
+=== n-monarch-small.svg  (1608 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 49
+margins L28.0 R25.7 T18.8 B24.0 · bbox fill 0.658
+✔ no issues found
+production-readiness score: 100/100 (heuristic)

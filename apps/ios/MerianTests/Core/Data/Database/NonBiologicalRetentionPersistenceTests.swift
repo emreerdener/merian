@@ -6,6 +6,54 @@ import Testing
 @MainActor
 @Suite("Non-Biological Retention Persistence")
 struct NonBiologicalRetentionPersistenceTests {
+    @Test(arguments: ["native", "downgraded", "absent"])
+    func retainedOwnershipNeverReturnsStalePayloadPaths(_ state: String) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let scanID = UUID().uuidString.lowercased(), bindingID = UUID(), packageID = UUID()
+        let scan = LocalScanRecord(id: scanID, speciesId: "synthetic", scientificName: "Fixture",
+            commonName: "Fixture", isBiological: false)
+        if state == "native" {
+            scan.mediaAuthorityRaw = "sharedDirectNativeInitialV1"; scan.sharedMediaConsumerID = bindingID
+        }
+        if state != "absent" { context.insert(scan) }
+        // Deliberately incomplete ledger data must still hold legacy cleanup.
+        if state != "native" {
+            context.insert(SharedMediaConsumerRecord(id: bindingID, kindRaw: "localScan", consumerID: scanID.uppercased(),
+                originQueueID: UUID().uuidString.lowercased(), observationID: scanID.uppercased(),
+                inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: UUID(), packageID: packageID,
+                draftGeneration: UUID(), frozenPackageRevision: 1, contractVersion: "nativeInitialAppliedV1",
+                digestVersion: 1, cohortSHA256: String(repeating: "a", count: 64),
+                executionKindRaw: "ordinaryV1", inferenceGeneration: UUID()))
+        }
+        try context.save()
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let paths = try await actor.bulkDeleteNonBiologicalScans(payloads: [.init(id: scanID, mediaPaths: ["synthetic-held.webp"])])
+        #expect(paths.isEmpty)
+        let fresh = ModelContext(container)
+        #expect(try fresh.fetchCount(FetchDescriptor<LocalScanRecord>()) == (state == "absent" ? 0 : 1))
+        #expect(try fresh.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == (state == "native" ? 0 : 1))
+    }
+
+    @Test func purgePagesPastHeldNativeScan() async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container)
+        let cutoff = Date(timeIntervalSince1970: 1_800_000_000)
+        let held = LocalScanRecord(id: UUID().uuidString.lowercased(), speciesId: "fixture",
+            scientificName: "Fixture", commonName: "Fixture", timestamp: cutoff.addingTimeInterval(-120), isBiological: false)
+        held.mediaAuthorityRaw = "sharedDirectNativeInitialV1"; held.sharedMediaConsumerID = UUID()
+        let eligible = LocalScanRecord(id: UUID().uuidString.lowercased(), speciesId: "fixture",
+            scientificName: "Fixture", commonName: "Fixture", timestamp: cutoff.addingTimeInterval(-60), isBiological: false)
+        context.insert(held); context.insert(eligible); try context.save()
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let result = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: cutoff, limit: 1)
+        #expect(result.deletedRecordCount == 1 && result.committedErasureCount == 1)
+        let fresh = ModelContext(container)
+        #expect(try fresh.fetch(FetchDescriptor<LocalScanRecord>()).map(\.id) == [held.id])
+        #expect(try fresh.fetch(FetchDescriptor<PendingCloudDeletionTask>()).map(\.scanId) == [eligible.id])
+    }
+
     @Test func testBulkDeleteNonBiologicalScansCommitsBeforeReturningPaths() async throws {
         let container = try DatabaseActorTestSupport.makeIsolatedContainer()
         let context = ModelContext(container)

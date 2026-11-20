@@ -1,0 +1,214 @@
+{
+  "candidate": {
+    "version": 2,
+    "variant": "media_sources",
+    "source_plan": {
+      "schema_version": 1,
+      "route": "identify-multimodal",
+      "ordered_descriptions": [
+        "First synthetic context",
+        "Second synthetic context"
+      ],
+      "owner_timeline": [
+        {
+          "kind": "description",
+          "index": 0
+        },
+        {
+          "kind": "media",
+          "index": 0
+        },
+        {
+          "kind": "description",
+          "index": 1
+        }
+      ],
+      "capture": {
+        "has_video": false,
+        "video_clip_count": 0,
+        "declared_video_frame_count": 0,
+        "video_inference_frame_count": 0
+      },
+      "context": {
+        "depth_scale_text": null,
+        "semantic_location": null,
+        "weather_condition": null,
+        "device_locale": null,
+        "device_time_zone": null,
+        "device_region": null,
+        "time_of_day": null,
+        "gps_latitude": null,
+        "gps_longitude": null,
+        "gps_elevation": null,
+        "zoom_factor": null,
+        "estimated_size_cm": null,
+        "weather_temperature_f": null,
+        "current_month": null
+      },
+      "options": {
+        "timestamp": null,
+        "geoprivacy": "private",
+        "public_location_label": null,
+        "preferred_goal": null,
+        "observation_context": null
+      },
+      "admission": {
+        "client_protocol": 3,
+        "identification_protocol": 6,
+        "expected_processor_permission": "google_gemini"
+      },
+      "experiment": null,
+      "sources": [
+        {
+          "kind": "audio",
+          "source_content_type": "audio/wav",
+          "source_byte_count": 64044,
+          "source_sha256": "09518349ac9ebf989bab3542c802e8a6266314033b7ec1d767f7a02a77fcb19f",
+          "input_index": 0,
+          "source_index": 0,
+          "clip_index": null,
+          "frame_index": null,
+          "focus_region": null,
+          "transform": "initial_audio_v1",
+          "transform_parameters": {
+            "target_sample_rate": 16000,
+            "preserve_short_video_context": false
+          },
+          "prepared_output": {
+            "state": "unresolved"
+          }
+        }
+      ]
+    }
+  },
+  "assignment": {
+    "version": 2,
+    "candidate_digest": "b65e1e8aa139c2245ac840e8af8c65a54cb07ef04125b600979ff698e0e4bbd3",
+    "route": "identify-multimodal",
+    "operation": "scan_identification",
+    "effective_plan": "pro_complimentary",
+    "effective_tier": "pro",
+    "flash_fallback_used": false,
+    "quota_model": "gemini-2.5-pro",
+    "policy_version": 1,
+    "provider": "gemini",
+    "binding": "gemini_baseline_v1",
+    "processor_permission": "google_gemini",
+    "input_profile": "multimodal_audio_v1",
+    "provider_model": null,
+    "effective_model": "gemini-2.5-pro",
+    "minimum_client_protocol": 0,
+    "accepted_client_protocol": 3,
+    "minimum_identification_protocol": 0,
+    "accepted_identification_protocol": 6,
+    "asset_manifest_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "retention_owner": "initial_engine_release_archive",
+    "resolver_id": "git_blob_sha256_v1",
+    "preparation": {
+      "kind": "media_sources",
+      "profile_digest": "6f15b3e3844b1c01420a3b72452d28c9f90a4aa99b174146a728534c0fda119b",
+      "installation_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "backend_installation_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "selector_generation": "00000000-0000-4000-8000-000000000003",
+      "backend_generation": "00000000-0000-4000-8000-00000000b001",
+      "source_mapping": [
+        {
+          "ordinal": 0,
+          "source": {
+            "kind": "audio",
+            "source_content_type": "audio/wav",
+            "source_byte_count": 64044,
+            "source_sha256": "09518349ac9ebf989bab3542c802e8a6266314033b7ec1d767f7a02a77fcb19f",
+            "input_index": 0,
+            "source_index": 0,
+            "clip_index": null,
+            "frame_index": null,
+            "focus_region": null,
+            "transform": "initial_audio_v1",
+            "transform_parameters": {
+              "target_sample_rate": 16000,
+              "preserve_short_video_context": false
+            },
+            "prepared_output": {
+              "state": "unresolved"
+            }
+          },
+          "role": "recording",
+          "object_id": "00000000-0000-4000-8000-000000001020",
+          "prepared_destination": null
+        }
+      ]
+    },
+    "experiment": null,
+    "variant": "media_sources",
+    "source_plan_digest": "93cac6e229a45538ab96f03c0a2826c0b24ee2b36da9e668fcf4c14093aba01e"
+  },
+  "profile": {
+    "version": 1,
+    "spec": {
+      "profile_id": "local_validated_wav_fixture",
+      "profile_version": 1,
+      "input_profile": "multimodal_audio_v1",
+      "route": "identify-multimodal",
+      "focus_policy": "input_v1_bounds",
+      "runtime": {
+        "engine": "deno",
+        "version": "2.9.4",
+        "platform": "darwin_arm64",
+        "abi": "local_synthetic_only",
+        "protocol": 2
+      },
+      "artifact": {
+        "sha256": "cf2df93f4bdcdea853ae7d9c0e1432149cec470270880ca87dcb3b43f51a2f64",
+        "byte_count": 16647
+      },
+      "identities": {
+        "source": "6b6fd20ff2f787e25028f11b0fa0c7e578d8d938898c0a450e80c76b6330d1c5",
+        "validator": "da6a082ac877812d1e69e8a14e6e80aea293f0639665c57819cbb25a75871db0",
+        "transform": "cb2e99105a2c094bfaabfc9e528bffba289caf6a678afe1f615017f719853a19",
+        "configuration": "a2e87aae39606224487f74c7f9e286d0653ade4cbee87ab3d158d0973ad0f6c0"
+      },
+      "rules": [
+        {
+          "role": "recording",
+          "source_types": [
+            "audio/wav"
+          ],
+          "transform": "initial_audio_v1",
+          "target_sample_rate": 16000,
+          "preserve_short_video_context": false,
+          "max_count": 1,
+          "limits": {
+            "source_bytes": 192000,
+            "output_bytes": 192000,
+            "cpu_ms": 15000,
+            "heap_bytes": 268435456,
+            "wall_ms": 15000
+          }
+        }
+      ],
+      "max_sources": 1,
+      "limits": {
+        "source_bytes": 192000,
+        "output_bytes": 192000,
+        "cpu_ms": 15000,
+        "heap_bytes": 268435456,
+        "wall_ms": 15000
+      }
+    },
+    "qualification": {
+      "spec_digest": "477c8a8b4ccf2ba2f54315af54c53fa749fce84af9833b59b79e085011f5d4d2",
+      "evidence_digest": "5fd762611721100f2f733bd6438ae318b10f6868b5f4e5bdb2e4735ad480f71b",
+      "harness_digest": "5529c3292408e4bb2b1722276007227deab5b458e5f912b8665ed80e901c66b7",
+      "source_revision": "e4fc83d27329b1133eab3fbfe8368d58c96ff4fc"
+    }
+  },
+  "synthetic_only": true,
+  "resource_status": "sampled_local_only",
+  "edge_eligible": false,
+  "owner": "00000000-0000-4000-8000-000000001001",
+  "scan": "00000000-0000-4000-8000-000000001002",
+  "grant_id": "00000000-0000-4000-8000-000000001003",
+  "output_id": "00000000-0000-4000-8000-000000001021",
+  "assignment_digest": "6d002f6fa267e392020edce0bbadbd896df914a3940e9823436066dda4aa14b0"
+}

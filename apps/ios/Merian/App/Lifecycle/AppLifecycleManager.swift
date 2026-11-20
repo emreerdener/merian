@@ -33,13 +33,21 @@ final class AppLifecycleManager {
     /// Handles application transition to active foreground.
     func handleActivePhase() {
         container.appUpdateCoordinator.refresh()
+        container.offlineQueueManager.requestReanalysisErasureRecovery()
+        container.offlineQueueManager.requestReanalysisExecutionRecovery()
+        container.offlineQueueManager.requestReanalysisAdmissionRecovery(.foreground)
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         // Consent synchronization must also run while the required gate is
         // closed. That lets an offline withdrawal retry and lets returning beta
         // users discover account evidence without repeating onboarding.
+        let consentOwner = container.supabaseManager.currentUser?.id
         Task {
             await synchronizeConsent()
+            guard let consentOwner, container.supabaseManager.currentUser?.id == consentOwner,
+                  container.appSettings.hasCompletedOnboarding,
+                  container.consentManager.hasCurrentRequiredConsent else { return }
+            container.offlineQueueManager.requestReanalysisAdmissionRecovery(.consentGranted(consentOwner))
         }
 
         // Auth listeners normally resolve billing identity. A transient server,

@@ -61,8 +61,11 @@ ownership remains under `Permissions`.
 Completion preserves the established ordering: first record and verify the
 durable consent action, then record completion telemetry, then open the
 onboarding lifecycle flag, and finally resume the newest consent-blocked scan
-for the current account when one exists. A failed consent write performs none of
-the downstream effects.
+for the current account when one exists. It then sends an injected
+owner-qualified submitted-reanalysis grant wake when current required consent is
+present. This rearms only consent-held advisory work, never other remediation
+holds or saved-only drafts. A failed consent write performs none of the
+downstream effects.
 
 ## Purpose
 

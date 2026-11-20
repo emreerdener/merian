@@ -116,7 +116,7 @@ targets, bundle identifiers, app group, SwiftData schema names, backend resource
 names, RevenueCat identifiers, and existing media host remain Merian where
 compatibility depends on them. The main application bundle identifier is
 `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the
-current schema is `MerianSchemaV52`.
+current schema is `MerianSchemaV58`.
 
 Legacy `merian.earth` links and the `merian://` scheme remain accepted
 compatibility inputs. New links should use `naturebook.earth` and

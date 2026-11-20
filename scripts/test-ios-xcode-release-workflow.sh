@@ -59,3 +59,7 @@ if grep -REq --include='*.yml' --include='*.yaml' \
 fi
 
 echo "Xcode Organizer release workflow invariants passed."
+
+require_literal 'python3 scripts/validate-ios-history-release.py "$app_info"' .github/workflows/ios-build-and-test.yml
+require_literal '"HistoryLocalDiagnostics"' .github/workflows/ios-build-and-test.yml
+require_literal 'history_enabled_normal_oauth: true' .github/workflows/ios-build-and-test.yml

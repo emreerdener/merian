@@ -1,6 +1,36 @@
 import Foundation
 
 enum AccountDeletionLocalCleanupStore {
+    /// Immutable evidence for one local recovery stage. It never invents an owner
+    /// from the identity-free marker; composition supplies the captured library.
+    @MainActor
+    struct RecoveryScope {
+        let expectedState: AccountDeletionLocalRecoveryState?
+        let expectedCapability: PreparedDeletionRecoveryCapability?
+        let capabilityStore: AccountDeletionRecoveryCapabilityStore
+        let readState: @MainActor () -> AccountDeletionLocalRecoveryState?
+        let validateSession: @MainActor () -> Bool
+        let validateLibrary: @MainActor (AnyObject?) -> Bool
+
+        var isCurrent: Bool {
+            (expectedState?.requiresRecoveryCapability != true || expectedCapability != nil) &&
+                validateSession() && validateLibrary(nil) && readState() == expectedState &&
+                capabilityStore.matchesExisting(expectedCapability)
+        }
+
+        var permitsRuntimeDrain: Bool {
+            (expectedState == nil || expectedState?.isIntakePending == true || isAcceptedCleanup) && isCurrent
+        }
+
+        private var isAcceptedCleanup: Bool {
+            expectedState == .capabilityCleanupPending || expectedState == .capabilityRetirementPending || expectedState == .cleanupPending
+        }
+
+        func permitsLibraryPurge(in container: AnyObject) -> Bool {
+            isAcceptedCleanup && isCurrent && validateLibrary(container)
+        }
+    }
+
     static func state(
         userDefaults: UserDefaults = .standard
     ) -> AccountDeletionLocalRecoveryState? {

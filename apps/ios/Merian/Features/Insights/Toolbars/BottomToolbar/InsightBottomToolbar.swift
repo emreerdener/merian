@@ -42,7 +42,7 @@ struct InsightBottomToolbar: ToolbarContent {
                 let publicLocationLabel = visiblePublicLocationLabel(from: speciesData.locationName)
                 let isHuman = speciesData.isHumanSubject || (recordSnapshot?.isHumanSubject ?? false)
 
-                if !isHuman {
+                if !isHuman && !inferenceEngine.activeMedia.hasRetainedDisplayImages {
                     InsightShareButton(
                         shareExternally: shareExternally,
                         onShareToExplore: onShareToExplore,

@@ -1,29 +1,35 @@
 import AVFoundation
 import Foundation
+import os
 import Testing
 
 @testable import Merian
 
-private final class ThreadCheckingAudioPlayer: AVAudioPlayer {
-    private var time: TimeInterval = 0
-    private var simulatedPlaying = false
+// AVAudioPlayer requires subclasses to restate its conformance. All mutable
+// state added by this test double is protected by the lock below.
+private final class ThreadCheckingAudioPlayer: AVAudioPlayer, @unchecked Sendable {
+    private struct State {
+        var time: TimeInterval = 0
+        var simulatedPlaying = false
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
     override var duration: TimeInterval { #expect(!Thread.isMainThread); return 10 }
-    override var isPlaying: Bool { #expect(!Thread.isMainThread); return simulatedPlaying }
+    override var isPlaying: Bool { #expect(!Thread.isMainThread); return state.withLock { $0.simulatedPlaying } }
     override var currentTime: TimeInterval {
-        get { #expect(!Thread.isMainThread); return time }
-        set { #expect(!Thread.isMainThread); time = newValue }
+        get { #expect(!Thread.isMainThread); return state.withLock { $0.time } }
+        set { #expect(!Thread.isMainThread); state.withLock { $0.time = newValue } }
     }
     override func prepareToPlay() -> Bool {
         Issue.record("Loading must not activate the audio session")
         return false
     }
-    override func play() -> Bool { #expect(!Thread.isMainThread); simulatedPlaying = true; return true }
-    override func pause() { #expect(!Thread.isMainThread); simulatedPlaying = false }
-    override func stop() { #expect(!Thread.isMainThread); simulatedPlaying = false }
+    override func play() -> Bool { #expect(!Thread.isMainThread); state.withLock { $0.simulatedPlaying = true }; return true }
+    override func pause() { #expect(!Thread.isMainThread); state.withLock { $0.simulatedPlaying = false } }
+    override func stop() { #expect(!Thread.isMainThread); state.withLock { $0.simulatedPlaying = false } }
 }
 
 @MainActor
-private final class CarouselAudioDriverSpy: AudioPlaybackDriver {
+final class CarouselAudioDriverSpy: AudioPlaybackDriver {
     var time: TimeInterval = 0
     var playing = false
     var events: [String] = []
@@ -66,6 +72,14 @@ private final class CarouselAudioDriverSpy: AudioPlaybackDriver {
 @Suite("Carousel audio player executor and command lifetime")
 @MainActor
 struct AudioPlaybackFilePlayerTests {
+    @Test func verifiedMemoryAudioLoadsSilentlyWithoutTemporarySource() async throws {
+        let driver = AudioPlaybackFileDriver(data: makeInferenceTestPCM16WAVData())
+        let loaded = try await driver.load(delegate: AudioPlayerDelegate())
+        #expect(loaded.duration > 0 && !loaded.isPlaying)
+        await driver.dispose()
+        #expect(await driver.snapshot().duration == 0)
+    }
+
     @Test("Construction, playback, seeking and disposal run off the UI thread")
     func driverCallsStayOffMainThread() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).wav")

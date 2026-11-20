@@ -8,20 +8,20 @@
 	<array>
 		<string>Default</string>
 	</array>
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.app.merian.shared</string>
-	</array>
-	<key>keychain-access-groups</key>
-	<array>
-		<string>$(AppIdentifierPrefix)app.merian.shared</string>
-	</array>
-	<key>com.apple.developer.weatherkit</key>
-	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:naturebook.earth</string>
 		<string>applinks:merian.earth</string>
+	</array>
+	<key>com.apple.developer.weatherkit</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(MERIAN_APP_GROUP_IDENTIFIER)</string>
+	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(MERIAN_KEYCHAIN_NAMESPACE)</string>
 	</array>
 </dict>
 </plist>

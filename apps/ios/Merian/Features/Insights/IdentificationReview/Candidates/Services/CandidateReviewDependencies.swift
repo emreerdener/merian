@@ -7,13 +7,15 @@ struct CandidateReviewDependencies {
     let confirmOriginal: @MainActor (
         _ inferenceEngine: InferenceEngine,
         _ scanId: String,
-        _ modelContext: ModelContext
+        _ modelContext: ModelContext,
+        _ expectedReview: LocalAIIdentificationReview
     ) async -> Void
     let applyOverride: @MainActor (
         _ inferenceEngine: InferenceEngine,
         _ scientificName: String,
         _ scanId: String,
-        _ modelContext: ModelContext
+        _ modelContext: ModelContext,
+        _ expectedReview: LocalAIIdentificationReview
     ) async -> Void
     let resetReview: @MainActor (
         _ inferenceEngine: InferenceEngine,
@@ -34,14 +36,16 @@ struct CandidateReviewDependencies {
         confirmOriginal: @escaping @MainActor (
             _ inferenceEngine: InferenceEngine,
             _ scanId: String,
-            _ modelContext: ModelContext
-        ) async -> Void = { _, _, _ in },
+            _ modelContext: ModelContext,
+            _ expectedReview: LocalAIIdentificationReview
+        ) async -> Void = { _, _, _, _ in },
         applyOverride: @escaping @MainActor (
             _ inferenceEngine: InferenceEngine,
             _ scientificName: String,
             _ scanId: String,
-            _ modelContext: ModelContext
-        ) async -> Void = { _, _, _, _ in },
+            _ modelContext: ModelContext,
+            _ expectedReview: LocalAIIdentificationReview
+        ) async -> Void = { _, _, _, _, _ in },
         resetReview: @escaping @MainActor (
             _ inferenceEngine: InferenceEngine,
             _ scanId: String,
@@ -67,17 +71,17 @@ struct CandidateReviewDependencies {
         isProActive: {
             AppDIContainer.shared.revenueCatManager.isProActive
         },
-        confirmOriginal: { inferenceEngine, scanId, modelContext in
+        confirmOriginal: { inferenceEngine, scanId, modelContext, expectedReview in
             await inferenceEngine.confirmAIIdentification(
                 expectedScanId: scanId,
-                modelContext: modelContext
+                modelContext: modelContext, expectedReview: expectedReview
             )
         },
-        applyOverride: { inferenceEngine, scientificName, scanId, modelContext in
+        applyOverride: { inferenceEngine, scientificName, scanId, modelContext, expectedReview in
             await inferenceEngine.applyIdentificationOverride(
                 scientificName: scientificName,
                 expectedScanId: scanId,
-                modelContext: modelContext
+                modelContext: modelContext, expectedReview: expectedReview
             )
         },
         resetReview: { inferenceEngine, scanId, modelContext in

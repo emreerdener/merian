@@ -32,6 +32,7 @@ if (import.meta.main) {
       "merian-identification-evaluation",
       "merian-incident-response",
       "merian-ios",
+      "merian-notion",
       "merian-release",
       "merian-supabase",
       "merian-swiftdata-migrations",

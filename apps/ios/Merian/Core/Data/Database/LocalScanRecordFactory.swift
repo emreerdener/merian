@@ -3,7 +3,8 @@ import Foundation
 /// Maps one prepared inference result into the complete persisted scan model.
 ///
 /// The factory is stateless. SwiftData insertion, replacement, and save
-/// decisions remain isolated to `BackgroundDatabaseActor`.
+/// decisions belong to `BackgroundDatabaseActor` or the retained initial-result
+/// receiving owner; this factory never saves.
 enum LocalScanRecordFactory {
     static func makeRecord(
         from mappedData: SpeciesData,

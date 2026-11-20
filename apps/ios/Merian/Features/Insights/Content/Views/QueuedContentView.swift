@@ -10,6 +10,7 @@ struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(ConsentManager.self) private var consentManager
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: InsightSheetViewModel
 
@@ -105,6 +106,7 @@ struct QueuedContentView: View {
             canRetryNow: queuedContext.canRetryNow,
             isOnline: offlineQueueManager.isOnline,
             now: retryReferenceDate,
+            canCheckStatus: operationViewModel.hasObservationAction,
             openAIPermission: openAIPermission
         )
     }
@@ -180,8 +182,17 @@ struct QueuedContentView: View {
                                 scanId: queuedContext.id, generation: queuedGeneration
                             ) else { return }
                         isShowingAIPrivacy = true
-                    }
+                    },
+                    isChecking: !operationViewModel.canCheckObservation,
+                    onCheck: { checkObservation(expectedGeneration: queuedGeneration) }
                 )
+            }
+            if operationViewModel.hasObservationAction && (queuedContext.queueNeedsAttention || queuedContext.queueState == .failed) {
+                QueuedObservationStatusView(state: operationViewModel.observationState)
+                if retryPresentation?.action != .checkStatus {
+                    Button("Check status") { checkObservation(expectedGeneration: queuedGeneration) }
+                        .disabled(!offlineQueueManager.isOnline || !operationViewModel.canCheckObservation)
+                }
             }
         }
         #if DEBUG
@@ -204,19 +215,27 @@ struct QueuedContentView: View {
                 .environment(consentManager)
         }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
+            operationViewModel.closeObservation()
             isShowingAIPrivacy = false
         }
         .onChange(of: consentManager.aiProcessingPermissions.ownerUserId) { _, _ in
+            operationViewModel.closeObservation()
             isShowingAIPrivacy = false
         }
         .onChange(of: consentManager.aiProcessingPermissions.hasCurrentAccount) { _, hasCurrentAccount in
-            if !hasCurrentAccount { isShowingAIPrivacy = false }
+            if !hasCurrentAccount { isShowingAIPrivacy = false; operationViewModel.closeObservation() }
+        }
+        .onAppear { operationViewModel.setObservationVisible(scenePhase == .active) }
+        .onDisappear { operationViewModel.setObservationVisible(false) }
+        .onChange(of: scenePhase) { _, phase in
+            operationViewModel.setObservationVisible(phase == .active)
         }
         .task(id: queuedContext.id) {
             operationViewModel.scheduleNextPersistedWake(
                 using: offlineQueueManager
             )
             while !Task.isCancelled {
+                operationViewModel.validateObservation()
                 retryReferenceDate = Date()
                 refreshQueuedContext(scanId: queuedContext.id)
                 do {
@@ -272,6 +291,18 @@ struct QueuedContentView: View {
 }
 
 private extension QueuedContentView {
+    @MainActor
+    func checkObservation(expectedGeneration: UInt64) {
+        guard scenePhase == .active, offlineQueueManager.isOnline,
+              viewModel.isPresentingScan(scanId: queuedContext.id, generation: expectedGeneration),
+              let ticket = operationViewModel.observationTicket() else { return }
+        let scanID = queuedContext.id
+        Task {
+            await operationViewModel.checkObservation(scanID: scanID, queueManager: offlineQueueManager, ticket: ticket,
+                isCurrent: { viewModel.isPresentingScan(scanId: scanID, generation: expectedGeneration) })
+        }
+    }
+
     @MainActor
     func retryQueuedScanNow(expectedGeneration: UInt64) {
         let scanId = queuedContext.id

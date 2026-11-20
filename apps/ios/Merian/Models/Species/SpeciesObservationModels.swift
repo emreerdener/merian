@@ -114,6 +114,29 @@ struct IdentificationCandidate: Codable, Sendable {
     let confidenceScore: Double
     let distinguishingFeature: String?
 
+    private enum CodingKeys: String, CodingKey {
+        case scientificName, commonName, confidenceScore, distinguishingFeature
+    }
+    private enum ServerKeys: String, CodingKey {
+        case scientificName = "scientific_name", commonName = "common_name"
+        case confidenceScore = "confidence_score", distinguishingFeature = "distinguishing_feature"
+    }
+
+    /// Existing caches use domain keys; retained original/V3 evidence keeps
+    /// server keys. This view decoder does not rewrite either stored form.
+    init(from decoder: Decoder) throws {
+        let domain = try decoder.container(keyedBy: CodingKeys.self)
+        let server = try decoder.container(keyedBy: ServerKeys.self)
+        scientificName = try domain.decodeIfPresent(String.self, forKey: .scientificName)
+            ?? server.decode(String.self, forKey: .scientificName)
+        commonName = try domain.decodeIfPresent(String.self, forKey: .commonName)
+            ?? server.decodeIfPresent(String.self, forKey: .commonName)
+        confidenceScore = try domain.decodeIfPresent(Double.self, forKey: .confidenceScore)
+            ?? server.decode(Double.self, forKey: .confidenceScore)
+        distinguishingFeature = try domain.decodeIfPresent(String.self, forKey: .distinguishingFeature)
+            ?? server.decodeIfPresent(String.self, forKey: .distinguishingFeature)
+    }
+
     init(
         scientificName: String,
         commonName: String? = nil,

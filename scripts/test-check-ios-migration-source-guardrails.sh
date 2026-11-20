@@ -11,13 +11,12 @@ fail() {
   exit 1
 }
 
-# Only SchemaVersions.swift, ModelContainerFactory.swift, and
-# MigrationPlanTests.swift are copied for mutation; frozen snapshot inputs and
-# other checker dependencies remain read-only repository links.
+# Schema and migration fixtures are copied for mutation; other checker
+# dependencies remain read-only repository links.
 fixture="$tmp_dir/fixture"
 mkdir -p "$fixture/apps/ios/Merian/Models"
 for path in .github scripts apps/ios/Merian/App \
-  apps/ios/Merian/Models/Aliases.swift apps/ios/Merian/Models/ActiveSchema apps/ios/Merian/Models/Schema; do
+  apps/ios/Merian/Models/Aliases.swift apps/ios/Merian/Models/ActiveSchema; do
   ln -s "$repo_root/$path" "$fixture/$path"
 done
 mkdir -p \
@@ -34,12 +33,38 @@ cp \
   "$fixture/apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 cp -R "$repo_root/apps/ios/Merian/Core" "$fixture/apps/ios/Merian/Core"
 
+cp -R "$repo_root/apps/ios/Merian/Models/Schema" "$fixture/apps/ios/Merian/Models/Schema"
+
 prepare_fixture() {
   python3 - "$repo_root" "$fixture" "$1" <<'PY'
 from pathlib import Path
 import sys
 
 repo, fixture, mode = sys.argv[1:]
+for suffix in ["ScanSnapshots", "QueueSnapshots"]:
+    snapshot = Path("apps/ios/Merian/Models/Schema/SchemaV57" + suffix + ".swift")
+    original = (Path(repo) / snapshot).read_bytes()
+    (Path(fixture) / snapshot).write_bytes(original + (b"\n// mutation\n" if mode == "changed-v57-" + suffix else b""))
+
+for suffix in ["ScanSnapshots", "QueueSnapshots"]:
+    snapshot = Path("apps/ios/Merian/Models/Schema/SchemaV58" + suffix + ".swift")
+    original = (Path(repo) / snapshot).read_bytes()
+    (Path(fixture) / snapshot).write_bytes(original + (b"\n// mutation\n" if mode == "changed-v58-" + suffix else b""))
+
+for suffix in ["ScanSnapshots", "QueueSnapshots", "PhotoPreparationSnapshots"]:
+    snapshot = Path("apps/ios/Merian/Models/Schema/SchemaV59" + suffix + ".swift")
+    original = (Path(repo) / snapshot).read_bytes()
+    (Path(fixture) / snapshot).write_bytes(original + (b"\n// mutation\n" if mode == "changed-v59-" + suffix else b""))
+
+for name in ["SchemaV60.swift", "SchemaV60SharedStorageSnapshots.swift", "SchemaV61.swift", "SchemaV61InboxSnapshots.swift"]:
+    path = Path("apps/ios/Merian/Models/Schema") / name
+    (Path(fixture) / path).write_bytes((Path(repo) / path).read_bytes())
+
+for name in ["SchemaV62.swift", "SchemaV62ScanSnapshots.swift", "SchemaV62QueueSnapshots.swift", "SchemaV62PreparationSnapshots.swift", "SchemaV63.swift", "SchemaV63ScanSnapshots.swift", "SchemaV63QueueSnapshots.swift", "SchemaV63PreparationSnapshots.swift", "SchemaV63ConsumerSnapshots.swift", "SchemaV64.swift", "SchemaV64ScanSnapshots.swift", "SchemaV64QueueSnapshots.swift", "SchemaV64AcquisitionSnapshots.swift", "SchemaV65.swift", "SchemaV65ReceivingSnapshots.swift", "SchemaV68.swift", "SchemaV68QueueSnapshots.swift", "SchemaV68ScanSnapshots.swift"]:
+    path = Path("apps/ios/Merian/Models/Schema") / name
+    original = (Path(repo) / path).read_bytes()
+    (Path(fixture) / path).write_bytes(original + (b"\n// mutation\n" if mode == "changed-" + name else b""))
+
 path = Path("apps/ios/Merian/Models/SchemaVersions.swift")
 source = (Path(repo) / path).read_text()
 start = source.index("enum MerianRecentV47MigrationPlan")
@@ -63,8 +88,60 @@ if mode == "forbidden-source":
         1,
     )
     source = source[:start] + plan + source[end:]
-if mode == "missing-v57-full-tail":
+if mode == "missing-v69-full-tail":
+    source = source.replace("migrateV68toV69", "removedV69Stage", 1)
+elif mode == "missing-v68-plan":
+    source = source[:source.index("enum MerianRecentV68MigrationPlan")]
+elif mode == "missing-v68-full-tail":
+    source = source.replace("migrateV67toV68", "removedV68Stage", 1)
+elif mode == "missing-v67-plan":
+    source = source[:source.index("enum MerianRecentV67MigrationPlan")]
+elif mode == "missing-v66-full-tail":
+    source = source.replace("migrateV65toV66", "removedV66Stage", 1)
+elif mode == "missing-v65-plan":
+    source = source[:source.index("enum MerianRecentV65MigrationPlan")]
+elif mode == "reordered-v66-schema":
+    begin = source.index("enum MerianMigrationPlan")
+    end = source.index("static var stages", begin)
+    block = source[begin:end]
+    before = "MerianSchemaV64.self, MerianSchemaV65.self, MerianSchemaV66.self"
+    assert block.count(before) == 1
+    block = block.replace(before, "MerianSchemaV64.self, MerianSchemaV66.self, MerianSchemaV65.self")
+    source = source[:begin] + block + source[end:]
+if mode == "missing-v65-full-tail":
+    source = source.replace("migrateV64toV65", "removedV65Stage", 1)
+elif mode == "missing-v64-plan":
+    source = source[:source.index("enum MerianRecentV64MigrationPlan")]
+if mode == "missing-v64-full-tail":
+    source = source.replace("migrateV63toV64", "removedV64Stage", 1)
+if mode == "missing-v63-plan":
+    source = source.replace("enum MerianRecentV63MigrationPlan", "enum RemovedV63Plan")
+if mode == "missing-v62-full-tail":
+    source = source.replace("migrateV61toV62", "removedV62Stage", 1)
+elif mode == "missing-v61-plan":
+    source = source[:source.index("enum MerianRecentV61MigrationPlan")]
+elif mode in {"changed-v61-schema", "changed-v61-snapshot"}:
+    name = "SchemaV61.swift" if mode == "changed-v61-schema" else "SchemaV61InboxSnapshots.swift"
+    target = Path(fixture) / "apps/ios/Merian/Models/Schema" / name
+    target.write_text(target.read_text() + "\n// mutation\n")
+elif mode == "missing-v61-full-tail":
+    source = source.replace("migrateV60toV61", "removedV61Stage", 1)
+elif mode == "missing-v60-plan":
+    source = source[:source.index("enum MerianRecentV60MigrationPlan")]
+elif mode == "missing-v60-full-tail":
+    source = source.replace("migrateV59toV60", "removedV60Stage", 1)
+elif mode == "missing-v59-plan":
+    source = source[:source.index("enum MerianRecentV59MigrationPlan")]
+elif mode == "missing-v59-full-tail":
+    source = source.replace("migrateV58toV59", "removedV59Stage", 1)
+elif mode == "missing-v58-plan":
+    source = source[:source.index("enum MerianRecentV58MigrationPlan")]
+elif mode == "missing-v57-full-tail":
     source = source.replace("migrateV56toV57", "removedV57Stage", 1)
+elif mode == "missing-v58-full-tail":
+    source = source.replace("migrateV57toV58", "removedV58Stage", 1)
+elif mode == "missing-v57-plan":
+    source = source[:source.index("enum MerianRecentV57MigrationPlan")]
 elif mode == "missing-v56-plan":
     source = source[:source.index("enum MerianRecentV56MigrationPlan")]
 elif mode == "missing-v56-full-tail":
@@ -92,9 +169,17 @@ elif mode == "missing-v51-plan":
     source = source[:source.index("enum MerianRecentV51MigrationPlan")]
 (Path(fixture) / path).write_text(source)
 
+# Reset both owners before each mutation; otherwise a moved dispatch mutation
+# leaks into subsequent independent guardrail cases.
+for factory_name in ["ModelContainerFactory.swift", "ModelContainerFactory+Persistent.swift"]:
+    reset_path = Path("apps/ios/Merian/Core/Data/StoreRecovery/Services") / factory_name
+    (Path(fixture) / reset_path).write_bytes((Path(repo) / reset_path).read_bytes())
+
 factory_path = Path(
     "apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory.swift"
 )
+if mode == "missing-v51-dispatch":
+    factory_path = factory_path.with_name("ModelContainerFactory+Persistent.swift")
 factory_source = (Path(repo) / factory_path).read_text()
 if mode == "safe-mode-plan":
     start = factory_source.index(
@@ -180,22 +265,77 @@ assert_rejected safe-mode-plan "The empty current-schema safe-mode container mus
 assert_rejected weakened-full-plan-test "MigrationPlanTests must validate the full historical plan independently from safe mode."
 assert_rejected reconstructed-store-path "Store recovery must not reconstruct the SwiftData store under Application Support."
 
-assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 through V57 stages."
-assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 through V57 stages."
-assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 through V56 then active V57."
-assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 through V56 then active V57."
+assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 through V69 stages."
+assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 through V68 then active V69."
+assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 through V68 then active V69."
 assert_rejected missing-v51-source "RecentSourceSchema must include V51."
 assert_rejected missing-v51-dispatch "ModelContainerFactory recent-source dispatch must handle V51 explicitly."
 
-assert_rejected missing-v53-full-tail "Full migration plan must finish with the shared V51 through V57 stages."
+assert_rejected missing-v53-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
 assert_rejected missing-v52-plan "Missing V52 source-isolated plan."
-echo "iOS migration source guardrail tests passed."
 
-assert_rejected missing-v55-full-tail "Full migration plan must finish with the shared V51 through V57 stages."
+assert_rejected missing-v55-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
 assert_rejected missing-v54-plan "Missing V54 source-isolated plan."
 
-assert_rejected missing-v56-full-tail "Full migration plan must finish with the shared V51 through V57 stages."
+assert_rejected missing-v56-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
 assert_rejected missing-v55-plan "Missing V55 source-isolated plan."
 
-assert_rejected missing-v57-full-tail "Full migration plan must finish with the shared V51 through V57 stages."
+assert_rejected missing-v57-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected changed-v57-ScanSnapshots "V57 frozen snapshot changed: ScanSnapshots"
+assert_rejected changed-v57-QueueSnapshots "V57 frozen snapshot changed: QueueSnapshots"
+assert_rejected missing-v58-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v57-plan "Missing V57 source-isolated plan."
 assert_rejected missing-v56-plan "Missing V56 source-isolated plan."
+
+assert_rejected missing-v59-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v58-plan "Missing V58 source-isolated plan."
+assert_rejected changed-v58-ScanSnapshots "V58 frozen snapshot changed: ScanSnapshots"
+assert_rejected changed-v58-QueueSnapshots "V58 frozen snapshot changed: QueueSnapshots"
+
+assert_rejected missing-v60-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v59-plan "Missing V59 source-isolated plan."
+assert_rejected changed-v59-ScanSnapshots "V59 frozen snapshot changed: ScanSnapshots"
+assert_rejected changed-v59-QueueSnapshots "V59 frozen snapshot changed: QueueSnapshots"
+assert_rejected changed-v59-PhotoPreparationSnapshots "V59 frozen snapshot changed: PhotoPreparationSnapshots"
+
+assert_rejected missing-v62-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v61-plan "Missing V61 source-isolated plan."
+assert_rejected changed-v61-schema "V61 frozen snapshot changed: SchemaV61.swift"
+assert_rejected changed-v61-snapshot "V61 frozen snapshot changed: SchemaV61InboxSnapshots.swift"
+assert_rejected missing-v61-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v60-plan "Missing V60 source-isolated plan."
+
+for snapshot in SchemaV62.swift SchemaV62ScanSnapshots.swift SchemaV62QueueSnapshots.swift SchemaV62PreparationSnapshots.swift; do
+  assert_rejected "changed-$snapshot" "V62 frozen snapshot changed: $snapshot"
+done
+
+assert_rejected missing-v64-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v63-plan "Missing V63 source-isolated plan."
+for snapshot in SchemaV63.swift SchemaV63ScanSnapshots.swift SchemaV63QueueSnapshots.swift SchemaV63PreparationSnapshots.swift SchemaV63ConsumerSnapshots.swift; do
+  assert_rejected "changed-$snapshot" "V63 frozen snapshot changed: $snapshot"
+done
+
+assert_rejected missing-v65-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v64-plan "Missing V64 source-isolated plan."
+for snapshot in SchemaV64.swift SchemaV64ScanSnapshots.swift SchemaV64QueueSnapshots.swift SchemaV64AcquisitionSnapshots.swift; do
+  assert_rejected "changed-$snapshot" "V64 frozen snapshot changed: $snapshot"
+done
+
+assert_rejected missing-v66-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v65-plan "Missing V65 source-isolated plan."
+assert_rejected reordered-v66-schema "Full migration plan must end its schemas with frozen V51 through V68 then active V69."
+for snapshot in SchemaV65.swift SchemaV65ReceivingSnapshots.swift; do
+  assert_rejected "changed-$snapshot" "V65 frozen snapshot changed: $snapshot"
+done
+
+assert_rejected missing-v68-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v67-plan "Missing V67 source-isolated plan."
+
+assert_rejected missing-v69-full-tail "Full migration plan must finish with the shared V51 through V69 stages."
+assert_rejected missing-v68-plan "Missing V68 source-isolated plan."
+for snapshot in SchemaV68.swift SchemaV68QueueSnapshots.swift SchemaV68ScanSnapshots.swift; do
+  assert_rejected "changed-$snapshot" "V68 frozen snapshot changed: $snapshot"
+done
+
+echo "iOS migration source guardrail tests passed."

@@ -6,6 +6,8 @@ struct QueuedRetryStatusView: View {
     let onRetry: () -> Void
     let onViewPlans: () -> Void
     let onReviewOpenAIPermission: () -> Void
+    var isChecking = false
+    var onCheck: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 12) {
@@ -19,6 +21,8 @@ struct QueuedRetryStatusView: View {
                     switch action {
                     case .retryNow:
                         onRetry()
+                    case .checkStatus:
+                        onCheck()
                     case .viewPlans:
                         onViewPlans()
                     case .reviewOpenAIPermission:
@@ -31,6 +35,8 @@ struct QueuedRetryStatusView: View {
                             isRetrying ? "Retrying..." : "Retry now",
                             systemImage: "arrow.clockwise"
                         )
+                    case .checkStatus:
+                        Label(isChecking ? "Checking…" : "Check status", systemImage: "arrow.clockwise")
                     case .viewPlans:
                         Label("View plans", systemImage: "sparkles")
                     case .reviewOpenAIPermission:
@@ -38,7 +44,7 @@ struct QueuedRetryStatusView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(action == .retryNow && isRetrying)
+                .disabled((action == .retryNow && isRetrying) || (action == .checkStatus && isChecking))
                 .labelStyle(.titleAndIcon)
             }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 @testable import Merian
 import XCTest
 
@@ -33,7 +34,7 @@ private final class OAuthProviderSignInCoordinatorHarness {
         case verification
     }
 
-    let sourceSession = AuthTransitionSession(
+    var sourceSession: AuthTransitionSession? = AuthTransitionSession(
         userID: UUID(),
         isAnonymous: true
     )
@@ -43,6 +44,7 @@ private final class OAuthProviderSignInCoordinatorHarness {
     var authorizationError: Error?
     var appleStartError: Error?
     var completionError: Error?
+    var completionOperation: (@MainActor () async throws -> Void)?
     var completionGate: OAuthProviderCompletionGate?
     var verificationError: Error?
     var shouldRecordMutation = false
@@ -125,6 +127,7 @@ private final class OAuthProviderSignInCoordinatorHarness {
                         await completionGate.wait()
                         try Task.checkCancellation()
                     }
+                    try await self.completionOperation?()
                     if let completionError = self.completionError {
                         throw completionError
                     }
@@ -177,6 +180,64 @@ private final class OAuthProviderSignInCoordinatorHarness {
 
 @MainActor
 final class OAuthProviderSignInCoordinatorTests: XCTestCase {
+    func testCancelledSettlementFailureNeverInvokesGenericCleanup() async throws {
+        for hasSource in [false, true] {
+            for persisted in [false, true] {
+                let account = UUID(uuidString: "00000000-0000-4000-8000-000000000265")!
+                let scope = MerianEnvironment.HistoryQualificationScope(
+                    approvalID: UUID(uuidString: "00000000-0000-4000-8000-000000000266")!,
+                    host: "abcdefghijklmnopqrst.supabase.co",
+                    accountFingerprints: [MerianEnvironment.HistoryQualificationScope.fingerprint(account)])
+                let evidence = MerianEnvironment.HistoryQualificationIdentityEvidence(
+                    approvalID: scope.approvalID, host: scope.host, provider: "google",
+                    accountFingerprint: MerianEnvironment.HistoryQualificationScope.fingerprint(account),
+                    subjectFingerprint: String(repeating: "b", count: 64), mappingEvidenceDigest: String(repeating: "c", count: 64),
+                    refusalEvidenceDigest: String(repeating: "d", count: 64), mappingObservedAt: Date(timeIntervalSince1970: 1800000000),
+                    mappingExpiresAt: Date(timeIntervalSince1970: 1800000300), refusalObservedAt: Date(timeIntervalSince1970: 1800000000),
+                    refusalExpiresAt: Date(timeIntervalSince1970: 1800000200))
+                func session(_ token: String) -> Session {
+                    Session(accessToken: token, tokenType: "bearer", expiresIn: 3600,
+                        expiresAt: Date.distantFuture.timeIntervalSince1970, refreshToken: "synthetic-refresh",
+                        user: User(id: account, appMetadata: [:], userMetadata: [:], aud: "authenticated",
+                            createdAt: Date(timeIntervalSince1970: 0), updatedAt: Date(timeIntervalSince1970: 0), isAnonymous: false))
+                }
+                let backing = QualificationFaultStorage()
+                let storage = QualificationAuthStorage(storage: backing, scope: scope)
+                let prior = hasSource ? try JSONEncoder().encode(session("source")) : nil
+                if let prior { try backing.store(key: QualificationAuthStorage.sessionKey, value: prior) }
+                let attempt = UUID()
+                try storage.begin(attempt)
+                let harness = OAuthProviderSignInCoordinatorHarness()
+                harness.sourceSession = hasSource ? AuthTransitionSession(userID: account, isAnonymous: false) : nil
+                harness.completionOperation = {
+                    let _: Session = try await OAuthSignInWorkflow.replacingSession(
+                        suspendAnalytics: { 1 }, installSession: {
+                            backing.failWrites(persisted ? .after : .before, unreadableAfterWrite: persisted ? 2 : 0)
+                            withUnsafeCurrentTask { $0?.cancel() }
+                            try storage.accept(session("accepted"), attempt: attempt, evidence: evidence, at: Date(timeIntervalSince1970: 1800000100))
+                            XCTFail("Expected failed or unconfirmed settlement")
+                            return session("accepted")
+                        }, currentSession: { nil }, reconcileSession: { _, _, disposition in
+                            if case .cancelled = disposition {} else { XCTFail("Cancellation disposition was lost") }
+                        })
+                }
+                await Task { @MainActor in
+                    await OAuthProviderSignInCoordinator().signInWithGoogle(dependencies: harness.dependencies())
+                }.value
+                XCTAssertFalse(harness.events.contains("recover"), "Settlement outcome must survive cancellation")
+                XCTAssertNil(harness.activeTransition)
+                backing.failWrites(nil)
+                let restored = try storage.retrieve(key: QualificationAuthStorage.sessionKey)
+                if persisted {
+                    XCTAssertEqual(try JSONDecoder().decode(Session.self, from: XCTUnwrap(restored)).accessToken, "accepted")
+                } else {
+                    XCTAssertEqual(restored, prior)
+                    XCTAssertThrowsError(try storage.remove(key: QualificationAuthStorage.sessionKey))
+                }
+            }
+        }
+    }
+
     func testRejectedGoogleTransitionDoesNotPresentProvider() async {
         let harness = OAuthProviderSignInCoordinatorHarness()
         harness.replaceActiveTransition()

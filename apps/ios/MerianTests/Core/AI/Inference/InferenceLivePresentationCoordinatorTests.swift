@@ -360,7 +360,9 @@ struct InferenceLivePresentationTests {
 
         await hydrationGate.release()
         await harness.hydrationTasks.awaitCurrentTask(in: .live)
+        #expect(harness.writes.beginAuthTransitionFence())
         await harness.writes.awaitQuiescence()
+        harness.writes.finishAuthTransitionFence()
 
         #expect(persistenceRecorder.metadataContainers == [
             ObjectIdentifier(container)

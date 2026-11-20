@@ -148,6 +148,12 @@ struct BackgroundTransferOwnershipTests {
         ))
         let body = source[quiescenceStart.lowerBound...]
 
+        let publicationDrain = try #require(body.range(
+            of: "await publicationDeliveryOwner.cancelAndAwait()"
+        ))
+        let containerGuard = try #require(body.range(
+            of: "guard let container = modelContext?.container"
+        ))
         let durableSweep = try #require(body.range(
             of: ".backgroundAccountWorkCandidates(ownerUserID: sourceUserID)"
         ))
@@ -163,6 +169,8 @@ struct BackgroundTransferOwnershipTests {
             range: retirement.upperBound..<body.endIndex
         ))
 
+        #expect(publicationDrain.lowerBound < containerGuard.lowerBound)
+        #expect(publicationDrain.lowerBound < durableSweep.lowerBound)
         #expect(durableSweep.lowerBound < transportSnapshot.lowerBound)
         #expect(transportSnapshot.lowerBound < retirement.lowerBound)
         #expect(retirement.lowerBound < cancellation.lowerBound)

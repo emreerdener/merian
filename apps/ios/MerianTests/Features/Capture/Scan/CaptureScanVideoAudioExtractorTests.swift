@@ -69,6 +69,148 @@ struct CaptureScanVideoAudioExtractorTests {
         #expect(FileManager.default.fileExists(atPath: fixture.videoURL.path))
     }
 
+    @Test func concurrentFixturePreparationAndCancellationReleaseEncoderOwnership() async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for channels in [nil, 1, 2, nil, 1, 2] as [Int?] {
+                group.addTask {
+                    let fixture = try await VideoAudioFixture(channels: channels)
+                    defer { fixture.remove() }
+                    let asset = AVURLAsset(url: fixture.videoURL)
+                    let video = try await asset.loadTracks(withMediaType: .video)
+                    let audio = try await asset.loadTracks(withMediaType: .audio)
+                    #expect(video.count == 1)
+                    #expect(audio.count == (channels == nil ? 0 : 1))
+                }
+            }
+            group.addTask {
+                withUnsafeCurrentTask { $0?.cancel() }
+                do {
+                    let unexpected = try await VideoAudioFixture(channels: 1)
+                    unexpected.remove()
+                    Issue.record("Cancelled fixture creation must not complete")
+                } catch is CancellationError {
+                    // Pre-cancelled construction must release any acquired ownership.
+                }
+            }
+            try await group.waitForAll()
+        }
+        let afterCancellation = try await VideoAudioFixture(channels: 2)
+        defer { afterCancellation.remove() }
+        #expect(FileManager.default.fileExists(atPath: afterCancellation.videoURL.path))
+    }
+
+    @Test(arguments: [false, true])
+    func lateCanonicalResultDiscardsIntermediateAndRespectsCancellation(cancel: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let intermediate = root.appendingPathComponent("intermediate.wav")
+        let canonical = root.appendingPathComponent("canonical.wav")
+        let gate = AudioArtifactGate()
+        let task = Task {
+            await CaptureScanVideoAudioExtractor.qualifyArtifactLifecycle { register in
+                try Data([1]).write(to: intermediate)
+                let first = await register(intermediate)
+                try Data([2]).write(to: canonical)
+                let last = await register(canonical)
+                await gate.retain([first, last])
+                await gate.waitForRelease()
+                // Deliberately return a successful result even after cancellation.
+                return last
+            }
+        }
+        let ready = await gate.waitForArtifacts()
+        if cancel { task.cancel() }
+        await gate.release()
+        let result = await task.value
+        #expect(ready)
+        #expect(!FileManager.default.fileExists(atPath: intermediate.path))
+        #expect(FileManager.default.fileExists(atPath: canonical.path) == !cancel)
+        #expect((result == nil) == cancel)
+        if let result { try await result.discard() }
+    }
+
+    @Test func workerFailureDiscardsRegisteredArtifactBeforeReturning() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let gate = AudioArtifactGate()
+        let result = await CaptureScanVideoAudioExtractor.qualifyArtifactLifecycle { register in
+            try Data([1]).write(to: url)
+            let lease = await register(url)
+            await gate.retain([lease])
+            throw CocoaError(.fileWriteUnknown)
+        }
+        #expect(result == nil)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor @Test(arguments: ["success", "backpressure", "failure", "timeout", "cancel", "late", "late-backpressure", "expired"])
+    func fixtureAppendReadinessHonorsDeadlineAndCancellation(_ boundary: String) async throws {
+        let probe = FixtureAppendDeadlineProbe()
+        let entered = AsyncStream<Void>.makeStream()
+        defer { entered.continuation.finish() }
+        let work = Task { @MainActor in
+            try await VideoAudioFixture.withReadinessDeadline(
+                timeout: boundary == "expired" ? .zero
+                    : (["timeout", "late", "late-backpressure"].contains(boundary) ? .milliseconds(10) : .seconds(5)),
+                onTimeout: { probe.timeouts.append($0) }
+            ) {
+                probe.attempts += 1
+                if boundary == "failure" { throw FixtureAppendDeadlineProbe.Failure.append }
+                if boundary == "timeout" || boundary == "cancel" {
+                    entered.continuation.yield(())
+                    return false
+                } else if boundary == "late" || boundary == "late-backpressure" {
+                    // Either synchronous result after the deadline must remain failure.
+                    let until = ContinuousClock.now + .milliseconds(20)
+                    while ContinuousClock.now < until {}
+                    return boundary == "late"
+                }
+                return boundary != "backpressure" || probe.attempts == 2
+            }
+        }
+        if boundary == "cancel" {
+            var iterator = entered.stream.makeAsyncIterator()
+            _ = await iterator.next()
+            work.cancel()
+        }
+        do {
+            try await work.value
+            #expect(boundary == "success" || boundary == "backpressure")
+        } catch VideoAudioFixture.ReadinessFailure.timedOut {
+            #expect(["timeout", "late", "late-backpressure", "expired"].contains(boundary))
+        } catch is CancellationError {
+            #expect(boundary == "cancel")
+        } catch FixtureAppendDeadlineProbe.Failure.append {
+            #expect(boundary == "failure")
+        }
+        if boundary == "backpressure" { #expect(probe.attempts == 2) }
+        if boundary == "success" || boundary == "failure" { #expect(probe.attempts == 1) }
+        if boundary == "cancel" { #expect(probe.attempts >= 1) }
+        if ["timeout", "late", "late-backpressure", "expired"].contains(boundary) {
+            let observation = try #require(probe.timeouts.first)
+            #expect(probe.timeouts.count == 1)
+            #expect(observation.attempts == probe.attempts)
+            #expect(observation.elapsed >= observation.appendDuration)
+            #expect(observation.appendDuration >= observation.longestAppendDuration)
+            if boundary == "expired" {
+                #expect(observation.attempts == 0)
+                #expect(observation.lastAppendResult == nil)
+            } else if probe.attempts > 0 {
+                #expect(observation.lastAppendResult == (boundary == "late"))
+                #expect(observation.backpressureCount == (boundary == "late" ? 0 : probe.attempts))
+                if boundary.hasPrefix("late") { #expect(observation.longestAppendDuration >= .milliseconds(20)) }
+            }
+        } else {
+            #expect(probe.timeouts.isEmpty)
+        }
+        let completedAttempts = probe.attempts
+        // No detached timer or pending append may touch a completed fixture.
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(probe.attempts == completedAttempts)
+        #expect(probe.timeouts.count <= 1)
+    }
+
     private func extractAndDiscard(_ fixture: VideoAudioFixture) async throws {
         let lease = try #require(await CaptureScanVideoAudioExtractor.extract(
             videoURL: fixture.videoURL,
@@ -76,4 +218,28 @@ struct CaptureScanVideoAudioExtractorTests {
         ))
         #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: lease.fileURL))
     }
+}
+
+private actor AudioArtifactGate {
+    private var leases: [CaptureScanTemporaryFileLease] = []
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    func retain(_ values: [CaptureScanTemporaryFileLease]) { leases = values }
+    func waitForRelease() async {
+        if released { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func release() { released = true; continuation?.resume(); continuation = nil }
+    func waitForArtifacts() async -> Bool {
+        for _ in 0..<500 where leases.isEmpty {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return !leases.isEmpty
+    }
+}
+
+@MainActor private final class FixtureAppendDeadlineProbe {
+    enum Failure: Error { case append }
+    var attempts = 0
+    var timeouts: [VideoAudioFixture.ReadinessTimeoutObservation] = []
 }

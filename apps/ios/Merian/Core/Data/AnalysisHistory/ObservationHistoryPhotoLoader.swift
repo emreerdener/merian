@@ -130,7 +130,10 @@ enum PrivateHistoryPhotoTransport {
             try Task.checkCancellation()
             guard bytes.count == ticket.byte_count else { throw ObservationHistoryError.invalidSnapshot }
             return bytes
-        } catch is CancellationError { throw CancellationError() }
-        catch { throw ObservationHistoryError.unavailable } // Do not propagate signed URLs in NSError.
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ObservationHistoryError.unavailable // Do not propagate signed URLs in NSError.
+        }
     }
 }

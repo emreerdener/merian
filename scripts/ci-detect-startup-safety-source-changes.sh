@@ -81,6 +81,8 @@ is_startup_runtime_file() {
     apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift | \
     apps/ios/Merian/Core/Data/Images/Services/ScanMediaRecoveryRegistrationService.swift | \
     apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift | \
+    apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStoreReadFence.swift | \
+    apps/ios/Merian/Core/Data/SharedMediaStorage/SharedMediaStorageFileOwner.swift | \
     apps/ios/Merian/Core/Data/StoreRecovery/* | \
     apps/ios/Merian/Models/Aliases.swift | \
     apps/ios/Merian/Models/ActiveSchema/* | \
@@ -106,6 +108,58 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV57.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV59.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV59ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV59QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV59PhotoPreparationSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV60.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV60SharedStorageSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV61.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV61InboxSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV62.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV62ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV62QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV62PreparationSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV63.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV63ConsumerSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV63PreparationSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV63QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV63ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV64.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV65.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV66.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV67.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV68.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV68QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV68ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV69.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV65ReceivingSnapshots.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV64ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV64QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV64AcquisitionSnapshots.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaAcquisitionReceiptRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaConsumerRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaAssetReferenceCountRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaMembershipBootstrapRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaPendingMembershipRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativePairRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaDerivativeWorkRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaInboxSourceRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaInboxHandoffRecord.swift | \
+    apps/ios/Merian/Core/Data/SharedMediaStorage/* | \
+    apps/ios/MerianTests/Core/Data/SharedMediaStorage/* | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationAsset.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationReference.swift | \
+    apps/ios/Merian/Models/ActiveSchema/PhotoPreparationLease.swift | \
+    apps/ios/Merian/Core/Data/PhotoPreparation/* | \
+    apps/ios/MerianTests/Core/Data/PhotoPreparation/* | \
     apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/Core/Data/StoreRecovery/* | \

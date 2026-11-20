@@ -11,7 +11,8 @@ extension BackgroundDatabaseActor {
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
-        persistenceFence: LiveInferencePersistenceFence? = nil
+        persistenceFence: LiveInferencePersistenceFence? = nil,
+        originalCompletion: OrdinaryInferenceCompletion? = nil
     ) async -> LiveInferencePersistenceResult {
         guard mappedData.requiresSavedRecord, !localImagePaths.isEmpty else {
             return .notSaved
@@ -26,6 +27,7 @@ extension BackgroundDatabaseActor {
             coverImagePath: localImagePaths.first,
             isLiveCapture: mappedData.isLiveCapture,
             persistenceFence: persistenceFence,
+            originalCompletion: originalCompletion,
             operation: "live_visual"
         )
     }
@@ -37,7 +39,8 @@ extension BackgroundDatabaseActor {
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
-        persistenceFence: LiveInferencePersistenceFence? = nil
+        persistenceFence: LiveInferencePersistenceFence? = nil,
+        originalCompletion: OrdinaryInferenceCompletion? = nil
     ) async -> LiveInferencePersistenceResult {
         guard mappedData.requiresSavedRecord else { return .notSaved }
         return await persistLiveScanRecord(
@@ -50,6 +53,7 @@ extension BackgroundDatabaseActor {
             coverImagePath: nil,
             isLiveCapture: false,
             persistenceFence: persistenceFence,
+            originalCompletion: originalCompletion,
             operation: "live_nonvisual"
         )
     }
@@ -64,6 +68,7 @@ extension BackgroundDatabaseActor {
         coverImagePath: String?,
         isLiveCapture: Bool,
         persistenceFence: LiveInferencePersistenceFence?,
+        originalCompletion: OrdinaryInferenceCompletion?,
         operation: String
     ) async -> LiveInferencePersistenceResult {
         guard livePersistenceFenceMatchesResult(
@@ -100,6 +105,7 @@ extension BackgroundDatabaseActor {
             coverImagePath: coverImagePath,
             isLiveCapture: isLiveCapture,
             persistenceFence: persistenceFence,
+            originalCompletion: originalCompletion,
             operation: operation
         )
         if persistenceFence != nil {
@@ -121,6 +127,7 @@ extension BackgroundDatabaseActor {
         coverImagePath: String?,
         isLiveCapture: Bool,
         persistenceFence: LiveInferencePersistenceFence?,
+        originalCompletion: OrdinaryInferenceCompletion?,
         operation: String
     ) async -> LiveInferencePersistenceResult {
         await acquireScanFinalizationLock(
@@ -137,7 +144,8 @@ extension BackgroundDatabaseActor {
             mediaTimeline: mediaTimeline,
             coverImagePath: coverImagePath,
             isLiveCapture: isLiveCapture,
-            persistenceFence: persistenceFence
+            persistenceFence: persistenceFence,
+            originalCompletion: originalCompletion
         )
         await ScanFinalizationCoordinator.shared.release(scanId: recordId)
         return result
@@ -153,7 +161,8 @@ extension BackgroundDatabaseActor {
         mediaTimeline: [CaptureSubmissionMediaItem]?,
         coverImagePath: String?,
         isLiveCapture: Bool,
-        persistenceFence: LiveInferencePersistenceFence?
+        persistenceFence: LiveInferencePersistenceFence?,
+        originalCompletion: OrdinaryInferenceCompletion?
     ) async -> LiveInferencePersistenceResult {
         if let persistenceFence,
            !(await livePersistenceFenceIsCurrentAssumingPersistenceLock(
@@ -182,6 +191,11 @@ extension BackgroundDatabaseActor {
                 return .notSaved
             }
 
+            try await originalCompletion?.account.validate()
+            if let originalCompletion {
+                guard liveInferenceGenerationIsCurrentAssumingPersistenceLock(scanId: recordId,
+                    expectedGeneration: originalCompletion.generation) else { return .notSaved }
+            }
             try insertReplacingLocalScanRecord(
                 mappedData: mappedData,
                 recordId: recordId,
@@ -191,7 +205,8 @@ extension BackgroundDatabaseActor {
                 capturedMediaJSON: capturedMediaJSON,
                 coverImagePath: coverImagePath,
                 isLiveCapture: isLiveCapture,
-                fieldNotes: try preservedScanRecordFieldNotes(scanId: recordId)
+                fieldNotes: try preservedScanRecordFieldNotes(scanId: recordId),
+                originalCompletion: originalCompletion
             )
             if persistenceFence != nil, Task.isCancelled {
                 modelContext.rollback()

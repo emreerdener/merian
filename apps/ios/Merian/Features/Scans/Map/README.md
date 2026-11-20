@@ -108,7 +108,8 @@ or mutates its own Insight navigation destination. This keeps route commits
 independent of MapKit's render lifecycle and preserves one native back stack.
 The page:
 
-- requests a one-shot current location and shows the native-backed user pin;
+- requests a one-shot current location and shows the standard MapKit
+  user-location indicator;
 - falls back to the newest mapped scan when current location is unavailable;
 - offers **Show scans** whenever the current viewport contains no filtered
   scans;
@@ -120,7 +121,10 @@ The page:
 - uses simple dots at broad zoom and circular thumbnails from zoom level 11.5;
 - reports the true filtered viewport count independently of clustering;
 - presents owner-only previews whose complete card opens Insight, plus a
-  medium/large **Your scans** sheet with a text-only **Private** subtitle; and
+  medium/large **Your scans** sheet with a text-only **Private** subtitle,
+  Explore-style cards with large 4:3 thumbnails, species names, location and
+  date together, and a **View scan** action. The sheet uses swipe dismissal
+  without a **Done** button and has no social controls; and
 - opens existing embedded private Insight destinations only after a list sheet
   has fully dismissed. The Scans root then commits the value route while MapKit
   remains retained lower in the navigation stack. The map view model suspends
@@ -135,10 +139,10 @@ remains local and available.
 The map layer extends beneath the transparent top navigation toolbar, with its
 top scroll-edge effect hidden, while overlay controls retain their safe-area
 positioning. The shared search sheet supplies the same title/address colors,
-trailing chevrons, plain initial hint, and hidden grabber as Explore Map. The
-native distance scale stays visible at the bottom trailing edge, opposite the
-Apple Maps attribution. The floating controls leave 28 points below them for
-this scale and attribution row, matching Explore Map.
+trailing chevrons, plain initial hint, and visible grabber as Explore Map. The
+native distance scale stays visible directly above the trailing map navigation
+toolbar, matching Explore Map. The floating controls leave 28 points below them
+for the Apple Maps attribution.
 
 ## Thumbnail Fallbacks
 
@@ -210,9 +214,9 @@ focused collection-to-map-to-preview-to-Insight and sheet-to-Insight UI test and
 is excluded from Release binaries.
 
 That fixture suppresses the location prompt and therefore validates the
-newest-scan fallback, not a real authorized location or native-backed user pin.
-The complete automated commands, manual device matrix, and unresolved candidate
-findings are maintained in the canonical
+newest-scan fallback, not a real authorized location or standard MapKit
+user-location indicator. The complete automated commands, manual device matrix,
+and unresolved candidate findings are maintained in the canonical
 [Verification Contract](../../../../../../docs/features-and-hardware/28-private-scan-map.md#verification-contract).
 
 ## Shared navigation controls

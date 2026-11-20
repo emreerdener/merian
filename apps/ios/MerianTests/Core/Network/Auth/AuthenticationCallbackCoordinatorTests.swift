@@ -120,6 +120,7 @@ final class AuthenticationCallbackCoordinatorTests: XCTestCase {
         XCTAssertNil(harness.publishedSession)
         XCTAssertNil(harness.authenticatedOAuthMarker)
         XCTAssertEqual(harness.diagnostics, [.completionFailed])
+        XCTAssertFalse(harness.events.contains("publish-session"))
         XCTAssertFalse(
             harness.events.contains("ensure-purchase-identity")
         )
@@ -189,6 +190,24 @@ final class AuthenticationCallbackCoordinatorTests: XCTestCase {
         XCTAssertNil(harness.currentSession)
         XCTAssertNil(harness.publishedSession)
         XCTAssertNil(harness.authenticatedOAuthMarker)
+        XCTAssertEqual(harness.diagnostics, [.completionFailed])
+        XCTAssertFalse(harness.events.contains("publish-session"))
+    }
+
+    func testRejectedAdoptionNeverPublishesMutatedSessionEvenWhenCleanupIsRefused() async {
+        let harness = AuthenticationCallbackCoordinatorHarness()
+        harness.adoptionSucceeds = false
+
+        await harness.makeCoordinator().handle()
+
+        XCTAssertEqual(harness.installCount, 1)
+        XCTAssertEqual(harness.currentSession, harness.installedSession)
+        XCTAssertEqual(harness.cleanupCount, 0)
+        XCTAssertTrue(harness.events.contains("reject-mutated-session-clear"))
+        XCTAssertFalse(harness.events.contains("publish-session"))
+        XCTAssertNil(harness.publishedSession)
+        XCTAssertNil(harness.authenticatedOAuthMarker)
+        XCTAssertEqual(harness.entitlementCount, 0)
         XCTAssertEqual(harness.diagnostics, [.completionFailed])
     }
 

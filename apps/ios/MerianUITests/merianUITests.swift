@@ -224,14 +224,14 @@ final class merianUITests: XCTestCase {
             mapCanvas.waitForExistence(timeout: 4.0),
             "Scan map did not expose its gesture surface"
         )
-        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
-        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
-
         let birdPoint = app.buttons["PrivateScanMapPoint-private_map_bird"]
         XCTAssertTrue(
             birdPoint.waitForExistence(timeout: 5.0),
             "Zooming across the thumbnail threshold removed the filtered point"
         )
+        XCTAssertGreaterThan(birdPoint.frame.width, 0)
+        XCTAssertLessThan(birdPoint.frame.width, 40, "The broad map must initially show a dot")
+        zoomPrivateMap(mapCanvas, point: birdPoint, toThumbnail: true)
         let firstThumbnailExpectation = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
                 birdPoint.exists && birdPoint.frame.width >= 40
@@ -244,10 +244,11 @@ final class merianUITests: XCTestCase {
             "Zooming in did not cross from a dot to a thumbnail waypoint"
         )
 
-        mapCanvas.pinch(withScale: 0.5, velocity: -1.0)
-        mapCanvas.pinch(withScale: 0.5, velocity: -1.0)
-        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
-        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
+        zoomPrivateMap(mapCanvas, point: birdPoint, toThumbnail: false)
+        XCTAssertTrue(birdPoint.exists)
+        XCTAssertGreaterThan(birdPoint.frame.width, 0)
+        XCTAssertLessThan(birdPoint.frame.width, 40, "Zooming out must restore the dot waypoint")
+        zoomPrivateMap(mapCanvas, point: birdPoint, toThumbnail: true)
 
         let secondThumbnailExpectation = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
@@ -299,6 +300,29 @@ final class merianUITests: XCTestCase {
             insight.waitForExistence(timeout: 8.0),
             "Selecting a sheet row did not dismiss before pushing private Insight"
         )
+    }
+
+    @MainActor
+    private func zoomPrivateMap(_ canvas: XCUIElement, point: XCUIElement, toThumbnail: Bool) {
+        for _ in 0..<3 {
+            if toThumbnail {
+                // Keep both taps in blank map content. Pinching the full SwiftUI
+                // wrapper includes navigation/filter chrome in its gesture bounds.
+                let frame = canvas.frame
+                let pointFrame = point.frame
+                let offset: CGFloat = pointFrame.midX < frame.midX ? -48 : 48
+                let x = min(max(pointFrame.midX + offset, frame.minX + 30), frame.maxX - 30)
+                let y = min(max(pointFrame.midY, frame.minY + 160), frame.maxY - 160)
+                canvas.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: x - frame.minX, dy: y - frame.minY)).doubleTap()
+            } else {
+                canvas.pinch(withScale: 0.5, velocity: -1.0)
+            }
+            let reached = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                point.exists && point.frame.width > 0 && (point.frame.width >= 40) == toThumbnail
+            }, object: point)
+            if XCTWaiter.wait(for: [reached], timeout: 1) == .completed { return }
+        }
     }
 
     @MainActor
@@ -699,11 +723,11 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(note.isHittable)
         XCTAssertEqual(note.frame.midY, stagedAudioBadge.frame.midY, accuracy: 1)
         XCTAssertEqual(app.buttons["Identify"].frame.midY, note.frame.midY, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.height, 48, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.width, 48, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.height, 52, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.width, 52, accuracy: 1)
         let discard = app.buttons["Discard scan"]
-        XCTAssertEqual(discard.frame.width, 48, accuracy: 1)
-        XCTAssertEqual(discard.frame.height, note.frame.height, accuracy: 1)
+        XCTAssertEqual(discard.frame.width, 52, accuracy: 1)
+        XCTAssertEqual(discard.frame.height, 52, accuracy: 1)
         XCTAssertEqual(discard.frame.minY, app.buttons["Identify"].frame.minY, accuracy: 1)
         XCTAssertEqual(discard.frame.maxY, app.buttons["Identify"].frame.maxY, accuracy: 1)
         XCTAssertEqual(app.buttons["Identify"].frame.minX - note.frame.maxX, 24, accuracy: 1)
@@ -926,8 +950,8 @@ final class merianUITests: XCTestCase {
         let note = app.buttons["Add note"]
         XCTAssertTrue(note.waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["Identify"].isHittable)
-        XCTAssertEqual(app.buttons["Identify"].frame.height, 48, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.width, 48, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.height, 52, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.width, 52, accuracy: 1)
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
         XCTAssertFalse(app.scrollViews["StagedMediaRowScroll"].exists)
         XCTAssertGreaterThanOrEqual(note.frame.width, 48)
@@ -1513,7 +1537,7 @@ final class merianUITests: XCTestCase {
             "The live Insight did not dismiss after its queued handoff"
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
         XCTAssertTrue(
@@ -1530,7 +1554,7 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedQueuedRetryPresentationFlow"]
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
 
@@ -1603,7 +1627,7 @@ final class merianUITests: XCTestCase {
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
         scansButton.tap()
 

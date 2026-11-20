@@ -91,7 +91,7 @@ struct InferenceLifecycleArchitectureTests {
         }
         #expect(
             engine.contains(
-                "historicalLoadCoordinator.load(from: record)"
+                "historicalLoadCoordinator.load(from: record, retainedDisplayMedia: retainedDisplayMedia)"
             )
         )
         #expect(

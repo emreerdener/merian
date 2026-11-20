@@ -25,32 +25,46 @@ struct ProfilePublicationRecoverySummaryView: View {
 
     var body: some View {
         if !isDismissed {
-            HStack {
-                Text(
-                    "\(summary.recoveryNeededCount.formatted()) media unavailable"
-                )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.orange)
-
-                Spacer()
-
-                Button("Review scans", action: onReview)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.blue)
-                    .buttonStyle(.plain)
-
-                Button(action: dismiss) {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    noticeText.fixedSize()
+                    Spacer()
+                    actions.fixedSize()
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss unavailable media notice")
+                VStack(alignment: .leading, spacing: 8) {
+                    noticeText
+                    actions
+                }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private var noticeText: some View {
+        Text("\(summary.recoveryNeededCount.formatted()) media unavailable")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var actions: some View {
+        HStack {
+            Button("Review scans", action: onReview)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.blue)
+                .buttonStyle(.plain)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss unavailable media notice")
         }
     }
 

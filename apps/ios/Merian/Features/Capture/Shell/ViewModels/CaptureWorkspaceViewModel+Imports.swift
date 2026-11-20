@@ -16,6 +16,21 @@ extension CaptureWorkspaceViewModel {
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
         guard !newItems.isEmpty, !isDraftMutationLocked else { return }
 
+        if usesNativePhotoComposition {
+            importNativePhotoItems(newItems.map { item in
+                CaptureNativePhotoPickerInput(localIdentifier: item.itemIdentifier) {
+                    guard let transfer = try await item.loadTransferable(type: PhotoOriginalPickerTransfer.self) else {
+                        throw PhotoPreparationFailure.missingMedia
+                    }
+                    return transfer.bytes
+                }
+            })
+            return
+        }
+        if let access = dependencies.photoOriginalPreparation {
+            importPhotoPreparationItems(newItems, access: access)
+            return
+        }
         let isPro = self.diContainer.revenueCatManager.canStartProScan
         let importBudget = prepareGalleryImportBudget(isPro: isPro)
         self.selectedPhotoItems.removeAll()
@@ -93,11 +108,15 @@ extension CaptureWorkspaceViewModel {
     }
 
     func importNextPendingExternalImage() async -> ExternalImageImportAttemptResult {
+        guard !usesNativePhotoComposition else { return .temporarilyBlocked }
         let importStore = dependencies.externalImageImports
         guard let pendingImport = await importStore.pendingImports().first else {
             return .noPendingImport
         }
 
+        if let access = dependencies.photoOriginalPreparation {
+            return await importPhotoPreparationInbox(pendingImport, access: access)
+        }
         let isPro = diContainer.revenueCatManager.canStartProScan
         let importBudget = prepareGalleryImportBudget(isPro: isPro)
         guard importBudget.availableSlots > 0 else {
@@ -236,7 +255,7 @@ extension CaptureWorkspaceViewModel {
         )
     }
 
-    private func historicalContextSnapshot(for localIdentifier: String?) async -> HistoricalEnvironmentContextSnapshot? {
+    func historicalContextSnapshot(for localIdentifier: String?) async -> HistoricalEnvironmentContextSnapshot? {
         guard let localIdentifier else { return nil }
 
         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
@@ -257,7 +276,7 @@ extension CaptureWorkspaceViewModel {
         return nil
     }
 
-    private func historicalContextSnapshot(
+    func historicalContextSnapshot(
         for metadata: ImportedImageMetadata
     ) async -> HistoricalEnvironmentContextSnapshot? {
         if let latitude = metadata.latitude,

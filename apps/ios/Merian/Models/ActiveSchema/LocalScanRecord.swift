@@ -3,6 +3,9 @@ import SwiftData
 
 @Model
 public final class LocalScanRecord {
+    /// V63 native ownership; legacy defaults never infer a shared binding.
+    public var mediaAuthorityRaw: String = "legacy"
+    public var sharedMediaConsumerID: UUID?
     @Attribute(.unique) public var id: String
     public var speciesId: String
     public var scientificName: String

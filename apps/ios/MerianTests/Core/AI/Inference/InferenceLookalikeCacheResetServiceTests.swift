@@ -8,12 +8,13 @@ import Testing
 struct InferenceLookalikeCacheResetServiceTests {
     @Test func resetIsScheduledOnlyWhenRequiredAndAContainerExists()
         throws {
+        let needsReset = MainActorTestValue(true)
         let container = try DatabaseActorTestSupport.makeIsolatedContainer()
-        var needsReset = true
+
         var scheduledContainers: [ModelContainer] = []
         let service = InferenceLookalikeCacheResetService(
             dependencies: .init(
-                needsReset: { needsReset },
+                needsReset: { needsReset.value },
                 scheduleReset: { scheduledContainers.append($0) }
             )
         )
@@ -26,7 +27,7 @@ struct InferenceLookalikeCacheResetServiceTests {
         #expect(scheduledContainers.count == 1)
         #expect(scheduledContainers.first === container)
 
-        needsReset = false
+        needsReset.value = false
         #expect(!service.needsReset)
         service.scheduleIfNeeded(in: container)
         #expect(scheduledContainers.count == 1)

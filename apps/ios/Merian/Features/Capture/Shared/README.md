@@ -18,14 +18,13 @@ canonical image preparation, focus, and handoff behavior is documented in the
   platform effects.
 - `ViewModels/` contains the action coordinator shared by the Shell and capture
   modes.
-- `Services/ImageFocusRegionDetector.swift` owns the Capture-only Vision
-  objectness request, its cancellation/deadline bridge, and deterministic
-  candidate resolution shared by Scan, Shell imports, and Staging crop
-  confirmation. It consumes the Core image downsampler and emits the existing
-  cross-feature `NormalizedImageFocusRegion`. Existing diagnostics expose only
-  outcome, duration, and a coarse area bucket; no image content or region
-  coordinates are logged or sent to telemetry. The service owns no endpoint or
-  mutable singleton.
+- `Services/ImageFocusRegionDetector.swift` is the Capture telemetry façade for
+  the Core/Media focus engine. It preserves the 300 ms optional visible outcome
+  for Scan, Shell imports and Staging crop confirmation. Core owns Vision,
+  deterministic candidate resolution and a separate positive worker-drain wait
+  for native durable preparation. Capture diagnostics expose only outcome,
+  duration and a coarse area bucket; no image content or region coordinates are
+  logged or sent to telemetry. Neither owner has endpoint authority.
 - `Components/CaptureChromeLayoutEnvironment.swift` owns the SwiftUI environment
   and tray-height preference bridge; the shared clearance models remain
   independent of SwiftUI.
@@ -48,10 +47,10 @@ persistence, historical loading, and Insights all consume it.
 
 ## Verification
 
-`MerianTests/Features/Capture/Shared` owns the deterministic focus-region suite
-and the Shared architecture guard. The guard freezes the detector's sole Capture
-owner, exact framework imports, retired Utilities paths, test ownership,
-live-service exclusions, and the 600-line production-file ceiling.
+`MerianTests/Core/Media` owns deterministic focus resolution and worker-drain
+coverage. `MerianTests/Features/Capture/Shared` retains the architecture guard
+separating the Capture telemetry façade from Core image work, retired Utilities
+paths, live-service exclusions and the 600-line production-file ceiling.
 
 `CaptureStagingToolbarPresentationTests` verifies `CaptureChromeLayout` retains
 the 124 pt baseline inset and applies the same measured expansion to capture

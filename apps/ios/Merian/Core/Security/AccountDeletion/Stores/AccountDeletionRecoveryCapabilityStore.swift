@@ -145,10 +145,26 @@ struct AccountDeletionRecoveryCapabilityStore {
         return try Self.decode(encoded, wasCreated: false).recoveryValue
     }
 
+    /// Compare durable proof identity, ignoring whether the caller originally created it.
+    /// Absence matches only verified absence; unreadable or malformed storage never matches.
+    func matchesExisting(_ expected: PreparedDeletionRecoveryCapability?) -> Bool {
+        do {
+            let current = try loadExistingIfPresent()
+            return current?.protocolVersion == expected?.protocolVersion &&
+                current?.recoveryValue == expected?.recoveryValue &&
+                current?.acknowledgementValue == expected?.acknowledgementValue
+        } catch { return false }
+    }
+
     func clearVerified() throws {
         try secureStore.removeObjectVerified(
             forKey: KeychainKeys.accountDeletionRecoveryCapability
         )
+    }
+
+    /// Workflow adapter: every failed verified removal retains the recovery barrier.
+    func retireVerified() -> Bool {
+        do { try clearVerified(); return true } catch { return false }
     }
 
     /// Runs before `AppDIContainer` starts Auth listeners. Keychain items may

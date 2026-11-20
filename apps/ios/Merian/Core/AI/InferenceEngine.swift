@@ -461,22 +461,22 @@ import SwiftData
     }
 
     func markIdentificationIncorrect(
-        expectedScanId: String, modelContext: ModelContext,
+        expectedScanId: String, modelContext: ModelContext, expectedReview: LocalAIIdentificationReview? = nil,
         onLocalSave: (@MainActor () -> Void)? = nil
     ) async {
         await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .reject, expectedScanID: expectedScanId,
             modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks(),
-            onLocalSave: onLocalSave)
+            onLocalSave: onLocalSave, expectedReview: expectedReview)
     }
 
     func undoIncorrectIdentification(
-        expectedScanId: String, modelContext: ModelContext,
+        expectedScanId: String, modelContext: ModelContext, expectedReview: LocalAIIdentificationReview? = nil,
         onLocalSave: (@MainActor () -> Void)? = nil
     ) async {
         guard speciesData?.canUndoIncorrectIdentification == true else { return }
         await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .undo, expectedScanID: expectedScanId,
             modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks(),
-            onLocalSave: onLocalSave)
+            onLocalSave: onLocalSave, expectedReview: expectedReview)
     }
 
     // MARK: - Identification Override
@@ -485,13 +485,13 @@ import SwiftData
     func applyIdentificationOverride(
         scientificName: String,
         expectedScanId: String? = nil,
-        modelContext: ModelContext?
+        modelContext: ModelContext?, expectedReview: LocalAIIdentificationReview? = nil
     ) async {
         await identificationReviewWorkflowCoordinator.applyOverride(
             .init(
                 scientificName: scientificName,
                 expectedScanID: expectedScanId,
-                modelContainer: modelContext?.container
+                modelContainer: modelContext?.container, expectedReview: expectedReview
             ),
             callbacks: speciesPresentationCoordinator
                 .makeReviewWorkflowCallbacks()
@@ -501,12 +501,12 @@ import SwiftData
     /// Delegates AI confirmation to the authority-aware review workflow.
     func confirmAIIdentification(
         expectedScanId: String? = nil,
-        modelContext: ModelContext?
+        modelContext: ModelContext?, expectedReview: LocalAIIdentificationReview? = nil
     ) async {
         await identificationReviewWorkflowCoordinator.confirm(
             .init(
                 expectedScanID: expectedScanId,
-                modelContext: modelContext
+                modelContext: modelContext, expectedReview: expectedReview
             ),
             callbacks: speciesPresentationCoordinator
                 .makeReviewWorkflowCallbacks()
@@ -580,8 +580,8 @@ import SwiftData
     /// Replacing that slot fences stale state and effects immediately; a
     /// synchronous decoder already in progress can finish before it observes
     /// cancellation.
-    func load(from record: LocalScanRecord) {
-        historicalLoadCoordinator.load(from: record)
+    func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil) {
+        historicalLoadCoordinator.load(from: record, retainedDisplayMedia: retainedDisplayMedia)
     }
 
     func handleApplicationActiveStateChange(isActive: Bool) {

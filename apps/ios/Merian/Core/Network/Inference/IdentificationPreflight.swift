@@ -47,6 +47,21 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
         case identificationProtocol = "p_identification_protocol"
     }
 
+    /// Shape only, from the exact native selection and the receiving owner's
+    /// observation identity. The caller must retain and revalidate that selection
+    /// through preflight and save; this value grants no admission authority.
+    init(nativePhotoObservationID: UUID, photoCount: Int, contexts: [ObservationContext]) throws {
+        guard (1...2).contains(photoCount) else { throw MerianError.invalidResponse }
+        _ = try PhotoPreparationPolicy.contexts(contexts)
+        inputProfile = .photo
+        originalAnalysisID = nativePhotoObservationID
+        let descriptions = contexts.filter {
+            !$0.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+        flashFallbackEligible = IdentificationEvidenceAllowance.permitsFreeScan(
+            images: photoCount, audio: 0, descriptions: descriptions, videos: 0)
+    }
+
     init(body: Data, function: String) throws {
         guard let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any],
               let id = payload["client_scan_id"] as? String,

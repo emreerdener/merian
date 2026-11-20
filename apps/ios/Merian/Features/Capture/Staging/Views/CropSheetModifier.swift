@@ -14,7 +14,15 @@ struct CropSheetModifier: ViewModifier {
                     initialScale: identItem.lastCropScale,
                     initialOffset: identItem.lastCropOffset,
                     initialQuarterTurns: identItem.lastCropQuarterTurns,
+                    initialVerticalCenter: identItem.initialCameraVerticalCenter,
+                    confirmationTitle: viewModel.isRequiredGalleryCrop(identItem.id)
+                        && viewModel.isAutomaticSubmissionArmed ? "Crop and submit" : "Confirm crop",
                     onCrop: { croppedData, finalScale, finalOffset, displaySize, finalQuarterTurns in
+                        if viewModel.stagedCapture.nativePhotoDraft != nil || viewModel.nativePhotoDraftSession != nil {
+                            viewModel.confirmNativePhotoCrop(imageID: identItem.id, thumbnailData: croppedData,
+                                scale: finalScale, offset: finalOffset, displaySize: displaySize, quarterTurns: finalQuarterTurns)
+                            return
+                        }
                         let targetId = identItem.id
                         let isRequiredGalleryCrop = viewModel.isRequiredGalleryCrop(targetId)
                         if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
@@ -78,6 +86,7 @@ struct CropSheetModifier: ViewModifier {
                                     ).replacingFocusRegion(focusRegion)
                                 }
 
+                                guard await viewModel.persistPhotoPreparationDraft() else { return }
                                 succeeded = true
                                 if isRequiredGalleryCrop {
                                     viewModel.editingCropIndex = nil
@@ -104,12 +113,20 @@ struct CropSheetModifier: ViewModifier {
                         }
                     },
                     onDelete: {
+                        if viewModel.stagedCapture.nativePhotoDraft != nil || viewModel.nativePhotoDraftSession != nil {
+                            viewModel.removeNativePhoto(imageID: identItem.id)
+                            return
+                        }
                         let targetId = identItem.id
                         if viewModel.isRequiredGalleryCrop(targetId) {
                             viewModel.cancelRequiredGalleryCrop(for: targetId)
                         } else {
                             viewModel.cancelActiveCropTask()
                             if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
+                                if viewModel.dependencies.photoOriginalPreparation != nil {
+                                    viewModel.removePhotoPreparationImage(editIndex)
+                                    return
+                                }
                                 viewModel.stagedCapture.images.remove(at: editIndex)
                                 viewModel.resetReviewIfEmpty()
                             }

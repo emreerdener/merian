@@ -22,12 +22,22 @@ struct LibraryMutationInventory: Equatable, Sendable {
         return attentionJobs > 0 || localOnlyChanges > 0 ? .needsAttention : .pendingChanges
     }
 
+    /// Readiness is not absence: completed input receipts and an empty namespace
+    /// still require the existing journal-backed outgoing-library purge.
+    @MainActor
+    static func hasInputOwnership(in container: ModelContainer, documents: URL = .documentsDirectory) throws -> Bool {
+        if try ObservationReanalysisInputPersistence.hasOwnership(context: ModelContext(container)) { return true }
+        return try ObservationReanalysisFileStore.inputNamespaceIsPresent(documents: documents)
+    }
+
     /// First launch seeds one empty Favorites collection before Auth finishes.
     /// It is presentation scaffolding, not evidence of an outgoing library.
     @MainActor
-    static func isEmptyLibrary(in container: ModelContainer, userDefaults: UserDefaults = .standard) throws -> Bool {
+    static func isEmptyLibrary(in container: ModelContainer, userDefaults: UserDefaults = .standard,
+                               inputDocuments: URL = .documentsDirectory) throws -> Bool {
         let context = ModelContext(container)
         guard try read(from: container, userDefaults: userDefaults).isReady,
+              try !hasInputOwnership(in: container, documents: inputDocuments),
               try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0 else { return false }
         let collections = try context.fetch(FetchDescriptor<ScanCollection>())
         return collections.isEmpty || (collections.count == 1
@@ -83,11 +93,24 @@ struct LibraryMutationInventory: Equatable, Sendable {
         } else {
             localOnlyChanges += preferences.count
         }
+        // Any P1 row, including an orphan or incomplete lease, blocks identity
+        // replacement even though P1 cannot create a runnable queue job.
+        localOnlyChanges += try context.fetchCount(FetchDescriptor<PhotoPreparationRecord>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationAsset>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationReference>())
+            + context.fetchCount(FetchDescriptor<PhotoPreparationLease>())
+        // Any SMA row, including orphaned references or leases, requires its owner.
+        if try SharedMediaStorageRepository.hasLiabilities(in: context) { localOnlyChanges += 1 }
+        var pendingJobCount = try context.fetchCount(FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.statusRaw != complete && $0.statusRaw != cancelled }
+        ))
+        if try ObservationReanalysisInputPersistence.hasQuiescentControl(context: context) {
+            guard pendingJobCount > 0 else { throw ObservationHistoryError.resultConflict }
+            pendingJobCount -= 1
+        }
         return try Self(
             queuedScans: context.fetchCount(FetchDescriptor<OfflineQueuedScan>()),
-            pendingJobs: context.fetchCount(FetchDescriptor<OfflineJobRecord>(
-                predicate: #Predicate { $0.statusRaw != complete && $0.statusRaw != cancelled }
-            )),
+            pendingJobs: pendingJobCount,
             attentionJobs: context.fetchCount(FetchDescriptor<OfflineJobRecord>(
                 predicate: #Predicate { $0.statusRaw == attention }
             )),

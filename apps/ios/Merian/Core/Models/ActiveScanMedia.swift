@@ -12,6 +12,9 @@ enum VideoFallbackImageSource: Equatable {
 }
 
 enum MediaItem: Equatable {
+    /// Verified native display derivative. Presentation only: never upload,
+    /// provider input, original export, or a legacy file reference.
+    case retainedDisplayImage(id: UUID, data: Data)
     /// A raw image buffer captured natively, held only during the active live asynchronous evaluation pipeline.
     case liveImage(Data)
     /// A persisted historical capture image path resolving natively via FileManager locally, or remotely via cloud URLs.
@@ -120,7 +123,7 @@ struct ActiveScanMedia: Equatable {
                 return [path]
             case .video(let path, let fallbackImage):
                 return [path, fallbackImage?.imageIdentifier].compactMap { $0 }
-            case .liveImage, .audio, .description:
+            case .liveImage, .retainedDisplayImage, .audio, .description:
                 return []
             }
         }
@@ -137,7 +140,29 @@ struct ActiveScanMedia: Equatable {
     }
 
     var hasUserImage: Bool {
-        liveImageData != nil || !imagePathsForUpload.isEmpty || !videoPaths.isEmpty
+        presentationImageData != nil || !imagePathsForUpload.isEmpty || !videoPaths.isEmpty
+    }
+
+    var hasRetainedDisplayImages: Bool {
+        items.contains { if case .retainedDisplayImage = $0 { return true }; return false }
+    }
+
+    var retainedDisplayImageCount: Int {
+        items.reduce(0) { count, item in
+            if case .retainedDisplayImage = item { return count + 1 }; return count
+        }
+    }
+
+    /// Visual-only consumers may use retained derivatives. Egress consumers
+    /// continue to use liveImageData and explicit original/path admission.
+    var presentationImageData: Data? {
+        for item in items {
+            switch item {
+            case .liveImage(let data), .retainedDisplayImage(_, let data): return data
+            default: continue
+            }
+        }
+        return nil
     }
 
     var liveImageData: Data? {

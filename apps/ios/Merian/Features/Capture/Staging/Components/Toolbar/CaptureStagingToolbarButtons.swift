@@ -28,10 +28,11 @@ struct CaptureStagingCancelButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "trash")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(discardColor)
-                .frame(width: 48, height: 48)
+                .frame(width: 52, height: 52)
                 .modifier(CaptureTrayGlass(isCircular: true))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Discard scan")
@@ -76,8 +77,8 @@ struct CaptureStagingSubmitButton: View {
     var body: some View {
         Button(action: onSubmit) {
             Image(systemName: "arrow.up")
-                .font(.system(size: 22, weight: .semibold))
-                .frame(width: 48, height: 48)
+                .font(.system(size: 24, weight: .semibold))
+                .frame(width: 52, height: 52)
                 .background(isDisabled ? Color.primary.opacity(0.15) : Color.accentColor)
                 .foregroundStyle(isDisabled ? Color.secondary : .white)
                 .clipShape(Circle())

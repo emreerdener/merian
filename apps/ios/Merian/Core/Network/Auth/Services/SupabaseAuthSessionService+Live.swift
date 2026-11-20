@@ -4,7 +4,12 @@ import Supabase
 
 extension SupabaseAuthSessionService {
     static func live(client: SupabaseClient) -> Self {
-        Self(
+        func requireApprovedAccount() throws {
+            guard !MerianEnvironment.isHistoryQualificationBuild || client.auth.currentSession.map({
+                !$0.user.isAnonymous && MerianEnvironment.permitsHistoryQualificationAccount($0.user.id)
+            }) == true else { throw MerianEnvironment.HistoryQualificationFailure.accounts }
+        }
+        return Self(
             operations: SupabaseAuthSessionOperations(
                 readSession: {
                     try await client.auth.session
@@ -13,26 +18,31 @@ extension SupabaseAuthSessionService {
                     client.auth.currentSession
                 },
                 refreshSession: {
-                    try await client.auth.refreshSession()
+                    try requireApprovedAccount()
+                    return try await client.auth.refreshSession()
                 },
                 signOutLocal: {
                     try await client.auth.signOut(scope: .local)
                 },
                 linkIdentity: { credentials in
+                    try MerianEnvironment.requireQualificationIdentityExchangePermission()
                     _ = try await client.auth.linkIdentityWithIdToken(
                         credentials: credentials
                     )
                 },
                 installSession: { credentials in
-                    try await client.auth.signInWithIdToken(
-                        credentials: credentials
-                    )
+                    try MerianEnvironment.requireQualificationGoogleExchange(
+                        isGoogle: credentials.provider == .google,
+                        subject: OAuthIdentityTokenPolicy.providerSubject(from: credentials.idToken, preservingExactBytes: true))
+                    return try await client.auth.signInWithIdToken(credentials: credentials)
                 },
                 installCallbackSession: { url in
-                    try await client.auth.session(from: url)
+                    try MerianEnvironment.requireQualificationIdentityExchangePermission()
+                    return try await client.auth.session(from: url)
                 },
                 updateProfile: { attributes in
-                    try await client.auth.update(user: attributes)
+                    try requireApprovedAccount()
+                    return try await client.auth.update(user: attributes)
                 }
             )
         )

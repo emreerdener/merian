@@ -9,7 +9,7 @@ final class CaptureWorkspaceViewModel {
 
     // MARK: - Types
     enum ActiveSheet: String, Identifiable, Sendable {
-        case insight, paywall, scans, profile, explore, achievement, notificationPrompt, whatsNew
+        case insight, paywall, scans, profile, explore, achievement, notificationPrompt, whatsNew, reanalysis, nativeRecovery
         var id: String { rawValue }
     }
 
@@ -22,6 +22,7 @@ final class CaptureWorkspaceViewModel {
         let destination: ActiveSheet
         let style: PresentationStyle
         let routeRequestID: UUID?
+        var localScanID: String?
     }
 
     // MARK: - Dependencies
@@ -63,6 +64,8 @@ final class CaptureWorkspaceViewModel {
             )
         }
     }
+    var reanalysisEditor: CaptureReanalysisEditor?
+    var nativeRecoveryModel: CaptureNativeRecoveryModel?
     var pendingExplorePostId: String?
     var pendingSpeciesDictionaryRoute: SpeciesDictionaryRoute?
     var pendingCommunityIdentificationRequestId: String?
@@ -82,6 +85,10 @@ final class CaptureWorkspaceViewModel {
     var stagedCapture = StagedCapture()
     var automaticPreferenceRevision: UInt64 = 0
     var draftSession = CaptureDraftSession()
+    var nativePhotoDraftSession: CaptureNativePhotoDraftSession?
+    var nativePhotoPickerInputs: [CaptureNativePhotoPickerInput] = []
+    var nativePhotoImportTask: Task<Void, Never>?
+    var nativePhotoDispositionTask: Task<Void, Never>?
     var descriptionDraft = ObservationContext()
     var descriptionFocusRequest: UUID?
     var isReviewActive = false
@@ -90,6 +97,7 @@ final class CaptureWorkspaceViewModel {
     var audioDraftOperation: CaptureDraftSession.Operation?
     var draftOwnedFiles: Set<String> = []
     var selectedPhotoItems: [PhotosPickerItem] = []
+    var isPhotoLibraryPresented = false
     var isCheckingScanAdmission = false
     /// Set in the same MainActor mutation that stages an eligible single capture.
     /// This keeps the manual Identify toolbar from appearing before the async
@@ -138,7 +146,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     var isMultiCaptureFunctionallyEnabled: Bool {
-        diContainer.revenueCatManager.canStartProScan
+        dependencies.scan.canStartProScan()
     }
 
     var stagedCaptureLimit: Int {
@@ -200,6 +208,22 @@ final class CaptureWorkspaceViewModel {
     }
 
     // MARK: - Lifecycle
+    convenience init(
+        diContainer: AppDIContainer?,
+        reanalysisAccess: CaptureReanalysisAccess?,
+        dependencies: CaptureWorkspaceDependencies? = nil,
+        prewarmHeadersOnInit: Bool = true,
+        initialActiveSheet: ActiveSheet? = nil,
+        opensExploreAfterWhatsNew: Bool = false
+    ) {
+        let container = diContainer ?? AppDIContainer.shared
+        var workspaceDependencies = dependencies ?? .live(diContainer: container)
+        if dependencies == nil { workspaceDependencies.reanalysis = reanalysisAccess }
+        self.init(diContainer: container, dependencies: workspaceDependencies,
+            prewarmHeadersOnInit: prewarmHeadersOnInit, initialActiveSheet: initialActiveSheet,
+            opensExploreAfterWhatsNew: opensExploreAfterWhatsNew)
+    }
+
     convenience init(
         initialActiveSheet: ActiveSheet? = nil,
         opensExploreAfterWhatsNew: Bool = false
@@ -326,7 +350,7 @@ final class CaptureWorkspaceViewModel {
         imageToCrop = nil
         editingCropIndex = nil
 
-        guard !shouldPreserveStagingOnBackground else { return }
+        guard dependencies.photoOriginalPreparation == nil, !shouldPreserveStagingOnBackground else { return }
         clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
         selectedPhotoItems.removeAll()
         cancelRefinementStaging()

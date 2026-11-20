@@ -12,7 +12,7 @@ enum InsightFieldChatMedia {
                 case .imagePath(let path): return .image(path: path, label: "Observation video still")
                 case nil: return nil
                 }
-            case .audio, .description: return nil
+            case .retainedDisplayImage, .audio, .description: return nil
             }
         }
         images += media.referenceState.urls.enumerated().compactMap { index, path in

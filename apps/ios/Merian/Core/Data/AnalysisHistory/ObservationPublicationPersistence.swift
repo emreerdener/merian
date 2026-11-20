@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Prepared durable admission/acknowledgement only; no scheduling, I/O or live UI caller.
+/// Durable consent and receipts. Network dispatch belongs to the delivery service.
 enum ObservationPublicationPersistence {
     static let prefix = "observation-publication:"
     enum IntegrityError: Error { case conflict, unavailable, accountChanged }
@@ -12,9 +12,10 @@ enum ObservationPublicationPersistence {
 
     @MainActor
     static func stage(_ request: ObservationPublicationRequest, ownerID: UUID, container: ModelContainer,
-                      isCurrent: () -> Bool) throws -> ObservationPublicationIntent {
+                      isCurrent: () -> Bool, validateNew: (ModelContext) throws -> Void = { _ in },
+                      save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationPublicationIntent {
         let candidate = try ObservationPublicationIntent(request: request, ownerID: ownerID)
-        return try transaction(candidate, container: container, isCurrent: isCurrent) { context in
+        return try transaction(candidate, container: container, isCurrent: isCurrent, save: save) { context in
             // Backend operation UUIDs are globally unique, even though local keys
             // also include observation identity for metadata-independent erasure.
             let suffix = ":" + request.operationID.uuidString.lowercased()
@@ -24,10 +25,17 @@ enum ObservationPublicationPersistence {
             guard existingJobs.count <= 1 else { throw IntegrityError.conflict }
             if let existing = existingJobs.first {
                 let saved = try restore(existing)
+                _ = try validatedStatus(existing, intent: saved)
                 guard saved.ownerID == ownerID, saved.identity == request.statusRequest,
                       saved.requestSHA256 == candidate.requestSHA256 else { throw IntegrityError.conflict }
                 return saved
             }
+            // Exact replay remains recoverable after authority advances. Only
+            // newly accepted consent must still match the foreground preview.
+            guard try targetJob(ownerID: ownerID, observationID: request.observationID, context: context) == nil else {
+                throw IntegrityError.conflict
+            }
+            try validateNew(context)
             guard let text = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
             context.insert(OfflineJobRecord(id: jobID(request.operationID, observationID: request.observationID), kind: .observationPublicationSync,
                 subjectId: request.observationID.uuidString.lowercased(), priority: 65,
@@ -36,22 +44,42 @@ enum ObservationPublicationPersistence {
         }
     }
 
+    /// Caller owns the transaction and parent fence. Namespace and subject are
+    /// independent discovery hints; damaged linkage must not look like vacancy.
+    static func targetJob(ownerID: UUID, observationID: UUID, context: ModelContext) throws -> OfflineJobRecord? {
+        let scope = observationPrefix(observationID), subject = observationID.uuidString.lowercased()
+        let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>()).filter {
+            $0.id.hasPrefix(scope) || ($0.kindRaw == OfflineJobKind.observationPublicationSync.rawValue && $0.subjectId?.lowercased() == subject)
+        }
+        guard jobs.count <= 1 else { throw IntegrityError.conflict }
+        guard let job = jobs.first else { return nil }
+        let intent = try restore(job)
+        guard intent.ownerID == ownerID, intent.identity.observationID == observationID else { throw IntegrityError.conflict }
+        _ = try validatedStatus(job, intent: intent)
+        return job
+    }
+
     /// Compare-and-save prevents a stale response replacing a newer or deleted job.
     @MainActor
     static func acknowledge(_ receipt: ObservationPublicationReceipt, expected: ObservationPublicationIntent,
-                            at date: Date, container: ModelContainer, isCurrent: () -> Bool) throws -> ObservationPublicationIntent {
-        try transaction(expected, container: container, isCurrent: isCurrent) { context in
+                            at date: Date, container: ModelContainer, isCurrent: () -> Bool,
+                            claim: Claim? = nil, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationPublicationIntent {
+        try transaction(expected, container: container, isCurrent: isCurrent, save: save) { context in
             guard let job = try context.fetchOfflineJob(id: jobID(expected.identity.operationID, observationID: expected.identity.observationID)) else {
                 throw IntegrityError.unavailable
             }
+            if let claim { try validate(claim, job: job) } else if job.status == .running { throw IntegrityError.conflict }
             let saved = try restore(job)
+            _ = try validatedStatus(job, intent: saved)
             guard try saved.storedData() == expected.storedData() else { throw IntegrityError.conflict }
             let next = try saved.accepting(receipt, at: date)
             if saved.isTerminal { return next }
+            guard next.isTerminal || validDate(date.addingTimeInterval(30)) else { throw IntegrityError.conflict }
             guard let text = String(bytes: try next.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
             job.metadataJSON = text
             job.status = next.isTerminal ? .complete : .waiting
             job.nextRunAt = next.isTerminal ? nil : date.addingTimeInterval(30)
+            job.lastErrorCode = nil; job.lastErrorMessage = nil; job.lastHTTPStatus = nil
             job.updatedAt = date
             return next
         }
@@ -66,7 +94,7 @@ enum ObservationPublicationPersistence {
         if saved.isTerminal {
             guard job.statusRaw == OfflineJobStatus.complete.rawValue, job.nextRunAt == nil else { throw IntegrityError.conflict }
         } else {
-            guard [OfflineJobStatus.pending.rawValue, OfflineJobStatus.running.rawValue, OfflineJobStatus.waiting.rawValue]
+            guard [OfflineJobStatus.pending.rawValue, OfflineJobStatus.running.rawValue, OfflineJobStatus.waiting.rawValue, OfflineJobStatus.needsAttention.rawValue]
                 .contains(job.statusRaw) else { throw IntegrityError.conflict }
         }
         return saved
@@ -93,8 +121,11 @@ enum ObservationPublicationPersistence {
     }
 
     @MainActor
-    private static func transaction<T>(_ intent: ObservationPublicationIntent, container: ModelContainer,
-                                       isCurrent: () -> Bool, body: (ModelContext) throws -> T) throws -> T {
+    static func transaction<T>(
+        _ intent: ObservationPublicationIntent, container: ModelContainer,
+        isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() },
+        body: (ModelContext) throws -> T
+    ) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
@@ -111,7 +142,7 @@ enum ObservationPublicationPersistence {
                 let result = try body(context)
                 try Task.checkCancellation()
                 guard isCurrent() else { throw IntegrityError.accountChanged }
-                if context.hasChanges { try context.save() }
+                if context.hasChanges { try save(context) }
                 return result
             } catch { context.rollback(); throw error }
         }

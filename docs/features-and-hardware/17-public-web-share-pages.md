@@ -46,22 +46,127 @@ detail surface for one post, with enough context to understand what was shared
 and a clean path back into the app. Anonymous web visitors can view the post,
 but engagement counts are not rendered and they cannot like, comment, reply,
 follow, or edit on the web surface. A centered support-email report action sits
-below the Taxonomy card and contains the immutable post id; this is not an
+below the Taxonomy section and contains the immutable post id; this is not an
 authenticated in-product report write.
 
 ## Homepage and shared presentation
 
-The homepage introduces nearby discovery with the existing app screenshot and
-decorative iOS artwork. Its photo cards continue to consume
+The homepage uses a spacious centered heading and call to action surrounded by
+public Explore imagery. Desktop navigation floats in a rounded pill on the left,
+with the butterfly and Naturebook wordmark centered together and a matching
+beta/download pill on the right. The labeled QR placeholder appears only in the
+footer. On narrower screens, the drawer replaces the navigation pill.
+
+Community discoveries live on `/explore`, reached from the shared header,
+footer, and post-detail back link. The homepage keeps its decorative imagery,
+feature previews, About content, and beta invitation without a second photo
+feed. The Explore page streams its existing 24-post public projection with
+accessible post links, loading skeletons, and an explicit empty state.
+
+The hero background uses neutral dots spaced 32px apart. With a fine hover
+pointer, dots within a 180px radius gently spread outward, enlarge, and brighten
+with a restrained local glow: the radius grows by at most 0.35px, opacity
+increases by 0.12, and displacement stays below 4px. Damped springs ease the
+response in and out, preserving momentum as the pointer moves. Scrolling
+releases the existing effect with a slower spring instead of clearing the canvas
+state; hover resumes on fresh pointer movement after scrolling settles. The
+effect is decorative and does not intercept links or affect image positions.
+Frames stop after settling and while offscreen or in hidden tabs. Touch and
+reduced-motion users retain the static CSS dot pattern; the same pattern is
+available before hydration or without canvas.
+
+The default radial composition places 25 larger square photos on two loose
+rings, with six smaller accents at varied distances between them. These 31
+decorative slots reuse the same poster set without another feed request. The
+extra accents are hidden in the compact layout, which retains its 25-square
+composition. Each radial photo has a fixed, distinct tilt between -18 and +18
+degrees, mixing clockwise, counterclockwise, and nearly upright orientations
+around each ring. Scrolling gently opens the rings outward, increases their size
+by at most 8%, and rotates them by at most another eight degrees. A bounded
+scroll progress eases into place over roughly 180ms; there is no scroll pinning,
+hover response, or autonomous idle motion in this version. Animation frames stop
+once the position settles and while offscreen or in hidden tabs. Reduced motion
+keeps the composition at its resting position. The desktop image viewport has no
+edge masks or bottom fade: photos remain fully visible up to the clipped section
+bounds. The separate fixed header fade protects the logo as content scrolls
+behind it. At widths of 768px and below, the same photos form the composed
+square mosaic below the centered copy, with varied sizes, close consistent
+gutters, and no rotation. Only this compact mosaic has a 48px top fade and 56px
+bottom fade, blending into the copy area and next section while leaving the
+sides fully visible. The mosaic translates upward by at most 24px on scroll as
+one surface, preserving its spacing. Resizing switches between the mosaic and
+rings without reloading images. Both layouts share the same poster set,
+loading/fallback behavior, and server query.
+
+The `?hero=mesh` comparison preserves the previous interactive mesh; all other
+query values select radial. The following mesh motion details apply only to that
+optional comparison. The hero uses a complete tiling of 25 true squares in three
+sizes, with sides spanning approximately 2.10:1. The mix includes 12 medium, 3
+larger, and 10 smaller squares; the size contrast remains restrained while the
+enlarged tiles need fewer images. A single non-repeating composition distributes
+the size hierarchy with staggered T-junctions, interrupting long horizontal and
+vertical seams. Smaller squares fill the spaces around larger images, leaving a
+consistent narrow gutter along every shared edge and no unfilled pockets. Slots
+stay stable during image loading and interaction. Hover and idle pulses reshape
+a coupled mesh of true squares. Precomputed responses preserve the resting
+gutter along every shared edge, with diagonal junction constraints preventing
+pinched corners. Neighbouring frames grow, shrink, and translate together; the
+composition never repacks or switches separation axes. Each full square uses
+compositor translation and scale, preserving source framing without zooming
+inside the image. A damped spring (natural frequency 6 radians/second, damping
+ratio 0.82) preserves momentum during hover handoff and release with a barely
+perceptible settle.
+
+Idle motion flows through a distributed nine-image sequence. Each 12-second
+handoff gently settles the outgoing image while the next begins growing, with
+complementary easing and no resting pause. At most two focus responses overlap;
+their combined strength stays constant, preserving the shared gaps and avoiding
+an extra swell during handoff. The largest relative size change is bounded to
+approximately 2.9%; some connected squares respond together to retain their
+shared spacing. Hover adds emphasis to the selected tile's current idle focus
+and pauses the idle clock; release springs back to the idle sequence without
+resetting its phase. The whole composition also drifts on 84/104-second cycles,
+bounded to 24 pixels horizontally and 15.6 pixels vertically. Hover adds at most
+6 pixels of eased pointer movement at the current drift position. Overscan keeps
+the viewport covered. Motion pauses offscreen and in hidden tabs; reduced motion
+keeps the mosaic static. The same poster set fills all slots without another
+feed request. Nearly transparent fade regions do not attract the focus; hit
+testing follows the fade artwork. The grid has no caption or playback controls.
+Reduced-motion preferences keep a static grid, and offscreen or hidden-tab
+animations pause. The page shell streams independently of that feed query. The
+hero initially renders skeleton tiles; Explore photos have a 1.2-second head
+start before unresolved tiles use bundled decorative nature photos. Empty or
+failed feeds and failed images select fallback immediately. Decoded Explore
+images fade in over 600 ms, including late arrivals over already loaded fallback
+tiles, without resetting grid geometry or motion. Reduced motion disables these
+fades. Fallback imagery is not labeled as community content and never enters the
+post feed; source and licensing records live in
+`apps/web/public/assets/hero-nature/README.md`. The separate `/explore` page
+retains accessible post links. Its unframed photo cards continue to consume
 `fetchExploreFeedPosts(24)` and `exploreGridPosterUrl(...)`, with public species
 labels and author username handles. Empty results show an empty state; the page
 does not substitute mock observations or autoplay media. It adds no species
 search, engagement controls, or broader data queries.
 
+The “Discover nature, your way” feature row follows the hero. Five illustrative
+previews cover identification, listening, keeping records, community discovery,
+and choosing public posts. They use bundled decorative photos and CSS motion,
+not real observation data, recordings, or production interface captures. Each
+preview loops automatically while visible, without play/pause icons or button
+semantics. Its loop pauses offscreen or in hidden tabs and resumes at the same
+phase. Reduced motion keeps the illustrations static. The horizontal row
+supports swipe/scroll and previous/next controls. Production clips can replace
+each `FeaturePreview` without changing the card structure. The expanded footer
+combines a large invitation, existing navigation links, and an explicitly
+labeled, nonfunctional QR preview awaiting an approved app link. No login,
+search, or store destination is invented for this presentation.
+
 The shared Mantine theme, header navigation, mobile drawer, and footer carry the
-same forest palette and rounded surfaces across the public routes. Reference and
-post detail content keep their existing component-based presentation and privacy
-boundaries. Light/dark preferences remain supported. Header and footer links
+same neutral palette across the public routes. Observation details use a
+two-column media and identification layout on desktop and a single column on
+mobile, with readable supporting sections and subtle dividers. Hazard notices,
+identification provenance, source links, reporting, and privacy boundaries are
+preserved. Light/dark preferences remain supported. Header and footer links
 resolve to existing pages or homepage anchors.
 
 The homepage contains one existing waitlist form in its closing invitation;
@@ -101,8 +206,8 @@ contribution of submitted scans and links to `/privacy-choices`.
    the first persisted standalone-audio spectrogram thumbnail.
 8. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata
    using the post title and resolved poster.
-9. The page renders the public post with default Mantine components and props,
-   without route-specific CSS classes or custom page chrome.
+9. The page renders the public post with Mantine components and scoped
+   observation layout classes in `app/globals.css`.
 
 Visual media on the detail route is rendered in canonical `order_index` order.
 Confirmed-missing items are absent from that ordered snapshot. If every primary
@@ -139,7 +244,7 @@ privacy-filtered—the route returns a not-found page and marks metadata as
 non-indexable. The route must not render stale content or metadata from a prior
 request. Approved audio-only posts are public and indexable: WAV posts render
 the persisted spectrogram in the audio-focused post header, Open Graph metadata,
-and Twitter metadata, while the public home grid uses the species reference
+and Twitter metadata, while the public Explore grid uses the species reference
 thumbnail. Mixed posts retain their visual social preview and render approved
 audio in the same canonical square media carousel. Audio slides fill the frame
 with their persisted spectrogram and anchor native playback controls over a
@@ -265,7 +370,7 @@ projection:
 - coarse public telemetry such as time of day, month, weather condition, and
   temperature
 - public author avatar and canonical `@username` handle from `author_username`;
-  homepage cards, post details, and avatar alt text use "a Naturebook observer"
+  Explore cards, post details, and avatar alt text use "a Naturebook observer"
   when the username is missing or blank, never `author_name`
 - public like/comment counts, retained in the projection for compatibility but
   intentionally not rendered on the public detail page

@@ -179,3 +179,16 @@ final class AuthRuntimeState {
         isSigningOut = false
     }
 }
+
+/// Only typed, freshly validated recovery evidence may pass a retained-storage hold.
+@MainActor
+enum AuthRecoveryAuthority {
+    case librarySignOut(LibrarySignOutJournalStore.RecoveryScope)
+    case accountDeletion(AccountDeletionLocalCleanupStore.RecoveryScope)
+    var isCurrent: Bool {
+        switch self {
+        case .librarySignOut(let scope): scope.isCurrent
+        case .accountDeletion(let scope): scope.permitsRuntimeDrain
+        }
+    }
+}

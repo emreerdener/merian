@@ -33,8 +33,7 @@ actor AudioPlaybackFileDriver: AudioPlaybackDriver {
     nonisolated var unownedExecutor: UnownedSerialExecutor {
         Self.executor.asUnownedSerialExecutor()
     }
-    private let url: URL
-    private let makePlayer: @Sendable (URL) throws -> AVAudioPlayer
+    private let makePlayer: @Sendable () throws -> AVAudioPlayer
     private var player: AVAudioPlayer?
 
     init(
@@ -43,13 +42,17 @@ actor AudioPlaybackFileDriver: AudioPlaybackDriver {
             try AVAudioPlayer(contentsOf: $0)
         }
     ) {
-        self.url = url
-        self.makePlayer = makePlayer
+        self.makePlayer = { try makePlayer(url) }
+    }
+
+    /// Caller supplies already verified, bounded bytes; no temporary file is created.
+    init(data: Data) {
+        self.makePlayer = { try AVAudioPlayer(data: data) }
     }
 
     func load(delegate: AudioPlayerDelegate) throws -> AudioPlaybackSnapshot {
         try Task.checkCancellation()
-        let player = try makePlayer(url)
+        let player = try makePlayer()
         player.delegate = delegate
         self.player = player
         // Do not prepareToPlay here: even silent preparation activates the session.

@@ -10,6 +10,14 @@ buttons, custom toggles), typography extensions, and complex visual treatments
 like glassmorphism shaders. Code placed here ensures visual consistency across
 all feature modules and prevents duplication of fundamental UI elements.
 
+## Shared scan cards
+
+`Components/Cards/ScanPreviewCard.swift` owns the media-above-content layout,
+material/glass surface, spacing, and discovery button shared by Explore Map
+previews and achievement contributions. Callers supply media, metadata, optional
+social controls, and navigation callbacks. Private achievement contributions
+retain their local thumbnail loader and location-privacy policy.
+
 ## Shared loading presentation
 
 `Components/Loading/GlowPulsingSkeletonView.swift` owns the reusable rounded
@@ -182,8 +190,9 @@ attribution, availability state, and navigation.
 
 ## Shared scan and empty-state presentation
 
-`Components/ScanThumbnail.swift` owns cross-feature scan-thumbnail rendering for
-Scans, Explore Field Trips, and Profile.
+`Components/ScanThumbnail.swift` supports a configurable image aspect ratio,
+defaulting to square; private map list cards use 4:3. It owns cross-feature
+scan-thumbnail rendering for Scans, Explore Field Trips, and Profile.
 `Models/ScanThumbnailPresentation.swift` projects `LocalScanRecord` media into
 visual, audio, reference-fallback, and terminal placeholder state. The view
 receives online availability and optional reference-recovery actions from its
@@ -347,15 +356,16 @@ values, actions, and search presentation state; MapKit requests, cancellation,
 and navigation lifetime belong to `Core/Maps`, and history/style storage belongs
 to `Core/Preferences`.
 
-`MapUserLocationPin` supplies the same blue, person-marked pin to both maps'
-native `UserAnnotation`. Its tip anchors to the live location. A narrow UIKit
-bridge sets the enclosing `MKAnnotationView`'s normal and selected Z priorities
-to maximum and display priority to required on attachment and layout; SwiftUI
-declaration order does not control MapKit annotation stacking. The bridge uses
-public view ancestry and leaves other annotations and the map delegate alone.
-`MapUserLocationPriorityTests` covers nested/delayed attachment and priority
-restoration. Candidate device checks must also cover MapKit hosting, overlapping
-selected observations, pan, zoom, and live location updates.
+Both maps use MapKit's unmodified `UserAnnotation()` for the standard live
+user-location indicator. `MapObservationPriority` sets app-owned cluster and
+waypoint annotations below that indicator, with selected observations above
+other observations. Its narrow UIKit bridge updates the enclosing
+`MKAnnotationView`'s normal and selected Z priorities on attachment, SwiftUI
+updates, and layout. It leaves display priority, the native user indicator, and
+the map delegate alone. `MapUserLocationPriorityTests` covers native marker
+ordering, selection changes, delayed attachment, and priority restoration.
+Candidate device checks must also cover MapKit hosting, overlapping selected
+observations, pan, zoom, and live location updates.
 
 `MapCountPillLabel` prefers the full discovery count and falls back to the short
 count on narrow layouts. Each candidate sizes its glass capsule to its text,

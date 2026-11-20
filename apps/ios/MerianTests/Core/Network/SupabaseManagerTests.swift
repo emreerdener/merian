@@ -2,6 +2,7 @@ import AuthenticationServices
 import Foundation
 @testable import Merian
 import XCTest
+import Testing
 
 @MainActor
 final class SupabaseManagerTests: XCTestCase {
@@ -732,4 +733,61 @@ final class SupabaseManagerTests: XCTestCase {
         )
     }
 
+}
+
+@Suite("P1 isolated auth drain ordering", .serialized)
+@MainActor
+struct PhotoPreparationAuthDrainTests {
+    @Test func nilHookPreservesDrainAndFailureDoesNotDrain() async {
+        var order: [String] = []
+        #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: nil, drain: { order.append("drain") }))
+        #expect(order == ["drain"])
+        order.removeAll()
+        #expect(!(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("prepare"); return false
+        }, drain: { order.append("drain") })))
+        #expect(order == ["prepare"])
+    }
+
+    @Test(arguments: [false, true])
+    func nativeThenPhotoMustBothFinishBeforeAccountDrain(nativeSucceeds: Bool) async {
+        var order: [String] = []
+        #expect(!(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("photo"); return false
+        }, native: {
+            order.append("native"); await Task.yield(); return nativeSucceeds
+        }, drain: { order.append("auth") })))
+        #expect(order == (nativeSucceeds ? ["native", "photo"] : ["native"]))
+    }
+
+    @Test(arguments: ["before", "native", "photo", "account"])
+    func destructiveScopeMustRemainCurrentAcrossEveryDrain(boundary: String) async {
+        var current = boundary != "before", order: [String] = []
+        let result = await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("photo"); await Task.yield()
+            if boundary == "photo" { current = false }
+            return true
+        }, native: {
+            order.append("native"); await Task.yield()
+            if boundary == "native" { current = false }
+            return true
+        }, validate: { current }, drain: {
+            order.append("account"); await Task.yield()
+            if boundary == "account" { current = false }
+        })
+        #expect(!result)
+        let expected = ["before": [], "native": ["native"], "photo": ["native", "photo"], "account": ["native", "photo", "account"]]
+        #expect(order == expected[boundary])
+    }
+
+    @Test func successfulOwnerClosurePrecedesAccountDrain() async {
+        var order: [String] = []
+        #expect(await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: {
+            order.append("cancel")
+            await Task.yield()
+            order.append("closed")
+            return true
+        }, drain: { order.append("drain") }))
+        #expect(order == ["cancel", "closed", "drain"])
+    }
 }

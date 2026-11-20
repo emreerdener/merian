@@ -150,6 +150,11 @@ private struct ExploreAuthorProfileSkeletonGrid: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
         .accessibilityHidden(true)
     }
 }

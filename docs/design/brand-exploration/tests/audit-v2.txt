@@ -1,0 +1,21 @@
+
+=== a-v2.svg  (404 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 13
+margins L42.0 R42.0 T39.0 B39.0 · bbox fill 0.467
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== b-v2.svg  (360 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 10
+margins L36.0 R36.0 T42.0 B45.0 · bbox fill 0.474
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== c-v2.svg  (421 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 10
+margins L42.0 R45.2 T38.0 B41.4 · bbox fill 0.455
+✔ no issues found
+production-readiness score: 100/100 (heuristic)

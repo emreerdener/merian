@@ -9,7 +9,14 @@ struct ExploreMediaRecoveryRouteContext: Sendable, Equatable {
     let ownerUserId: String
 }
 
+struct HistoricalReanalysisTarget: Sendable, Equatable {
+    let observationID: UUID
+    let analysisID: UUID
+    let ownerID: UUID
+}
+
 enum AppRoute: Sendable, Equatable {
+    case historicalReanalysis(HistoricalReanalysisTarget)
     case proAccessRequired
     case scan(scanId: String)
     case explorePost(

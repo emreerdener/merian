@@ -27,7 +27,8 @@
       ],
       "idiom": "universal",
       "platform": "ios",
-      "size": "1024x1024"
+      "size": "1024x1024",
+      "filename": "icon1024-tinted.png"
     }
   ],
   "info": {

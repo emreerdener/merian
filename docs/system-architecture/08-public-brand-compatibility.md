@@ -1,8 +1,8 @@
 # Naturebook Public Brand and Compatibility Contract
 
-Status: active  
-Effective date: 2026-07-15  
-Public product: Naturebook  
+Status: active\
+Effective date: 2026-07-15\
+Public product: Naturebook\
 Permanent engineering identity: Merian
 
 ## Decision
@@ -16,19 +16,23 @@ Naturalist names may be used as internal release codenames. A codename must not
 become a bundle identifier, module, target, database namespace, public domain,
 analytics event, product identifier, or customer-facing label.
 
+Native app icon masters and their reproducible iPhone, Watch, and Messages
+exports are documented in [Naturebook app icons](../design/app-icons/README.md).
+Keep all three native surfaces on the approved artwork when changing the icon.
+
 ## Canonical Public Values
 
-| Surface | Canonical value |
-| --- | --- |
-| Product | `Naturebook` |
-| Subscription | `Naturebook Pro` |
-| AI feature | `Naturebook AI` |
-| Website | `https://naturebook.earth` |
-| Support | `support@naturebook.earth` |
-| Export sender | `Naturebook Data Exports <exports@naturebook.earth>` |
-| Native URL scheme | `naturebook` |
-| App Store primary category | Reference |
-| App Store secondary category | Education |
+| Surface                      | Canonical value                                      |
+| ---------------------------- | ---------------------------------------------------- |
+| Product                      | `Naturebook`                                         |
+| Subscription                 | `Naturebook Pro`                                     |
+| AI feature                   | `Naturebook AI`                                      |
+| Website                      | `https://naturebook.earth`                           |
+| Support                      | `support@naturebook.earth`                           |
+| Export sender                | `Naturebook Data Exports <exports@naturebook.earth>` |
+| Native URL scheme            | `naturebook`                                         |
+| App Store primary category   | Reference                                            |
+| App Store secondary category | Education                                            |
 
 The Foundation-only iOS source of truth is
 `apps/ios/Shared/Branding/PublicBrand.swift`. Public web defaults live in
@@ -40,22 +44,22 @@ these contracts instead of introducing local literals.
 The following values intentionally remain Merian-based. Renaming them would
 break update continuity, stored data, integrations, or operational history.
 
-| Contract | Stable value or family |
-| --- | --- |
-| Xcode project and scheme | `Merian.xcodeproj`, `Merian` |
-| Targets and modules | `Merian`, `MerianWatch`, `MerianExploreWidget`, `MerianMessagesExtension`, `merianTests`, `merianUITests` |
-| Main bundle ID | `app.merian.Merian` |
-| Extension bundle IDs | Existing `app.merian.Merian.*` identifiers |
-| App Group | `group.app.merian.shared` |
-| Keychain access group | `$(AppIdentifierPrefix)app.merian.shared` |
-| SwiftData | `MerianSchemaV*`, `MerianMigrationPlan`, existing store names |
-| Preferences and keychain | Existing `Merian_*`, `merian.*`, and related keys |
-| Backend | Existing database, RPC, Edge Function, cron, storage, and source identifiers |
-| Reference-image source | `source = 'merian'` |
-| Durable media host | `media.merian.app` |
-| Network headers | Existing `X-Merian-*` headers and technical User-Agent values |
-| Analytics | Existing event names, properties, keys, and historical continuity |
-| RevenueCat | Existing entitlement and product IDs |
+| Contract                 | Stable value or family                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Xcode project and scheme | `Merian.xcodeproj`, `Merian`                                                                              |
+| Targets and modules      | `Merian`, `MerianWatch`, `MerianExploreWidget`, `MerianMessagesExtension`, `merianTests`, `merianUITests` |
+| Main bundle ID           | `app.merian.Merian`                                                                                       |
+| Extension bundle IDs     | Existing `app.merian.Merian.*` identifiers                                                                |
+| App Group                | `group.app.merian.shared`                                                                                 |
+| Keychain access group    | `$(AppIdentifierPrefix)app.merian.shared`                                                                 |
+| SwiftData                | `MerianSchemaV*`, `MerianMigrationPlan`, existing store names                                             |
+| Preferences and keychain | Existing `Merian_*`, `merian.*`, and related keys                                                         |
+| Backend                  | Existing database, RPC, Edge Function, cron, storage, and source identifiers                              |
+| Reference-image source   | `source = 'merian'`                                                                                       |
+| Durable media host       | `media.merian.app`                                                                                        |
+| Network headers          | Existing `X-Merian-*` headers and technical User-Agent values                                             |
+| Analytics                | Existing event names, properties, keys, and historical continuity                                         |
+| RevenueCat               | Existing entitlement and product IDs                                                                      |
 
 Public labels derived from a technical value must still say Naturebook. For
 example, a reference image may retain `source = 'merian'` while its visible
@@ -73,13 +77,13 @@ source label and license read `Naturebook` and
 - App Intents, Siri phrases, notifications, permissions, onboarding, paywalls,
   sharing, accessibility, errors, exports, legal pages, support, and release
   notes use Naturebook.
-- Subscription and IAP localizations use Naturebook Pro without changing
-  product IDs.
+- Subscription and IAP localizations use Naturebook Pro without changing product
+  IDs.
 - Legal text may retain the actual legal owner or Apple seller name where
   legally required. Product references in that text still use Naturebook.
 
-The public rename is communicated through normal changelog and App Store
-release notes. Do not introduce a forced rename modal.
+The public rename is communicated through normal changelog and App Store release
+notes. Do not introduce a forced rename modal.
 
 ## URL and Domain Contract
 
@@ -152,16 +156,15 @@ every alias destination remains `naturebook.earth`.
 
 ### Apple App Site Association exception
 
-The following endpoints must return HTTP 200 directly on both
-`naturebook.earth` and `merian.earth`:
+The following endpoints must return HTTP 200 directly on both `naturebook.earth`
+and `merian.earth`:
 
 - `/apple-app-site-association`
 - `/.well-known/apple-app-site-association`
 
-They must not redirect. Both responses use app ID
-`TA8S64ST9W.app.merian.Merian` and route the exact path list
-`["/explore/post/*", "/species/*"]`. The app declares
-`applinks:naturebook.earth` and retains `applinks:merian.earth`.
+They must not redirect. Both responses use app ID `TA8S64ST9W.app.merian.Merian`
+and route the exact path list `["/explore/post/*", "/species/*"]`. The app
+declares `applinks:naturebook.earth` and retains `applinks:merian.earth`.
 `naturebook.app` is redirect-only and is not an associated domain.
 
 ## Web and Metadata Contract
@@ -175,11 +178,10 @@ They must not redirect. Both responses use app ID
   canonical card predicate and page rendering obtains card plus detail from one
   statement. Exact-SHA promotion evidence remains governed by the
   [release assurance record](../backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
-  Public species pages consume only the existing versioned
-  `species-dictionary` Edge response and publish only attribution-approved
-  reference images.
-- Public media continues to use `media.merian.app`; do not rewrite durable
-  media URLs as part of the product rebrand.
+  Public species pages consume only the existing versioned `species-dictionary`
+  Edge response and publish only attribution-approved reference images.
+- Public media continues to use `media.merian.app`; do not rewrite durable media
+  URLs as part of the product rebrand.
 - Alias redirects use HTTP 308 and preserve both path and query.
 
 ## Backend and Data Contract
@@ -205,26 +207,26 @@ The App ID description belongs to the Apple Developer identifier record under
 Certificates, Identifiers & Profiles. It is not an App Store Connect metadata
 field. There must be exactly one explicit App ID for the stable bundle ID:
 
-| Apple Developer field | Value |
-| --- | --- |
-| App ID description | Naturebook iOS (Merian) |
-| Bundle ID | `app.merian.Merian` |
+| Apple Developer field | Value                   |
+| --------------------- | ----------------------- |
+| App ID description    | Naturebook iOS (Merian) |
+| Bundle ID             | `app.merian.Merian`     |
 
 If that App ID is not registered yet, register it with these values. If it
-already exists, edit only its description. Never register a separate
-Naturebook bundle identifier.
+already exists, edit only its description. Never register a separate Naturebook
+bundle identifier.
 
 The existing App Store Connect record uses:
 
-| Field | Value |
-| --- | --- |
-| Public app name | Naturebook |
-| Bundle ID | `app.merian.Merian` |
-| Primary category | Reference |
-| Secondary category | Education |
-| Marketing URL | `https://naturebook.earth` |
-| Support URL | `https://naturebook.earth/support` |
-| Privacy URL | `https://naturebook.earth/privacy` |
+| Field              | Value                              |
+| ------------------ | ---------------------------------- |
+| Public app name    | Naturebook                         |
+| Bundle ID          | `app.merian.Merian`                |
+| Primary category   | Reference                          |
+| Secondary category | Education                          |
+| Marketing URL      | `https://naturebook.earth`         |
+| Support URL        | `https://naturebook.earth/support` |
+| Privacy URL        | `https://naturebook.earth/privacy` |
 
 Apple documents the identifier description in
 [Register an App ID](https://developer.apple.com/help/account/identifiers/register-an-app-id)

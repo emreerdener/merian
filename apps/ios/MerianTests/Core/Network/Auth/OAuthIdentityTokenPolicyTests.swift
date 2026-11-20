@@ -41,6 +41,17 @@ final class OAuthIdentityTokenPolicyTests: XCTestCase {
         )
     }
 
+    func testExactSubjectDoesNotNormalizeQualificationIdentity() throws {
+        for subject in [" subject", "subject ", "subject", "e\u{301}"] {
+            let token = try makeUnsignedJWT(payload: ["sub": subject])
+            XCTAssertEqual(try OAuthIdentityTokenPolicy.providerSubject(from: token, preservingExactBytes: true), subject)
+            XCTAssertEqual(try OAuthIdentityTokenPolicy.providerSubject(from: token), subject.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        let token = try makeUnsignedJWT(payload: ["sub": "subject\n"])
+        XCTAssertThrowsError(try OAuthIdentityTokenPolicy.providerSubject(from: token, preservingExactBytes: true))
+        XCTAssertEqual(try OAuthIdentityTokenPolicy.providerSubject(from: token), "subject")
+    }
+
     private func makeUnsignedJWT(
         payload: [String: String]
     ) throws -> String {

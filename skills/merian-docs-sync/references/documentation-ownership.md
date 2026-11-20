@@ -30,6 +30,15 @@ audit. It supplements the contributor matrix in `docs/CONTRIBUTING.md`.
 
 ## Conflict resolution
 
+Notion owns approved product strategy, requirements, planning, decisions and
+business documentation; repository contracts own technical implementation and
+operations. Use `$merian-notion` to verify the workspace and relevant approved
+intent. A requirement/source mismatch is drift, not permission to rewrite the
+requirement or invent implementation. Propose warranted Notion updates and write
+only within task authorization; same-change repository documentation remains
+required. The Notion skills directory is navigation to canonical repository
+skills, not a second executable source.
+
 1. Executable source, schemas, generators, and tests establish implemented
    behavior; documentation must not invent behavior they do not support.
 2. Current canonical contracts own intended present behavior. If code differs,

@@ -30,21 +30,30 @@ final class IdentificationReviewCoordinatorHarness {
     var speciesRecords = [String: InferenceSpeciesDictionaryRecord]()
     var speciesLookupGates = [String: InferenceOperationGate]()
     var speciesIDLookupGates = [String: InferenceOperationGate]()
+    var beforePersistence: (@MainActor () -> Void)?
+    var beginOverrideOverride: (@MainActor (ModelContainer, String, String, LocalAIIdentificationReview?) async -> Bool)?
+    var persistReviewOverride: (@MainActor (ModelContainer, InferenceIdentificationReviewMutation, LocalAIIdentificationReview?) async -> Bool)?
     var syncGate: InferenceOperationGate?
     private(set) var events: [Event] = []
 
     var dependencies: InferenceIdentificationReviewCoordinator.Dependencies {
         .init(
-            beginOverride: { [self] _, scanID, scientificName in
+            beginOverride: { [self] container, scanID, scientificName, expected in
+                beforePersistence?()
+                if let beginOverrideOverride { return await beginOverrideOverride(container, scanID, scientificName, expected) }
                 events.append(.beginOverride(scanID, scientificName))
+                return true
             },
-            persistReview: { [self] _, mutation in
+            persistReview: { [self] container, mutation, expectedReview in
+                beforePersistence?()
+                if let persistReviewOverride { return await persistReviewOverride(container, mutation, expectedReview) }
                 events.append(
                     .persistReview(
                         mutation,
                         mutation.userReviewState.rawValue
                     )
                 )
+                return true
             },
             clearFlag: { [self] _, scanID in
                 events.append(.clearFlag(scanID))
@@ -123,6 +132,49 @@ final class IdentificationReviewCoordinatorHarness {
 @MainActor
 @Suite("Inference Identification Review Coordinator")
 struct InferenceReviewCoordinatorTests {
+    @Test func staleAuthorityFreeConfirmationCannotPersistOrReachLegacyServer() async throws {
+        let container = try makeContainer(), context = ModelContext(container)
+        let record = try #require(try context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let rejected = LocalAIIdentificationReview(authority: .init(revision: 1, state: .aiRejected,
+            originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil))
+        record.aiIdentificationReviewData = try rejected.storedData(); try context.save()
+        let harness = IdentificationReviewCoordinatorHarness()
+        harness.persistReviewOverride = { container, mutation, expected in
+            await BackgroundDatabaseActor(modelContainer: container).updateScanWithOverride(scanId: mutation.scanID,
+                override: mutation.override, confirmed: mutation.confirmed, newConfirmedSpeciesId: mutation.confirmedSpeciesID,
+                userReviewState: mutation.userReviewState, expectedReview: expected)
+        }
+        let subject = harness.makeSubject()
+        let mutation = InferenceIdentificationReviewMutation.aiConfirmation(scanID: "scan-a", confirmedSpeciesID: "species")
+        var published = false
+        await subject.enqueueReviewMutation(mutation, actionGeneration: subject.beginReviewAction(scanId: "scan-a"),
+            modelContainer: container, expectedReview: .init(), didPersist: { published = true })?.value
+        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(saved.localAIIdentificationReview == rejected && !saved.userConfirmedIdentification)
+        #expect(!published && harness.events.isEmpty)
+    }
+
+    @Test func staleOverrideCannotAdmitOrPublishOverNewerDurableReview() async throws {
+        let container = try makeContainer(), context = ModelContext(container)
+        let record = try #require(try context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let rejected = LocalAIIdentificationReview(authority: .init(revision: 1, state: .aiRejected,
+            originScanID: "00000000-0000-4000-8000-000000000001", originIdentification: nil))
+        record.aiIdentificationReviewData = try rejected.storedData(); try context.save()
+        let harness = IdentificationReviewCoordinatorHarness()
+        harness.beginOverrideOverride = { container, scanID, name, expected in
+            await BackgroundDatabaseActor(modelContainer: container).beginScanIdentificationOverride(
+                scanId: scanID, scientificName: name, expectedReview: expected)
+        }
+        let subject = harness.makeSubject()
+        var published = false
+        await subject.enqueueOverrideAdmission(scanId: "scan-a", scientificName: "Fixtureus changed",
+            actionGeneration: subject.beginReviewAction(scanId: "scan-a"), modelContainer: container,
+            expectedReview: .init(), didPersist: { published = true })?.value
+        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(saved.localAIIdentificationReview == rejected && saved.userIdentificationOverride == nil)
+        #expect(!published && harness.events.isEmpty)
+    }
+
     @Test func orderedMutationPersistsBeforeCloudAndPostSyncEffects() async throws {
         let harness = IdentificationReviewCoordinatorHarness()
         let subject = harness.makeSubject()
@@ -144,7 +196,7 @@ struct InferenceReviewCoordinatorTests {
         ])
     }
 
-    @Test func syncFailureSuppressesRefreshAndMilestone() async {
+    @Test func syncFailureSuppressesRefreshAndMilestone() async throws {
         let harness = IdentificationReviewCoordinatorHarness()
         harness.syncError = ReviewTestError.expected
         let subject = harness.makeSubject()
@@ -154,11 +206,12 @@ struct InferenceReviewCoordinatorTests {
         let task = subject.enqueueReviewMutation(
             mutation,
             actionGeneration: generation,
-            modelContainer: nil
+            modelContainer: try makeContainer()
         )
         await task?.value
 
         #expect(harness.events == [
+            .persistReview(mutation, UserReviewState.userOverridden.rawValue),
             .sync(mutation),
             .syncFailure
         ])
@@ -259,10 +312,11 @@ struct InferenceReviewCoordinatorTests {
             schema: schema,
             isStoredInMemoryOnly: true
         )
-        return try ModelContainer(
-            for: schema,
-            configurations: [configuration]
-        )
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        context.insert(LocalScanRecord(id: "scan-a", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
+        return container
     }
 
     private enum ReviewTestError: Error {

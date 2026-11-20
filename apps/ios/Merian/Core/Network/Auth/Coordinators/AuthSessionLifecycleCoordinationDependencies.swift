@@ -69,6 +69,7 @@ struct AuthSessionLifecycleDependencies {
     let state: AuthSessionLifecycleStateBoundary
     let durability: AuthSessionLifecycleDurabilityBoundary
     let identity: AuthSessionLifecycleIdentityBoundary
+    let renewMediaLifetime: @MainActor (AuthTransitionSession, UInt64) async -> Bool
     let diagnose: @MainActor (
         AuthSessionLifecycleDiagnostic,
         Error?

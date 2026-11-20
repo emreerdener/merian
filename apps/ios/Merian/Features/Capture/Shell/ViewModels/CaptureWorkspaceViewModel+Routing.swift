@@ -39,7 +39,23 @@ extension CaptureWorkspaceViewModel {
     }
 
     private func apply(_ route: AppRoute) -> AppRouteOutcome {
+        if dependencies.submission.admission.isLibraryAccessBlocked() {
+            switch route {
+            case .scan, .refinement, .historicalReanalysis, .recallLastFind, .achievement:
+                activeSheet = .scans
+                return .applied(presentationID: activePresentation?.id)
+            default:
+                break
+            }
+        }
         switch route {
+        case let .historicalReanalysis(target):
+            guard reanalysisEditor == nil, let access = dependencies.reanalysis,
+                  let container = diContainer.offlineQueueManager.modelContext?.container else {
+                return .rejected(reason: .targetUnavailable)
+            }
+            do { reanalysisEditor = try access.open(target, container) } catch { return .rejected(reason: .targetUnavailable) }
+            activeSheet = .reanalysis
         case .proAccessRequired:
             activeSheet = .paywall
         case .scan(let scanId):
@@ -87,7 +103,9 @@ extension CaptureWorkspaceViewModel {
             }
             activeSheet = .insight
         case .refinement(let scanId, let initialDescription, let entryPoint):
-            guard startRefinementScan(
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                scanID: scanId, container: diContainer.offlineQueueManager.modelContext?.container
+            ), startRefinementScan(
                 scanId: scanId,
                 initialDescription: initialDescription,
                 entryPoint: entryPoint
@@ -124,12 +142,15 @@ extension CaptureWorkspaceViewModel {
     }
 
     func handleRouteAccountGenerationChanged() {
+        dismissNativeRecovery()
+        reanalysisEditor?.invalidate()
+        reanalysisEditor = nil
         operationState.clearPendingRoutes()
         clearExplorePresentationRoute()
         pendingScansRecoveryContext = nil
         pendingScansShowsNonBiologicalCollection = false
         pendingAchievementAward = nil
-        if activePresentation?.routeRequestID != nil {
+        if activePresentation?.routeRequestID != nil || activeSheet == .reanalysis {
             dismissActivePresentation()
         }
     }
@@ -146,9 +167,14 @@ extension CaptureWorkspaceViewModel {
         do {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             if let record = (try context.fetch(descriptor)).first {
-                diContainer.inferenceEngine.load(from: record)
+                let authority = try SharedMediaConsumerAuthority.classify(raw: record.mediaAuthorityRaw,
+                    consumerID: record.sharedMediaConsumerID, record: .scan)
+                let needsRetainedDisplay: Bool
+                if case .nativeInitial = authority { needsRetainedDisplay = true } else { needsRetainedDisplay = false }
+                if !needsRetainedDisplay { diContainer.inferenceEngine.load(from: record) }
                 protectExternalRouteFromImmediateSessionTimeoutReset()
                 self.activeSheet = .insight
+                if needsRetainedDisplay { activePresentation?.localScanID = scanId }
                 return true
             }
         } catch {
@@ -260,6 +286,14 @@ extension CaptureWorkspaceViewModel {
 
     func dismissActivePresentation() {
         guard let activePresentation else { return }
+        if activePresentation.destination == .reanalysis {
+            reanalysisEditor?.invalidate()
+            reanalysisEditor = nil
+        }
+        if activePresentation.destination == .nativeRecovery {
+            nativeRecoveryModel?.close()
+            nativeRecoveryModel = nil
+        }
         operationState.beginDismissing(activePresentation)
         self.activePresentation = nil
     }

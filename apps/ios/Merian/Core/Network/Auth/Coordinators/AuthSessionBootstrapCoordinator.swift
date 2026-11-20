@@ -18,6 +18,7 @@ final class AuthSessionBootstrapCoordinator {
         dependencies: AuthSessionBootstrapDependencies
     ) async -> AuthTransitionSession? {
         guard !Task.isCancelled,
+              dependencies.state.isBootstrapEnabled(),
               !dependencies.state.isTestExecution(),
               !dependencies.state.isAccountDeletionCleanupPending() else {
             return nil

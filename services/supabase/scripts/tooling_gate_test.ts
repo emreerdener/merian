@@ -993,7 +993,8 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
   const smokeCurlCount = productionSmoke.match(/curl -sS/g)?.length ?? 0;
   const boundedSmokeCurlCount =
     productionSmoke.match(/--max-filesize 1048576/g)?.length ?? 0;
-  assertEquals(smokeCurlCount, 9);
+  // Includes the server-only public-web Explore pagination denial probe.
+  assertEquals(smokeCurlCount, 10);
   assertEquals(
     boundedSmokeCurlCount,
     smokeCurlCount,

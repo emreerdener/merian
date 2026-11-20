@@ -20,6 +20,12 @@ mutable description of the present.
 4. Load the implementation skill for any code or contract surface being changed.
    This skill coordinates documentation; it does not replace iOS, Supabase,
    API-contract, migration, web/admin, or release rules.
+5. When approved requirements or planning context lives in Notion, use
+   `$merian-notion` and read its
+   [workspace reference](../merian-notion/references/workspace.md). Consult the
+   relevant approved intent, report source drift, and recommend exact record
+   changes. Apply Notion writes only within the task's authorization; retain
+   same-change repository contract updates and never auto-sync every commit.
 
 ## Classify before editing
 

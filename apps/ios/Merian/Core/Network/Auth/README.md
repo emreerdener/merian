@@ -1,21 +1,130 @@
-# Core Network Auth
+## November 12 — restoration after normal OAuth
 
-This folder owns the value-only foundation and effect-free observable runtime
-used to serialize Merian account transitions and fence account-bound work, plus
-deterministic account-deletion classification, ghost-profile-merge policy, and
-dependency-injected deletion, purchase-safe sign-out, Auth-session bootstrap and
-lifecycle projection, OAuth provider presentation admission and completion,
-fallback authentication callback coordination, Auth-session recovery,
-ghost-merge orchestration, and public-author identity refresh coordination. Its
-focused Services own Apple/Google framework presentation and value mapping,
-bootstrap SDK-session projection, missing-session classification, live reads,
-anonymous sign-in, and diagnostics; one request-scoped Supabase Auth adapter for
-OAuth, recovery, and shared local sign-out operations and diagnostics;
-fallback-callback coordination diagnostics; and the typed Apple credential-
-registration boundary with its sole Supabase Function adapter. It does not own
-other Supabase Auth SDK mutation, durable Keychain journals, purchase-identity
-mutation, other endpoint transport, local-data purge, or application lifecycle
-effects.
+A stable Auth event schedules historical-library synchronization even when OAuth
+has already linked the purchase identity. The identity-link result reports a new
+link, not permission to restore an existing account. Pending purchase handoffs,
+test execution, stale sessions/generations, active transitions and native-media
+renewal failures still stop the dependent work. The historical client retains
+its own library-ownership and account-work lease checks.
+
+## November 12 — HistoryTesting uses primary Auth
+
+The `HistoryTesting` configuration now combines the live History composition
+with this unchanged normal OAuth/primary Keychain path. It does not use the
+qualification Auth journal, account fingerprint admission or attended sign-in
+window. Library ownership, transition, cancellation and retained-work fences
+continue to apply. Backend activation remains separate. See the
+[current contract](../../../../../../docs/development-guides/24-identification-history-device-review.md#november-12--history-with-normal-oauth).
+
+## November 12 — ordinary simulator sign-in
+
+The primary `Merian` Debug configuration uses the existing Google/Apple provider
+flow and primary Keychain session. It does not require the attended
+HistoryQualification identity-evidence window. The qualification configuration
+retains its separate Auth controls and History execution gate; an ordinary build
+does not qualify or activate those History journeys.
+
+Pre-sign-in preparation suppresses an account-recovery alert only when the
+existing throwing inventory proves the library empty. Unreadable state and
+retained work still fail closed, and provider transition admission is unchanged.
+See the
+[library transition contract](../../../../../../docs/backend-and-data/21-guest-library-transitions.md).
+
+## Debug initial-media fixture startup join
+
+`AuthSessionLifecycleLiveProvider` exposes a Debug-only bounded, cancellable
+wait for the initial signed-out handler's actual identity-cleanup exit. Listener
+epoch, invalidation token and current generation/scope fence publication and
+consumption. New events, transitions and reconciliation invalidate old
+completion. The live factory registers a weak provider reference only for Debug
+UI tests; the fixture first obtains the real singleton and checks nil
+SDK/published session after joining, before installing synthetic entitlement
+state once. It neither cancels the listener nor bypasses Auth/funding rules.
+Release has no test join.
+
+All fourteen provider tests and four initial-media UI journeys passed
+native29205 with independent verification. The Auth physical aggregate budget
+still fails (HQ-319); its proposed Debug-only allowance is unapplied pending an
+explicit user decision. Original video failures and the corrected
+cancelled-stream test-helper hang remain retained. This is scoped synthetic
+validation, not live/cumulative acceptance.
+
+## November 8 CST — primary-app qualification preparation
+
+Completion269 follows the user's primary-app testing decision. The qualification
+configuration reuses ordinary app/companion identities, data containers and
+Google registration while retaining its compiled target/account gates and
+internal Auth transaction journal. Ordinary SDK session bytes remain untouched;
+no refresh token is cloned. Sign-out and inherited sign-out recovery hold before
+destructive effects. Auth-failure cleanup also rejects before primary Keychain,
+SDK session or purchase cleanup, including cancelled mutated-OAuth entry. Failed
+store startup cannot quarantine/rescue/recreate the primary library in
+qualification. Implementation and local checks do not establish signed
+install-over or rollback compatibility; the device-review guide owns those
+remaining gates.
+
+## November 8 — conditional composition compiled; installed qualification open
+
+Native250 qualifies the inactive `HistoryQualification` controls: 161 distinct
+methods have applicable passing evidence across the retained runs. The original
+native01 aggregate-budget failure remains recorded; native02 passed all 94
+methods / 104 expanded cases with zero failures/skips. HQ255 ancillary-service
+containment and HQ256 budget fixes were independently verified without raising
+limits. The unsigned qualification build passed for app/watch/widget/Messages
+(534.437s); all 4,163 source pins matched. Its marker is compiled, Debug is
+excluded, approval inputs are empty, and no private approval file exists.
+Independent final review accepted this bounded component. No launch,
+installation, real-app startup or cumulative acceptance is implied. Build
+warnings remain retained; full lint is not claimed.
+
+Ordinary Debug/Release and the current default qualification artifact still have
+no installed History composition. Native251 now connects the existing gate only
+to a compiled, validated qualification scope. Its 41 methods / 61 expanded cases
+passed without failures/skips; independent source review passed. The combined
+qualification branch compiled in native253 for all four unsigned products
+(551.024s, 4,163 matching pins). Native252 passed 133 methods / 337 expanded
+cases plus seven iOS27 parser checks. The documentation-only pin drift and build
+warnings remain recorded. Native254 subsequently refreshed all four unsigned
+products with 4,163 matching pins after the closure-parenthesization correction.
+Native260 qualifies the bounded replacement-publication correction: 30 callback
+and architecture methods pass in the final run, with 35 unchanged provider and
+workflow methods retaining applicable earlier passes. The original inventory and
+aggregate-budget failures remain retained; all size limits are unchanged. This
+Debug simulator evidence postdated native254. Completion265 subsequently passed
+the inactive unsigned qualification build in 567.575 seconds with 4,165 matching
+inputs and zero touched-source compiler diagnostics. It does not qualify
+installation or provider exchange. See the current
+[scan-to-history boundary](../../../../../../docs/development-guides/25-scan-to-history.md#current-integration-boundary)
+for backend compatibility and remaining qualification. Existing Auth provider
+exchange remains refused until a reviewed mapping and verified server-side
+new-user refusal are available; those external operations are not authorized by
+local preparation. The device-review guide owns this configuration and its
+eventual exact operation packet. Live SDK/all-media acceptance, resources,
+cumulative review and the final user walkthrough remain open.
+
+Completion265 implements the inactive Google consumer locally. Current private
+identity evidence is required before presentation, exact unnormalized subject
+binding runs after source-session verification and again immediately before the
+SDK exchange, and replacement checks current operation ownership/cancellation.
+The existing qualification storage owns a durable pending exchange envelope. It
+preserves the prior approved session and denies SDK writes/removals until the
+actual exchange task exits. Fresh account/evidence/ownership checks precede
+unpublished adoption and an atomic exact-attempt acceptance receipt, with no
+suspension between them. Only confirmed acceptance records the mutation.
+Read-back of the exact receipt resolves a lost write acknowledgement; an
+unreadable or different outcome stays unresolved and cannot enter generic
+cleanup. The replacement workflow preserves that typed settlement outcome even
+when cancelled. Stored accepted sessions validate their original receipt without
+requiring a new exchange or current exchange-evidence window. Existing listener
+fencing and source-only failed reconciliation remain in force. Linking, Apple,
+callback exchange and anonymous creation stay denied. Public activation inputs
+remain absent; local checks cannot prove the trusted mapping or server refusal
+required by the device-review contract. Engine accepted the settlement
+correction; the 106-test native gate and subsequent focused qualification /
+settlement / architecture checks passed with unchanged input pins. Strict
+touched-source lint and the tooling/compiled configuration checks also pass.
+These local results do not qualify an installed sign-in or the all-media
+journey.
 
 ## Ownership
 
@@ -38,8 +147,10 @@ effects.
   admission, cold-start session classification, and purchase-identity
   handoff/restoration decisions.
 - `Policies/OAuthIdentityTokenPolicy.swift` owns bounded, control-character-safe
-  provider-subject extraction from the identity token used only when a direct
-  anonymous identity link reports an existing account.
+  provider-subject extraction from the identity token used when a direct
+  anonymous identity link reports an existing account. Its explicit exact-byte
+  option also supplies qualification subject matching without changing ordinary
+  whitespace normalization; parsing does not authenticate a token.
 - `Policies/AccountDeletionTransitionPolicy.swift` owns exact cached-session
   restoration eligibility and the stable HTTP/code classifications for
   definitive intake rejection, matched expired recovery, and unknown v2 recovery
@@ -118,8 +229,8 @@ effects.
   aggregate purchase-handoff fence as resolved explicitly wakes that retained
   work. Clear diagnostics are emitted only after local cleanup completes.
 - `Coordinators/AuthSessionBootstrapCoordinationDependencies.swift` defines the
-  provider-neutral SDK-session snapshot and narrow test/deletion gates,
-  observable state, transition, account-work, session-operation, purchase
+  provider-neutral SDK-session snapshot and narrow bootstrap/test/deletion
+  gates, observable state, transition, account-work, session-operation, purchase
   readiness, public-author refresh, and diagnostics boundaries. The package
   imports no SDK and acquires no singleton.
 - `Coordinators/AuthSessionBootstrapCoordinator.swift` owns exact-session reuse,
@@ -137,7 +248,12 @@ effects.
   Caller-owned bootstrap still awaits purchase readiness and checks cancellation
   immediately afterward, preserving sign-out recovery ordering. Only the
   injected stable missing-session classification may reach anonymous creation;
-  network and expiry failures preserve the existing identity.
+  network and expiry failures preserve the existing identity. The live facade
+  disables bootstrap in qualification builds before any await, transition,
+  account-work drain or SDK operation. This prevents capture prewarming from
+  hiding library recovery behind a forbidden anonymous bootstrap. Accepted
+  qualification sessions still restore through the independent SDK lifecycle
+  listener; the low-level anonymous-creation refusal remains in place.
 - `Services/AuthSessionBootstrapLiveService.swift` projects cached, loaded, and
   newly anonymous Supabase sessions into the bootstrap identity/expiry value and
   owns the established SDK plus compatibility missing-session classification.
@@ -173,6 +289,18 @@ effects.
   fail-closed, permits a cancelled OAuth owner to enter cleanup only after that
   owner has already mutated the SDK session, and deliberately completes local
   cleanup once SDK sign-out has begun. It creates no task.
+- Local deletion cleanup validates the exact stage marker and transition/session
+  before sign-out and after awaited sign-out, purge and acknowledgement. It also
+  rechecks the exact durable proof, and intake/recovered responses preserve
+  their captured marker/proof before classification or advancement. Stale
+  completion cannot advance proof retirement or marker resolution.
+  `AuthRecoveryAuthority` carries separate exact library/deletion scopes through
+  nested drains. Deletion scopes retain the original container predicate and
+  distinguish runtime joining from accepted purge; terminal-host acknowledgement
+  follows full purge success. Native247 and independent review qualify this
+  focused component; live SDK composition and later lifetime renewal remain
+  open. See the
+  [canonical contract](../../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 - `Coordinators/AccountDeletionWorkflow.swift` owns deterministic ordering for
   durable and prepared intake, accepted cleanup, capability retirement,
   rejection-proof retirement, deferred-session restoration, and pending local
@@ -451,12 +579,15 @@ provider return. Shared OAuth completion checks cancellation before direct
 provider linking and after session replacement, Apple registration, metadata,
 authenticated publication, telemetry, entitlement, expected-session readback,
 and public-author refresh. The replacement workflow reports whether it
-installed, failed, or was cancelled so cancellation after SDK installation
-cannot republish the new target as successful. Cancellation before installation
-reconciles the still-valid source; cancellation after any session mutation fails
-closed, records the exact mutated target on the transition, and admits that
-exact target to terminal local cleanup. Apple registration cancellation never
-consumes a retry.
+installed, failed, or was cancelled. Failed and cancelled reconciliation may
+republish only the exact unexpired source while the transition remains owned and
+sign-out is inactive. A rejected replacement is never projected by failure
+reconciliation, even if cleanup refuses ownership. Callback installed
+reconciliation checks the existing same-account policy before publication.
+Cancellation before installation reconciles the still-valid source; cancellation
+after any session mutation fails closed, records the exact mutated target on the
+transition, and admits that exact target to terminal local cleanup. Apple
+registration cancellation never consumes a retry.
 
 The fallback authentication-callback coordinator preserves the product rule that
 callback URLs may establish a session only from no local session or refresh the
@@ -571,17 +702,18 @@ generation invalidation. `AuthTransitionPolicyTests.swift` owns the adoption,
 transition admission, listener/request fence, provider callback, OAuth
 rollback/metadata, exact direct-link upgrade, purchase-handoff, and explicit
 nil-session and ownerless-request defaults across ten deterministic cases.
-`AuthSessionBootstrapCoordinatorTests.swift` owns twenty-two deterministic cases
-for test/deletion and caller-cancellation gates, cancellation during sign-out
-waiting, sign-out and quiescence ordering, current-session reuse, stale
-account-work rejection, exact-token ownerless sharing, replaced-transition and
-different-owner isolation, true-missing anonymous creation and creation failure,
-network-failure identity preservation, cancellation and transition drift around
-session load, compare-before-clear task replacement, resolved-session
-publication order, cancellation during loaded and newly created purchase
-readiness, session replacement during purchase readiness, ordinary Auth
-publication without a purchase wait, and explicit-owner request gating. The
-aggregate manager suite no longer owns bootstrap task serialization.
+`AuthSessionBootstrapCoordinatorTests.swift` owns twenty-four deterministic
+cases for qualification-disabled bootstrap without drain or transition mutation,
+preservation of an existing session/owner, test/deletion and caller-cancellation
+gates, cancellation during sign-out waiting, sign-out and quiescence ordering,
+current-session reuse, stale account-work rejection, exact-token ownerless
+sharing, replaced-transition and different-owner isolation, true-missing
+anonymous creation and creation failure, network-failure identity preservation,
+cancellation and transition drift around session load, compare-before-clear task
+replacement, resolved-session publication order, cancellation during loaded and
+newly created purchase readiness, session replacement during purchase readiness,
+ordinary Auth publication without a purchase wait, and explicit-owner request
+gating. The aggregate manager suite no longer owns bootstrap task serialization.
 `AuthSessionBootstrapLiveServiceTests.swift` owns five deterministic cases for
 cached/loaded identity and expiry projection, newly anonymous fresh-session
 projection, exact SDK and compatibility missing-session classification,
@@ -853,7 +985,16 @@ rearm; see the
 defines the source-owned inventory and sign-out recovery states.
 `LibrarySignOutRecoveryCoordinator` resumes the device-only library journal
 after SDK acknowledgment, local purge, exact replacement guest creation and
-purchase completion. `LibraryTransferResult` separates authentication from
+purchase completion. Every awaited recovery step is fenced by a fresh exact
+journal read; drift stops advancement and preserves the replacement record. The
+expected journal is passed into the sign-out and purge dependencies.
+`AppDIContainer` binds the committed step to its original container, exact
+manager/transition and session identities before nested drains can join a
+retained storage hold. Only source-cleared authority admits full-library purge.
+After complete repository success, terminal retained hosts release their hold
+without reopening. Account-deletion authority and later lifetime renewal remain
+unfinished. Native244 qualified the journal component; full live SDK composition
+remains unverified. `LibraryTransferResult` separates authentication from
 transfer; a pending or expired proof cannot authorize an unrelated identity
 replacement. The library-owner marker protects the unpartitioned cache across
 session loss; local mutation admission covers capture completion, notes, tags,
@@ -885,3 +1026,15 @@ idle: Auth drains operation-scoped leases before replacing a session. The
 prepared Identification History adapter checks the saved generation and exact
 published/SDK identity, while its Core reads and writes own their request
 leases.
+
+### Prepared reanalysis host pre-drain
+
+After account admission closes, `SupabaseManager` awaits
+`AppDIContainer.awaitPreparedReanalysisHostDrain(for:)` before the existing
+native/photo preparation and final account-work drain. Explicit fresh-video
+opening arms the existing bounded host owner against that exact manager. The
+unarmed path is inert. Failed temporary-copy cleanup keeps the terminal owner
+retained and stops the transition; it cannot grant a later account fresh work.
+The functional composition remains uninstalled. See
+[scan-to-History ownership](../../../../../../docs/development-guides/25-scan-to-history.md#prepared-current-video-host-and-cleanup-lifetime)
+for token ownership and open resource/runtime qualification.

@@ -9,6 +9,7 @@ struct CandidateSwipeDismissalRequest: Sendable, Equatable {
     let action: CandidateSwipeDismissalAction
     let scanId: String
     let presentationGeneration: UInt64
+    var expectedReview: LocalAIIdentificationReview?
 
     var subject: IdentificationReviewSubject {
         IdentificationReviewSubject(

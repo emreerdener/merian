@@ -11,6 +11,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         expectedGeneration: UUID
     ) -> Bool {
+        guard SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: scanId) else { return false }
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate {
@@ -19,7 +20,7 @@ extension BackgroundDatabaseActor {
         )
         scanDescriptor.fetchLimit = 1
         do {
-            guard try modelContext.fetch(scanDescriptor).first != nil else {
+            guard let scan = try modelContext.fetch(scanDescriptor).first, scan.permitsOrdinaryInference else {
                 return false
             }
         } catch {
@@ -82,7 +83,9 @@ extension BackgroundDatabaseActor {
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
         videoFilePaths: [String]?,
-        capturedMediaJSON: String?
+        capturedMediaJSON: String?,
+        originalCompletion: OrdinaryInferenceCompletion? = nil,
+        originalOwnership: BackgroundAccountWorkOwnership? = nil
     ) async -> OfflineScanProcessingResult {
         guard !Task.isCancelled else { return .notProcessed }
 
@@ -95,11 +98,14 @@ extension BackgroundDatabaseActor {
             mappedData: initialMappedData,
             originalImagePaths: originalImagePaths,
             recordId: recordId,
+            queueScanId: scanId,
             originalTimestamp: originalTimestamp,
             observationContextsJSON: observationContextsJSON,
             audioFilePaths: audioFilePaths,
             videoFilePaths: videoFilePaths,
-            capturedMediaJSON: capturedMediaJSON
+            capturedMediaJSON: capturedMediaJSON,
+            originalCompletion: originalCompletion,
+            originalOwnership: originalOwnership
         )
         await ScanFinalizationCoordinator.shared.release(scanId: recordId)
         return result
@@ -109,17 +115,29 @@ extension BackgroundDatabaseActor {
         mappedData initialMappedData: SpeciesData,
         originalImagePaths: [String],
         recordId: String,
+        queueScanId: String,
         originalTimestamp: Date,
         observationContextsJSON: [String]?,
         audioFilePaths: [String]?,
         videoFilePaths: [String]?,
-        capturedMediaJSON: String?
+        capturedMediaJSON: String?,
+        originalCompletion: OrdinaryInferenceCompletion?,
+        originalOwnership: BackgroundAccountWorkOwnership?
     ) async -> OfflineScanProcessingResult {
-        guard !Task.isCancelled else { return .notProcessed }
+        guard !Task.isCancelled,
+              SharedMediaLegacyQueueAccess.permitsMutationAssumingScanLock(modelContext, scanID: queueScanId)
+        else { return .notProcessed }
 
         do {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == queueScanId })
+            guard let queued = try modelContext.fetch(descriptor).first, queued.permitsOrdinaryInference else {
+                return .notProcessed
+            }
             var mappedData = initialMappedData
             let existing = try localScanRecord(id: recordId)
+            if let existing {
+                _ = try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext)
+            }
             try validatePrimaryCompletion(mappedData, existing: existing)
             guard mappedData.requiresSavedRecord else {
                 try modelContext.save()
@@ -145,7 +163,9 @@ extension BackgroundDatabaseActor {
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
                     videoFilePaths: videoFilePaths,
-                    capturedMediaJSON: capturedMediaJSON
+                    capturedMediaJSON: capturedMediaJSON,
+                    originalCompletion: originalCompletion,
+                    originalOwnership: originalOwnership
                 )
             }
             try Task.checkCancellation()

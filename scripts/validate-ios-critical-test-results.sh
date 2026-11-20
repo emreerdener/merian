@@ -194,10 +194,10 @@ assert_suite_has_passed_test_case \
   "Capture scan dependencies" \
   "testLifecycleInterruptionFencesOverlappingStillCapture"
 assert_suite_has_passed_test_case \
-  "Pre-recording lifecycle generation fence" \
+  "Pending-video-startup cancellation and late-result fence" \
   "CaptureScanDependenciesTests" \
   "Capture scan dependencies" \
-  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
+  "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
 assert_suite_has_passed_test_case \
   "Retired queue owner response handoff" \
   "InferenceEngineTests" \

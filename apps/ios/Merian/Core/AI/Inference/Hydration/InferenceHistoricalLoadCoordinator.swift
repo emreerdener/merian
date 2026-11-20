@@ -48,7 +48,7 @@ final class InferenceHistoricalLoadCoordinator {
         self.reviewWorkflowCoordinator = reviewWorkflowCoordinator
     }
 
-    func load(from record: LocalScanRecord) {
+    func load(from record: LocalScanRecord, retainedDisplayMedia: ActiveScanMedia? = nil) {
         guard sessionLifecycleCoordinator.beginHistoricalLoad() else { return }
 
         attemptCoordinator.setActiveScanId(record.id)
@@ -67,7 +67,7 @@ final class InferenceHistoricalLoadCoordinator {
         }
 
         presentationState.publishHistoricalProjection(
-            media: projection.mediaSnapshot.activeScanMedia,
+            media: retainedDisplayMedia ?? projection.mediaSnapshot.activeScanMedia,
             speciesData: projection.speciesData
         )
         let presentationGeneration = writeCoordinator.generation

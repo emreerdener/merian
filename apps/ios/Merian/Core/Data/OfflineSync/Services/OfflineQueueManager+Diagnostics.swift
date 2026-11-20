@@ -294,6 +294,11 @@ extension OfflineQueueManager {
         }
         guard events.count > limit else { return }
         for event in events.dropFirst(limit) {
+            guard SharedMediaLegacyQueueAccess.permitsMetadata(event.metadataJSON) else { continue }
+            let prefix = "scan-ingestion:"
+            let jobScanID = event.jobId.flatMap { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : nil }
+            let scanIDs = Set([event.scanId, jobScanID].compactMap { $0 })
+            guard scanIDs.allSatisfy({ SharedMediaLegacyQueueAccess.permitsFresh(context.container, scanID: $0) && (try? SharedMediaLegacyQueueAccess.permits(context, scanID: $0)) == true }) else { continue }
             context.delete(event)
         }
     }

@@ -8,6 +8,13 @@ product, privacy, API, navigation, and verification contract is
 Earned Field trip patches and their divider appear only when patches are
 available. Loading reserves no patch space and shows no patch skeletons.
 
+The published-scans preview matches the user's Profile card: 16-point internal
+padding, a 24-point continuous corner radius, secondary grouped background, and
+a bold title2 heading with a secondary count. The three-column grid and **View
+all scans** footer share that inset. Empty and loading states retain the card
+treatment, and the heading stacks above the count when space is tight.
+Media-recovery notices remain owner-only in the user's Profile surface.
+
 ## Ownership
 
 ```text
@@ -51,10 +58,15 @@ profile-visible status contract, so a new or backfilled account can have an
 author-profile surface at `0/N` progress. Stopping or resetting the unfinished
 outing hides that active status; no scan evidence becomes public.
 
-For a non-self reportable profile, `viewer_can_report` enables **Report user**.
-Reporting does not automatically block, unfollow, hide, or navigate away, and
-the endpoint revalidates self-report and profile visibility; the decoded flag is
-not the authorization boundary.
+Non-self profiles offer **Block user** through the shared
+`ExploreFeedViewModel.blockAuthor(userId:)` action, including profiles with no
+published posts. Success removes the author's cached posts and closes the
+profile; failure keeps it open with the existing error feedback. The action uses
+the same label and icon as the feed and post-detail menus. For a non-self
+reportable profile, `viewer_can_report` enables **Report user**. Reporting does
+not automatically block, unfollow, hide, or navigate away, and the endpoint
+revalidates self-report and profile visibility; the decoded flag is not the
+authorization boundary.
 
 ## Shared primitives
 

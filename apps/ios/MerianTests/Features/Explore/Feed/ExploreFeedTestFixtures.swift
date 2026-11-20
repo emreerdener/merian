@@ -170,7 +170,8 @@ enum ExploreFeedTestFixtures {
         errorFeedback: @escaping @MainActor () -> Void = {},
         reactions: ExploreReactionDependencies = .unavailable,
         visibility: ExploreContentVisibilityStore? = nil,
-        reportPost: @escaping @MainActor (String) async throws -> Void = { _ in throw StubError.unexpected }
+        reportPost: @escaping @MainActor (String) async throws -> Void = { _ in throw StubError.unexpected },
+        blockAuthor: @escaping @MainActor (String) async -> Bool = { _ in false }
     ) -> ExploreFeedViewModel.Dependencies {
         ExploreFeedViewModel.Dependencies(
             feed: .init(
@@ -182,7 +183,7 @@ enum ExploreFeedTestFixtures {
                 setLike: setLike,
                 unsharePost: { _ in throw StubError.unexpected },
                 reportPost: reportPost,
-                blockAuthor: { _ in false },
+                blockAuthor: blockAuthor,
                 loadPost: loadPost,
                 sendShareStateChanged: { _, _ in }
             ),

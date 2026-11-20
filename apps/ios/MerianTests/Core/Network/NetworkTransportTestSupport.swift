@@ -183,3 +183,57 @@ final class ScopedMockTransport {
         ScopedMockURLProtocol.remove(scopeID: scopeID)
     }
 }
+
+
+/// Samples regular files open in the test process. Inodes and descriptor
+/// numbers stay local. A sampled file is not necessarily an upload copy.
+struct PhotoUploadResourceSample {
+    private struct Identity: Hashable {
+        let device: dev_t
+        let inode: ino_t
+        init(_ info: stat) { device = info.st_dev; inode = info.st_ino }
+    }
+    private var files: [Identity: Int64] = [:]
+    let footprint: UInt64
+    let lifetimePeak: Int64
+    private(set) var originalOpen = false
+
+    init(original: URL) throws {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout.size(ofValue: info) / MemoryLayout<integer_t>.size)
+        let capacity = Int(count)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: capacity) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { throw CocoaError(.fileReadUnknown) }
+        footprint = info.phys_footprint
+        lifetimePeak = info.ledger_phys_footprint_peak
+
+        var source = stat(), limit = rlimit()
+        guard lstat(original.path, &source) == 0, source.st_mode & S_IFMT == S_IFREG,
+              getrlimit(RLIMIT_NOFILE, &limit) == 0, limit.rlim_cur <= 32768 else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        let originalID = Identity(source)
+        for fd in 0..<Int32(limit.rlim_cur) {
+            var item = stat()
+            guard fstat(fd, &item) == 0 else {
+                if errno == EBADF { continue }
+                throw CocoaError(.fileReadUnknown)
+            }
+            guard item.st_mode & S_IFMT == S_IFREG else { continue }
+            let id = Identity(item)
+            if id == originalID {
+                originalOpen = true
+            } else {
+                files[id] = Int64(item.st_blocks) * 512
+            }
+        }
+    }
+
+    func additionalOpenFileBytes(since baseline: Self) -> Int64 {
+        files.reduce(0) { sum, entry in sum + max(0, entry.value - (baseline.files[entry.key] ?? 0)) }
+    }
+}

@@ -53,7 +53,27 @@ actor ScanInferencePersistenceCoordinator {
 
     private init() {}
 
+    /// Batch writers take one deterministic order, shared with native receiving transitions.
+    func acquireAll(scanIds: [String]) async -> [String] {
+        let ids = Set(scanIds.map(Self.key)).sorted()
+        for id in ids { await acquire(scanId: id) }
+        return ids
+    }
+
+    func releaseAll(scanIds: [String]) {
+        for id in scanIds.reversed() { release(scanId: id) }
+    }
+
+    private static func key(_ id: String) -> String {
+        UUID(uuidString: id)?.uuidString.lowercased() ?? id
+    }
+
+    #if DEBUG
+    func hasWaitingWriter(scanId: String) -> Bool { !(waitersByScanId[Self.key(scanId)] ?? []).isEmpty }
+    #endif
+
     func acquire(scanId: String) async {
+        let scanId = Self.key(scanId)
         if activeScanIds.insert(scanId).inserted {
             return
         }
@@ -64,6 +84,7 @@ actor ScanInferencePersistenceCoordinator {
     }
 
     func release(scanId: String) {
+        let scanId = Self.key(scanId)
         guard var waiters = waitersByScanId[scanId], !waiters.isEmpty else {
             activeScanIds.remove(scanId)
             waitersByScanId[scanId] = nil

@@ -8,6 +8,22 @@ import Testing
 
 @MainActor
 struct InsightMediaGalleryTests {
+    @Test func retainedDisplayRendersBothPhotosWithoutGrantingEgress() {
+        let first = UUID(), second = UUID(), bytes = Data([1, 2, 3])
+        let media = ActiveScanMedia(items: [.retainedDisplayImage(id: first, data: bytes),
+            .retainedDisplayImage(id: second, data: bytes), .description(ObservationContext(freeText: "Exact submitted text"))])
+        #expect(media.hasUserImage && media.hasRetainedDisplayImages && media.retainedDisplayImageCount == 2)
+        #expect(media.presentationImageData == bytes && media.liveImageData == nil && media.imagePathsForUpload.isEmpty)
+        #expect(InsightFieldChatMedia.images(from: media, wikipediaURL: nil).isEmpty)
+        let gallery = InsightImageGalleryBuilder.buildItems(for: media, referenceWikipediaUrl: nil)
+        let pages = CarouselPageBuilder.buildPages(for: media, referenceWikipediaUrl: nil,
+            onImageFailure: { _ in Issue.record("Retained display invoked legacy image resolution") }, onDescriptionTap: nil)
+        let expected = [first, second].map { "retainedDisplay-\($0.uuidString.lowercased())" }
+        #expect(gallery.map(\.id) == expected)
+        #expect(Array(pages.map(\.id).prefix(2)) == expected)
+        #expect(gallery.count == 2 && pages.count == 3)
+    }
+
     @Test func testReferenceDeduplicationIgnoresNaturebookURLDecorationsButKeepsStrictExternalIdentity() {
         let references = [
             "https://media.merian.app/public_uploads/pro/user/photo.webp?width=900",

@@ -1,3 +1,22 @@
+## November 12 — original held-request recovery verified
+
+The correlation/fence corrections are deployed at
+`c435ea80f5bace1d28b6fc383f290c264c73d3d9` (deployment1869, reusing CI537).
+After the reviewed original-cutoff drain passed, explicitly approved recovery
+cleared only the original pending request. Acknowledged commit and independent
+paused-checkpoint verification preceded the separate cleanup resumption. The
+bounded observer then verified a new UUID-matched strict receipt and exact owner
+settlement in 12 reads over about 114 seconds. The unchanged monitor evaluator
+reported `ok` on a fresh aggregate, with no critical or warning findings.
+
+This closes the original stuck-slot recovery issue. All other 51 History gates
+remain closed; actual-media cleanup, phone installation and full-flow acceptance
+are not established by this empty-work heartbeat. The existing scheduled monitor
+is enabled, but its latest observed run predates resumption. Saved scans and
+media were not edited by maintenance. Historical failures and limitations below
+remain preserved; execution receipts are indexed in the History continuation and
+acceptance records under Completion388. No additional CI or deployment was run.
+
 # Incident: Private cleanup receipt correlation
 
 - **Date detected:** 2026-11-11

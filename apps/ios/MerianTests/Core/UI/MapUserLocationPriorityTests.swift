@@ -6,45 +6,50 @@ import UIKit
 
 @MainActor
 struct MapUserLocationPriorityTests {
-    @Test func nestedPinRaisesOnlyItsOwnAnnotationAboveObservationMarkers() {
+    @Test func observationsRemainBelowTheDefaultUserLocationIncludingSelection() {
         let container = UIView()
+        let user = MKUserLocationView(annotation: MKUserLocation(), reuseIdentifier: nil)
+        let userPriority = user.zPriority
         let observation = MKAnnotationView()
-        // Both maps select observations through Button/view-model state, not
-        // MKAnnotationView.isSelected, so selected thumbnails retain this priority.
-        observation.zPriority = .defaultUnselected
-        let user = MKAnnotationView()
-        user.displayPriority = .defaultLow
+        observation.displayPriority = .defaultLow
         let hostingView = UIView()
-        let pin = MapUserLocationPriorityView()
-        container.addSubview(observation)
+        let bridge = MapObservationPriorityView()
         container.addSubview(user)
-        user.addSubview(hostingView)
-        hostingView.addSubview(pin)
+        container.addSubview(observation)
+        observation.addSubview(hostingView)
+        hostingView.addSubview(bridge)
 
-        #expect(user.zPriority == .max)
-        #expect(user.selectedZPriority == .max)
-        #expect(user.displayPriority == .required)
-        #expect(user.zPriority.rawValue > observation.zPriority.rawValue)
-        #expect(observation.zPriority == .defaultUnselected)
+        let unselectedPriority = observation.zPriority
+        #expect(unselectedPriority.rawValue < user.zPriority.rawValue)
+        #expect(observation.selectedZPriority.rawValue < user.zPriority.rawValue)
+        #expect(observation.displayPriority == .defaultLow)
+
+        bridge.isSelected = true
+        bridge.updateAnnotationPriority()
+        #expect(observation.zPriority.rawValue > unselectedPriority.rawValue)
+        #expect(observation.zPriority.rawValue < user.zPriority.rawValue)
+        #expect(user.zPriority == userPriority)
+
+        bridge.isSelected = false
+        bridge.updateAnnotationPriority()
+        #expect(observation.zPriority == unselectedPriority)
     }
 
     @Test func layoutAfterDelayedHostingAttachmentRestoresPriority() {
         let hostingView = UIView()
-        let pin = MapUserLocationPriorityView()
-        hostingView.addSubview(pin)
-        pin.updateAnnotationPriority() // No annotation host yet.
+        let bridge = MapObservationPriorityView()
+        hostingView.addSubview(bridge)
+        bridge.updateAnnotationPriority() // No annotation host yet.
 
-        let user = MKAnnotationView()
-        user.addSubview(hostingView)
-        pin.layoutSubviews()
-        #expect(user.zPriority == .max)
+        let observation = MKAnnotationView()
+        observation.addSubview(hostingView)
+        bridge.layoutSubviews()
+        #expect(observation.zPriority == .min)
 
-        user.zPriority = .defaultUnselected
-        user.selectedZPriority = .defaultSelected
-        user.displayPriority = .defaultLow
-        pin.layoutSubviews()
-        #expect(user.zPriority == .max)
-        #expect(user.selectedZPriority == .max)
-        #expect(user.displayPriority == .required)
+        observation.zPriority = .max
+        observation.selectedZPriority = .max
+        bridge.layoutSubviews()
+        #expect(observation.zPriority == .min)
+        #expect(observation.selectedZPriority.rawValue < MKAnnotationViewZPriority.defaultUnselected.rawValue)
     }
 }

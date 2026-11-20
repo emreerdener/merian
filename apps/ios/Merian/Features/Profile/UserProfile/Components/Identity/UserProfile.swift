@@ -284,8 +284,8 @@ struct UserProfile: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .center, spacing: 6) {
                     Text(profileViewModel.displayName)
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                        .font(.title2)
+                        .fontWeight(.bold)
                         .lineLimit(1)
                         .truncationMode(.tail)
 

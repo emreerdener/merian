@@ -32,7 +32,7 @@ struct CaptureDebugReplayPreparerTests {
         try comparison.addHandle(to: &request)
         #expect((request["audio_comparison"] as? [String: Any])?["slot"] as? Int == comparison.slot)
         #expect(try fixture.workingFiles() == [url.lastPathComponent])
-        await result.discard(documentsDirectory: fixture.root)
+        await result.discard(documentsDirectory: fixture.root, files: fixture.files)
         #expect(try fixture.workingFiles().isEmpty)
         #expect(try Data(contentsOf: fixture.source(.audio)) == bytes)
     }
@@ -100,7 +100,7 @@ struct CaptureDebugReplayPreparerTests {
         #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: url))
         #expect(try Data(contentsOf: fixture.source(.audio)) == bytes)
         #expect(try fixture.workingFiles() == [url.lastPathComponent])
-        await result.discard(documentsDirectory: fixture.root)
+        await result.discard(documentsDirectory: fixture.root, files: fixture.files)
         #expect(try fixture.workingFiles().isEmpty)
         #expect(FileManager.default.fileExists(atPath: fixture.source(.audio).path))
     }
@@ -170,7 +170,7 @@ struct CaptureDebugReplayPreparerTests {
         #expect(video.audioFilePath == "companion.wav")
         #expect(video.playback.fileURL != fixture.source(.video))
         #expect(try fixture.workingFiles().count == 2)
-        await result.discard(documentsDirectory: fixture.root)
+        await result.discard(documentsDirectory: fixture.root, files: fixture.files)
         #expect(try fixture.workingFiles().isEmpty)
         #expect(try Data(contentsOf: fixture.source(.video)) == Data([1]))
     }
@@ -208,12 +208,14 @@ struct CaptureDebugReplayPreparerTests {
 private struct ReplayFixture: Sendable {
     let root: URL
     let frame: PreparedCaptureScanStill
+    let files: FileIOActor
 
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent("IdentificationReplay"), withIntermediateDirectories: true
         )
+        files = FileIOActor(documents: root, temporaryDirectory: FileManager.default.temporaryDirectory)
         let context = try #require(CGContext(
             data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 8,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
@@ -239,7 +241,9 @@ private struct ReplayFixture: Sendable {
         comparison: DebugAudioComparisonAssignment? = nil,
         dependencies: CaptureDebugReplayPreparer.Dependencies = .live
     ) async throws -> PreparedCaptureDebugReplay {
-        try await CaptureDebugReplayPreparer.prepare(
+        var dependencies = dependencies
+        dependencies.files = files
+        return try await CaptureDebugReplayPreparer.prepare(
             kind, composingCenter: 0.5, isProActive: true,
             comparison: comparison,
             documentsDirectory: root, dependencies: dependencies

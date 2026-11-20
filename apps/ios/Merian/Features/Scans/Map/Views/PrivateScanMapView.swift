@@ -44,13 +44,6 @@ struct PrivateScanMapView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .bottomTrailing) {
-            MapScaleView(anchorEdge: .trailing, scope: mapScope)
-                .mapControlVisibility(.visible)
-                .padding(.trailing, 12)
-                .padding(.bottom, 4)
-                .allowsHitTesting(false)
-        }
         .mapScope(mapScope)
         .background(Color(uiColor: .systemBackground))
         .navigationTitle("Scan map")
@@ -119,8 +112,7 @@ struct PrivateScanMapView: View {
                     pendingInsightScanID = pointID
                     isShowingScanList = false
                 },
-                onReferenceImageNeeded: requestReferenceImageFallback,
-                isPresented: $isShowingScanList
+                onReferenceImageNeeded: requestReferenceImageFallback
             )
         }
         .modifier(MapNavigationPresentation(
@@ -143,9 +135,7 @@ struct PrivateScanMapView: View {
         return GeometryReader { geometry in
             Map(position: cameraPositionBinding, scope: mapScope) {
                 if environmentContextManager.isAuthorized {
-                    UserAnnotation(anchor: .bottom) {
-                        MapUserLocationPin()
-                    }
+                    UserAnnotation()
                 }
 
                 ForEach(viewModel.annotations) { annotation in
@@ -170,6 +160,7 @@ struct PrivateScanMapView: View {
                                 PrivateScanMapClusterBubble(count: cluster.count)
                             }
                             .buttonStyle(.plain)
+                            .background(MapObservationPriority())
                         }
                         .annotationTitles(.hidden)
                     }
@@ -222,6 +213,7 @@ struct PrivateScanMapView: View {
                 )
             }
             .buttonStyle(.plain)
+            .background(MapObservationPriority(isSelected: viewModel.selectedPointID == point.id))
             .accessibilityIdentifier("PrivateScanMapPoint-\(point.id)")
         }
         .annotationTitles(.hidden)
@@ -425,6 +417,7 @@ struct PrivateScanMapView: View {
 
     private var navigationToolbar: some View {
         MapNavigationToolbar(
+            mapScope: mapScope,
             appearance: appSettings.mapAppearance,
             isLocating: mapNavigation.isLocating,
             identifierPrefix: "PrivateScanMap",

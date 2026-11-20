@@ -1,0 +1,21 @@
+
+=== a-v2.svg  (686 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 27
+margins L32.0 R24.0 T27.0 B34.0 · bbox fill 0.595
+· INFO [off-centre-x] Horizontal margins differ (left 32.0, right 24.0). Intentional optical centring? Otherwise centre it.
+production-readiness score: 99/100 (heuristic)
+
+=== b-v2.svg  (630 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 23
+margins L26.0 R26.0 T40.0 B36.0 · bbox fill 0.56
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== c-v2.svg  (537 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 18
+margins L30.9 R28.0 T63.0 B47.0 · bbox fill 0.439
+· INFO [off-centre-y] Vertical margins differ (top 63.0, bottom 47.0). Remember the optical centre sits slightly above the geometric centre.
+production-readiness score: 99/100 (heuristic)

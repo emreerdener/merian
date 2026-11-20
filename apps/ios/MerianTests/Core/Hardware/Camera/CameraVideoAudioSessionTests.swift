@@ -242,7 +242,7 @@ struct CameraVideoAudioSessionTests {
         try await owner.withAudio(includeAudio: true) {
             let before = probe.snapshot
             do {
-                try await owner.withAudio(includeAudio: true) {
+                _ = try await owner.withAudio(includeAudio: true) {
                     Issue.record("Overlapping recording was admitted")
                 }
                 Issue.record("Overlapping recording should throw")

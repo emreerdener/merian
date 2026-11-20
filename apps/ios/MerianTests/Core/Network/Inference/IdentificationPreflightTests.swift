@@ -7,6 +7,45 @@ import Testing
 struct IdentificationPreflightTests {
     private let scanID = "11111111-1111-4111-8111-111111111111"
 
+    @Test func nativePhotoShapeMatchesExistingAllowanceWithoutSerializingContent() throws {
+        let id = try #require(UUID(uuidString: scanID))
+        let texts = ["", " \n", "synthetic context", "\0e\u{301}🦭", "\u{feff}"]
+        for count in 1...2 {
+            for selected in [texts, [texts[2]], [texts[0], texts[1]], []] {
+                let contexts = selected.map { ObservationContext(freeText: $0) }
+                let before = try JSONEncoder().encode(contexts)
+                let native = try IdentificationPreflightInput(nativePhotoObservationID: id,
+                    photoCount: count, contexts: contexts)
+                let legacy = try makeInput(["imageBase64s": Array(repeating: "synthetic-image", count: count),
+                    "observation_contexts": selected.map { ["freeText": $0] }])
+                #expect(native == legacy)
+                #expect(try JSONEncoder().encode(contexts) == before)
+                let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(native)) as? [String: Any])
+                #expect(Set(object.keys) == Set(["p_operation", "p_input_profile", "p_flash_fallback_eligible",
+                    "p_original_analysis_id", "p_client_protocol", "p_identification_protocol"]))
+                #expect((object["p_original_analysis_id"] as? String)?.lowercased() == scanID)
+            }
+        }
+    }
+
+    @Test func nativePhotoShapeRejectsTextOnlyAndUnboundedContexts() throws {
+        let id = try #require(UUID(uuidString: scanID))
+        for count in [-1, 0, 3, Int.max] {
+            #expect(throws: (any Error).self) {
+                _ = try IdentificationPreflightInput(nativePhotoObservationID: id,
+                    photoCount: count, contexts: [.init(freeText: "synthetic")])
+            }
+        }
+        for contexts in [Array(repeating: ObservationContext(freeText: ""), count: 65),
+            [.init(freeText: String(repeating: "a", count: 8_193))],
+            Array(repeating: .init(freeText: String(repeating: "a", count: 8_192)), count: 4)] {
+            #expect(throws: (any Error).self) {
+                _ = try IdentificationPreflightInput(nativePhotoObservationID: id,
+                    photoCount: 1, contexts: contexts)
+            }
+        }
+    }
+
     @Test func inputUsesOnlyShapeAndOriginalScanIdentity() throws {
         let input = try makeInput([
             "imageBase64s": ["synthetic-image"], "description": "synthetic observation",

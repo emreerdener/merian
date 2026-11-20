@@ -6,6 +6,23 @@ import Testing
 @Suite("Environment location controller")
 @MainActor
 struct EnvironmentLocationControllerTests {
+    #if DEBUG
+    @Test("Unit-test host dependencies deny location without contacting system hardware")
+    func unitTestHostDependenciesRemainInert() async {
+        #expect(TestExecutionCoordinator.isRunningUnitTests)
+        let controller = EnvironmentLocationController(dependencies: .live)
+        #expect(controller.snapshot.authorizationStatus == .denied)
+        controller.validatePermissions(suppressesPrompt: false)
+        #expect(await controller.requestAuthorizationIfNeeded(suppressesPrompt: false) == .denied)
+        #expect(await controller.requestCurrentLocation(suppressesPrompt: false) == nil)
+        #expect(await controller.currentAuthorizedLocation() == nil)
+        controller.startLiveLocationTracking()
+        controller.stopLiveLocationTracking()
+        #expect(!controller.snapshot.isAuthorized)
+        #expect(controller.snapshot.lastKnownLocation == nil)
+    }
+    #endif
+
     @Test("Authorization requests coalesce and resolve every waiter")
     func authorizationRequestsCoalesce() async throws {
         let probe = EnvironmentLocationHardwareProbe(

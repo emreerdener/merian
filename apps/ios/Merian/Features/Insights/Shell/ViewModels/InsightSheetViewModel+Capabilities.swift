@@ -72,11 +72,11 @@ extension InsightSheetViewModel {
     var canConfirm: Bool {
         guard queuedContext == nil,
               presentedLocalRecordScanId != nil else { return false }
-        return !reviewAlternativeCandidates.isEmpty
+        return inferenceEngine?.speciesData?.canConfirmReanalysisProposal == true || !reviewAlternativeCandidates.isEmpty
     }
 
     var canShareToExplore: Bool {
-        guard queuedContext == nil,
+        guard !activeMedia.hasRetainedDisplayImages, queuedContext == nil,
               let speciesData = inferenceEngine?.speciesData,
               presentedLocalRecordScanId != nil,
               let snapshot = toolbarRecordSnapshot,

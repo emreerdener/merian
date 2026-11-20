@@ -2,7 +2,7 @@ import Foundation
 
 enum OAuthIdentityTokenPolicy {
     nonisolated static func providerSubject(
-        from idToken: String
+        from idToken: String, preservingExactBytes: Bool = false
     ) throws -> String {
         let segments = idToken.split(
             separator: ".",
@@ -25,7 +25,7 @@ enum OAuthIdentityTokenPolicy {
             throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
         }
 
-        let normalizedSubject = subject.trimmingCharacters(
+        let normalizedSubject = preservingExactBytes ? subject : subject.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
         guard !normalizedSubject.isEmpty,

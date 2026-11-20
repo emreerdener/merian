@@ -10,6 +10,27 @@ struct CaptureDraftSession {
     private(set) var generation = UUID()
     private(set) var operations: Set<Operation> = []
     private(set) var automaticAttempt: Operation?
+    enum Ownership: Equatable {
+        case unowned
+        case account(UUID)
+    }
+    private(set) var ownership: Ownership = .unowned
+    var accountID: UUID? {
+        if case .account(let id) = ownership { return id }
+        return nil
+    }
+
+    /// Fresh captures made before Auth resolves have no account-owned inputs.
+    /// They may bind once; an already-owned draft must never move to another user.
+    mutating func bindAccount(_ candidate: UUID?) -> Bool {
+        if let accountID { return accountID == candidate }
+        if let candidate { ownership = .account(candidate) }
+        return true
+    }
+
+    func allowsAccount(_ candidate: UUID?) -> Bool {
+        accountID == nil || accountID == candidate
+    }
 
     var hasUnresolvedWork: Bool { !operations.isEmpty }
 

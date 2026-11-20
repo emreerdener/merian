@@ -102,13 +102,14 @@ struct IdentificationComparisonCaptureTests {
             "ownerMediaTimeline": [IdentifyOwnerMediaTimelineItem.audio(audioInputIndex: 0, sourceIndex: 0).jsonObject],
             fixture.assignment.requestKey: fixture.assignment.handle
         ]
-        var current = true
-        let context = try #require(IdentificationMeasurementContext.fixedAudio(
+        let current = MainActorTestValue(true)
+        let optionalContext = try IdentificationMeasurementContext.fixedAudio(
             body: JSONSerialization.data(withJSONObject: body), telemetry: telemetry,
-            validateAttempt: { if !current { throw CancellationError() } }, comparisonCapture: fixture.capture
-        ))
+            validateAttempt: { if !current.value { throw CancellationError() } }, comparisonCapture: fixture.capture
+        )
+        let context = try #require(optionalContext)
         #expect(context.isCurrent())
-        current = false // Owner changed between the timing snapshot and header adoption.
+        current.value = false // Owner changed between the timing snapshot and header adoption.
         let response = try fixture.response()
         let measurement = try #require(IdentificationBenchmarkRecord.make(response: response, appInfo: [:], fixedAudioContext: true))
         context.recordComparisonResponse(response: response, measurement: measurement, isInitialAttempt: true)

@@ -50,6 +50,8 @@ struct BackgroundInferenceFinalizationService: Sendable {
         videoFilePaths: [String]? = nil,
         capturedMediaJSON: String? = nil,
         expectedGeneration: UUID? = nil,
+        originalOwnership: BackgroundAccountWorkOwnership? = nil,
+        completionAccount: InferenceCompletionAccountScope? = nil,
         persistenceActor: BackgroundDatabaseActor
     ) async -> OfflineScanProcessingResult {
         await ScanInferencePersistenceCoordinator.shared.acquire(
@@ -66,6 +68,8 @@ struct BackgroundInferenceFinalizationService: Sendable {
             videoFilePaths: videoFilePaths,
             capturedMediaJSON: capturedMediaJSON,
             expectedGeneration: expectedGeneration,
+            originalOwnership: originalOwnership,
+            completionAccount: completionAccount,
             persistenceActor: persistenceActor
         )
         await ScanInferencePersistenceCoordinator.shared.release(
@@ -85,6 +89,8 @@ struct BackgroundInferenceFinalizationService: Sendable {
         videoFilePaths: [String]?,
         capturedMediaJSON: String?,
         expectedGeneration: UUID?,
+        originalOwnership: BackgroundAccountWorkOwnership?,
+        completionAccount: InferenceCompletionAccountScope?,
         persistenceActor: BackgroundDatabaseActor
     ) async -> OfflineScanProcessingResult {
         guard !Task.isCancelled else { return .notProcessed }
@@ -127,6 +133,18 @@ struct BackgroundInferenceFinalizationService: Sendable {
             return .notProcessed
         }
 
+        let originalCompletion: OrdinaryInferenceCompletion?
+        if preparedResponse.mappedData.requiresSavedRecord,
+           let account = completionAccount, let ownership = originalOwnership,
+           ownership.generation == expectedGeneration, ownership.ownerUserID == account.ownerID {
+            do {
+                try await account.validate()
+                originalCompletion = try OrdinaryInferenceCompletion.prepare(resultData: resultData,
+                    mappedData: preparedResponse.mappedData, scanID: scanId,
+                    generation: ownership.generation, account: account)
+            } catch { return .notProcessed }
+        } else { originalCompletion = nil }
+
         let persistenceResult = await persistenceActor
             .persistOfflineScanResultAssumingPersistenceLock(
                 mappedData: preparedResponse.mappedData,
@@ -136,7 +154,9 @@ struct BackgroundInferenceFinalizationService: Sendable {
                 observationContextsJSON: observationContextsJSON,
                 audioFilePaths: audioFilePaths,
                 videoFilePaths: videoFilePaths,
-                capturedMediaJSON: capturedMediaJSON
+                capturedMediaJSON: capturedMediaJSON,
+                originalCompletion: originalCompletion,
+                originalOwnership: originalOwnership
             )
         guard persistenceResult.wasCleaned else { return persistenceResult }
         return persistenceResult.withFundingSettlement(

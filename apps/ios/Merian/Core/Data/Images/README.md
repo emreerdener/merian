@@ -19,10 +19,11 @@ contract is the
   diagnostics, and cloud repair.
 - `Concurrency/AsyncPermitPool.swift` owns cancellation-safe admission to the
   four-slot image decode boundary.
-- `Policies/ImagePreparationPolicy.swift` owns WebP/JPEG compression quality and
-  the Flash, Pro, derived maximum-inference, and display longest-edge caps.
-  Capture recropping and live/full-screen display decoding retain explicit links
-  to those values. Shared scan-media byte ceilings remain in
+- `Policies/ImagePreparationPolicy.swift` owns explicit JPEG versus preferred
+  WebP/JPEG encoding, shared compression quality and the Flash, Pro, derived
+  maximum-inference, and display longest-edge caps. Capture recropping and
+  live/full-screen display decoding retain explicit links to those values.
+  Shared scan-media byte ceilings remain in
   `Core/Media/ScanMediaPayloadPolicy.swift`.
 - `Policies/ExternalReferenceImagePolicy.swift` owns HTTPS admission and the
   exact external-media suppression rule. `RemoteImageRetryPolicy.swift` owns

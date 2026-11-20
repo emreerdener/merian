@@ -143,7 +143,8 @@ extension InsightContentView {
                                     note: note,
                                     locationSharing: locationSharing,
                                     expectedScanId: scanId,
-                                    expectedGeneration: communityGeneration
+                                    expectedGeneration: communityGeneration,
+                                    modelContext: modelContext
                                 )
                             } else {
                                 await viewModel.requestCommunityIdentification(
@@ -178,9 +179,20 @@ extension InsightContentView {
                     presentationGeneration: engineGeneration,
                     candidates: candidates,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                    allowsAskCommunity: viewModel.canRequestCommunityIdentification,
-                    allowsRefinement: true,
+                    allowsAskCommunity: prepareCommunityConsent != nil || (viewModel.canRequestCommunityIdentification &&
+                        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container)),
+                    allowsRefinement: prepareSavedReanalysis != nil ||
+                        ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanId, container: modelContext.container),
                     onRequestDismissalAction: { request in
+                        pendingCommunityConsent?.cancel(); pendingCommunityConsent = nil
+                        if case .askCommunity = request.action, let prepareCommunityConsent {
+                            pendingCommunityConsent = prepareCommunityConsent(request.scanId, request.presentationGeneration)
+                        }
+                        pendingCandidateReanalysis?.cancel()
+                        pendingCandidateReanalysis = nil
+                        if case .refineScan = request.action, let prepareSavedReanalysis {
+                            pendingCandidateReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                        }
                         pendingCandidateSwipeDismissalRequest =
                             InsightCandidateSwipeDismissalRequest(
                                 request: request,

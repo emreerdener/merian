@@ -3,16 +3,57 @@ import os
 import SwiftData
 
 /// Account erasure's local persistence and preference boundary. Repository
-/// composition resets view projections before entering this synchronous owner.
+/// composition resets projections only after the complete erasure succeeds.
 @MainActor
 enum ScanLibraryPurgeService {
     static func purge(
         modelContext: ModelContext,
         userDefaults: UserDefaults,
-        resetRuntimeState: @MainActor () -> Void
-    ) -> Bool {
-        LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
+        resetRuntimeState: @MainActor () -> Void,
+        sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
+        erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
+        validateAuthorization: @MainActor () -> Bool = { true },
+        eraseReanalysis: @MainActor () async throws -> Void = {
+            try ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
+        }
+    ) async -> Bool {
+        guard validateAuthorization() else { return false }
+        let cleanup = OfflineQueueManager.shared.reanalysisErasureOwner
+        var suspended = false
+        defer { if suspended { cleanup.resumeAfterLibraryPurge() } }
+        var completion: SharedMediaPurgeCompletion?
         do {
+            if let sharedMedia {
+                try sharedMedia.owner.validatePurgeTarget(in: modelContext)
+                completion = try await sharedMedia.owner.purgeWholeLibrary(resetID: sharedMedia.resetID) {
+                    await cleanup.suspendForLibraryPurge()
+                    suspended = true
+                }
+                try completion?.validate(in: modelContext)
+            } else {
+                // Without the exact owner, fail before any unrelated callback.
+                guard try !SharedMediaStorageRepository.hasLiabilities(in: modelContext),
+                      try !SharedMediaStorageRepository.hasLiabilities(in: ModelContext(modelContext.container)) else { return false }
+                await cleanup.suspendForLibraryPurge()
+                suspended = true
+            }
+        } catch { return false }
+        guard validateAuthorization() else { return false }
+        do {
+            let hasP1Namespace = FileManager.default.fileExists(atPath:
+                URL.documentsDirectory.appendingPathComponent("PhotoPreparation").path)
+            if let completion {
+                guard !hasP1Namespace else { throw PhotoPreparationFailure.cleanupPending }
+                try completion.validate(in: modelContext)
+            } else if let erasePhotoPreparation {
+                try await erasePhotoPreparation()
+                guard try !PhotoPreparationRepository.hasLiabilities(in: ModelContext(modelContext.container)) else {
+                    throw PhotoPreparationFailure.cleanupPending
+                }
+            } else if try PhotoPreparationRepository.hasLiabilities(in: modelContext) || hasP1Namespace {
+                throw PhotoPreparationFailure.cleanupPending
+            }
+            guard validateAuthorization() else { return false }
             try modelContext.delete(model: CapturedMediaEntry.self)
             try modelContext.delete(model: LocalAnalysisStateRecord.self)
             try modelContext.delete(model: LocalAnalysisRecord.self)
@@ -32,7 +73,18 @@ enum ScanLibraryPurgeService {
             return false
         }
 
-        guard AccountScopedPreferences.purgeAndVerify(
+        guard validateAuthorization() else { return false }
+        do {
+            // Auth transition/recovery barriers remain held across this suspension.
+            // Failure after the row commit keeps the durable cleanup marker for an idempotent retry.
+            try await eraseReanalysis()
+        } catch {
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            MerianLog.data.error("Private reanalysis erasure remains pending; retaining account cleanup barrier.")
+            return false
+        }
+
+        guard validateAuthorization(), AccountScopedPreferences.purgeAndVerify(
             userDefaults: userDefaults
         ) else {
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
@@ -42,11 +94,20 @@ enum ScanLibraryPurgeService {
             return false
         }
 
+        LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
         resetRuntimeState()
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         MerianLog.data.debug(
-            "✅ Successfully purged all SwiftData records and account-scoped preferences."
+            "✅ Successfully purged SwiftData, private reanalysis files and account-scoped preferences."
         )
         return true
     }
+}
+
+/// Explicit reset request. Live composition remains absent until all producer
+/// registrations and the outer Auth transition barrier are integrated.
+@MainActor
+struct SharedMediaLibraryPurgeRequest {
+    let owner: SharedMediaInboxOwner
+    let resetID: UUID
 }

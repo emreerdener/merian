@@ -121,7 +121,6 @@ struct ExplorePostDetailSpeciesSummary: View {
     let postCommonName: String
     let displayCommonName: String
     let aiReasoning: AttributedString?
-    let onCommonNameMaxYChange: (CGFloat) -> Void
 
     private var shouldShowScientificName: Bool {
         !scientificName.isEmpty
@@ -152,17 +151,6 @@ struct ExplorePostDetailSpeciesSummary: View {
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onChange(
-                                of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).maxY,
-                                initial: true
-                            ) { _, newMaxY in
-                                onCommonNameMaxYChange(newMaxY)
-                            }
-                    }
-                )
 
             if let aiReasoning {
                 Text(aiReasoning)

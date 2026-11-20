@@ -77,6 +77,17 @@ Documentation has different authority and retention rules. Choose the correct
 owner before editing, and use `$merian-docs-sync` for repository-wide updates or
 drift audits.
 
+Use `$merian-notion` for approved requirements and authorized project-record
+updates in the
+[Naturebook knowledge base](https://app.notion.com/p/4c2bf299f78083bcb54f8116296adcc5).
+Notion owns approved product strategy, requirements, planning, decisions and
+business documentation. Git retains source, migrations, executable contracts,
+technical implementation, operational controls and version history. Keep concise
+Notion technical overviews linked to those owners; do not automatically mirror
+each code change. Verify workspace identity, preserve draft/approval/release
+distinctions and report drift rather than silently making requirements match
+code. The skill's workspace reference owns destination IDs.
+
 | Document class                                                        | Canonical location                                                                                                               | Ownership rule                                                                                                                                          |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Current architecture, behavior, security, privacy, and data contracts | `docs/system-architecture/`, `docs/features-and-hardware/`, `docs/backend-and-data/`, `docs/development-guides/`, `docs/legal/`  | Update with the implementing change and executable checks; link rather than duplicate                                                                   |

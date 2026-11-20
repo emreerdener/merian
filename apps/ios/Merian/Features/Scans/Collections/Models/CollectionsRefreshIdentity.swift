@@ -10,8 +10,6 @@ struct CollectionScanRefreshIdentity: Equatable {
         let timestamp: Date
         let isBiological: Bool
         let locationName: String?
-        let taxonomyKingdom: String?
-        let taxonomyClass: String?
         let isInvasive: Bool
         let hazardType: String
         let confidenceBitPattern: UInt64?
@@ -32,8 +30,6 @@ struct CollectionScanRefreshIdentity: Equatable {
             timestamp = scan.timestamp
             isBiological = scan.isBiological
             locationName = scan.locationName
-            taxonomyKingdom = scan.taxonomyKingdom
-            taxonomyClass = scan.taxonomyClass
             isInvasive = scan.isInvasive
             hazardType = scan.hazardType
             confidenceBitPattern = scan.confidenceScore?.bitPattern

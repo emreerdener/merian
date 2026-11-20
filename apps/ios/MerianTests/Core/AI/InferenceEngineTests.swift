@@ -107,6 +107,65 @@ private final class ImmediateInferenceTransportFailure: @unchecked Sendable {
     }
 }
 
+/// These URLProtocol tests own synthetic Auth identity, not a live SDK session.
+/// Keep the real request/transport path and inject only completion lease ownership.
+@MainActor
+private final class ConnectivityCompletionAccount {
+    var deniesAdmission = false
+    private(set) var admissionAttempts = 0
+    private(set) var started = 0
+    private(set) var finished = 0
+
+    func makeEngine() -> InferenceEngine {
+        let service = InferenceLiveRequestService(dependencies: .init(
+            encodeVisualImages: { images in
+                await InferenceProcessingActor.shared.encodeBase64(compressedDatas: images)
+            },
+            uploadStagedVideoFiles: { _, _ in
+                Issue.record("Connectivity fixture unexpectedly requested a video upload")
+                throw MerianError.invalidResponse
+            },
+            beginCompletionAccountWork: { [self] owner in
+                admissionAttempts += 1
+                guard owner == MerianNetworkClient.shared.overridingAuthUserID else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                guard !deniesAdmission else { throw SupabaseAuthTransitionError.signOutInProgress }
+                started += 1
+                return InferenceCompletionAccountScope(ownerID: owner,
+                    isCurrent: { owner == MerianNetworkClient.shared.overridingAuthUserID },
+                    release: { self.finished += 1 })
+            },
+            identify: { request, onRequestBodySent in
+                try await MerianNetworkClient.shared.identifyMultiModal(
+                    r2ObjectKeys: request.r2ObjectKeys,
+                    base64ImageDatas: request.base64ImageDatas,
+                    mimeType: request.mimeType,
+                    audioFilePaths: request.audioFilePaths,
+                    videoR2ObjectKeys: request.videoR2ObjectKeys,
+                    videoFrameCount: request.videoFrameCount,
+                    visualMediaItems: request.visualMediaItems,
+                    audioMediaItems: request.audioMediaItems,
+                    ownerMediaTimeline: request.ownerMediaTimeline,
+                    observationContextsJSON: request.observationContextsJSON,
+                    telemetry: request.telemetry,
+                    clientScanId: request.clientScanId,
+                    preferredGoal: request.preferredGoal,
+                    durableQueueOwnsRecovery: request.durableQueueOwnsRecovery,
+                    isProFunded: request.isProFunded,
+                    onRequestBodySent: onRequestBodySent,
+                    measurementValidator: request.measurementValidator,
+                    comparisonCapture: request.comparisonCapture,
+                    validateAttempt: request.validateAttempt,
+                    onProviderDispatchReady: request.onProviderDispatchReady,
+                    onAuthenticatedRequestReady: request.onAuthenticatedRequestReady
+                )
+            }
+        ))
+        return InferenceEngine(liveRequestService: service)
+    }
+}
+
 @MainActor
 private final class InferencePaywallRequestRecorder {
     private(set) var count = 0
@@ -1445,6 +1504,9 @@ struct InferenceEngineTests {
     // MARK: - Identification Review: engine methods
 
     @Test func testConfirmAIIdentificationSetsConfirmedFlag() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "confirm_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "confirm_scan_001",
@@ -1458,7 +1520,7 @@ struct InferenceEngineTests {
             ecologyType: "Terrestrial"
         )
 
-        await engine.confirmAIIdentification(modelContext: nil)
+        await engine.confirmAIIdentification(modelContext: context)
 
         #expect(engine.speciesData?.userConfirmedIdentification == true, "confirmAIIdentification must set userConfirmedIdentification to true")
         #expect(engine.speciesData?.userIdentificationOverride == nil, "confirmAIIdentification must not set an override")
@@ -1602,6 +1664,9 @@ struct InferenceEngineTests {
     }
 
     @Test func testApplyIdentificationOverrideMutatesSpeciesData() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "override_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "override_scan_001",
@@ -1617,7 +1682,7 @@ struct InferenceEngineTests {
             isFlagged: true  // simulate the "Review again" path where all cards were rejected first
         )
 
-        await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: nil)
+        await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: context)
 
         #expect(engine.speciesData?.scientificName == "Procyon cancrivorus", "Override must update scientificName immediately")
         #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "Override must set userIdentificationOverride")
@@ -1627,6 +1692,9 @@ struct InferenceEngineTests {
     }
 
     @Test func testResetIdentificationReviewClearsAllFields() async throws {
+        let context = try createInMemoryContext()
+        context.insert(LocalScanRecord(id: "reset_scan_001", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "reset_scan_001",
@@ -1665,7 +1733,7 @@ struct InferenceEngineTests {
             isFlagged: true  // simulate AllCandidatesReviewedView → Reset path
         )
 
-        await engine.resetIdentificationReview(modelContext: nil)
+        await engine.resetIdentificationReview(modelContext: context)
 
         #expect(engine.speciesData?.userIdentificationOverride == nil, "Reset must clear userIdentificationOverride")
         #expect(engine.speciesData?.userConfirmedIdentification == false, "Reset must clear userConfirmedIdentification")
@@ -1870,7 +1938,8 @@ struct InferenceEngineTests {
             )
             defer { clearQueueBackedInferenceAttempt(scanId: scanId) }
 
-            let engine = InferenceEngine()
+            let account = ConnectivityCompletionAccount()
+            let engine = account.makeEngine()
             switch submission.kind {
             case .visual:
                 engine.prepareForNewScan()
@@ -1975,6 +2044,7 @@ struct InferenceEngineTests {
                 _ = try? await task.value
             }
 
+            #expect(account.started == 1 && account.finished == 1)
             #expect(engine.queuedPresentationScanId == scanId)
             #expect(engine.recoverablePresentationScanId == scanId)
             #expect(engine.speciesData == nil)
@@ -2055,7 +2125,8 @@ struct InferenceEngineTests {
             manager.isOnline = originalIsOnline
         }
 
-        let engine = InferenceEngine()
+        let account = ConnectivityCompletionAccount()
+        let engine = account.makeEngine()
         engine.analyzeNonVisual(
             scanId: scanId,
             foregroundInferenceGeneration: generation,
@@ -2089,6 +2160,7 @@ struct InferenceEngineTests {
             _ = try? await task.value
         }
 
+        #expect(account.started == 1 && account.finished == 1)
         #expect(transport.count == 1)
         #expect(engine.queuedPresentationScanId == scanId)
         #expect(engine.recoverablePresentationScanId == scanId)
@@ -2173,7 +2245,8 @@ struct InferenceEngineTests {
             circuitBreaker.recordSuccess()
         }
 
-        let engine = InferenceEngine()
+        let account = ConnectivityCompletionAccount()
+        let engine = account.makeEngine()
         engine.analyzeNonVisual(
             scanId: nil,
             observationContexts: [
@@ -2186,12 +2259,39 @@ struct InferenceEngineTests {
             _ = try? await task.value
         }
 
+        #expect(account.started == 1 && account.finished == 1)
         #expect(transportFailure.count == 2)
         #expect(engine.queuedPresentationScanId == nil)
         #expect(engine.recoverablePresentationScanId == nil)
         #expect(engine.speciesData?.commonName == "Network timeout")
         #expect(engine.speciesData?.scientificName == "Please try again")
         #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+    }
+
+    @Test func unavailableCompletionAccountPreventsProviderDispatch() async {
+        let transport = ImmediateInferenceTransportFailure(errorCode: .notConnectedToInternet)
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            try transport.handle(request)
+        }
+        CircuitBreakerManager.shared.recordSuccess()
+        defer {
+            MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
+            CircuitBreakerManager.shared.recordSuccess()
+        }
+        let account = ConnectivityCompletionAccount()
+        account.deniesAdmission = true
+        let engine = account.makeEngine()
+        engine.analyzeNonVisual(scanId: nil,
+            observationContexts: [ObservationContext(freeText: "Small orange butterfly")],
+            telemetry: makeTelemetry(), modelContext: nil)
+        if let task = engine.inferenceTask { _ = try? await task.value }
+        #expect(account.admissionAttempts == 1)
+        #expect(account.started == 0 && account.finished == 0)
+        #expect(transport.count == 0)
+        #expect(engine.speciesData?.commonName == "Analysis delayed")
+        #expect(!engine.isProcessing)
     }
 
     @Test func consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {

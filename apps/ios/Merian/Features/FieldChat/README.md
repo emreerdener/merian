@@ -50,7 +50,9 @@ shared Field Chat implementation belongs here.
 
 The sheet toolbar button uses Core UI's shared `rainbowCapsuleAccent` for its
 rainbow glow and occasional border sweep. Species search reuses that visual
-owner; button actions, accessibility, and routing remain feature-owned.
+owner; button actions, accessibility, and routing remain feature-owned. The
+button applies its accessibility identity before decorative layers so the moving
+shimmer cannot inherit the identifier or expand the tappable AX frame.
 
 ## Purpose
 
@@ -471,3 +473,15 @@ do not replace iOS transport execution or manual three-source regression.
 The canonical endpoint and privacy contract remains
 [`05-api-contracts.md`](../../../../../docs/backend-and-data/05-api-contracts.md);
 this README documents iOS ownership rather than redefining that wire contract.
+
+## Prepared enrolled-observation chat
+
+The default-off identification-history path uses the dedicated
+[Insights Shell protected chat owner](../Insights/Shell/README.md#prepared-protected-field-chat).
+It freezes the displayed result, saves immutable requests and shows exact
+receipts, so it does not use this feature's mutable thread, media, quota UI or
+legacy cloud-readiness side effects. The shared toolbar button remains the entry
+control; enrollment protection selects the prepared path before legacy checks,
+and missing prepared access cannot fall back. Its real-persistence UI smoke is
+`ProtectedInsightChatUITests`; no live provider or public activation is
+involved.

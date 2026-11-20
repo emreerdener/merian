@@ -26,7 +26,7 @@ struct AccountDeletionBoundaryTests {
             "private let authenticatedTransport: AuthenticatedTransportDispatcher",
             "private func endpointURL(",
             "private func performAuthenticatedRequest(",
-            "private func performPublicAccountDeletionRecoveryRequest("
+            "private final class NetworkTransportAssembly"
         ] {
             #expect(client.contains(declaration))
         }
@@ -41,8 +41,14 @@ struct AccountDeletionBoundaryTests {
         try expectOrder([#"endpointURL("safe-delete")"#, "let bodyData = try body()", "performAuthenticatedRequest(",
                          "body: bodyData", "authTransitionOwner: authTransitionOwner", "return (data, response.statusCode)"], in: intake)
         #expect(recovery.contains("body: () throws -> Data"))
-        try expectOrder([#"endpointURL("recover-account-deletion")"#, "let bodyData = try body()",
-                         "performPublicAccountDeletionRecoveryRequest(", "body: bodyData", "return (data, response.statusCode)"], in: recovery)
+        #expect(recovery.contains("transport.recovery.post(body: body)"))
+        let publicTransport = try networkSource("Transport/AccountDeletionRecoveryTransport.swift")
+        let post = try method("func post(", in: publicTransport)
+        try expectOrder(["guard MerianEnvironment.isSupabaseConfigured", "MerianLog.network.error",
+                         "throw MerianError.invalidURL", #"function: "recover-account-deletion""#, "let bodyData = try body()",
+                         "performPublicAccountDeletionRecoveryRequest(", "body: bodyData", "return (data, response.statusCode)"], in: post)
+        #expect(!publicTransport.contains("AuthenticatedTransportDispatcher"))
+        #expect(publicTransport.contains("private let sessionTransport: PinnedNetworkTransport"))
         for bridge in [intake, recovery] {
             #expect(bridge.contains("-> (data: Data, statusCode: Int)"))
             for token in ["catch", "Task", "@escaping", "URLSession", "SupabaseManager", "isRetry", "idempotencyKey"] {
@@ -95,8 +101,8 @@ struct AccountDeletionBoundaryTests {
     }
 
     @Test func publicRecoveryRetainsItsPrivateBoundedRetryAndCancellationPolicy() throws {
-        let client = try networkSource("MerianNetworkClient.swift")
-        let transport = try method("private func performPublicAccountDeletionRecoveryRequest(", in: client)
+        let source = try networkSource("Transport/AccountDeletionRecoveryTransport.swift")
+        let transport = try method("private func performPublicAccountDeletionRecoveryRequest(", in: source)
         try expectOrder(["try Task.checkCancellation()", "cachePolicy: .reloadIgnoringLocalCacheData", "timeoutInterval: 20",
                          #"forHTTPHeaderField: "Content-Type""#, #"forHTTPHeaderField: "Accept""#,
                          #"request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")"#, "request.httpBody = body",
@@ -191,11 +197,7 @@ struct AccountDeletionBoundaryTests {
         let recoveryCoordinator = try networkSource(
             "Auth/Coordinators/AccountDeletionRecoveryCoordinator.swift"
         )
-        let immediateDeletion = try section(
-            beginningWith: "    func deleteCurrentAccount(",
-            endingBefore: "\n    private func clearCapability(",
-            in: coordinator
-        )
+        let immediateDeletion = try method("func deleteCurrentAccount(", in: coordinator)
         let versionTwoRecovery = try section(
             beginningWith:
                 "    private func resumeCapabilityBackedV2(",
@@ -230,6 +232,14 @@ struct AccountDeletionBoundaryTests {
             #expect(!workflow.contains(".ownsTransition(transition)"))
         }
 
+        for recovery in [versionTwoRecovery, legacyRecovery] {
+            try expectOrder(["let contextIsCurrent =", "dependencies.validateLibrary(nil)",
+                             "currentSessionMatchesTransition(transition)", "localState.state() == recoveryState",
+                             "matchesExisting(", "receipt = try await"], in: recovery)
+        }
+        #expect(immediateDeletion.contains("verifyPreparationContext: {\n                            dependencies.validateLibrary(nil)"))
+        #expect(immediateDeletion.contains("verifyCommitContext: {\n                            dependencies.validateLibrary(nil)"))
+
         try expectOrder(
             [
                 "verifyPreparationContext:",
@@ -248,9 +258,9 @@ struct AccountDeletionBoundaryTests {
         try expectOrder(
             [
                 "receipt = try await recoverDeletion(",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "return await performAcceptedCleanup(",
                 "acknowledgeRecovery:"
             ],
@@ -260,11 +270,11 @@ struct AccountDeletionBoundaryTests {
             [
                 "receipt = try await requestDeletion(",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "receipt = try await recoverDeletion(capability, false)",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "} catch {",
-                "currentSessionMatchesTransition(transition)",
+                "guard contextIsCurrent()",
                 "return await performAcceptedCleanup(",
                 "acknowledgeRecovery:"
             ],

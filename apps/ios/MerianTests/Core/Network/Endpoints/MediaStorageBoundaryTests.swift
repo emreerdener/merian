@@ -64,7 +64,7 @@ struct MediaStorageBoundaryTests {
         let bridge = try method("func performAccountBoundEncodedJSONPost<", in: client)
         try expectOrder([
             "try endpointURL(function)", "if let expectedAuthUserID", "authUserID = expectedAuthUserID",
-            "authUserID = try await authenticatedTransport", ".requestPayloadAuthUserID()",
+            "authUserID = try await transport", ".requestPayloadAuthUserID()",
             "try JSONEncoder().encode(body(authUserID))",
             "try await performAuthenticatedRequest(", "body: bodyData", "expectedAuthUserID: authUserID", "return data"
         ], in: bridge)
@@ -100,10 +100,10 @@ struct MediaStorageBoundaryTests {
         let client = try networkSource("MerianNetworkClient.swift")
         let data = try method("func performPresignedUpload(request: URLRequest)", in: client)
         let file = try method("func performPresignedUpload(request: URLRequest, fileURL:", in: client)
-        #expect(data.contains("try await sessionTransport.data(for: request)"))
+        #expect(data.contains("try await transport.data(for: request)"))
         #expect(
             file.contains(
-                "try await sessionTransport.upload(for: request, fromFile: fileURL)"
+                "try await transport.upload(for: request, fromFile: fileURL)"
             )
         )
         for bridge in [data, file] {

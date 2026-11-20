@@ -72,6 +72,43 @@ private final class LiveRequestAttemptState {
 @MainActor
 @Suite("Inference Live Request Service")
 struct InferenceLiveRequestServiceTests {
+    @Test(arguments: ["success", "transportFailure", "staleAttempt", "staleAccount"])
+    func originalAuthenticatedAccountScopeTransfersOrUnwinds(mode: String) async throws {
+        let owner = UUID()
+        var released = 0
+        var current = true
+        var attemptCurrent = true
+        let scope = InferenceCompletionAccountScope(ownerID: owner, isCurrent: { current }, release: { released += 1 })
+        let service = InferenceLiveRequestService(dependencies: .init(
+            encodeVisualImages: { _ in [] }, uploadStagedVideoFiles: { _, _ in [] },
+            beginCompletionAccountWork: { expected in
+                #expect(expected == owner)
+                return scope
+            },
+            identify: { request, _ in
+                try request.onAuthenticatedRequestReady?(owner)
+                #expect(released == 0)
+                if mode == "transportFailure" { throw URLError(.userAuthenticationRequired) }
+                if mode == "staleAttempt" { attemptCurrent = false }
+                if mode == "staleAccount" { current = false }
+                return Data("synthetic response".utf8)
+            }))
+        do {
+            let response = try await service.dispatchNonVisual(.init(
+                submissionProjection: makeProjection(videoPaths: [], observations: []), ownerMediaTimeline: nil,
+                telemetry: makeTelemetry(), clientScanId: UUID().uuidString.lowercased(), durableQueueOwnsRecovery: true),
+                validateAttempt: { if !attemptCurrent { throw CancellationError() } })
+            #expect(mode == "success")
+            #expect(response.completionAccount?.ownerID == owner)
+            #expect(released == 0)
+            try response.completionAccount?.validate()
+            response.completionAccount?.finish()
+            response.completionAccount?.finish()
+        } catch { #expect(mode != "success") }
+        #expect(released == 1)
+        #expect(throws: (any Error).self) { try scope.validate() }
+    }
+
     @Test(arguments: [false, true])
     func visualDispatchBuildsCanonicalProviderPayload(isProFunded: Bool) async throws {
         let recorder = LiveRequestDependencyRecorder()

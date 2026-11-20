@@ -108,7 +108,14 @@ controls in the
 
 ## 2. The Scans Library (`ScansSheetView`, `ScansManager`, `ScansLibrarySearchCoordinator`)
 
-The Scans tab is the user's primary offline biological journal.
+The Book action in the main navigation opens the user's primary offline
+biological journal. Its internal Scans and Collections tabs retain their names.
+
+The proposed Library/Journal bottom toolbar and Journal Pages/Pins scaffold are
+paused as of October 27, 2026 and removed from the active app shell. Existing
+Scans/Collections navigation and native search remain in place. The
+[Journal planning record](../product/journal/README.md) retains the product
+decisions and prototype plan for a future user-requested resumption.
 
 `Scans/Shell` is split by responsibility: Models own typed navigation and
 UI-only incident presentation; Services own SwiftData projection, preferences,
@@ -383,22 +390,26 @@ production Shell and Library file remains below the 600-line review guard.
   `VStack(spacing: 16)` to maintain consistent proportions.
 - **Smart Default Collections**: `CollectionsViewModel` passes the Shell-owned
   record set and an injected Explore-share lookup to `SmartCollectionSuggester`,
-  which derives up to six auto-managed collections without changing SwiftData
-  schema or cloud payloads. Suggestions can include "Needs review", "Recent
-  finds", "Explore posts" for scans shared publicly to Explore, top normalized
-  locations, top taxonomy buckets, invasive finds, and potential hazards. "Needs
-  review" shares the candidate review thresholds: unreviewed biological scans
-  qualify when the primary match is below the tier's Strong threshold, or when a
-  Strong match has a competitive stored alternative, not merely because
-  candidate alternatives exist. Each suggestion is threshold-gated to avoid
-  empty/noisy rows, ranked by usefulness, filtered by locally hidden smart
-  collection ids in `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed
-  when the user already has an active collection with the same normalized name.
-  Card-style smart collections render as image-backed `SmartCollectionCard`
-  tiles before user-created collection cards, while row-style defaults
-  (Favorites, Non-biological, and "Needs review") sit underneath the card grid.
-  Historical scan sync also projects the authenticated owner's active Explore
-  post relationship and reconciles the per-scan share lookup behind request and
+  which derives eligible auto-managed collections without an overall count cap
+  or changes to SwiftData schema or cloud payloads. Suggestions can include
+  "Needs review", "Recent finds", "Explore posts" for scans shared publicly to
+  Explore, normalized locations with at least three biological scans, invasive
+  finds, and potential hazards. Smart cards show Recent finds, Explore posts,
+  Invasive finds, and Potential hazards before all location cards. Locations are
+  ordered by scan count, then newest scan. Taxonomy categories remain available
+  through Scans filters rather than duplicate smart collections. "Needs review"
+  shares the candidate review thresholds: unreviewed biological scans qualify
+  when the primary match is below the tier's Strong threshold, or when a Strong
+  match has a competitive stored alternative, not merely because candidate
+  alternatives exist. Each suggestion is threshold-gated to avoid empty/noisy
+  rows, ranked by usefulness, filtered by locally hidden smart collection ids in
+  `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed when the user
+  already has an active collection with the same normalized name. Card-style
+  smart collections render as image-backed `SmartCollectionCard` tiles before
+  user-created collection cards, while row-style defaults (Favorites,
+  Non-biological, and "Needs review") sit underneath the card grid. Historical
+  scan sync also projects the authenticated owner's active Explore post
+  relationship and reconciles the per-scan share lookup behind request and
   local-mutation revision fences. When the cache changes, it publishes one typed
   batch invalidation as soon as scan-page reconciliation finishes, including
   after a partial sync, so the filter index and mounted smart-collection
@@ -553,7 +564,7 @@ production Shell and Library file remains below the 600-line review guard.
 
 ### Main Tab Bar
 
-- **Bottom Position Alignment**: The `Explore`, `Scans`, and `Profile` actions
+- **Bottom Position Alignment**: The `Explore`, `Book`, and `Profile` actions
   are hosted in a custom floating liquid glass capsule component (`MainTabBar`)
   overlaid at the bottom of the camera feed. `Explore` now opens a real
   sheet-backed feature rather than a placeholder tooltip.
@@ -564,9 +575,12 @@ production Shell and Library file remains below the 600-line review guard.
   structures (`SettingsView`, `ProfileView`, etc.) that slide over the camera
   interface without re-routing the global hierarchy or interrupting the
   `.isCapturing` hardware state.
+- **Book Navigation**: Book uses the filled open-book symbol `book.fill` and the
+  accessibility label “Book”. It retains the existing Scans destination and
+  stable `MainTabBar_Scans` accessibility identifier.
 - **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and
-  passes it to the Scans `FloatingNavigationMenuButton`. When `true`, a red 8pt
-  `Circle` is overlaid on the top-right of the stack icon. Explore combines the
+  passes it to the Book `FloatingNavigationMenuButton`. When `true`, a red 8pt
+  `Circle` is overlaid on the top-right of the book icon. Explore combines the
   external-post setting with unread-notification state loaded through the
   generation-fenced `CaptureNavigationViewModel`; the corresponding Shell
   service owns its network, app-badge, settings, and haptic effects. The Scan
@@ -953,6 +967,24 @@ production Shell and Library file remains below the 600-line review guard.
   or iOS firmware updates).
 
 ## 3. Inferences & Telemetry (`InsightSheetView`)
+
+Prepared History review controls, the selected-result menu and Confidence
+confirmed/corrected cards expose **Undo confirmation** for an exact reversible
+owner confirmation. Primary Undo is direct; named Undo first explains that the
+original AI identification returns. Both return that result to unreviewed
+without changing selection, confidence or evidence, and never restore an older
+rejection. Exact server eligibility supports another device or reinstall;
+imported confirmations without a receipt show an unavailable explanation.
+Pending/conflicted authority cannot fall back to legacy review. The alternatives
+card is unchanged. Ordinary History access and the independent Undo API gate
+remain disabled. See the [API contract](../backend-and-data/05-api-contracts.md)
+and
+[History ownership](../../apps/ios/Merian/Features/Insights/History/README.md#durable-confirmation-undo).
+The
+[verification matrix](../development-guides/08-testing-strategy.md#durable-confirmation-undo-verification)
+distinguishes the passing contract/persistence tests from the remaining direct
+Undo UI and joined-presentation cancellation scenarios. Existing selection-Undo
+and named-confirmation UI smokes do not establish coverage of those scenarios.
 
 The `InsightSheetView` is Merian's central contextual readout, triggered after
 an Edge API response or opened offline via the Scans library.
@@ -1414,6 +1446,13 @@ dependency composition.
   replaced the legacy `List` UIKit wrappers (which broke Apple's iOS 17
   horizontal `.paging` layout with double top-safe-area padding) with a pure
   `.grouped` background `ScrollView`.
+- **Qualifying scan cards**: Achievement detail shares Core UI's
+  `ScanPreviewCard` layout with the large Explore discovery cards: a 4:3 image,
+  species names, location and abbreviated date on the same metadata line, the
+  qualifying reason, and **View discovery**. Comments, likes, and emoji
+  reactions are absent. The existing profile geoprivacy policy still controls
+  the location label; private or missing locations leave only the date. Both the
+  image and discovery button open the existing local Insight sheet.
 - **Achievement detail presentation ownership**: Insight and Field-trip author
   destinations share one `AchievementDetailPresentation` sheet host.
   `AchievementDetailViewModel` owns contribution loading and telemetry; Insight
@@ -1726,21 +1765,22 @@ dependency composition.
   deletes every active SwiftData row through
   `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
   passing the required synchronous private-map derived-state reset before every
-  active-schema model is deleted and verified account-derived defaults are
-  cleared. The injected post-persistence reset then refreshes observable
-  settings and clears legacy gamification, the generation-fenced app badge, and
-  RAM images; the app-root instructions remain visible across relaunch until the
-  user confirms manual Apple removal. That receipt-and-notice behavior exists
-  only in supporting binaries. Public promotion remains blocked until older
-  clients are covered by an enforceable minimum-supported-build control or an
-  independent server-delivered fallback; publishing the new build alone is
-  insufficient. The protocol-v2 prepare response now maps to its dedicated
-  native non-destructive receipt and is locked to the handler through a shared
-  fixture. The injected native workflow checks cancellation before persistence,
-  after the legacy recovery marker, immediately before and after non-destructive
-  v2 preparation, and after both v2 markers; already-durable evidence remains
-  recoverable, but a cancelled task cannot dispatch destructive intake or
-  commit. See the
+  active-schema model is deleted. It then awaits private reanalysis namespace
+  erasure before verified account-derived defaults are cleared; a file failure
+  retains the cleanup barrier for retry. The injected post-persistence reset
+  then refreshes observable settings and clears legacy gamification, the
+  generation-fenced app badge, and RAM images; the app-root instructions remain
+  visible across relaunch until the user confirms manual Apple removal. That
+  receipt-and-notice behavior exists only in supporting binaries. Public
+  promotion remains blocked until older clients are covered by an enforceable
+  minimum-supported-build control or an independent server-delivered fallback;
+  publishing the new build alone is insufficient. The protocol-v2 prepare
+  response now maps to its dedicated native non-destructive receipt and is
+  locked to the handler through a shared fixture. The injected native workflow
+  checks cancellation before persistence, after the legacy recovery marker,
+  immediately before and after non-destructive v2 preparation, and after both v2
+  markers; already-durable evidence remains recoverable, but a cancelled task
+  cannot dispatch destructive intake or commit. See the
   [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract);
   the intended presentation/workflow above still requires authorized
   real-session evidence.

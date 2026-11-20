@@ -27,12 +27,10 @@ const unavailable = {
 } as const;
 const signal = () => new AbortController().signal;
 const encoder = new TextEncoder();
-const root = new URL("../../../../../", import.meta.url);
-const assetReader: InitialAssetReader = async (path, revision, caller) => {
-  assertEquals(revision, catalog.manifest.repository_revision);
-  caller.throwIfAborted();
-  return new Blob([await Deno.readFile(new URL(path, root))]).stream();
-};
+// Successful archive reads are exercised in the isolated Git-backed lane.
+// Ordinary recovery tests must never resolve any configuration assets.
+const assetReader: InitialAssetReader = () =>
+  Promise.reject(new Error("recovery must not resolve configuration assets"));
 const binding = {
   version: 1 as const,
   owner_id: owner,
@@ -281,81 +279,6 @@ Deno.test("IC-1 oversized or stalled asset streams cancel without admission", as
     assertEquals(network, 0);
     assert(cancelled);
   }
-});
-
-Deno.test("IC-1 cancellation after final asset prevents write", async () => {
-  const caller = new AbortController();
-  let network = 0;
-  const repo = repository(() => {
-    network++;
-    throw new Error("network");
-  }, async (path, revision, supplied) => {
-    const stream = await assetReader(path, revision, supplied);
-    if (path === catalog.manifest.files.at(-1)!.path) caller.abort();
-    return stream;
-  });
-  assertEquals(
-    await repo.admit(
-      owner,
-      scan,
-      await prepareInitialAdmission(input.input),
-      "a".repeat(64),
-      caller.signal,
-    ),
-    unavailable,
-  );
-  assertEquals(network, 0);
-});
-
-Deno.test("IC-1 lost committed admission reply stays unknown and exact recovery skips assets", async () => {
-  const caller = new AbortController();
-  const issued = deferred<void>();
-  const late = deferred<Response>();
-  let calls = 0, reads = 0, cancelled = false;
-  const requests: Record<string, unknown>[] = [];
-  const repo = repository((_url, init) => {
-    requests.push(JSON.parse(init!.body as string));
-    calls++;
-    if (calls === 1) {
-      issued.resolve();
-      return late.promise;
-    }
-    return Promise.resolve(Response.json({ outcome: "replay", binding }));
-  }, (path, revision, supplied) => {
-    reads++;
-    return assetReader(path, revision, supplied);
-  });
-  const pending = repo.admit(
-    owner,
-    scan,
-    await prepareInitialAdmission(input.input),
-    "a".repeat(64),
-    caller.signal,
-  );
-  await issued.promise;
-  caller.abort();
-  assertEquals(await pending, unknown);
-  const count = reads;
-  late.resolve(
-    new Response(
-      new ReadableStream({
-        cancel() {
-          cancelled = true;
-        },
-      }),
-    ),
-  );
-  await new Promise((r) => setTimeout(r, 0));
-  assert(cancelled);
-  assertEquals(calls, 1);
-  assertEquals(await recover(repo), { outcome: "replay", binding });
-  assertEquals(calls, 2);
-  assertEquals(reads, count);
-  assertEquals(requests[1], {
-    ...requests[0],
-    p_assets_digest: null,
-    p_ip_hash: null,
-  });
 });
 
 Deno.test("IC-1 stalled RPC response body aborts promptly and releases reader", async () => {

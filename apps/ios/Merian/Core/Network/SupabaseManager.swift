@@ -9,6 +9,24 @@ import SwiftData
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
 @MainActor
 @Observable final class SupabaseManager: NSObject {
+    // Qualification-only pre-drain seam. Ordinary production composition is nil.
+    @ObservationIgnored var photoPreparationAccountTransitionDrain: (@MainActor () async -> Bool)?
+
+    @ObservationIgnored private var nativeMediaAccountTransitionDrain: (@MainActor () async -> Bool)?
+    @ObservationIgnored private var nativeMediaDrainIdentity: SharedMediaNativeOriginalDrain?
+
+    /// Bind before discovery; retirement requires this exact terminal lifetime.
+    func installNativeMediaAccountTransitionDrain(_ drain: SharedMediaNativeOriginalDrain) throws {
+        guard nativeMediaAccountTransitionDrain == nil else { throw SharedMediaStorageFailure.closed }
+        nativeMediaAccountTransitionDrain = { await drain.shutdown() }
+        nativeMediaDrainIdentity = drain
+    }
+
+    func retireNativeMediaAccountTransitionDrain(_ expected: SharedMediaNativeOriginalDrain) throws {
+        guard nativeMediaDrainIdentity === expected, expected.shutdownFinished else { throw SharedMediaStorageFailure.closed }
+        nativeMediaAccountTransitionDrain = nil; nativeMediaDrainIdentity = nil
+    }
+
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
@@ -86,7 +104,7 @@ import SwiftData
     private var allowsStableAccountSessionWork: Bool {
         isAuthenticated
             && !librarySignOutRecoveryPending
-            && currentUser != nil
+            && currentUser.map({ MerianEnvironment.permitsHistoryQualificationAccount($0.id) }) == true
             && !isSigningOut
             && AuthTransitionPolicy.allowsAuthenticatedRequest(
                 activeTransition: activeAuthTransition?.token,
@@ -145,14 +163,6 @@ import SwiftData
         authRuntimeState.finishAccountWork(lease)
     }
 
-    var isOAuthTransitionInProgress: Bool {
-        guard let kind = activeAuthTransition?.token.kind,
-              case .oauth = kind else {
-            return false
-        }
-        return true
-    }
-
     private var isUserSignOutTransitionInProgress: Bool {
         guard let kind = activeAuthTransition?.token.kind,
               case .signOut = kind else {
@@ -164,10 +174,18 @@ import SwiftData
     // MARK: - Session Deduplication
     /// Invalidates suspended Auth-session work whenever the SDK emits a new
     /// lifecycle event, including a same-user refresh.
-    // Presentation may retain this value to invalidate private UI without
-    // retaining a work lease that would block Auth transition draining.
+    /// Presentation may retain this value to invalidate private UI without
+    /// retaining a work lease that would block Auth transition draining.
     var authSessionGeneration: UInt64 {
         authRuntimeState.sessionGeneration
+    }
+
+    /// Presentation-only uncertainty: an expired cached session is still being
+    /// restored, not evidence that its library account has been lost. Reading
+    /// the generation observes SDK refresh/sign-out events as well as publication.
+    var hasCachedSessionAwaitingRefresh: Bool {
+        _ = authSessionGeneration
+        return currentUser == nil && client.auth.currentSession?.isExpired == true
     }
 
     /// Owns the live Supabase Auth stream task and deferred current-state replay.
@@ -380,7 +398,7 @@ import SwiftData
             }
         }
         if kind == .signOut, libraryAccountRecoveryRequired {
-            libraryTransitionIssue = .needsAttention
+            libraryTransitionIssue = .accountRecoveryRequired
             return false
         }
         switch kind {
@@ -509,16 +527,7 @@ import SwiftData
             ConsentManager.shared.beginAnalyticsAccountTransition(),
             for: token
         )
-        appRouteSessionController?.beginAccountSession(
-            accountID: nil,
-            origin: .runtimeTransition,
-            now: Date()
-        )
-        milestoneToastSessionController?.beginAccountSession(
-            accountID: nil,
-            origin: .runtimeTransition,
-            now: Date()
-        )
+        beginAccountSession(userID: nil, origin: .runtimeTransition)
         return token
     }
 
@@ -545,7 +554,8 @@ import SwiftData
         _ session: User?,
         for token: AuthTransitionToken
     ) -> Bool {
-        authRuntimeState.adoptTransitionSession(
+        guard session.map({ MerianEnvironment.permitsHistoryQualificationAccount($0.id) }) ?? true else { return false }
+        return authRuntimeState.adoptTransitionSession(
             transitionSession(from: session),
             for: token
         )
@@ -566,16 +576,7 @@ import SwiftData
         } else {
             finalUserID = nil
         }
-        appRouteSessionController?.beginAccountSession(
-            accountID: finalUserID?.uuidString,
-            origin: .runtimeTransition,
-            now: Date()
-        )
-        milestoneToastSessionController?.beginAccountSession(
-            accountID: finalUserID?.uuidString,
-            origin: .runtimeTransition,
-            now: Date()
-        )
+        beginAccountSession(userID: finalUserID, origin: .runtimeTransition)
         if let analyticsGeneration = completion.analyticsGeneration {
             _ = ConsentManager.shared.resolveAnalyticsAccountTransition(
                 generation: analyticsGeneration,
@@ -621,17 +622,36 @@ import SwiftData
         )
     }
 
-    private func awaitAccountBoundWorkQuiescenceForAuthTransition() async
-        -> Bool {
+    /// The optional native owner must actually stop before the existing account
+    /// drain completes. Kept separate so ordering is testable without a session.
+    static func drainPhotoPreparationBeforeAccountWork(
+        preparation: (@MainActor () async -> Bool)?,
+        native: (@MainActor () async -> Bool)? = nil,
+        validate: @MainActor () -> Bool = { true },
+        drain: @MainActor () async -> Void
+    ) async -> Bool {
+        guard validate() else { return false }
+        if let native, !(await native()) || !validate() { return false }
+        if let preparation, !(await preparation()) || !validate() { return false }
+        await drain()
+        return validate()
+    }
+
+    private func awaitAccountBoundWorkQuiescenceForAuthTransition(
+        recoveryAuthority: AuthRecoveryAuthority? = nil) async -> Bool {
+        guard recoveryAuthority?.isCurrent ?? true else { return false }
         // Closing the Auth transition happens synchronously before this drain,
         // so no new ordinary lease or collection mutation can enter. Existing
         // work completes against the preserved source session.
         await ConsentManager.shared
             .cancelAndAwaitAccountBoundWorkForAuthTransition()
+        guard recoveryAuthority?.isCurrent ?? true else { return false }
         await AppDIContainer.shared.inferenceEngine
             .awaitAuthTransitionWriteQuiescence()
+        guard recoveryAuthority?.isCurrent ?? true else { return false }
         await OfflineQueueManager.shared
             .cancelAndAwaitInferenceFundingSettlementForAuthTransition()
+        guard recoveryAuthority?.isCurrent ?? true else { return false }
         guard await OfflineQueueManager.shared
             .quiesceBackgroundAccountWorkForAuthTransition(
                 sourceUserID:
@@ -642,9 +662,16 @@ import SwiftData
             )
             return false
         }
+        guard recoveryAuthority?.isCurrent ?? true else { return false }
         await OfflineQueueManager.shared
-            .awaitCollectionSyncQuiescenceForAuthTransition()
-        await authRuntimeState.awaitAccountWorkDrain()
+            .awaitRetainedSyncQuiescenceForAuthTransition()
+        guard await AppDIContainer.shared.awaitPreparedReanalysisHostDrain(for: self, recoveryAuthority: recoveryAuthority) else { return false }
+        guard await Self.drainPhotoPreparationBeforeAccountWork(
+            preparation: photoPreparationAccountTransitionDrain,
+            native: nativeMediaAccountTransitionDrain,
+            validate: { recoveryAuthority?.isCurrent ?? true },
+            drain: { await self.authRuntimeState.awaitAccountWorkDrain() }
+        ) else { return false }
         if let transition = activeAuthTransition,
            transition.sourceSession != nil,
            transition.sourceSession == transition.expectedSession {
@@ -665,23 +692,23 @@ import SwiftData
             default: break
             }
         }
-        return true
+        return recoveryAuthority?.isCurrent ?? true
     }
 
     private func verifiedExpectedSession(
-        for token: AuthTransitionToken
+        for token: AuthTransitionToken, recoveryAuthority: AuthRecoveryAuthority? = nil
     ) async throws -> Session {
-        guard ownsAuthTransition(token) else {
+        guard ownsAuthTransition(token), recoveryAuthority?.isCurrent ?? true else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition() else {
+        guard await awaitAccountBoundWorkQuiescenceForAuthTransition(recoveryAuthority: recoveryAuthority) else {
             throw SupabaseAuthTransitionError.accountBoundWorkQuiescenceFailed
         }
-        guard ownsAuthTransition(token) else {
+        guard ownsAuthTransition(token), recoveryAuthority?.isCurrent ?? true else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
         let session = try await client.auth.session
-        guard ownsAuthTransition(token),
+        guard ownsAuthTransition(token), recoveryAuthority?.isCurrent ?? true,
               authRuntimeState.transitionMatchesCurrentSession(
                 transitionSession(from: session.user),
                 token: token
@@ -843,7 +870,7 @@ import SwiftData
                     guard let sdkUser,
                           transitionSession(from: sdkUser) == session,
                           let currentSDKSession = client.auth.currentSession,
-                          !currentSDKSession.isExpired,
+                          !currentSDKSession.isExpired, MerianEnvironment.permitsHistoryQualificationAccount(currentSDKSession.user.id),
                           transitionSession(from: currentSDKSession.user)
                             == session else {
                         return false
@@ -929,11 +956,7 @@ import SwiftData
                         dependencies: ghostProfileMergeDependencies()
                     )
                 },
-                setAnalyticsSuppressedForGhostHandoff: { isSuppressed in
-                    ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
-                        isSuppressed
-                    )
-                },
+                setAnalyticsSuppressedForGhostHandoff: ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff,
                 hasPendingPurchaseIdentityHandoff: { [weak self] in
                     guard let self else { return true }
                     return try purchaseIdentitySourceHandoffCoordinator()
@@ -977,9 +1000,7 @@ import SwiftData
                             sourceUserID: session.userID.uuidString
                         )
                 },
-                clearEntitlementSession: {
-                    EntitlementManager.shared.handleSignOut()
-                },
+                clearEntitlementSession: EntitlementManager.shared.handleSignOut,
                 beginEntitlementSession: { [weak self] session in
                     guard let self else { return }
                     await EntitlementManager.shared.beginSession(
@@ -987,9 +1008,7 @@ import SwiftData
                         client: client
                     )
                 },
-                handleSupabaseSignOut: {
-                    await RevenueCatManager.shared.handleSupabaseSignOut()
-                },
+                handleSupabaseSignOut: RevenueCatManager.shared.handleSupabaseSignOut,
                 resumeCloudDeletions: { [weak self] session, generation in
                     guard let self, let sdkUser,
                           transitionSession(from: sdkUser) == session,
@@ -1013,12 +1032,13 @@ import SwiftData
                     }
                 }
             ),
-            diagnose: { diagnostic, error in
-                AuthSessionLifecycleLiveDiagnostics.report(
-                    diagnostic,
-                    error: error
-                )
-            }
+            renewMediaLifetime: { [weak self] session, generation in
+                guard let self, let sdkUser, transitionSession(from: sdkUser) == session else { return false }
+                return await AppDIContainer.shared.renewNativeMediaLifetime(for: self) { [weak self] in
+                    self?.hasCurrentPublishedSession(sdkUser, expectedAuthGeneration: generation) ?? false
+                }
+            },
+            diagnose: AuthSessionLifecycleLiveDiagnostics.report
         )
     }
 
@@ -1282,6 +1302,7 @@ import SwiftData
         -> AuthSessionBootstrapDependencies {
         AuthSessionBootstrapDependencies(
             state: AuthSessionBootstrapStateBoundary(
+                isBootstrapEnabled: { !MerianEnvironment.isHistoryQualificationBuild },
                 isTestExecution: {
                     TestExecutionCoordinator.isRunningTests
                 },
@@ -1410,15 +1431,7 @@ import SwiftData
             return
         }
         defer { finishAuthTransition(transition) }
-        await performLocalSignOut(
-            ownedBy: transition,
-            performRemoteSignOut: { [supabaseAuthSessionService] in
-                try await supabaseAuthSessionService.signOutLocal()
-            },
-            performExternalSignOut: {
-                await RevenueCatManager.shared.handleSupabaseSignOut()
-            }
-        )
+        await performLocalSignOut(ownedBy: transition)
     }
 
     /// Internal dependency seam used by tests to prove local auth closes before
@@ -1500,7 +1513,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async throws -> AccountDeletionReceipt {
         try await AccountDeletionCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1561,7 +1574,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping (AccountDeletionLocalCleanupStore.RecoveryScope) async -> Bool
     ) async -> Bool {
         await AccountDeletionRecoveryCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1578,6 +1591,7 @@ import SwiftData
 
     private func accountDeletionDependencies()
         -> AccountDeletionCoordinationDependencies {
+        let libraryContext = AppDIContainer.shared.accountDeletionLibraryContext(for: self)
         let localState = AccountDeletionLocalStateBoundary(
             state: {
                 AccountDeletionLocalCleanupStore.state()
@@ -1615,17 +1629,15 @@ import SwiftData
             beginTransition: { kind in
                 self.beginAuthTransition(kind)
             },
-            finishTransition: { transition in
-                self.finishAuthTransition(transition)
-            },
+            finishTransition: self.finishAuthTransition,
             updateTransition: { transition, phase in
                 _ = self.updateAuthTransition(transition, phase: phase)
             },
             ownsTransition: { transition in
                 self.ownsAuthTransition(transition)
             },
-            verifyExpectedSession: { transition in
-                _ = try await self.verifiedExpectedSession(for: transition)
+            verifyExpectedSession: { transition, scope in
+                _ = try await self.verifiedExpectedSession(for: transition, recoveryAuthority: .accountDeletion(scope))
             },
             currentSessionMatchesTransition: { transition in
                 self.currentSessionMatchesAuthTransition(transition)
@@ -1686,9 +1698,9 @@ import SwiftData
                 ConsentManager.shared.observeSession(userId: user.id)
                 self.schedulePublicAuthorIdentityRefreshIfNeeded(for: user)
             },
-            performVerifiedLocalSignOut: { transition in
+            performVerifiedLocalSignOut: { transition, scope in
                 await self.performVerifiedLocalSignOut(
-                    ownedBy: transition
+                    ownedBy: transition, recoveryAuthority: .accountDeletion(scope)
                 )
             }
         )
@@ -1716,6 +1728,8 @@ import SwiftData
             }
         )
         return AccountDeletionCoordinationDependencies(
+            validateLibrary: libraryContext,
+            acknowledgeLibraryPurge: { AppDIContainer.shared.acknowledgeDeletionPurge(for: self, scope: $0) },
             hasPendingPurchaseIdentityHandoff: {
                 self.hasPendingPurchaseIdentityHandoffFailClosed()
             },
@@ -1730,12 +1744,8 @@ import SwiftData
     ) async {
         await performLocalSignOut(
             ownedBy: transition,
-            performRemoteSignOut: { [supabaseAuthSessionService] in
-                try await supabaseAuthSessionService.signOutLocal()
-            },
-            performExternalSignOut: {
-                await RevenueCatManager.shared.handleSupabaseSignOut()
-            }
+            performRemoteSignOut: supabaseAuthSessionService.signOutLocal,
+            performExternalSignOut: RevenueCatManager.shared.handleSupabaseSignOut
         )
     }
 
@@ -1744,11 +1754,12 @@ import SwiftData
     /// intentionally best-effort for recoverable flows, so deletion adds this
     /// exact postcondition and keeps the marker on any uncertainty.
     private func performVerifiedLocalSignOut(
-        ownedBy transition: AuthTransitionToken
+        ownedBy transition: AuthTransitionToken,
+        recoveryAuthority: AuthRecoveryAuthority? = nil
     ) async -> Bool {
         var sdkAcknowledged = false
         await performLocalSignOut(
-            ownedBy: transition,
+            ownedBy: transition, recoveryAuthority: recoveryAuthority,
             performRemoteSignOut: { [supabaseAuthSessionService] in
                 try await supabaseAuthSessionService.signOutLocal()
                 sdkAcknowledged = true
@@ -1757,7 +1768,7 @@ import SwiftData
                 await RevenueCatManager.shared.handleSupabaseSignOut()
             }
         )
-        guard sdkAcknowledged, ownsAuthTransition(transition),
+        guard sdkAcknowledged, ownsAuthTransition(transition), recoveryAuthority?.isCurrent ?? true,
               client.auth.currentSession == nil,
               currentUser == nil,
               !isAuthenticated else {
@@ -1771,12 +1782,14 @@ import SwiftData
 
     private func performLocalSignOut(
         ownedBy transition: AuthTransitionToken,
+        recoveryAuthority: AuthRecoveryAuthority? = nil,
         performRemoteSignOut: @MainActor @escaping () async throws -> Void,
         performExternalSignOut: @MainActor @escaping () async -> Void
     ) async {
         await authLocalSignOutCoordinator.signOut(
             ownedBy: transition,
             dependencies: authLocalSignOutDependencies(
+                recoveryAuthority: recoveryAuthority,
                 performRemoteSignOut: performRemoteSignOut,
                 performExternalSignOut: performExternalSignOut
             )
@@ -1788,6 +1801,7 @@ import SwiftData
     /// removed only after RevenueCat and the server verify the new identity.
     @discardableResult
     func transitionToGhostSession() async -> Bool {
+        guard !MerianEnvironment.isHistoryQualificationBuild else { return false }
         librarySignInPreparationTask?.cancel()
         if librarySignOutRecoveryPending { return await resumeLibrarySignOut() }
         return await userSignOutSingleFlight.run { [weak self] in
@@ -1809,19 +1823,17 @@ import SwiftData
         guard librarySignOutRecoveryPending else { return true }
         guard let transition = beginAuthTransition(.recovery) else { return false }
         defer { finishAuthTransition(transition) }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition() else { return false }
         let completed = await LibrarySignOutRecoveryCoordinator(
             store: .live,
             dependencies: .init(
                 currentSession: { [self] in transitionSession(from: client.auth.currentSession?.user) },
-                clearSourceSession: { [self] in await performVerifiedLocalSignOut(ownedBy: transition) },
-                clearLibrary: {
-                    guard let context = OfflineQueueManager.shared.modelContext else { return false }
-                    guard ScanRepository.shared.purgeAllData(
-                        modelContext: context,
-                        resetDerivedState: AppDIContainer.shared.privateScanMapStore.resetSensitiveState
-                    ) else { return false }
-                    do { try LibraryAccountOwnerStore.clear(); return true } catch { return false }
+                clearSourceSession: { [self] journal in
+                    guard let scope = AppDIContainer.shared.librarySignOutScope(manager: self, transition: transition, journal: journal) else { return false }
+                    return await performVerifiedLocalSignOut(ownedBy: transition, recoveryAuthority: .librarySignOut(scope))
+                },
+                clearLibrary: { [self] journal in
+                    await AppDIContainer.shared.purgeLibraryForSignOut(manager: self, transition: transition, journal: journal,
+                        drain: { await self.awaitAccountBoundWorkQuiescenceForAuthTransition(recoveryAuthority: .librarySignOut($0)) })
                 },
                 createDestination: { [self] in
                     guard let user = await initializeGhostSession(ownedBy: transition) else { return nil }
@@ -2057,6 +2069,7 @@ import SwiftData
     }
 
     private func authLocalSignOutDependencies(
+        recoveryAuthority: AuthRecoveryAuthority? = nil,
         performRemoteSignOut: @MainActor @escaping () async throws -> Void,
         performExternalSignOut: @MainActor @escaping () async -> Void
     ) -> AuthLocalSignOutDependencies {
@@ -2076,11 +2089,11 @@ import SwiftData
             ),
             transition: AuthLocalSignOutTransitionBoundary(
                 owns: { [weak self] transition in
-                    self?.ownsAuthTransition(transition) ?? false
+                    self?.ownsAuthTransition(transition) == true && (recoveryAuthority?.isCurrent ?? true)
                 },
                 awaitAccountWorkQuiescence: { [weak self] in
                     guard let self else { return false }
-                    return await awaitAccountBoundWorkQuiescenceForAuthTransition()
+                    return await awaitAccountBoundWorkQuiescenceForAuthTransition(recoveryAuthority: recoveryAuthority)
                 },
                 updateForSessionInstallation: { [weak self] transition in
                     _ = self?.updateAuthTransition(
@@ -2171,6 +2184,7 @@ import SwiftData
         guard let context = OfflineQueueManager.shared.modelContext else { return false }
         do {
             guard try LibraryMutationInventory.read(from: context.container).isReady,
+                  try !LibraryMutationInventory.hasInputOwnership(in: context.container),
                   try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0 else {
                 libraryTransitionIssue = .needsAttention
                 return false
@@ -2565,7 +2579,7 @@ import SwiftData
 
     private func drainLibraryBeforeIdentityTransition() async {
         guard activeAuthTransition == nil, !librarySignOutRecoveryPending else { return }
-        guard ensureLibraryAccountOwnership() else { libraryTransitionIssue = .needsAttention; return }
+        guard ensureLibraryAccountOwnership() else { libraryTransitionIssue = localLibraryIsEmpty() ? nil : .accountRecoveryRequired; return }
         await OfflineJobScheduler.shared.drainRunnableJobs(using: .shared)
         if let context = OfflineQueueManager.shared.modelContext {
             await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context, force: true)
@@ -2883,40 +2897,45 @@ import SwiftData
     }
 
     private func installOAuthSessionReplacingCurrentAccount(
-        credentials: OAuthSignInCredentials,
-        transition: AuthTransitionToken,
+        credentials: OAuthSignInCredentials, transition: AuthTransitionToken,
         didMutateSession: OAuthSessionMutationObserver
     ) async throws -> Session {
         try await OAuthSignInWorkflow.replacingSession(
-            suspendAnalytics: {
-                self.analyticsGeneration(for: transition)
-            },
+            suspendAnalytics: { self.analyticsGeneration(for: transition) },
             installSession: {
-                let session = try await self.supabaseAuthSessionService.installSession(
-                    using: credentials
-                )
-                didMutateSession()
-                let installed = self.supabaseAuthSessionService.signInSession(
-                    from: session
-                )
-                guard self.adoptOAuthSignInSession(
-                    installed,
-                    for: transition
-                ) else {
-                    throw SupabaseAuthTransitionError
-                        .signOutSessionChanged
+                try Task.checkCancellation()
+                guard self.currentSessionMatchesAuthTransition(transition), !self.isSigningOut else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
                 }
-                return session
+                let barrier = try MerianSupabaseClientFactory.beginQualificationExchange(transition.id)
+                do {
+                    let session = try await self.supabaseAuthSessionService.installSession(using: credentials)
+                    if let barrier {
+                        guard let evidence = try MerianEnvironment.requireQualificationGoogleAccount(session.user.id, isAnonymous: session.user.isAnonymous),
+                              self.currentSessionMatchesAuthTransition(transition), !self.isSigningOut,
+                              self.adoptAuthTransitionSession(session.user, for: transition) else {
+                            throw SupabaseAuthTransitionError.signOutSessionChanged
+                        }
+                        try barrier.accept(session, attempt: transition.id, evidence: evidence, at: Date())
+                        didMutateSession()
+                    } else {
+                        didMutateSession()
+                        let installed = self.supabaseAuthSessionService.signInSession(from: session)
+                        guard self.adoptOAuthSignInSession(installed, for: transition) else {
+                            throw SupabaseAuthTransitionError.signOutSessionChanged
+                        }
+                    }
+                    return session
+                } catch {
+                    if (error as? QualificationAuthStorage.SettlementFailure) != .unresolved {
+                        try? barrier?.abandon(transition.id)
+                    }
+                    throw error
+                }
             },
-            currentSession: {
-                self.supabaseAuthSessionService.currentSession()
-            },
+            currentSession: { self.supabaseAuthSessionService.currentSession() },
             reconcileSession: { _, session, disposition in
-                self.reconcileOAuthSessionReplacement(
-                    session: session,
-                    disposition: disposition,
-                    transition: transition
-                )
+                self.reconcileOAuthSessionReplacement(session: session, disposition: disposition, transition: transition)
             }
         )
     }
@@ -2928,22 +2947,14 @@ import SwiftData
     ) {
         guard ownsAuthTransition(transition) else { return }
         let resolvedSession = supabaseAuthSessionService.currentSession() ?? session
+        let validSession = !isSigningOut && resolvedSession?.isExpired == false ? resolvedSession : nil
         let activeSession: Session?
         switch disposition {
-        case .installed, .failed:
-            activeSession =
-                !isSigningOut && resolvedSession?.isExpired == false
-                ? resolvedSession
-                : nil
-        case .cancelled:
+        case .installed:
+            activeSession = validSession
+        case .failed, .cancelled:
             let sourceSession = activeAuthTransition?.sourceSession
-            activeSession =
-                !isSigningOut
-                && resolvedSession?.isExpired == false
-                && transitionSession(from: resolvedSession?.user)
-                    == sourceSession
-                ? resolvedSession
-                : nil
+            activeSession = transitionSession(from: resolvedSession?.user) == sourceSession ? validSession : nil
         }
         currentUser = activeSession?.user
         isAuthenticated = activeSession != nil
@@ -3606,23 +3617,11 @@ import SwiftData
         expectedAuthGeneration: UInt64,
         ownedBy transition: AuthTransitionToken?
     ) -> Bool {
-        guard !Task.isCancelled,
-              isAuthenticated,
-              authSessionGeneration == expectedAuthGeneration,
-              currentUser?.isAnonymous == true,
-              currentUser?.id.uuidString.caseInsensitiveCompare(userId)
-                == .orderedSame,
-              let sdkSession = client.auth.currentSession,
-              !sdkSession.isExpired,
-              sdkSession.user.isAnonymous,
-              sdkSession.user.id.uuidString.caseInsensitiveCompare(userId)
-                == .orderedSame else {
-            return false
-        }
-        if let transition {
-            return currentSessionMatchesAuthTransition(transition)
-        }
-        return activeAuthTransition == nil
+        guard let user = currentUser, user.isAnonymous,
+              user.id.uuidString.caseInsensitiveCompare(userId) == .orderedSame else { return false }
+        return hasCurrentPublishedSession(
+            user, expectedAuthGeneration: expectedAuthGeneration, ownedBy: transition
+        )
     }
 
     private func persistOAuthProfileMetadata(

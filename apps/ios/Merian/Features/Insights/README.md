@@ -37,6 +37,11 @@ SDK, feedback, and platform presentation are adapted in focused `Services`
 dependency values. UI-only selection, focus, scroll, gallery, animation, and
 dismissal timing remain in views.
 
+Selected-result review binding and delivery refresh use short-lived host-owned
+MainActor tasks. SwiftUI callback cancellation cannot poison a new presentation;
+close/rebind still cancels queued work, and stale keys or tokens cannot refresh
+a replacement model. Core cancellation and account fences remain mandatory.
+
 ## Verification
 
 Mirrored product-area suites live under `MerianTests/Features/Insights`. Core
@@ -47,7 +52,8 @@ cross-feature owner locations, live-service boundaries, export fencing, and the
 600-line production-file ceiling.
 
 `History` owns the prepared bounded list, read-only preview and explicit
-selection/Undo sheet. Normal access remains nil; Shell provides scan-bound modal
+selection/Undo sheet. Ordinary Release access remains nil; HistoryTesting
+enables normal-OAuth simulator qualification. Shell provides scan-bound modal
 admission and Core owns persistence. See [History ownership](History/README.md)
 and the
 [prepared product contract](../../../../../docs/features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).

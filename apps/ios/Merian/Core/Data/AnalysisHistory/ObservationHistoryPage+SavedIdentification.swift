@@ -37,7 +37,7 @@ extension ObservationHistoryPage {
         }
         // Legacy candidate/pet JSON remains opaque. It predates the provider DTO
         // and is neither review authority nor input to another inference.
-        return Result(version: 3, photos: [], analysisID: analysisID, completedAt: nil,
+        return Result(version: 3, photos: [], audio: nil, video: nil, analysisID: analysisID, completedAt: nil,
             importedAt: Date(timeIntervalSince1970: Double(milliseconds) / 1000), bytes: bytes)
     }
 

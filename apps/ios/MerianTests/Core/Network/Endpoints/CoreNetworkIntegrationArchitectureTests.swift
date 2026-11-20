@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -75,7 +76,22 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "apps/ios/Merian/Core/Security/PurchaseIdentity"
             )
         )
-        let authProductionLineCount = try totalLineCount(in: authFiles)
+        let authPhysicalLineCount = try totalLineCount(in: authFiles)
+        // Exact reviewed bytes prove the Debug-only allowance. Any owner edit
+        // fails closed until its exclusion is independently reviewed again.
+        let reviewedDebugOwners: [String: (sha256: String, lines: Int)] = [
+            "Services/AuthSessionLifecycleLiveProvider.swift": ("88d06b1718cb21b0baf2b6429968a976583a231dd8d84344544f70bf64e8b8c8", 61),
+            "Services/AuthSessionLifecycleLiveProvider+Live.swift": ("93134ce6a122c0442b832710a6d1f5c6cb41664c83f7ce387d361cc08e404080", 5)
+        ]
+        var reviewedDebugLines = 0
+        for (relative, reviewed) in reviewedDebugOwners {
+            let bytes = try Data(contentsOf: authRoot.appendingPathComponent(relative))
+            let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            try #require(digest == reviewed.sha256, "Debug allowance source changed; independent review required")
+            reviewedDebugLines += reviewed.lines
+        }
+        #expect(reviewedDebugLines <= 66)
+        let authProductionLineCount = authPhysicalLineCount - reviewedDebugLines
         let purchaseIdentityProductionLineCount = try totalLineCount(
             in: purchaseIdentityFiles
         )
@@ -83,9 +99,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         // Reviewed library transitions add durable recovery, account isolation,
         // mutation admission and transfer-status composition. Private transition
         // state stays in the existing facade; extracted owners retain the 600-line
-        // ceiling above. This is a feature budget, not a new oversized exemption.
+        // ceiling above. The async purge adds one post-await session fence line.
         #expect(
-            authProductionLineCount <= 7_886,
+            authProductionLineCount <= 7_887,
             "Auth production grew beyond its reviewed budget"
         )
         #expect(
@@ -99,7 +115,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             authProductionLineCount
                 + purchaseIdentityProductionLineCount
-                + facadeLineCount <= 13_694,
+                + facadeLineCount <= 13_695,
             "The Auth facade extraction surfaces grew in aggregate"
         )
         let models = try networkSource(
@@ -712,6 +728,27 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "authSessionBootstrapCoordinator.initialize("
             )
         )
+        let transitionStart = try sourceSection(
+            beginningWith: "    private func beginAuthTransition(",
+            endingBefore: "\n    func ownsAuthTransition(",
+            in: aggregate
+        )
+        try expectOrder([
+            "beginAuthTransitionWriteFence()", "recordAnalyticsGeneration(",
+            "beginAccountSession(userID: nil, origin: .runtimeTransition)", "return token"
+        ], in: transitionStart)
+        let sessionNotifications = try sourceSection(
+            beginningWith: "    private func beginAccountSession(",
+            endingBefore: "\n    private func linkLegacyPurchaseIdentityForSignOutHandoff(",
+            in: aggregate
+        )
+        try expectOrder([
+            "appRouteSessionController?.beginAccountSession(",
+            "milestoneToastSessionController?.beginAccountSession("
+        ], in: sessionNotifications)
+        #expect(sessionNotifications.components(separatedBy: "now: Date()").count == 3)
+        #expect(sessionNotifications.components(separatedBy: "accountID: userID?.uuidString").count == 3)
+        #expect(sessionNotifications.contains("case .runtimeTransition: .runtimeTransition"))
         let bootstrapFinish = try sourceSection(
             beginningWith: "    private func finishAuthTransition(",
             endingBefore: "    private func analyticsGeneration(",
@@ -722,6 +759,8 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "authRuntimeState.finishTransition(token)",
                 "currentUser?.id == sdkSession.user.id",
                 "finalUserID = sdkSession.user.id",
+                "beginAccountSession(userID: finalUserID, origin: .runtimeTransition)",
+                "ConsentManager.shared.resolveAnalyticsAccountTransition(",
                 ".scheduleCurrentSessionReconciliation(",
                 "force: token.kind == .anonymousBootstrap && finalUserID != nil"
             ],
@@ -861,6 +900,17 @@ struct CoreNetworkIntegrationArchitectureTests {
                 separatedBy: "AuthSessionRecoveryCoordinator("
             ).count == 6
         )
+        let guardedGhostReset = try sourceSection(
+            beginningWith: "    func resetGhostSessionForRetry() async -> Bool {",
+            endingBefore: "\n    @discardableResult",
+            in: aggregate
+        )
+        try expectOrder([
+            "LibraryMutationInventory.read(from: context.container).isReady",
+            "!LibraryMutationInventory.hasInputOwnership(in: context.container)",
+            "context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0",
+            "return await AuthSessionRecoveryCoordinator("
+        ], in: guardedGhostReset)
         for token in [
             "supabaseAuthSessionService",
             ".refreshRecoverySession()",
@@ -2783,7 +2833,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             recoveryCoordinatorTests.components(
                 separatedBy: "    func test"
-            ).count == 19
+            ).count == 20
         )
         #expect(
             publicAuthorRefreshSupport.contains(
@@ -2928,6 +2978,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "testGoogleSuccessPreservesAdmissionVerificationAndCompletionOrder",
             "testGooglePresentationFailureStopsBeforeSessionVerification",
             "testGoogleMissingTokenRevalidatesSessionBeforeStopping",
+            "testCancelledSettlementFailureNeverInvokesGenericCleanup",
             "testGoogleProviderFailureRunsRecoveryAndFinishesTransition",
             "testGoogleCompletionFailureReportsObservedSessionMutation",
             "testAppleStartOwnsTransitionSynchronouslyAndCompletesInTask",
@@ -2944,7 +2995,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             oauthProviderCoordinatorTests.components(
                 separatedBy: "    func test"
-            ).count == 15
+            ).count == 16
         )
         for name in [
             "testMissingPresentationContextStopsBeforeGoogleSDK",
@@ -3029,6 +3080,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "testExactLinkedSourceMayRefreshTheSameAccount",
             "testInstallationFailurePreservesExactSourceSession",
             "testInstallationFailureAfterMutationClearsChangedSession",
+            "testRejectedAdoptionNeverPublishesMutatedSessionEvenWhenCleanupIsRefused",
             "testSignOutDuringInstallationCannotRepublishSession",
             "testCancellationDuringInstallationClearsMutatedSession",
             "testCancellationDuringPurchaseReadinessStopsEntitlement",
@@ -3042,7 +3094,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             authenticationCallbackTests.components(
                 separatedBy: "    func test"
-            ).count == 16
+            ).count == 17
         )
         for name in [
             "testStableSourceUsesPreparedRotationBeforeLocalSignOut",
@@ -3795,8 +3847,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             lifecycleCoordinator.components(
                 separatedBy: "isCurrentPublishedSession("
-            ).count == 4
+            ).count == 5
         )
+        let renewalPostflight = try sourceSection(
+            beginningWith: "await dependencies.renewMediaLifetime(",
+            endingBefore: "await dependencies.identity.resumeCloudDeletions(",
+            in: lifecycleCoordinator
+        )
+        #expect(renewalPostflight.contains("dependencies.state.isCurrentPublishedSession(session, event.authGeneration)"))
         #expect(
             lifecycleAssembly.components(
                 separatedBy: "hasCurrentPublishedSession("
@@ -3827,15 +3885,26 @@ struct CoreNetworkIntegrationArchitectureTests {
                 separatedBy: "activeAnonymousSessionMatches("
             ).count >= 3
         )
-        #expect(
-            anonymousSessionFence.contains("!Task.isCancelled")
+        let publishedSessionFence = try sourceSection(
+            beginningWith: "    private func hasCurrentPublishedSession(",
+            endingBefore: "\n    private func allowsIdentityReplacement(",
+            in: manager
         )
-        #expect(
-            anonymousSessionFence.contains("isAuthenticated")
-        )
-        #expect(
-            anonymousSessionFence.contains("return activeAuthTransition == nil")
-        )
+        for token in ["let user = currentUser", "user.isAnonymous",
+                      "user.id.uuidString.caseInsensitiveCompare(userId) == .orderedSame",
+                      "return hasCurrentPublishedSession(",
+                      "user, expectedAuthGeneration: expectedAuthGeneration, ownedBy: transition"] {
+            #expect(anonymousSessionFence.contains(token))
+        }
+        for token in ["!Task.isCancelled", "isAuthenticated",
+                      "expectedAuthGeneration.map({ $0 == authSessionGeneration })",
+                      "currentUser?.id == user.id", "currentUser?.isAnonymous == user.isAnonymous",
+                      "!sdkSession.isExpired", "sdkSession.user.id == user.id",
+                      "sdkSession.user.isAnonymous == user.isAnonymous",
+                      "return currentSessionMatchesAuthTransition(transition)",
+                      "return activeAuthTransition == nil"] {
+            #expect(publishedSessionFence.contains(token))
+        }
         #expect(
             stableRotation.components(
                 separatedBy: "try Task.checkCancellation()"
@@ -4007,7 +4076,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         #expect(
             lifecycleAssembly.contains(
-                "EntitlementManager.shared.handleSignOut()"
+                "clearEntitlementSession: EntitlementManager.shared.handleSignOut"
             )
         )
     }
@@ -4043,16 +4112,17 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         )
         #expect(admissionPolicy.contains("request.httpMethod == \"POST\""))
-        #expect(!pinnedTransport.contains("withThrowingTaskGroup("))
+        let taskState = try networkSource("Transport/PinnedNetworkDataTaskState.swift")
+        #expect(!taskState.contains("withThrowingTaskGroup("))
         #expect(
-            pinnedTransport.contains(
-                "private final class PinnedNetworkDataTaskState: Sendable"
+            taskState.contains(
+                "final class PinnedNetworkDataTaskState: Sendable"
             )
         )
-        #expect(pinnedTransport.contains("OSAllocatedUnfairLock(initialState:"))
-        #expect(pinnedTransport.contains("withTaskCancellationHandler"))
-        #expect(pinnedTransport.contains("withCheckedThrowingContinuation"))
-        #expect(pinnedTransport.contains("deadlineQueue.asyncAfter"))
+        #expect(taskState.contains("OSAllocatedUnfairLock(initialState:"))
+        #expect(taskState.contains("withTaskCancellationHandler"))
+        #expect(taskState.contains("withCheckedThrowingContinuation"))
+        #expect(taskState.contains("deadlineQueue.asyncAfter"))
         #expect(
             pinnedTransport.contains(
                 "boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData"
@@ -4186,7 +4256,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         expectOwners(
             containing: "DetachedWork.value(",
             in: sources,
-            equal: ["Endpoints/MerianNetworkClient+Inference.swift"]
+            equal: ["Endpoints/MerianNetworkClient+Inference.swift",
+                    "Endpoints/MerianNetworkClient+ObservationAudioEvidence.swift",
+                    "Endpoints/MerianNetworkClient+ObservationEvidence.swift"]
         )
         #expect(sources.values.allSatisfy { !$0.contains("Task.detached") })
     }
@@ -4236,6 +4308,14 @@ struct CoreNetworkIntegrationArchitectureTests {
             .map(\.lastPathComponent)
         )
         #expect(actualProductionFiles == Self.transportOwnerFilenames)
+        let observation = try networkSource("Transport/ScanObservationResponse.swift")
+        for forbidden in ["URLSession", "SupabaseManager", "async", "Task", "InitialCompletion", "OriginalAnalysis"] {
+            #expect(!observation.contains(forbidden), "Observation-only codec acquired execution/completion ownership")
+        }
+        let observationTests = try repositoryRoot().appendingPathComponent(
+            "apps/ios/MerianTests/Core/Network/Transport/ScanObservationResponseTests.swift")
+        #expect(FileManager.default.fileExists(atPath: observationTests.path))
+
 
         let client = try networkSource("MerianNetworkClient.swift")
         let executor = try networkSource(
@@ -4286,11 +4366,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         // work; refreshing these sessions could recursively await their own task.
         #expect(unauthorizedRecoveryOptOutOwners == [
             "Endpoints/MerianNetworkClient+AIReview.swift",
+            "Endpoints/MerianNetworkClient+ObservationEvidence.swift",
             "Endpoints/MerianNetworkClient+ObservationPublication.swift",
+            "Endpoints/MerianNetworkClient+ReanalysisRecovery.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
-            "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
+            "Endpoints/MerianNetworkClient+ScanLifecycle.swift",
+            "Transport/ObservationHistoryMutationTransport.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))
@@ -4313,31 +4396,33 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         )
         #expect(pinnedTransport.contains("systemTrustIsValid: systemTrustIsValid"))
-        #expect(
-            pinnedTransport.contains(
-                "completionHandler(.cancelAuthenticationChallenge, nil)"
-            )
-        )
-        #expect(
-            pinnedTransport.components(
-                separatedBy: "completionHandler(.cancelAuthenticationChallenge, nil)"
-            ).count == 3
-        )
-        #expect(pinnedTransport.contains("private final class MerianTLSDelegate"))
-        #expect(client.contains("private let sessionTransport: PinnedNetworkTransport"))
-        #expect(
-            client.contains(
-                "private let authenticatedTransport: AuthenticatedTransportDispatcher"
-            )
-        )
-        #expect(client.contains("AuthenticatedRequestExecutor("))
-        #expect(client.contains("dependencies: .live("))
-        #expect(
-            client.components(separatedBy: "PinnedNetworkTransport()").count
-                == 2
-        )
-        #expect(client.contains("self.sessionTransport = sessionTransport"))
-        #expect(client.contains("sessionTransport: sessionTransport"))
+        let rejectChallenge = "completionHandler(.cancelAuthenticationChallenge, nil)"
+        let tlsOwners = pinnedTransport.components(separatedBy: "private final class MerianTLSDelegate:")
+        try #require(tlsOwners.count == 2)
+        let tlsAndCollectors = tlsOwners[1].components(separatedBy: "struct ProtectedInsightChatDataTask:")
+        try #require(tlsAndCollectors.count == 2)
+        let uploadOwners = tlsAndCollectors[1].components(separatedBy: "final class PinnedPhotoUploadTask:")
+        try #require(uploadOwners.count == 2)
+        // TLS rejects missing or invalid trust; the PUT owner separately refuses
+        // credential negotiation that could resend its immutable request body.
+        #expect(tlsAndCollectors[0].components(separatedBy: rejectChallenge).count == 3)
+        #expect(uploadOwners[1].components(separatedBy: rejectChallenge).count == 2)
+        #expect(pinnedTransport.components(separatedBy: rejectChallenge).count == 4)
+        let boundedCollector = try networkSource("Transport/PinnedBoundedJSONDataTask.swift")
+        #expect(boundedCollector.components(separatedBy: rejectChallenge).count == 2)
+        let assembly = client
+        #expect(assembly.contains("private final class NetworkTransportAssembly"))
+        #expect(client.contains("private let transport: NetworkTransportAssembly"))
+        #expect(assembly.contains("private let sessionTransport: PinnedNetworkTransport"))
+        #expect(assembly.contains("private let authenticatedTransport: AuthenticatedTransportDispatcher"))
+        #expect(assembly.contains("private let baseURL: String"))
+        #expect(assembly.contains("AuthenticatedRequestExecutor.live(using: authenticatedTransport)"))
+        #expect(client.contains("transport.execute("))
+        #expect(executor.contains("Self(dependencies: .live("))
+        #expect(assembly.components(separatedBy: "PinnedNetworkTransport()").count == 2)
+        #expect(assembly.components(separatedBy: "AuthenticatedTransportDispatcher(sessionTransport:").count == 2)
+        #expect(assembly.contains("self.sessionTransport = sessionTransport"))
+        #expect(assembly.contains("sessionTransport: sessionTransport"))
         #expect(!dispatcher.contains("PinnedNetworkTransport()"))
         #expect(!pinnedTransport.contains("SupabaseManager"))
         for forbiddenToken in [
@@ -4470,6 +4555,24 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(pinnedTransportTests.contains("systemTrustIsValid: false"))
     }
 
+    @Test func analysisReviewTransportHasOnlyTypedDomainAccess() throws {
+        let sources = try networkSources()
+        let consumers = Set(sources.compactMap { path, text in
+            text.contains("observationHistoryMutationTransport") ? path : nil
+        })
+        #expect(consumers == ["MerianNetworkClient.swift", "Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift",
+            "Endpoints/MerianNetworkClient+ProtectedInsightChat.swift"])
+        let transport = try networkSource("Transport/ObservationHistoryMutationTransport.swift")
+        #expect(transport.contains("private let dispatcher: AuthenticatedTransportDispatcher"))
+        let pinned = try networkSource("Transport/PinnedNetworkTransport.swift")
+        #expect(pinned.contains("tlsDelegate.urlSession(session, didReceive: challenge, completionHandler: completionHandler)"))
+        #expect(pinned.contains("configuration.urlCredentialStorage = nil"))
+        #expect(transport.contains("allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false"))
+        let reads = try networkSource("Transport/AdmissionRPCRequestPolicy.swift")
+        #expect(!reads.contains("review_owned_observation_analysis"))
+        #expect(!reads.contains("confirm-observation-analysis"))
+    }
+
     private static let endpointOwnerFilenames: Set<String> = [
         "MerianNetworkClient+AIReview.swift",
         "MerianNetworkClient+AccountDeletion.swift",
@@ -4486,9 +4589,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
+        "MerianNetworkClient+ObservationAnalysisReview.swift",
+        "MerianNetworkClient+ObservationAudioEvidence.swift",
+        "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
+        "MerianNetworkClient+ProtectedInsightChat.swift",
         "MerianNetworkClient+PublicProfile.swift",
+        "MerianNetworkClient+ReanalysisRecovery.swift",
         "MerianNetworkClient+ScanEnrichment.swift",
         "MerianNetworkClient+ScanLifecycle.swift",
         "MerianNetworkClient+ScanPublication.swift",
@@ -4497,6 +4605,8 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let transportOwnerFilenames: Set<String> = [
+        "ScanObservationResponse.swift",
+        "NativeReceivedStatusTransport.swift",
         "AdmissionRPCRequestPolicy.swift",
         "AuthenticatedRequestExecutor.swift",
         "AuthenticatedRequestRetryPolicy.swift",
@@ -4505,7 +4615,17 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
-        "PinnedNetworkTransport.swift"
+        "ObservationAudioAnalysisTransport.swift",
+        "ObservationAudioOutcomeTransport.swift",
+        "ObservationHistoryMutationTransport.swift",
+        "ObservationSourceReservationTransport.swift",
+        "InitialPhotoAllocationTransport.swift",
+        "ObservationVideoAnalysisTransport.swift",
+        "ObservationVideoEvidenceTransport.swift",
+        "PinnedBoundedJSONDataTask.swift",
+        "PinnedNetworkDataTaskState.swift",
+        "PinnedNetworkTransport.swift",
+        "AccountDeletionRecoveryTransport.swift"
     ]
 
     private static let authFoundationPaths: Set<String> = [

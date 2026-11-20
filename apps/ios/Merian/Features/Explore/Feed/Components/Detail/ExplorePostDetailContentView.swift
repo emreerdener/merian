@@ -40,7 +40,6 @@ struct ExplorePostDetailContentView: View {
     @State private var commentsSectionMinY: CGFloat = .infinity
     @State private var viewportHeight: CGFloat = 0
     @State private var focusedComposerIsSticky: Bool?
-    @State private var isCommonNameScrolledPast = false
     @State private var didFocusTargetComment = false
     @State private var didAutoOpenInsight = false
     @State private var didPresentNotificationReplyThread = false
@@ -113,8 +112,6 @@ struct ExplorePostDetailContentView: View {
                 )
             )
             .background(Color(uiColor: .systemBackground))
-            .navigationTitle(viewModel.resolvedSpeciesCommonName(for: post))
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .task(id: post.id) {
                 async let detailTask: Void = onLoadDetail()
@@ -141,7 +138,6 @@ struct ExplorePostDetailContentView: View {
                 }
             }
             .onChange(of: post.id, initial: true) { _, _ in
-                isCommonNameScrolledPast = false
                 isAudioBoostEnabled = ExploreAudioBoostPreferenceStore().isEnabled(for: post.id)
                 if isAudioBoostEnabled {
                     AppTelemetry.trackExploreAudioBoost(event: "restored", surface: "detail")
@@ -226,8 +222,7 @@ struct ExplorePostDetailContentView: View {
                 displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
                 aiReasoning: detailViewModel.detail?.trimmedAiReasoning.map {
                     styledAiReasoning(text: $0, scientificName: post.speciesScientificName)
-                },
-                onCommonNameMaxYChange: evaluateCommonNameScrollOffset
+                }
             )
 
             hashtagRow
@@ -340,13 +335,6 @@ struct ExplorePostDetailContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            ScrollAwareToolbarTitleBadge(
-                title: viewModel.resolvedSpeciesCommonName(for: post),
-                isVisible: isCommonNameScrolledPast
-            )
-        }
-
         ToolbarItem(placement: .topBarTrailing) {
             ExplorePostDetailMenuButton(
                 isOwnedByCurrentUser: isOwnedByCurrentUser,
@@ -519,15 +507,6 @@ struct ExplorePostDetailContentView: View {
             from: nil,
             for: nil
         )
-    }
-
-    private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
-        guard maxY.isFinite else { return }
-        let isPast = maxY < 44
-        guard isCommonNameScrolledPast != isPast else { return }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            isCommonNameScrolledPast = isPast
-        }
     }
 
     private func finishAudioBoostAction(_ token: UUID) {

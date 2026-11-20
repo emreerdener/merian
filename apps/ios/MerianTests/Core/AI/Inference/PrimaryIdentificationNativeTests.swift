@@ -107,6 +107,8 @@ struct PrimaryIdentificationNativeTests {
         let context = try ScanRepositoryTestSupport.makeContext()
         let actor = BackgroundDatabaseActor(modelContainer: context.container)
         let first = try species(payload())
+        context.insert(OfflineQueuedScan(id: "primary-fixture", scanState: .inferencing))
+        try context.save()
         #expect(await actor.saveNonVisualRecord(mappedData: first).wasSaved)
         var legacy = payload(); legacy.removeValue(forKey: "primary_identification")
         legacy.removeValue(forKey: "identification_provenance")

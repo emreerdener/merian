@@ -92,7 +92,7 @@ extension InsightSheetViewModel {
 
         state.toastMessage = .success(actionMessage)
         activeLocalRecord = record
-        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
+        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record, selectedReviewBaseline: toolbarRecordSnapshot?.selectedReviewBaseline)
         dependencies.enqueueCollectionSync()
         dependencies.selectionFeedback()
     }
@@ -153,10 +153,12 @@ extension InsightSheetViewModel {
                 .caseInsensitiveCompare(record.id) == .orderedSame &&
             inferenceEngine.speciesData?.scanId?
                 .caseInsensitiveCompare(record.id) == .orderedSame
-        if !engineAlreadyPresentsRecord {
-            inferenceEngine.load(from: record)
-        }
-        bindPresentedRecord(record, modelContext: modelContext)
+        let needsProtectedBaseline = toolbarRecordSnapshot?.selectedReviewBaseline == nil &&
+            SelectedAnalysisReviewBaseline(scanID: record.id, ownerID: record.analysisOwnerAccountID,
+                analysisID: record.selectedAnalysisID, revision: record.observationStateRevision) != nil
+        let baseline = !engineAlreadyPresentsRecord || needsProtectedBaseline
+            ? loadSelectedReviewProjection(record, inferenceEngine: inferenceEngine) : nil
+        bindPresentedRecord(record, modelContext: modelContext, selectedReviewBaseline: baseline)
         return true
     }
 
@@ -210,8 +212,8 @@ extension InsightSheetViewModel {
         // against the result presentation rather than the now-retired queue snapshot.
         invalidateScanBoundPresentationState(preservingAudioBoostFor: scanId)
         queuedContext = nil
-        inferenceEngine.load(from: record)
-        bindPresentedRecord(record, modelContext: modelContext)
+        let baseline = loadSelectedReviewProjection(record, inferenceEngine: inferenceEngine)
+        bindPresentedRecord(record, modelContext: modelContext, selectedReviewBaseline: baseline)
 
         if let scientificName = inferenceEngine.speciesData?.scientificName {
             loadPreferredCommonName(for: scientificName, modelContext: modelContext)
@@ -223,7 +225,7 @@ extension InsightSheetViewModel {
         return true
     }
 
-    func bindPresentedRecord(_ record: LocalScanRecord, modelContext: ModelContext) {
+    func bindPresentedRecord(_ record: LocalScanRecord, modelContext: ModelContext, selectedReviewBaseline: SelectedAnalysisReviewBaseline? = nil) {
         let recordId = record.id.trimmingCharacters(in: .whitespacesAndNewlines)
         let cachedScanIds = [
             activeLocalRecord?.id,
@@ -238,7 +240,8 @@ extension InsightSheetViewModel {
 
         activeLocalRecord = record
         activeLocalRecordId = record.id
-        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
+        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record,
+            selectedReviewBaseline: selectedReviewBaseline ?? toolbarRecordSnapshot?.selectedReviewBaseline)
         cachedActiveMedia = record.capturedMediaSnapshot.activeScanMedia
         refreshSharedExploreStateFromLocalCache(scanId: record.id)
         syncFieldNotesFromCurrentScan(modelContext: modelContext)

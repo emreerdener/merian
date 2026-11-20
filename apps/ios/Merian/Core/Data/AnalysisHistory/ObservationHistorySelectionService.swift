@@ -1,5 +1,8 @@
 import Foundation
 import SwiftData
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+import OSLog
+#endif
 
 /// Prepared explicit request owner. Staging changes no visible identification;
 /// an acknowledged receipt plus a current state read commit together. Only the
@@ -49,6 +52,9 @@ struct ObservationHistorySelectionService {
                 }
                 guard analysis != previous, analysis != UUID(uuidString: scan.id) else { throw ObservationHistoryError.invalidPage }
                 let targetCache = try ObservationHistorySelectionProjection.retained(analysis, scan: scan, context: context)
+                guard [1, 2, 3, 4, 5].contains(targetCache.snapshotVersion), [1, 2, 3, 4, 5].contains(previousCache.snapshotVersion) else {
+                    throw ObservationHistoryError.unavailable
+                }
                 if let undoReview {
                     guard targetCache.reviewRevision == undoReview else { throw Intent.Failure.staleUndo }
                 } else {
@@ -78,7 +84,11 @@ struct ObservationHistorySelectionService {
         }
         let owner = try ObservationHistoryPage.uuid(entry.owner)
         let lease = try cloud.begin(owner)
-        defer { cloud.finish(lease) }
+        defer {
+            traceSelection("before-lease-finish")
+            cloud.finish(lease)
+            traceSelection("after-lease-finish")
+        }
         try check(lease, owner: owner)
         let baseline = try ConfirmedSpeciesReviewPersistence.transaction {
             let context = ModelContext(container)
@@ -98,7 +108,8 @@ struct ObservationHistorySelectionService {
                       state.reviewRevision == receipt.review_revision else { throw Sync.AdmissionError.conflictingRevision }
             }
         }
-        return try ConfirmedSpeciesReviewPersistence.transaction {
+        traceSelection("before-commit-lock")
+        let completedOutcome = try ConfirmedSpeciesReviewPersistence.transaction {
             let context = ModelContext(container)
             context.autosaveEnabled = false
             do {
@@ -115,16 +126,28 @@ struct ObservationHistorySelectionService {
                 }
                 try Intent.store(completed, context: context)
                 try check(lease, owner: owner)
+                traceSelection("before-save")
                 try save(context)
+                traceSelection("after-save")
                 return outcome
             } catch { context.rollback(); throw error }
         }
+        traceSelection("after-commit-unlock")
+        return completedOutcome
+    }
+
+    private func traceSelection(_ stage: String) {
+#if MERIAN_HISTORY_LOCAL_DIAGNOSTICS
+        Logger(subsystem: "app.merian.Merian", category: "HistoryLocalDiagnostics")
+            .notice("selection stage=\(stage, privacy: .public)")
+#endif
     }
 
     private func eligible(_ observation: String, owner: UUID, context: ModelContext) throws -> LocalScanRecord {
         let scan = try ObservationHistorySyncService.enrolledScan(observation, context: context)
         guard scan.analysisOwnerAccountID == owner.uuidString.lowercased() else { throw ObservationHistoryError.accountChanged }
         try Sync.requireSettledReview(scan, context: context)
+        try Sync.requireSettledAnalysisReview(scan, context: context)
         let authority = try ObservationHistorySelectionProjection.retainedAuthority(scan: scan, context: context)
         guard scan.localAIIdentificationReview.authority != nil || scan.confirmedSpeciesIdentityData != nil,
               Sync.matches(authority, scan: scan) else { throw Sync.AdmissionError.pendingReview }
@@ -138,6 +161,8 @@ struct ObservationHistorySelectionService {
             throw Sync.AdmissionError.conflictingRevision
         }
         let target = try ObservationHistorySelectionProjection.retained(ObservationHistoryPage.uuid(entry.request.analysis_id), scan: scan, context: context)
+        let previous = try ObservationHistorySelectionProjection.retained(ObservationHistoryPage.uuid(entry.previous), scan: scan, context: context)
+        guard [1, 2, 3, 4, 5].contains(target.snapshotVersion), [1, 2, 3, 4, 5].contains(previous.snapshotVersion) else { throw ObservationHistoryError.unavailable }
         guard target.reviewRevision == entry.request.expected_review_revision else { throw Sync.AdmissionError.conflictingRevision }
         try Sync.requireRepresentableAuthority(target.authority)
         return scan

@@ -53,7 +53,7 @@ struct AchievementDetailSheet: View {
                                 .font(.headline)
                                 .foregroundColor(.primary)
 
-                            LazyVStack(spacing: 12) {
+                            LazyVStack(spacing: 16) {
                                 ForEach(contributions) { contribution in
                                     AchievementContributionRow(contribution: contribution) {
                                         openInsight(for: contribution)

@@ -15,6 +15,32 @@ producer admission and drains active account-work leases. Unknown, failed,
 needs-attention, unreadable, and unacknowledged states fail closed. A count of
 runnable jobs is never evidence that cleanup is safe.
 
+Account-ownership verification failures and sign-out blocked by account recovery
+show “Library account needs attention,” with a dismiss-only action. They do not
+claim pending submissions or offer synchronization as an account-recovery fix.
+Before provider sign-in, a missing verified owner does not raise this alert when
+the existing inventory proves the library empty. Missing context, inventory
+errors, retained inputs, pending work and saved scans cannot establish
+emptiness. This early preparation step does not admit an account transition; the
+existing provider coordinator and identity-transition checks still own
+admission. Inventory-confirmed pending/failed changes retain their existing
+review and sync actions. This presentation distinction does not relax identity
+or data fences.
+
+The prepared reanalysis input control is bookkeeping only when its complete
+four-slot graph validates and no slot is active. Inventory then excludes exactly
+that one control row; pending children and unrelated jobs retain ordinary
+accounting. Missing or malformed graph authority throws. Readiness is distinct
+from an empty library: any input metadata, including completed receipts, or any
+`ReanalysisInputs` entry remains outgoing-library presence. Both first-launch
+emptiness and automatic ghost-session reset use the same throwing presence
+predicate; namespace/root lookup errors never prove absence. Full-library purge
+removes `ReanalysisQueue` and `ReanalysisInputs` under the existing exclusive
+Documents lock after its journal-backed row deletion, and destination
+publication still waits for successful purge. These consumer checks are
+implemented; the new input route remains inactive and its account/runtime
+qualification is pending.
+
 | Operation                                    | Producer and durable owner                                                                                           | Required acknowledgment and recovery evidence                                                                                                                            | Resolution                                                            |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | Capture, originals, derived media, ingestion | CaptureAdmission; `OfflineQueuedScan`, ingestion job and upload generation                                           | Local queue retirement after authoritative result persistence; upload acceptance alone is insufficient. Stable scan ID, media references and generation survive retries. | Existing queue retry, media repair and separately confirmed deletion  |
@@ -50,7 +76,32 @@ for historical receipts, not as the completion boundary for new merges.
 `LibrarySignOutJournalStore` is device-only, verified Keychain storage. Purchase
 preparation remains owned by the existing purchase journals. The library journal
 is written before local session removal and retained through purchase
-completion.
+completion. The recovery coordinator rereads the exact journal before each step
+and after every awaited sign-out, purge, guest creation and purchase completion.
+A removed, malformed or changed source/phase/destination stops the attempt
+without overwriting or clearing the replacement record. Sign-out and purge
+dependencies receive that expected journal for nested validation.
+
+The local sign-out composition binds a fresh `RecoveryScope` to that exact
+journal, original queue container, manager and transition token, source and
+expected identities, and current SDK/published identities. Only `committed` and
+`sourceCleared` can join runtime-quiescent prepared-input storage holds;
+ordinary transitions still require complete cleanup. Only `sourceCleared` with
+an absent SDK session can purge. Nested drains revalidate after suspension;
+local sign-out also revalidates before external cleanup after SDK sign-out. The
+full library purge checks authorization around asynchronous cleanup and before
+row deletion and preference/runtime reset. The repository rechecks after the
+service returns before resetting derived presentation and restoration state;
+stale completion returns failure to the journal. Only complete repository
+success acknowledges the exact container's terminal retained hosts, releasing
+the hold without reopening the old owner. Failure preserves recovery intent.
+
+Native244 independently qualified this component, including the repository
+completion-race fix. Native247 separately qualified the scoped account-deletion
+component described in the
+[account-deletion contract](20-sign-in-with-apple-account-deletion.md). Full
+live SDK composition and later startup/account-lifetime renewal remain
+unfinished. The prepared-history installation guard remains disabled.
 
 | Journal state        | Recovery behavior                                                                                                                                              |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -108,6 +159,39 @@ first-launch scaffolding; custom collections and pending deletions remain
 library state. On upgrades, retained merge proofs identify the source of an
 otherwise unmarked library: destination credentials cannot establish ownership
 until the server acknowledges transfer.
+
+Ordinary account recovery never covers or disables Capture. The physical shutter
+and audio recorder may stage new media locally before Auth or scan availability
+resolves. They do not enqueue, upload or relabel existing library data.
+Pro-video capability, permissions and media capacity still apply; gallery
+imports retain entry admission. Automatic identification is revoked during
+recovery. Explicit Identify retains the draft and points to Library/Profile to
+restore access, without opening a login modal over Capture.
+
+`LibraryAccountAccessView` conditionally mounts private Scans, Profile, Insight,
+reanalysis and achievement content in the sheet router. Its recovery screen has
+a Close action back to Capture. Private deep links enter Scans recovery before
+reading retained records. Before the initial SDK event, during its expired-cache
+refresh, or during anonymous bootstrap, the private destination shows progress
+instead of premature sign-in instructions. Confirmed recovery offers the
+existing account providers. Committed sign-out and pending transfer keep their
+separate global barriers and also prevent private destination access.
+
+`CaptureDraftSession` distinguishes unowned fresh media from an account-bound
+draft. An unowned capture may bind to its first resolved identity; account-owned
+content cannot move between users. Cached same-account refresh preserves it;
+real account replacement clears private staging and invalidates late callbacks.
+Submission checks draft ownership on both sides of admission suspension, and the
+durable queue retains its own owner/funding checks before and after media
+copying. No new persistence schema or permission to bypass library isolation is
+introduced. Draft-only capture is not a promise of recovery after process death;
+existing optional Camera Roll saving remains separate.
+
+Stable Auth publication schedules restoration whether the purchase identity was
+newly linked or was already linked during OAuth. An already-ready purchase
+identity is not a reason to skip cloud restoration. Pending handoffs and the
+existing current-session, generation, native-media and library-ownership fences
+still apply.
 
 Restoration tracks account and generation separately from authentication. Every
 scan page and collection page must succeed; quarantined records, failed pages
@@ -214,3 +298,26 @@ Ship the migrations and merge function before a client requiring private-detail
 RPCs. This document authorizes no deployment, hosted mutation, retention change,
 TestFlight distribution or external publication. Follow the existing exact-SHA
 release controls under a separately authorized operation and target.
+
+## Inactive NCO-1 photo ownership and account cleanup
+
+The V59 photo ledger is local work even when it has no runnable scan job.
+`LibraryMutationInventory` includes all four P1 entities, including orphaned or
+foreign-account rows, when deciding whether identity replacement is safe.
+`SupabaseManager` has an optional pre-drain owner hook: close preparation,
+cancel active work, await actual callback termination and preserve its durable
+intent before the existing account-work drain. Failure keeps the barrier closed.
+Normal composition leaves this hook nil.
+
+`ScanRepository` forwards an optional photo-owner purge to
+`ScanLibraryPurgeService`. Rows or a private namespace without that owner block
+purge before legacy data is erased. The owner retires references, preserves
+shared assets needed by surviving owners, confirms file unlink/synchronization
+and removes its namespace before dropping the ledger. External inbox liability
+requires an exact source-owner acknowledgement; an attempted cancellation or an
+expired lease is insufficient. A failed purge retains the authority required to
+reconcile it. No account operation or production binding is enabled here.
+
+See the
+[NCO-1 agreement](../rfcs/client-prepared-media-native-ownership-agreement-2026-10-15.md)
+for the qualification-only composition and remaining installed-product gates.

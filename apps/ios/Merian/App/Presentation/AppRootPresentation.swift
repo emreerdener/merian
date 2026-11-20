@@ -163,7 +163,7 @@ enum AppRootAlertPolicy {
 
 enum AppUpdatePresentation {
     static let title = "Update Naturebook"
-    static let message = "Update Naturebook to finish identification or sync newer observations. Your saved observations are safe."
+    static let message = "Update to the latest version to continue identifying and syncing observations. Your saved observations are safe."
     // Naturebook's reviewed App Store Connect app ID. Activation requires a
     // compatible public release to be available at this listing first.
     static let appStoreURL = URL(string: "https://apps.apple.com/app/id6760208440")!

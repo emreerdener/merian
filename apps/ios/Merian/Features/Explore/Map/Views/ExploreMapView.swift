@@ -65,13 +65,6 @@ struct ExploreMapView: View {
             bottomOverlayChrome
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .bottomTrailing) {
-            MapScaleView(anchorEdge: .trailing, scope: mapScope)
-                .mapControlVisibility(.visible)
-                .padding(.trailing, 12)
-                .padding(.bottom, 4)
-                .allowsHitTesting(false)
-        }
         .mapScope(mapScope)
         .background(Color(uiColor: .systemBackground))
         .task {
@@ -162,6 +155,7 @@ struct ExploreMapView: View {
                         ExploreMapClusterBubble(postCount: cluster.postCount)
                     }
                     .buttonStyle(.plain)
+                    .background(MapObservationPriority())
                 }
                 .annotationTitles(.hidden)
             }
@@ -175,9 +169,7 @@ struct ExploreMapView: View {
             }
 
             if environmentContextManager.isAuthorized {
-                UserAnnotation(anchor: .bottom) {
-                    MapUserLocationPin()
-                }
+                UserAnnotation()
             }
         }
         .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
@@ -316,6 +308,7 @@ struct ExploreMapView: View {
                 )
             }
             .buttonStyle(.plain)
+            .background(MapObservationPriority(isSelected: viewModel.selectedPostId == post.id))
         }
         .annotationTitles(.hidden)
     }
@@ -344,6 +337,7 @@ struct ExploreMapView: View {
 
     private var navigationToolbar: some View {
         MapNavigationToolbar(
+            mapScope: mapScope,
             appearance: appSettings.mapAppearance,
             isLocating: mapNavigation.isLocating,
             identifierPrefix: "ExploreMap",

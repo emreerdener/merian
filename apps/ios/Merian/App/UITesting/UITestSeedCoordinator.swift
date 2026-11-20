@@ -215,7 +215,8 @@ enum UITestSeedCoordinator {
     static func prepareIfNeeded(container: ModelContainer) {
         guard isEnabled else { return }
         let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-seedAchievementDetailFlow") ||
+        guard audioReanalysisSheetEnabled || publicationConsentEnabled ||
+                arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
                 arguments.contains(queuedRetryPresentationArgument) ||
@@ -224,6 +225,11 @@ enum UITestSeedCoordinator {
                 arguments.contains(missingVideoFallbackArgument) ||
                 arguments.contains(privateScanMapArgument) ||
                 arguments.contains(nonBiologicalCollectionRouteArgument) else { return }
+
+        guard canResetFixtureState(container: container) else {
+            MerianLog.general.debug("UITest fixture reset refused by local ownership preflight.")
+            return
+        }
 
         let context = container.mainContext
 
@@ -234,7 +240,23 @@ enum UITestSeedCoordinator {
             try context.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try context.delete(model: PendingCloudDeletionTask.self)
 
-            if arguments.contains("-seedAchievementDetailFlow") {
+            if audioReanalysisSheetEnabled {
+                try context.delete(model: OfflineJobRecord.self)
+                try context.delete(model: LocalAnalysisRecord.self)
+                try context.delete(model: LocalAnalysisStateRecord.self)
+                let fixture = try AudioReanalysisSheetUIFixture(container: container)
+                try fixture.seed()
+                audioReanalysisSheetFixture = fixture
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+            } else if publicationConsentEnabled {
+                try context.delete(model: OfflineJobRecord.self)
+                try context.delete(model: LocalAnalysisRecord.self)
+                try context.delete(model: LocalAnalysisStateRecord.self)
+                let fixture = try PublicationConsentUIFixture(container: container)
+                try fixture.seed(context: context)
+                publicationConsentFixture = fixture
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+            } else if arguments.contains("-seedAchievementDetailFlow") {
                 for record in achievementDetailFlowRecords() {
                     context.insert(record)
                 }
@@ -322,7 +344,7 @@ enum UITestSeedCoordinator {
                     .nonBiologicalScans,
                     source: .debug
                 )
-            } else if arguments.contains(privateScanMapArgument) {
+            } else if arguments.contains(privateScanMapArgument) || publicationConsentEnabled {
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .scansLibrary,
                     source: .debug
@@ -494,7 +516,7 @@ enum UITestSeedCoordinator {
         let baseTimestamp = Date(timeIntervalSince1970: 1_787_501_200)
         let primaryFixtures = [
             PrivateScanMapFixture(
-                id: "private_map_bird",
+                id: savedReanalysisFailureEnabled ? savedReanalysisFixtureID : "private_map_bird",
                 commonName: "Map Meadowlark",
                 scientificName: "Sturnella magna",
                 kingdom: "Animalia",
@@ -619,7 +641,7 @@ enum UITestSeedCoordinator {
         try queuedAudioHandoffWAVData().write(to: audioURL, options: .atomic)
     }
 
-    private static func queuedAudioHandoffWAVData() -> Data {
+    static func queuedAudioHandoffWAVData() -> Data {
         let sampleRate: UInt32 = 8_000
         let sampleCount = Int(sampleRate)
         let bytesPerSample: UInt16 = 2
@@ -793,7 +815,7 @@ enum UITestSeedCoordinator {
         return imageData
     }
 
-    private static func uiTestPNGData() throws -> Data {
+    static func uiTestPNGData() throws -> Data {
         guard let imageData = Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         ) else {

@@ -4,6 +4,80 @@ import XCTest
 
 @MainActor
 final class AccountDeletionCoordinatorTests: XCTestCase {
+    func testFreshIntakeStopsWhenPreparationOrCommitContextChanges() async throws {
+        for duringPreparation in [true, false] {
+            for change in ["marker", "proof", "library"] {
+                let harness = AccountDeletionCoordinatorHarness()
+                let secure = AccountDeletionSecureStoreStub()
+                let store = secure.makeCapabilityStore()
+                let mutate: @MainActor () -> Void = {
+                    if change == "library" { harness.libraryContextIsCurrent = false }
+                    else if change == "marker" { harness.recoveryState = .capabilityLookupPending }
+                    else { secure.values[KeychainKeys.accountDeletionRecoveryCapability] = Data(repeating: 9, count: 32) }
+                }
+                do {
+                    _ = try await AccountDeletionCoordinator(dependencies: harness.makeDependencies()).deleteCurrentAccount(
+                        prepareDeletionV2: { _, _, _ in
+                            await Task.yield()
+                            if duringPreparation { mutate() }
+                            return self.preparationReceipt
+                        },
+                        commitDeletionV2: { _, _ in
+                            XCTAssertFalse(duringPreparation)
+                            await Task.yield(); mutate()
+                            return self.acceptedReceipt(protocolVersion: 2)
+                        },
+                        recoverDeletionV2: { _ in XCTFail("Stale context cannot start recovery"); return self.acceptedReceipt(protocolVersion: 2) },
+                        requestDeletion: { _, _ in XCTFail("Unexpected v1"); return self.acceptedReceipt(protocolVersion: 1) },
+                        acknowledgeDeletion: { _ in XCTFail("Unexpected acknowledgement"); return self.acknowledgedReceipt(protocolVersion: 1) },
+                        acknowledgeDeletionV2: { _ in XCTFail("Unexpected acknowledgement"); return self.acknowledgedReceipt(protocolVersion: 2) },
+                        recoveryCapabilityStore: store, recordManualProviderRevocation: {},
+                        purgeLocalData: { _ in XCTFail("Stale intake cannot purge"); return true }
+                    )
+                    XCTFail("Stale intake must fail")
+                } catch {
+                    XCTAssertTrue(error is SupabaseAuthTransitionError)
+                }
+                XCTAssertTrue(secure.removals.isEmpty)
+                XCTAssertFalse(harness.events.contains("sign-out"))
+                XCTAssertFalse(harness.events.contains("record-cleanup"))
+                XCTAssertNotNil(try store.loadExistingIfPresent())
+            }
+        }
+    }
+
+    func testFreshAcceptedDeletionDoesNotPurgeAfterSignOutLosesCleanupContext() async throws {
+        for changeMarker in [true, false] {
+            let harness = AccountDeletionCoordinatorHarness()
+            let store = AccountDeletionSecureStoreStub().makeCapabilityStore()
+            harness.duringSignOut = {
+                await Task.yield()
+                if changeMarker { harness.recoveryState = .capabilityIntakePending }
+                else { harness.sessionMatchesTransition = false }
+            }
+            let result = try await AccountDeletionCoordinator(dependencies: harness.makeDependencies())
+                .deleteCurrentAccount(
+                    prepareDeletionV2: { _, _, _ in
+                        AccountDeletionPreparationReceipt(success: true, status: .prepared,
+                            protocolVersion: 2, recoveryCapabilityExpiresAt: "2026-09-15T00:00:00Z")
+                    },
+                    commitDeletionV2: { _, _ in self.acceptedReceipt(protocolVersion: 2) },
+                    recoverDeletionV2: { _ in XCTFail("Unexpected recovery"); return self.acceptedReceipt(protocolVersion: 2) },
+                    requestDeletion: { _, _ in XCTFail("Unexpected v1 intake"); return self.acceptedReceipt(protocolVersion: 1) },
+                    acknowledgeDeletion: { _ in XCTFail("Unexpected v1 acknowledgement"); return self.acknowledgedReceipt(protocolVersion: 1) },
+                    acknowledgeDeletionV2: { _ in XCTFail("Lost context must stop acknowledgement"); return self.acknowledgedReceipt(protocolVersion: 2) },
+                    recoveryCapabilityStore: store,
+                    recordManualProviderRevocation: {},
+                    purgeLocalData: { _ in XCTFail("Lost context must stop purge"); return true }
+                )
+            XCTAssertEqual(result, acceptedReceipt(protocolVersion: 2))
+            XCTAssertNotNil(try store.loadExistingIfPresent())
+            XCTAssertEqual(harness.recoveryState, changeMarker ? .capabilityIntakePending : .capabilityCleanupPending)
+            XCTAssertTrue(harness.events.contains("diagnose-cleanup"))
+            XCTAssertFalse(harness.events.contains("resolve"))
+        }
+    }
+
     func testFreshV2DeletionSequencesLiveEffectsAndRetiresProofLast() async throws {
         let harness = AccountDeletionCoordinatorHarness()
         let secureStore = AccountDeletionSecureStoreStub()
@@ -52,7 +126,7 @@ final class AccountDeletionCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 harness.events.append("record-manual-revocation")
             },
-            purgeLocalData: {
+            purgeLocalData: { _ in
                 harness.events.append("purge")
                 return true
             }
@@ -172,7 +246,7 @@ final class AccountDeletionCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 XCTFail("Local work must remain fenced")
             },
-            purgeLocalData: {
+            purgeLocalData: { _ in
                 XCTFail("Local work must remain fenced")
                 return false
             }

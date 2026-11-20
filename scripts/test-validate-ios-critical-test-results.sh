@@ -158,7 +158,7 @@ write_test_tree() {
             ]),
             suite("Capture scan dependencies"; [
               "testLifecycleInterruptionFencesOverlappingStillCapture",
-              "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
+              "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
             ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
@@ -316,6 +316,15 @@ write_summary "Passed" 4 4 0
 write_test_tree
 bash "$validator" "$summary_path" "$test_tree_path" >/dev/null \
   || fail "A valid critical-suite result was rejected."
+# The aggregate preserves raw trees beneath a wrapper; protected suites and
+# cases must remain unique across all shards.
+jq '{shards: [.testNodes[] | {testNodes: [.]}]}' "$test_tree_path" > "$tmp_dir/shards.json"
+bash "$validator" "$summary_path" "$tmp_dir/shards.json" >/dev/null \
+  || fail "Raw shard wrappers lost protected regression coverage."
+jq '.shards += [.shards[0]]' "$tmp_dir/shards.json" > "$tmp_dir/duplicate-shards.json"
+if bash "$validator" "$summary_path" "$tmp_dir/duplicate-shards.json" >/dev/null 2>&1; then
+  fail "Duplicated protected suite in aggregate was accepted."
+fi
 
 for parameterized_case in \
   "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
@@ -424,7 +433,7 @@ required_cases=(
   "automaticSingleCaptureFencesTheIdentifyTray"
   "requiredCropStateFencesCaptureChromeBeforePresentation"
   "testLifecycleInterruptionFencesOverlappingStillCapture"
-  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
+  "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
   "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"

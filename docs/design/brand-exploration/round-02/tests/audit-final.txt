@@ -1,0 +1,28 @@
+
+=== a-fiddlehead-n-small.svg  (707 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 26
+margins L28.0 R28.0 T27.0 B34.0 · bbox fill 0.595
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== a-fiddlehead-n.svg  (739 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 27
+margins L28.0 R28.0 T27.0 B34.0 · bbox fill 0.595
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== b-fieldwing.svg  (656 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 25
+margins L26.0 R26.0 T40.8 B36.0 · bbox fill 0.558
+✔ no issues found
+production-readiness score: 100/100 (heuristic)
+
+=== c-curious-wren.svg  (570 bytes)
+viewBox 0 0 256 256 · aspect 1.0 (square)
+colours 1: #000000 · gradients 0 · anchors 18
+margins L30.9 R28.0 T53.0 B57.0 · bbox fill 0.439
+✔ no issues found
+production-readiness score: 100/100 (heuristic)

@@ -152,7 +152,7 @@ struct ScanPublicationRecoveryArchitectureTests {
         #expect(bridge.contains("async throws -> UUID"))
         #expect(
             bridge.contains(
-                "try await authenticatedTransport.requestPayloadAuthUserID()"
+                "try await transport.requestPayloadAuthUserID()"
             )
         )
         for token in [
@@ -163,7 +163,7 @@ struct ScanPublicationRecoveryArchitectureTests {
         }
         #expect(
             client.contains(
-                "private let authenticatedTransport: AuthenticatedTransportDispatcher"
+                "private let transport: NetworkTransportAssembly"
             )
         )
     }

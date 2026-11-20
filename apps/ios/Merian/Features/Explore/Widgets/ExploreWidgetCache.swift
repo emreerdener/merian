@@ -1,7 +1,11 @@
 import Foundation
 
 enum ExploreWidgetConstants {
+    #if MERIAN_HISTORY_QUALIFICATION
+    static let appGroupIdentifier = "group.app.merian.historyqualification"
+    #else
     static let appGroupIdentifier = "group.app.merian.shared"
+    #endif
     static let kind = "ExploreCarouselWidget"
     static let maxItemCount = 12
     static let imageMaxDimension = 512

@@ -48,7 +48,7 @@ struct MapPlaceSearchSheet: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
-        .presentationDragIndicator(.hidden)
+        .presentationDragIndicator(.visible)
         .onChange(of: isFocused) { _, focused in if focused { detent = .large } }
         .onChange(of: model.query) { _, _ in model.queryChanged() }
     }

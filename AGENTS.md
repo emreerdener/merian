@@ -43,6 +43,18 @@ here and load task procedures from the project skills discovered through
   `deno fmt --check services/supabase/functions services/supabase/scripts`. Do
   not rely on manual line wrapping as a substitute for the formatter.
 
+## Naturebook knowledge base
+
+- Use `$merian-notion` when consulting Notion requirements for substantial
+  planning or performing authorized documentation and project-record updates.
+  Verify the Naturebook workspace and current destinations from that skill;
+  Merian is the codebase name.
+- Notion owns approved product intent, planning, decisions, and business
+  documentation. Git owns implementation and canonical technical contracts.
+  Report disagreements; keep drafts, approval, source implementation,
+  validation, deployment, and release distinct. Propose warranted Notion
+  updates; do not write automatically after every code change.
+
 ## Supabase skill order
 
 - For Supabase, PostgreSQL, database security, Deno Edge Functions,

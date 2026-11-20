@@ -41,7 +41,7 @@ extension InsightSheetView {
             .background {
                 if presentationStyle.isEmbedded {
                     EmbeddedNavigationSwipeBackEnabler(
-                        onNavigationPop: viewModel.endPresentationSession
+                        onNavigationPop: { publicationContinuation.clear(); viewModel.endPresentationSession() }
                     )
                         .frame(width: 0, height: 0)
                 }
@@ -83,6 +83,10 @@ extension InsightSheetView {
             }
             .onAppear(perform: handleAppearance)
             .onDisappear {
+                closeProtectedChat()
+                closeSelectedPublication()
+                selectedReviewHost.close()
+                cancelSavedReanalysis()
                 appSettings.suppressInferenceBanners = false
             }
             .task(id: viewModel.resultToolbarRevealKey) {
@@ -184,7 +188,9 @@ extension InsightSheetView {
             }
             .onReceive(dependencies.appEvents) { event in
                 guard case .scanLibraryChanged = event else { return }
-                historyModel?.validate()
+                historyAvailabilityRevision &+= 1
+                historyModel?.refreshForLibraryChange()
+                reanalysisStatusModel?.refreshForLibraryChange()
                 guard let scanId = viewModel.queuedContext?.id else { return }
                 Task { await attemptQueuedCompletionHandoff(scanId: scanId) }
             }
@@ -450,6 +456,9 @@ extension InsightSheetView {
     }
 
     func dismissInsightPresentation() {
+        closeSelectedPublication()
+        publicationContinuation.clear()
+        cancelSavedReanalysis()
         viewModel.endPresentationSession()
         switch presentationStyle {
         case .sheet:

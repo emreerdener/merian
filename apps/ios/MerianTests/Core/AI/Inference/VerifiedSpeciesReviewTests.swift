@@ -136,7 +136,12 @@ struct VerifiedSpeciesReviewTests {
         let context = try ScanRepositoryTestSupport.makeContext()
         let actor = HistoricalDatabaseActor(modelContainer: context.container)
         func saved() throws -> LocalScanRecord {
-            try #require(ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+            let rows = try ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>())
+            guard let record = rows.first else {
+                Issue.record("Expected a reconciled scan")
+                throw MerianError.invalidResponse
+            }
+            return record
         }
         #expect(try await actor.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(VerifiedReviewFixtures.review()))]) == 1)
         #expect(try saved().verifiedConfirmedSpeciesIdentity?.scientificName == "Examplea testus")
@@ -164,6 +169,31 @@ struct VerifiedSpeciesReviewTests {
         let recovery = HistoricalDatabaseActor(modelContainer: context.container)
         #expect(try await recovery.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(clear))]) == 1)
         #expect(try saved().confirmedSpeciesReview?.revision == 3 && saved().confirmedSpeciesId == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func historyProtectionBlocksVerifiedPreparationAndLateAcknowledgement(acknowledged: Bool) async throws {
+        let context = try ScanRepositoryTestSupport.makeContext()
+        let row = try VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(VerifiedReviewFixtures.review()))
+        try await HistoricalDatabaseActor(modelContainer: context.container).reconcileScanPage(responses: [row])
+        let mutation = InferenceIdentificationReviewMutation.userOverride(scanID: VerifiedReviewFixtures.scanID,
+            scientificName: "Examplea altera", confirmedSpeciesID: nil)
+        let actor = BackgroundDatabaseActor(modelContainer: context.container)
+        let fresh = ModelContext(context.container)
+        let before = try #require(fresh.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let original = before.confirmedSpeciesIdentityData, originalOverride = before.userIdentificationOverride
+        if acknowledged { before.analysisOwnerAccountID = UUID().uuidString } else {
+            fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(mutation.scanID), kind: .future,
+                subjectId: mutation.scanID))
+        }
+        try fresh.save()
+        await #expect(throws: ConfirmedSpeciesReview.IntegrityError.self) { try await actor.prepareVerifiedSpeciesReview(mutation) }
+        let incoming = try VerifiedReviewFixtures.decode(VerifiedReviewFixtures.review(2, name: "Examplea altera"))
+        await #expect(throws: ConfirmedSpeciesReview.IntegrityError.self) {
+            try await actor.applyVerifiedSpeciesReview(scanID: mutation.scanID, review: incoming, acknowledging: mutation)
+        }
+        let after = try #require(ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(after.confirmedSpeciesIdentityData == original && after.userIdentificationOverride == originalOverride)
     }
 
     @Test func pendingIntentHasNoAuthorityAndEqualHistoryDoesNotEraseIt() async throws {

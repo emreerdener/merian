@@ -54,15 +54,16 @@ struct MainTabBar: View {
             )
 
             FloatingNavigationMenuButton(
-                iconName: "rectangle.stack.fill",
-                title: "Scans",
-                accessibilityIdentifier: "MainTabBar_Scans",
+                iconName: "book.fill",
+                title: "Naturebook",
+                accessibilityIdentifier: "MainTabBar_Naturebook",
                 action: {
                     navigationViewModel.performRouteFeedback()
                     isScansOpen = true
                 },
                 showBadge: appSettings.hasUnseenScan
             )
+            .accessibilityLabel("Naturebook")
 
             FloatingNavigationMenuButton(
                 iconName: "person.fill",

@@ -5,7 +5,6 @@ struct PrivateScanMapScanListSheet: View {
     let isOnline: Bool
     let onSelectPoint: (String) -> Void
     let onReferenceImageNeeded: @MainActor (String) -> Void
-    @Binding var isPresented: Bool
 
     var body: some View {
         NavigationStack {
@@ -20,7 +19,7 @@ struct PrivateScanMapScanListSheet: View {
                     )
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 12) {
+                        LazyVStack(spacing: 16) {
                             ForEach(points) { point in
                                 Button {
                                     onSelectPoint(point.id)
@@ -57,13 +56,6 @@ struct PrivateScanMapScanListSheet: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("PrivateScanMapSheetHeader")
                 }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        isPresented = false
-                    }
-                    .fontWeight(.semibold)
-                }
             }
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -78,7 +70,7 @@ private struct PrivateScanMapSheetRow: View {
     let onReferenceImageNeeded: @MainActor () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             ScanThumbnail(
                 isOnline: isOnline,
                 imagePath: point.thumbnail.imagePath,
@@ -87,43 +79,46 @@ private struct PrivateScanMapSheetRow: View {
                 hasVideo: point.thumbnail.hasVideo,
                 hasAudio: point.thumbnail.hasAudio,
                 prefersReferenceForAudio: true,
-                maxDimension: 180,
+                maxDimension: 1200,
+                aspectRatio: 4.0 / 3.0,
                 placeholderStyle: point.thumbnail.placeholderStyle,
                 onReferenceImageNeeded: onReferenceImageNeeded
             )
-            .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(point.privateMapDisplayName)
-                    .font(.subheadline)
+                    .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text(point.scientificName)
-                    .font(.caption)
+                    .font(.subheadline)
                     .italic()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
                 Text(point.privateMapMetadata)
-                    .font(.caption2)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 8)
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
+            Text("View scan")
+                .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .background(Capsule(style: .continuous).fill(Color.accentColor))
         }
-        .padding(12)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .card()
+        .contentShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens your private scan")
     }
 }

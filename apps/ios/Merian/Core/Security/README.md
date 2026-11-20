@@ -8,6 +8,13 @@ guards. Supabase Auth session creation and OAuth orchestration live in
 `Core/Network/SupabaseManager`; this directory provides the secure local
 primitives and external identity bindings used by that manager.
 
+`LibrarySignOutJournalStore` owns the device-only commitment and exact-step
+recovery scope. A scope rereads the journal and invokes the caller's original
+container/session/transition validator; committed runtime draining does not
+grant source-cleared purge authority. The Auth coordinator owns progression, and
+AppDI owns composition with full-library cleanup. See the
+[guest transition contract](../../../../../docs/backend-and-data/21-guest-library-transitions.md).
+
 The consent model below is the required production contract, not a release
 approval. All tracked consent findings are complete in source, but the current
 candidate still requires hosted exact-SHA execution and the external owner

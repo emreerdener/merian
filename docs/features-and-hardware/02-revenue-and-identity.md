@@ -243,25 +243,28 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   captured Auth generation, and valid transition context immediately before
   publication. Direct linking checks cancellation in the shared OAuth
   coordinator. Its replacement workflow checks before suppression, before SDK
-  installation, and after the install suspension; an explicit installed/failed/
-  cancelled disposition restores only an exact source and fails closed for a new
-  target. Shared completion also checks after Apple registration, metadata,
-  authenticated publication, telemetry, entitlement, final session readback, and
-  public-author refresh. A cancelled transition that already mutated the session
-  may enter only terminal local cleanup, and Apple registration cancellation is
-  never retried. Google also checks cancellation before provider presentation
-  and after its return. Confirmed deletion first persists
-  `capability_preparation_pending`, then verifies an atomic device-only envelope
-  with distinct recovery and acknowledgement capabilities before the first
-  network suspension. It is intended to complete the server's non-destructive
-  prepare, persist `capability_prepared_pending`, and then persist
-  `capability_intake_pending` before destructive commit. It fences every other
-  account operation and replays only the JWT-derived idempotent commit or
-  account-free proof recovery after a lost response. `not_committed` preserves
-  the account and retires only local intent; a success receipt advances through
-  cleanup, independent acknowledgement, and capability retirement. Installed
-  proofless `intake_pending` markers create and retain a raw v1 proof for the
-  legacy endpoint; they never cross into the v2 hash domain. A proofless
+  installation, and after the install suspension. Failed or cancelled
+  reconciliation restores only the exact unexpired source while the transition
+  remains owned and sign-out is inactive. Installed callback reconciliation
+  applies its existing same-account policy before publication; a rejected new
+  target is withheld even when cleanup cannot proceed. Shared completion also
+  checks after Apple registration, metadata, authenticated publication,
+  telemetry, entitlement, final session readback, and public-author refresh. A
+  cancelled transition that already mutated the session may enter only terminal
+  local cleanup, and Apple registration cancellation is never retried. Google
+  also checks cancellation before provider presentation and after its return.
+  Confirmed deletion first persists `capability_preparation_pending`, then
+  verifies an atomic device-only envelope with distinct recovery and
+  acknowledgement capabilities before the first network suspension. It is
+  intended to complete the server's non-destructive prepare, persist
+  `capability_prepared_pending`, and then persist `capability_intake_pending`
+  before destructive commit. It fences every other account operation and replays
+  only the JWT-derived idempotent commit or account-free proof recovery after a
+  lost response. `not_committed` preserves the account and retires only local
+  intent; a success receipt advances through cleanup, independent
+  acknowledgement, and capability retirement. Installed proofless
+  `intake_pending` markers create and retain a raw v1 proof for the legacy
+  endpoint; they never cross into the v2 hash domain. A proofless
   `capability_prepared_pending` marker restores only the exact cached source
   because non-destructive preparation completed but commit had not started.
   Verified Keychain proof removal precedes marker clearing. An installed mixed

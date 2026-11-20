@@ -31,8 +31,11 @@ fallbacks so future packaging changes do not blank the screen.
 `Settings/Changelog/Views/WhatsNewSheet.swift` owns the curated highlights
 sheet, shared by automatic launch presentation and Settings → Resources → What’s
 new. The full changelog remains a separate history page. The sheet uses system
-appearance, scrollable Dynamic Type content, and Continue, Close, or
-swipe-to-dismiss controls.
+appearance and scrollable Dynamic Type content. The content ends with a
+secondary **View more** link that pushes the full changelog within the sheet,
+followed by the primary **Continue** dismissal button. Both actions scroll with
+the highlights. Close and swipe-to-dismiss remain available without scrolling to
+the end.
 
 `App/Presentation/WhatsNewLaunchStore.swift` owns the current highlight-set ID
 and device-local acknowledgement under
@@ -65,11 +68,15 @@ retain their usual priority and resume only after the sheet slot is released.
 Settings reopens the content without changing acknowledgement.
 
 `WhatsNewUITests/testLaunchDismissalRevealsMountedWorkspace` exercises Continue,
-Close, and swipe, with retained before/after screenshots. The Debug-only
-`-seedWhatsNewLaunch` fixture follows the production initial-sheet route and is
-blocked from Release archives. Test launches do not write acknowledgement.
+Close, and swipe, plus scrolling to the actions and visiting the changelog and
+returning, with retained screenshots. The Debug-only `-seedWhatsNewLaunch`
+fixture follows the production initial-sheet route and is blocked from Release
+archives. Test launches do not write acknowledgement.
 
-The current copy highlights map location search, descriptions available to
+The current copy first introduces the main-navigation rename from Scans to Book
+with the matching `book.fill` icon. Saved scans and collections remain in the
+same destination. It also highlights map improvements including search, terrain
+view by default, zoom controls and a distance scale, descriptions available to
 everyone to help improve accuracy, marking AI identifications as incorrect,
 identification history to revisit earlier results after reanalysis, emoji
 reactions on Explore posts, and boosted previews for quiet recordings. This
@@ -78,6 +85,11 @@ evidence. Keep the release’s actual capabilities aligned with its curated copy
 `WhatsNewLaunchTests` covers first-install suppression, upgrade acknowledgement,
 new highlight sets, recovery deferral, test isolation, and root consent
 priority.
+
+The **Scan status at a glance** activity-indicator callout is deferred to the
+next release. Its copy is preserved as a comment in `WhatsNewSheet`, and omitted
+from the current bundled changelog and App Store release notes. Restore the
+callout and matching release copy when preparing that announcement.
 
 The identification-history callout is upcoming-release copy. Its implementation
 is still in progress; include it in a released announcement only when the

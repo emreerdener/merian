@@ -72,6 +72,7 @@ class Qualification:
                                 Path(__file__).with_name("initial_atomic_admission_recovery_order.py"),
                                 Path(__file__).with_name("initial_atomic_admission_counter_images.py"),
                                 Path(__file__).with_name("initial_atomic_admission_counter_order.py"),
+                                Path(__file__).with_name("initial_atomic_admission_counter_window.py"),
                                 Path(__file__).with_name("initial_atomic_admission_erasure_orders.py"),
                                 Path(__file__).with_name("initial_atomic_admission_ghost_order.py"),
                                 Path(__file__).with_name("initial_atomic_admission_account_expiry.py"),

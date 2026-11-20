@@ -11,7 +11,9 @@ extension OfflineQueueManager {
     func commitInferenceResponseSettlement(
         _ settlement: InferenceResponseSettlement
     ) -> Bool {
-        guard !SupabaseManager.shared.isAuthTransitionInProgress,
+        guard let container = modelContext?.container,
+              SharedMediaLegacyQueueAccess.permitsFresh(container, scanID: settlement.scanId),
+              !SupabaseManager.shared.isAuthTransitionInProgress,
               EntitlementManager.shared.activeAccountID == settlement.accountId,
               EntitlementManager.shared
               .acceptsScanSnapshot(

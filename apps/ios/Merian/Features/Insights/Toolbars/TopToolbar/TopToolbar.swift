@@ -87,6 +87,7 @@ struct TopToolbar: ToolbarContent {
 
     @State private var showsIncorrectConfirmation = false
     @State private var pendingIncorrectAction: (() -> Void)?
+    @State private var pendingConfirmationUndo: (() -> Void)?
 
     @Environment(\.dismiss) var dismiss
 
@@ -108,10 +109,18 @@ struct TopToolbar: ToolbarContent {
     @Binding var showNewCollectionAlert: Bool
     let hasCollectionScanId: Bool
     var onIdentificationHistory: (() -> Void)?
+    var onReanalysisStatus: (() -> Void)?
     var onReanalyze: (() -> Void)?
+    let reanalysisRequiresPro: Bool
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
+    var confirmationTitle: String
+    var onRetryReviewSave: (() -> Void)?
     var onUndoIncorrect: (() -> Void)?
+    var onUndoConfirmation: (() -> Void)?
+    var undoConfirmationRequiresPrompt: Bool
+    var confirmationUndoReason: String?
+    var reviewUnavailableReason: String?
     var onMarkIncorrect: (() -> Void)?
     var onAskCommunity: (() -> Void)?
     var sharedExplorePostId: String?
@@ -145,10 +154,18 @@ struct TopToolbar: ToolbarContent {
         showNewCollectionAlert: Binding<Bool>,
         hasCollectionScanId: Bool,
         onIdentificationHistory: (() -> Void)? = nil,
+        onReanalysisStatus: (() -> Void)? = nil,
         onReanalyze: (() -> Void)? = nil,
+        reanalysisRequiresPro: Bool? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
+        confirmationTitle: String = "Confirm species",
+        onRetryReviewSave: (() -> Void)? = nil,
         onUndoIncorrect: (() -> Void)? = nil,
+        onUndoConfirmation: (() -> Void)? = nil,
+        undoConfirmationRequiresPrompt: Bool = false,
+        confirmationUndoReason: String? = nil,
+        reviewUnavailableReason: String? = nil,
         onMarkIncorrect: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
         sharedExplorePostId: String? = nil,
@@ -181,10 +198,18 @@ struct TopToolbar: ToolbarContent {
         self._showNewCollectionAlert = showNewCollectionAlert
         self.hasCollectionScanId = hasCollectionScanId
         self.onIdentificationHistory = onIdentificationHistory
+        self.onReanalysisStatus = onReanalysisStatus
         self.onReanalyze = onReanalyze
+        self.reanalysisRequiresPro = reanalysisRequiresPro ?? !isProActive
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
+        self.confirmationTitle = confirmationTitle
+        self.onRetryReviewSave = onRetryReviewSave
         self.onUndoIncorrect = onUndoIncorrect
+        self.onUndoConfirmation = onUndoConfirmation
+        self.undoConfirmationRequiresPrompt = undoConfirmationRequiresPrompt
+        self.confirmationUndoReason = confirmationUndoReason
+        self.reviewUnavailableReason = reviewUnavailableReason
         self.onMarkIncorrect = onMarkIncorrect
         self.onAskCommunity = onAskCommunity
         self.sharedExplorePostId = sharedExplorePostId
@@ -281,6 +306,7 @@ struct TopToolbar: ToolbarContent {
                     isFallbackActive: shouldUseContainedToolbarChrome
                 )
         }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
         .alert("Mark identification as incorrect?", isPresented: $showsIncorrectConfirmation) {
             Button("Mark as incorrect", role: .destructive) {
                 let action = pendingIncorrectAction
@@ -402,14 +428,22 @@ struct TopToolbar: ToolbarContent {
         }
 
         Section("Identification") {
+            if let onReanalysisStatus {
+                Button(action: onReanalysisStatus) { Label("Reanalysis status", systemImage: "clock") }
+                    .accessibilityIdentifier("ReanalysisStatusMenu")
+            }
             if let onIdentificationHistory {
                 Button(action: onIdentificationHistory) { Label("Identification history", systemImage: "clock.arrow.circlepath") }
                     .accessibilityIdentifier("IdentificationHistoryMenu")
             }
             if let onConfirmIdentification = onConfirmIdentification {
                 Button(action: onConfirmIdentification) {
-                    Label("Confirm species", systemImage: "checkmark.circle")
+                    Label(confirmationTitle, systemImage: "checkmark.circle")
                 }
+            }
+            if let onRetryReviewSave {
+                Button("Retry saving review", action: onRetryReviewSave)
+                    .accessibilityIdentifier("SelectedReviewRetrySave")
             }
             if let onReviewAlternatives = onReviewAlternatives {
                 Button(action: onReviewAlternatives) {
@@ -418,12 +452,13 @@ struct TopToolbar: ToolbarContent {
             }
             if let onReanalyze = onReanalyze {
                 Button(action: onReanalyze) {
-                    if isProActive {
+                    if !reanalysisRequiresPro {
                         Label("Reanalyze species", systemImage: "arrow.2.circlepath")
                     } else {
                         Label("Reanalyze species", systemImage: "lock.fill")
                     }
                 }
+                .accessibilityIdentifier("ReanalyzeSpeciesMenu")
             }
             if let communityAction = menuState.communityAction {
                 Button(action: {
@@ -437,10 +472,22 @@ struct TopToolbar: ToolbarContent {
                     Label(communityAction.title, systemImage: communityAction.systemImage)
                 }
             }
+            if let onUndoConfirmation {
+                Button {
+                    if undoConfirmationRequiresPrompt { pendingConfirmationUndo = onUndoConfirmation } else { onUndoConfirmation() }
+                } label: {
+                    Label("Undo confirmation", systemImage: "arrow.uturn.backward")
+                }
+                .accessibilityIdentifier("UndoConfirmationMenu")
+            } else if let confirmationUndoReason {
+                Label(confirmationUndoReason, systemImage: "info.circle")
+            }
             if let onUndoIncorrect {
                 Button(action: onUndoIncorrect) {
                     Label("Undo incorrect", systemImage: "arrow.uturn.backward")
                 }
+            } else if let reviewUnavailableReason {
+                Label(reviewUnavailableReason, systemImage: "info.circle")
             } else if let onMarkIncorrect {
                 Button(role: .destructive) {
                     pendingIncorrectAction = onMarkIncorrect

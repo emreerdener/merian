@@ -22,6 +22,8 @@ assert_output true '["ios"]' skills/merian-ios/SKILL.md
 assert_output true '["ios","supabase"]' \
   skills/merian-ios/SKILL.md skills/merian-supabase/SKILL.md
 assert_output true '["docs"]' skills/merian-docs-sync/SKILL.md
+assert_output true '["docs"]' skills/merian-notion/SKILL.md
+assert_output true '["docs"]' skills/merian-notion/references/workspace.md
 assert_output true '["docs"]' skills/merian-identification-evaluation/SKILL.md
 assert_output true '["docs"]' docs/research/identification/catalog.json
 assert_output true '["docs"]' scripts/identification-research-catalog.ts

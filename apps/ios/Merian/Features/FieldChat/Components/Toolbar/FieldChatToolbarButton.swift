@@ -13,8 +13,8 @@ struct FieldChatToolbarButton: View {
             .padding(.horizontal, 8)
             .fixedSize()
         }
-        .rainbowCapsuleAccent(width: 140, height: 42)
         .accessibilityLabel("Open Field chat")
         .accessibilityIdentifier("FieldChatToolbarButton")
+        .rainbowCapsuleAccent(width: 140, height: 42)
     }
 }

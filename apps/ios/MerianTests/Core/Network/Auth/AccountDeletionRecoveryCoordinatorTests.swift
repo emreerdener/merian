@@ -4,6 +4,142 @@ import XCTest
 
 @MainActor
 final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
+    func testAcceptedRecoveryCannotAdvanceAfterLibraryLoss() async throws {
+        let context = try makeV2RecoveryContext(state: .capabilityIntakePending)
+        let result = await invokeRecovery(context: context, v2Receipt: acceptedReceipt,
+            afterV2Recovery: { context.harness.libraryContextIsCurrent = false })
+        XCTAssertFalse(result)
+        XCTAssertEqual(context.harness.recoveryState, .capabilityIntakePending)
+        XCTAssertNotNil(try context.capabilityStore.loadExistingIfPresent())
+        XCTAssertTrue(context.secureStore.removals.isEmpty)
+        XCTAssertFalse(context.harness.events.contains("record-cleanup"))
+        XCTAssertFalse(context.harness.events.contains("sign-out"))
+    }
+
+    func testNonCommitRestorationKeepsBarrierIfOriginalLibraryIsLostDuringSessionLoad() async throws {
+        let context = try makeV2RecoveryContext(state: .capabilityPreparedPending)
+        context.harness.duringCachedSessionLoad = { await Task.yield(); context.harness.libraryContextIsCurrent = false }
+        let result = await invokeRecovery(context: context,
+            v2Receipt: AccountDeletionReceipt(success: true, status: .notCommitted,
+                manualProviderRevocationRequired: false, protocolVersion: 2))
+        XCTAssertFalse(result)
+        XCTAssertEqual(context.harness.recoveryState, .capabilityRejectionRetirementPending)
+        XCTAssertFalse(context.harness.events.contains("resolve"))
+        XCTAssertFalse(context.harness.events.contains("publish-cached-session"))
+    }
+
+    func testOriginalLibraryLossOrFailedAcknowledgementPreservesCleanup() async throws {
+        for stage in ["sign-out", "purge", "acknowledgement"] {
+            let context = try makeV2RecoveryContext(state: .capabilityCleanupPending)
+            if stage == "sign-out" { context.harness.duringSignOut = { await Task.yield(); context.harness.libraryContextIsCurrent = false } }
+            if stage == "acknowledgement" { context.harness.acknowledgementSucceeds = false }
+            let result = await invokeRecovery(context: context, v2Receipt: acceptedReceipt,
+                duringPurge: { if stage == "purge" { await Task.yield(); context.harness.libraryContextIsCurrent = false } })
+            XCTAssertFalse(result)
+            XCTAssertEqual(context.harness.recoveryState, .capabilityCleanupPending)
+            XCTAssertNotNil(try context.capabilityStore.loadExistingIfPresent())
+            XCTAssertTrue(context.secureStore.removals.isEmpty)
+            XCTAssertFalse(context.harness.events.contains("resolve"))
+            XCTAssertFalse(context.harness.events.contains("acknowledge-v2"))
+            if stage == "sign-out" { XCTAssertFalse(context.harness.events.contains("purge")) }
+        }
+    }
+
+    func testChangedRecoveryProofCannotAdvanceCleanupOrRetireReplacement() async throws {
+        for stage in ["recovery", "sign-out", "purge", "acknowledgement"] {
+            for removeProof in [true, false] {
+                let context = try makeV2RecoveryContext(state: .capabilityCleanupPending)
+                let mutate: @MainActor () -> Void = {
+                    context.secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] =
+                        removeProof ? nil : Data(repeating: 9, count: 32)
+                }
+                if stage == "sign-out" { context.harness.duringSignOut = { await Task.yield(); mutate() } }
+                let result = await invokeRecovery(
+                    context: context, v2Receipt: acceptedReceipt,
+                    afterV2Recovery: { if stage == "recovery" { mutate() } },
+                    duringPurge: { if stage == "purge" { await Task.yield(); mutate() } },
+                    duringAcknowledgement: { if stage == "acknowledgement" { await Task.yield(); mutate() } }
+                )
+                XCTAssertFalse(result)
+                XCTAssertEqual(context.harness.recoveryState, .capabilityCleanupPending)
+                XCTAssertTrue(context.secureStore.removals.isEmpty)
+                XCTAssertEqual(context.secureStore.values[KeychainKeys.accountDeletionRecoveryCapability],
+                               removeProof ? nil : Data(repeating: 9, count: 32))
+                XCTAssertFalse(context.harness.events.contains("resolve"))
+                if stage == "recovery" { XCTAssertFalse(context.harness.events.contains("sign-out")) }
+                if stage == "recovery" || stage == "sign-out" { XCTAssertFalse(context.harness.events.contains("purge")) }
+                if stage != "acknowledgement" { XCTAssertFalse(context.harness.events.contains("acknowledge-v2")) }
+            }
+        }
+    }
+
+    func testStaleNonCommitReceiptCannotRetireChangedMarkerOrProof() async throws {
+        for change in ["marker", "proof", "library"] {
+            let context = try makeV2RecoveryContext(state: .capabilityPreparedPending)
+            let result = await invokeRecovery(
+                context: context,
+                v2Receipt: AccountDeletionReceipt(success: true, status: .notCommitted,
+                    manualProviderRevocationRequired: false, protocolVersion: 2),
+                afterV2Recovery: {
+                    if change == "library" { context.harness.libraryContextIsCurrent = false }
+                    else if change == "marker" { context.harness.recoveryState = .capabilityIntakePending }
+                    else { context.secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] = Data(repeating: 9, count: 32) }
+                }
+            )
+            XCTAssertFalse(result)
+            XCTAssertTrue(context.secureStore.removals.isEmpty)
+            XCTAssertFalse(context.harness.events.contains("resolve"))
+            XCTAssertFalse(context.harness.events.contains("record-rejection-retirement"))
+            XCTAssertFalse(context.harness.events.contains("sign-out"))
+        }
+    }
+
+    func testCleanupContextChangesPreserveProofAndStopLaterEffects() async throws {
+        // These are coordinator paths, including proof-already-removed retirement
+        // and the installed legacy accepted marker. No network is used for either.
+        for initialState: AccountDeletionLocalRecoveryState in [
+            .capabilityCleanupPending, .capabilityRetirementPending, .cleanupPending
+        ] {
+            for stage in ["sign-out", "purge", "acknowledge-v2"] {
+                if stage == "acknowledge-v2", initialState != .capabilityCleanupPending { continue }
+                for changeMarker in [true, false] {
+                    let context = try makeV2RecoveryContext(state: initialState)
+                    if initialState != .capabilityCleanupPending {
+                        try context.capabilityStore.clearVerified()
+                    }
+                    let removalsBefore = context.secureStore.removals
+                    let mutate: @MainActor () async -> Void = {
+                        await Task.yield()
+                        if changeMarker {
+                            context.harness.recoveryState = .capabilityIntakePending
+                        } else {
+                            context.harness.sessionMatchesTransition = false
+                        }
+                    }
+                    if stage == "sign-out" { context.harness.duringSignOut = mutate }
+                    let result = await invokeRecovery(
+                        context: context,
+                        v2Receipt: acceptedReceipt,
+                        duringPurge: { if stage == "purge" { await mutate() } },
+                        duringAcknowledgement: { if stage == "acknowledge-v2" { await mutate() } }
+                    )
+                    XCTAssertFalse(result, "\(initialState) / \(stage) / \(changeMarker)")
+                    XCTAssertEqual(context.secureStore.removals, removalsBefore)
+                    XCTAssertEqual(context.harness.recoveryState,
+                                   changeMarker ? .capabilityIntakePending : initialState)
+                    XCTAssertFalse(context.harness.events.contains("resolve"))
+                    XCTAssertFalse(context.harness.events.contains("record-capability-retirement"))
+                    if stage == "sign-out" { XCTAssertFalse(context.harness.events.contains("purge")) }
+                    if stage != "acknowledge-v2" {
+                        XCTAssertFalse(context.harness.events.contains("acknowledge-v2"))
+                    }
+                    XCTAssertEqual(try context.capabilityStore.loadExistingIfPresent() != nil,
+                                   initialState == .capabilityCleanupPending)
+                }
+            }
+        }
+    }
+
     func testRecoveryWithoutMarkerIsANoOp() async {
         let harness = AccountDeletionCoordinatorHarness()
         let secureStore = AccountDeletionSecureStoreStub()
@@ -344,7 +480,7 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 XCTFail("No accepted receipt was returned")
             },
-            purgeLocalData: {
+            purgeLocalData: { _ in
                 XCTFail("Ambiguous recovery must not purge local data")
                 return false
             }
@@ -399,7 +535,7 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 XCTFail("The receipt does not require manual revocation")
             },
-            purgeLocalData: { true }
+            purgeLocalData: { _ in true }
         )
 
         XCTAssertTrue(secondResult)
@@ -467,7 +603,7 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 XCTFail("The receipt does not require manual revocation")
             },
-            purgeLocalData: {
+            purgeLocalData: { _ in
                 harness.events.append("purge")
                 return true
             }
@@ -527,6 +663,8 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
         v2Error: Error? = nil,
         acknowledgementError: Error? = nil,
         afterV2Recovery: @MainActor @escaping () -> Void = {},
+        duringPurge: @MainActor @escaping () async -> Void = {},
+        duringAcknowledgement: @MainActor @escaping () async -> Void = {},
         legacyRecovery: (@MainActor (String, Bool) async throws
             -> AccountDeletionReceipt)? = nil
     ) async -> Bool {
@@ -554,6 +692,7 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             },
             acknowledgeDeletionV2: { acknowledgement in
                 context.harness.events.append("acknowledge-v2")
+                await duringAcknowledgement()
                 if let acknowledgementError {
                     throw acknowledgementError
                 }
@@ -567,8 +706,9 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 context.harness.events.append("record-manual-revocation")
             },
-            purgeLocalData: {
+            purgeLocalData: { _ in
                 context.harness.events.append("purge")
+                await duringPurge()
                 return true
             }
         )
