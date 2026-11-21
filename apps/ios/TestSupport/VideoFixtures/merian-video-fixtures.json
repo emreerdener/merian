@@ -1,0 +1,165 @@
+{
+  "fixtures" : [
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 2158,
+      "frameCount" : 30,
+      "height" : 64,
+      "name" : "silent",
+      "sha256" : "4abc22dfe058d88c5a989fd374a0c5a9c750761ac66767bc001cc277e7c332df",
+      "transform" : [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "width" : 64
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 9143,
+      "channels" : 1,
+      "frameCount" : 30,
+      "height" : 64,
+      "name" : "mono",
+      "sha256" : "d7b2734fe4b091be4405db4a80b57a93cab092889025c4e5dc614fc687836f50",
+      "transform" : [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "width" : 64
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 6097,
+      "channels" : 2,
+      "frameCount" : 30,
+      "height" : 64,
+      "name" : "stereo",
+      "sha256" : "6ffce02ad5faf59fea317ec647c087505d6ae0c09fcd6147bb82ad74364c87ad",
+      "transform" : [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "width" : 64
+    },
+    {
+      "amplitude" : 0.01,
+      "byteCount" : 7166,
+      "channels" : 1,
+      "frameCount" : 30,
+      "height" : 64,
+      "name" : "quiet-mono",
+      "sha256" : "5fa254a63bcd55d78dff5fdf672ae502f73e2592efb055db47eb46a6d49f5bdf",
+      "transform" : [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "width" : 64
+    },
+    {
+      "amplitude" : 0.01,
+      "byteCount" : 5829,
+      "channels" : 2,
+      "frameCount" : 30,
+      "height" : 64,
+      "name" : "quiet-stereo",
+      "sha256" : "75a4bd392269c27f4e59220492965f958282eb20187c2bacb965103ccce82e23",
+      "transform" : [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "width" : 64
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 1011,
+      "frameCount" : 3,
+      "height" : 64,
+      "name" : "rotated-silent-3",
+      "sha256" : "748655280c896369549b06ff0117fd57db1166063c059507089851669d200eea",
+      "transform" : [
+        0,
+        1,
+        -1,
+        0,
+        64,
+        0
+      ],
+      "width" : 96
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 2061,
+      "channels" : 2,
+      "frameCount" : 3,
+      "height" : 64,
+      "name" : "mirrored-stereo-3",
+      "sha256" : "82cd662609730204b3cbbedd6cbcc1d22c724b8957903f9792db3e90bd16f9d7",
+      "transform" : [
+        -1,
+        0,
+        0,
+        1,
+        96,
+        0
+      ],
+      "width" : 96
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 7448,
+      "frameCount" : 150,
+      "height" : 64,
+      "name" : "rotated-silent-150",
+      "sha256" : "f7edbcb6fe0d56ab79ca554bb26d28fbf25e55489e47641d98c8817b7f0eb15f",
+      "transform" : [
+        0,
+        1,
+        -1,
+        0,
+        64,
+        0
+      ],
+      "width" : 96
+    },
+    {
+      "amplitude" : 0.2,
+      "byteCount" : 28614,
+      "channels" : 2,
+      "frameCount" : 150,
+      "height" : 64,
+      "name" : "mirrored-stereo-150",
+      "sha256" : "b719cebcd14a14f27a8f216410145b2541f0b401c0a74edfc7fa357e4f232ef8",
+      "transform" : [
+        -1,
+        0,
+        0,
+        1,
+        96,
+        0
+      ],
+      "width" : 96
+    }
+  ],
+  "provenance" : "Synthetic black H.264 frames at 30 fps; optional 880 Hz 48000 Hz AAC tone. Authored offline with AVFoundation; no captured media or personal metadata.",
+  "version" : 1
+}

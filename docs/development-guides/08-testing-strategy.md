@@ -12696,51 +12696,58 @@ expired before reaching the behavior this test asserts. Production clocks,
 expiry validation and the deterministic decoder boundary tests are unchanged;
 fresh hosted proof is required.
 
-### Synthetic video fixture encoder ownership
+### Prepared synthetic video inputs
 
-`VideoAudioFixture` serializes its complete preparation lifecycle across test
-suites: silent-video writing, AAC preparation and composition export. The permit
-is released only after completion or error cleanup, including cancellation after
-waiting. Its black pixel buffers and legacy adaptor use BGRA; fixture frame
-count, dimensions, timestamps and readiness deadlines remain unchanged. On iOS
-26 and later it attaches the input through Apple's pixel-buffer receiver and
-uses
-[`appendImmediately(_:with:)`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/pixelbufferreceiver/appendimmediately(_:with:))
-for each immutable buffer. A false result reports backpressure; the fixture
-retries after a cancellation-aware five-millisecond sleep, within the same
-five-second absolute readiness bound. Earlier runtimes retain the legacy adaptor
-and its five-second bound. Deadline and cancellation checks bracket each
-synchronous append, so late success remains failure. Writer cancellation occurs
-in the caller's cleanup only after the append returns; it never races an
-outstanding asynchronous append. No timer or append task outlives the helper.
+`VideoAudioFixture` loads checked-in inputs from
+`apps/ios/TestSupport/VideoFixtures`, verifies the manifest version, supported
+configuration, regular-file size and SHA-256 digest, then makes a private UUID
+copy for each test. Cancellation is checked before reading and around copying;
+failed construction cleans its private directory. Missing, altered or
+unsupported inputs fail closed, with no runtime encoder fallback. The bundle
+anchor locates the owning test bundle; XcodeGen's existing TestSupport source
+globs copy the uniquely prefixed resources into unit and performance test
+bundles only.
 
-This test-only guard does not serialize production capture or extraction. The
-concurrent fixture regression covers silent, mono and stereo outputs together
-with a pre-cancelled constructor and successful preparation afterward. It does
-not deterministically force cancellation while queued. A separate controlled
-append regression covers immediate success, backpressure followed by success,
-append error, timeout, cancellation while waiting, success or backpressure after
-the deadline, and an already-expired deadline. It also checks that attempts stop
-after the helper returns. Fixed phase-only diagnostics distinguish gate
-admission, silent writing, AAC creation and composition export without recording
-media, paths or identities. Failure-only readiness observations record bounded
-attempt/backpressure counts, append and elapsed durations, frame position and
-allowlisted writer status, without raw codec error text.
-`CaptureVideoReanalysisHostTests` waits for settlement with cancellation-aware
-short sleeps instead of a tight yield loop and cancels/joins host work before
-propagating cancellation to fixture teardown; its one-minute test limit remains.
+Nine synthetic black H.264 clips preserve the existing input matrix: 64×64,
+30-frame, identity-transform silent/mono/stereo clips; quiet mono/stereo clips;
+and 96×64 rotated-silent or mirrored-stereo clips with 3 or 150 frames. All use
+30 fps. Audio sources contain an 880 Hz AAC tone at 48 kHz, with nominal
+amplitude 0.2 or 0.01. Source stereo/48 kHz remains distinct from the production
+retained producer's required mono/44.1 kHz output. Test inputs contain no
+captured media or personal metadata.
 
-Earlier hosted diagnostics exposed fixture writer-readiness failures and an
-unsafe cancellation order around asynchronous append. Synchronous polling
-repairs that order; failure-only observations later distinguished sustained
-backpressure from a slow append call. The BGRA fixture candidate subsequently
-passed all 20 selected methods and 65 parameter leaves with zero failures or
-skips in diagnostic run
+`PreparedVideoFixtureTests` checks every clip's bytes, tracks, dimensions,
+compressed frame count, duration, transform, audio format and decoded signal
+level against an independent matrix of all nine configurations. It checks
+concurrent copy isolation, cancellation and successful reuse, plus digest,
+length, missing file, symlink, duplicate-name, manifest-version and
+unsupported-configuration rejection. These replace tests of the removed fixture
+encoder's ownership and append-deadline helper. All product extraction,
+transcoding, retention, frame and cancellation assertions remain in their owning
+suites.
+
+To author replacement inputs deliberately on a Mac, compile
+`scripts/generate-ios-video-fixtures.swift` with
+`xcrun swiftc -parse-as-library` and a disposable `-module-cache-path`, then
+pass a new, nonexistent output directory to the executable. Review the resulting
+nine MP4s and manifest, copy them together into TestSupport, regenerate the
+Xcode project, and run the fixture and consumer tests. Delete the disposable
+executable and module cache afterward. The authoring tool is not part of any
+test target or CI setup. Encoded bytes can vary with the authoring OS; committed
+hashes identify the reviewed assets rather than promising byte-identical
+regeneration.
+
+The earlier live encoder's BGRA candidate passed all 20 selected methods and 65
+parameter leaves in diagnostic run
 [44794130187](https://github.com/emreerdener/merian/actions/runs/44794130187) on
-`ec2dbb7fbfeafea1e1a892320828718e30caba7e`. This is supporting fixture evidence,
-not proof of the underlying encoder cause or complete coverage for a successor
-commit. Final exact-SHA native validation, including the complete unit matrix,
-UI and archive gates, remains required.
+`ec2dbb7fbfeafea1e1a892320828718e30caba7e`. Subsequent full native validation of
+`33804fd14a7af74647cf74ea0cf7d6365a10279f` still observed repeated fixture
+append backpressure, including five-second failures before product assertions.
+Prepared inputs remove that setup dependency; they do not establish that later
+product cohort preparation or independent photo-status timeouts are resolved.
+Final exact-SHA native validation remains required, with original failures
+retained. `CaptureVideoReanalysisHostTests` continues to cancel and join host
+work before fixture teardown, using cancellation-aware short settlement sleeps.
 
 ### Explicit source reservation delivery regressions
 
@@ -12973,9 +12980,9 @@ at both durations. It checks the retained coded dimensions and transform, source
 preservation, output bounds, duration within one movie tick and mono 44.1 kHz
 audio normalization. Each output is attached to XCResult for subsequent
 byte-level compatibility checks. `VideoAudioFixture` keeps its existing
-64×64/one-second/identity defaults and bounds configurable dimensions and frame
-counts. The four unchanged attachments are imported into
-`fixtures/retained-video-variants.json`; the existing Edge structural suite
+64×64/one-second/identity defaults and selects the exact reviewed input
+configuration from its manifest. The four unchanged attachments are imported
+into `fixtures/retained-video-variants.json`; the existing Edge structural suite
 checks their digest/length, declared facts and independently read fixed-offset
 `tkhd` matrices. They pass the existing profile without a parser-policy change.
 Minimum/maximum dimension encoder coverage and real-device/OS qualification

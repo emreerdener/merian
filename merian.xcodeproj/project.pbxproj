@@ -22,6 +22,7 @@
 		00F42EEC4ECBA1BB302743D8 /* ExploreMapViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049EAFC1B7E155C47109EC16 /* ExploreMapViewModelTests.swift */; };
 		00F713BA73ED38FDE706E2B7 /* ProfileTabDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E042D4A9FD482151BC3055 /* ProfileTabDependencies.swift */; };
 		01000F52BA61839F11106170 /* ScansLibraryActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCEF6A0372CB109897A6482 /* ScansLibraryActionsTests.swift */; };
+		0103147AC64A962F2BA45AFE /* merian-video-fixtures.json in Resources */ = {isa = PBXBuildFile; fileRef = E0F63E885615F1F31182FF1B /* merian-video-fixtures.json */; };
 		010B1AAA1A7FC8E5EE3A9B9E /* ConsentRemoteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 067BE386007BF75EDDD1A68B /* ConsentRemoteModels.swift */; };
 		011406FB40A83051515F6BCC /* InsightChatViewModel+IdentificationReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50574E37807AA07B3FC5B01 /* InsightChatViewModel+IdentificationReview.swift */; };
 		012495F707AD640D9604120B /* CameraVideoRecordingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4831E21E7BD3CF64F506A95 /* CameraVideoRecordingPolicy.swift */; };
@@ -304,12 +305,14 @@
 		18CC6E5319FEC8C9AA8BC6C8 /* SharedMediaDerivativeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18AF7B7925E90568EC3C15CA /* SharedMediaDerivativeTests.swift */; };
 		18EC97C2942235DA710A6918 /* PendingCloudDeletionTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E4D076704BCB877669A2788 /* PendingCloudDeletionTask.swift */; };
 		18EF673A0D4C6365ABEF715F /* ScanMediaPayloadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5481F5FAA73848C2C70E9E8 /* ScanMediaPayloadPolicy.swift */; };
+		191D855C2C6FD06F454FB7FC /* merian-video-mirrored-stereo-150.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = A76F99295771971C9ECCFB2C /* merian-video-mirrored-stereo-150.mp4 */; };
 		1930C1C92B5EB8750C6FC67E /* AnalyzingMediaAnimationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B6F65DF77E6229DD40A6049 /* AnalyzingMediaAnimationPolicy.swift */; };
 		1940ABE222357A89B85709D2 /* ObservationRetainedVideoClipProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E67E173E088793CAB498485 /* ObservationRetainedVideoClipProducer.swift */; };
 		194467D12922FCF33FC8EFD4 /* NormalizedImageFocusRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D526C6A3A1AE16FEFC9A4FA1 /* NormalizedImageFocusRegion.swift */; };
 		194C6CD1ADD216EE0241542A /* ExploreBrowsingAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD69601BC426F896E8DB72F4 /* ExploreBrowsingAPIModels.swift */; };
 		1954C5A239A4F84F7942E3BE /* ScanAdmissionSessionReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA8F85E0F7864E718552A7F /* ScanAdmissionSessionReadiness.swift */; };
 		197C9523DE08019D366D3234 /* AppShareContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D036BDCEC149D45653A6E2 /* AppShareContentTests.swift */; };
+		198F8EAE5FDC156429146847 /* merian-video-silent.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E244E71422C57D0B32A41CEC /* merian-video-silent.mp4 */; };
 		19A1CC1782C76DA1E81D46D8 /* CaptureWorkspaceViewModel+NativePhotoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F0A877D554EFDE4FC7E503 /* CaptureWorkspaceViewModel+NativePhotoCapture.swift */; };
 		19AD5E2E8EEA76D9CCDE59EE /* MerianNetworkClient+ScanLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB20AB8833A36A5438C13ED /* MerianNetworkClient+ScanLifecycle.swift */; };
 		19BC1A3246CC9BDBFE80CD9B /* ExploreFeedViewModel+Interactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08817B06E4F79B9A0329F634 /* ExploreFeedViewModel+Interactions.swift */; };
@@ -439,6 +442,7 @@
 		236D1C199B7EB0A5147EC9B2 /* ObservationConfirmationUndoEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F1762423DEF7735780FCB3 /* ObservationConfirmationUndoEligibilityTests.swift */; };
 		236E3F0A80A0C836976B5DBD /* SharedMediaNativePhotoTransferReservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72FBA65E83D7824EA6562A6 /* SharedMediaNativePhotoTransferReservation.swift */; };
 		236EBF56FD1B2658DC508572 /* MediaStorageEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38AAD22086B52BEADCF37FB /* MediaStorageEndpointTests.swift */; };
+		23744F839CB1E418E932DFC5 /* merian-video-quiet-stereo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 371A6AD40CB0C55C74E55E7D /* merian-video-quiet-stereo.mp4 */; };
 		238A52F2234E886A252C3BAF /* ObservationHistoryEnrollmentIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FEDB019CC2E131E046E35B /* ObservationHistoryEnrollmentIntent.swift */; };
 		23942A1AF25D6D0A77A299F4 /* MainOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBDC717366E4642F53B31CEE /* MainOverlayView.swift */; };
 		239435783B36360B6E889F94 /* CollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9665657B17FAAF592D7CA4 /* CollectionDetailView.swift */; };
@@ -493,6 +497,7 @@
 		27497881BD10F63CD68F4E52 /* SpeciesDictionaryDetailDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BE4BBBEE5DA7E80E6C4C3A /* SpeciesDictionaryDetailDependencies.swift */; };
 		275FA6FEC4303EB06F28F961 /* ReadyStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D3D932406275AE88373B96B /* ReadyStepView.swift */; };
 		27794971433B44234FF78852 /* ObservationAudioOutcomeTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4C0558F7948A761B7B81E5 /* ObservationAudioOutcomeTransport.swift */; };
+		27A60CC9FE2B48A9BC2D7CD4 /* merian-video-rotated-silent-150.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 9EFC407B84667B4AEA1D876E /* merian-video-rotated-silent-150.mp4 */; };
 		27A748E84FB56EFB9D544A3F /* SpeciesDictionaryDetailEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A583C3DCFE0240A4DB18E0 /* SpeciesDictionaryDetailEndpointTests.swift */; };
 		27AE7370B22F04E77513A0B3 /* FieldTripCaptureAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546046C8FB7E9A10DACA1F34 /* FieldTripCaptureAPIModels.swift */; };
 		27B08D432F59484594D54451 /* SharedMediaDerivativeOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184F8689B820A8FA61FE28DB /* SharedMediaDerivativeOperations.swift */; };
@@ -638,6 +643,7 @@
 		3314F420E40F2E9F89ADDC1C /* AppEventPublisherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0187FB6E983D862A04BFC01 /* AppEventPublisherTests.swift */; };
 		331EBA453038966B907F56A4 /* SchemaV69.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661FAEF8AC9B2EA855B52CF8 /* SchemaV69.swift */; };
 		332628505D4F4797FEAB232D /* DescribePresentationDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D626E618823043E62E98A162 /* DescribePresentationDependencies.swift */; };
+		33296257F6FCDCD3D028DD19 /* merian-video-mirrored-stereo-3.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 736B5015A4FB60ED97D72ECF /* merian-video-mirrored-stereo-3.mp4 */; };
 		332C18B5DC45E38270EBFF7A /* SizeEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C872C0C8A2DC6BBAEDCFF09 /* SizeEstimator.swift */; };
 		33387E10E03A7EE39B5FAB69 /* FieldTripChallengeDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD5B08C1482DFF4C145DEBB /* FieldTripChallengeDetailViewModelTests.swift */; };
 		3359313ECC46A23E0BCF05B5 /* AppIconBadgePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17328F8B4E7C6A45DA1D24FC /* AppIconBadgePolicy.swift */; };
@@ -695,6 +701,7 @@
 		375784F362F6CAD77215E4D3 /* SharedMediaNativeReleasePairRemovalPoststate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA654F4099FB188AD05179E /* SharedMediaNativeReleasePairRemovalPoststate.swift */; };
 		375F7C14153D0D0C561FF1FD /* ObservationRejectionUndoOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562DD2A4EF7D0F67697DB5B4 /* ObservationRejectionUndoOwnerTests.swift */; };
 		37612D9B54B787A3136FAFA0 /* CaptureWorkspaceViewModel+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BEAE0D1922CD513D9CEF2C /* CaptureWorkspaceViewModel+Lifecycle.swift */; };
+		3765144C658E50701B99AC5F /* merian-video-rotated-silent-3.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 44B51100B5384624CD718FA3 /* merian-video-rotated-silent-3.mp4 */; };
 		3774ED6375BCA85E906565D4 /* FieldChatActionEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C513E36D390B068ECA841F /* FieldChatActionEndpointTests.swift */; };
 		377C800FB9E825B320BD6EA9 /* InferenceLiveCompletionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C099CA83B7D134FD51C1CD /* InferenceLiveCompletionCoordinator.swift */; };
 		37841F099726FD3E055B9227 /* SharedMediaNativeAppPhotoAllocationOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FE91418B403623993592A /* SharedMediaNativeAppPhotoAllocationOperations.swift */; };
@@ -744,10 +751,12 @@
 		3BA739D98423730B34052974 /* ObservationSourceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D045D2FB4A0491FAB124792 /* ObservationSourceStoreTests.swift */; };
 		3BAB4C114446A215B19A3546 /* SharedMediaNativeAppReleaseStartOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8668A20D6BF45FBE48F3A13A /* SharedMediaNativeAppReleaseStartOperations.swift */; };
 		3BB9F3674C81A2A5B7F49823 /* CircuitBreakerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B43669DE64C6C9CE86BA20D /* CircuitBreakerManager.swift */; };
+		3BD7517257096207CDD9D02D /* merian-video-quiet-stereo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 371A6AD40CB0C55C74E55E7D /* merian-video-quiet-stereo.mp4 */; };
 		3BDDDCE7FA7136FB2EC5F6BA /* ViewfinderHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46121A4DD6E46BF35FDA0E53 /* ViewfinderHints.swift */; };
 		3BF0581F75040753521110AA /* Terrarium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B648A602F1E5758EC20824 /* Terrarium.swift */; };
 		3C1AC4A60401A4DE1BE35887 /* ObservationPublicationPreparationOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EB8565E77E51E06F99175F /* ObservationPublicationPreparationOwner.swift */; };
 		3C25770F8398387863DBFF43 /* CommunityFeedbackAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21F1451CE08F2317043B207 /* CommunityFeedbackAPIModels.swift */; };
+		3C270266ED7E1FD9D4FD830B /* PreparedVideoFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 639901C184D10D65A3601E2C /* PreparedVideoFixtureTests.swift */; };
 		3C43BD8F5137725DFF9FACCB /* InitialPhotoUploadTicket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1437120E2A32200C3B2968E8 /* InitialPhotoUploadTicket.swift */; };
 		3C7C875A8BB3E92E832E66D7 /* ExploreHeroImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3359D91E809922B48E8D01D /* ExploreHeroImageView.swift */; };
 		3C8D89DA1DA5767BC94B61F8 /* CaptureSubmissionArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0B236A085DABED8C6268D8 /* CaptureSubmissionArchitectureTests.swift */; };
@@ -856,6 +865,7 @@
 		45207C859DD54E916B5E7327 /* InferencePresentationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77802703E61537D44069869E /* InferencePresentationStateTests.swift */; };
 		452C6CC785BF7CF3D9D27A10 /* SchemaV49Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6580B4B4A3E54E226BF35AAB /* SchemaV49Snapshots.swift */; };
 		4539D112B126EBA87BB542BF /* ConsentMutationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B89306DD077837C57CEBA50F /* ConsentMutationService.swift */; };
+		45567236816CF784D8A95DBC /* merian-video-quiet-mono.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = F6AD5E592FEC98FFAB075D07 /* merian-video-quiet-mono.mp4 */; };
 		4574DCC90BDF68A603D630D8 /* AudioSpectrogramSeekingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF554CAA4EC6D371319985A /* AudioSpectrogramSeekingPolicy.swift */; };
 		45A46521BFDD5A62EF34AAB9 /* SpeciesHydrationArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397F47A638E7B650A641F98A /* SpeciesHydrationArchitectureTests.swift */; };
 		45D990B1CFCA4ACB3E13837E /* ObservationAudioPreparationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B29B7DFA9911C7C7E5BFDDF /* ObservationAudioPreparationTests.swift */; };
@@ -1086,6 +1096,7 @@
 		56B585F116783F3969869B8C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85E28CD2CCD378DD4437CE7 /* ProfileView.swift */; };
 		56B65EF7CBED840A105052FB /* CaptureScanTemporaryFileLeaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824631B62756059124E86CC5 /* CaptureScanTemporaryFileLeaseTests.swift */; };
 		56C01ABF33FF2E437B98EAD7 /* ExplorePostDetailInsightSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6844411502F3E507DCB21792 /* ExplorePostDetailInsightSection.swift */; };
+		571B25F5C3775815C4FF8738 /* merian-video-mirrored-stereo-150.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = A76F99295771971C9ECCFB2C /* merian-video-mirrored-stereo-150.mp4 */; };
 		5737391B8775D8D2F33085B8 /* ProductFeedbackEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4216324FDB904ECF6755C0D5 /* ProductFeedbackEndpointTests.swift */; };
 		5741E86F6B01D3B0336E9139 /* CaptureControlBarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C6B7C319E355C92ABB12AC1 /* CaptureControlBarPresentationTests.swift */; };
 		574693CF0008F161A61CAC2D /* SharedMediaNativeAppReleaseStageOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F48C187FFBB09B502576A6 /* SharedMediaNativeAppReleaseStageOperations.swift */; };
@@ -1487,6 +1498,7 @@
 		754DE27B9DC20E8170A76EDE /* SimilarSpeciesGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA37DA8DC3AF9E68F022DF5 /* SimilarSpeciesGallery.swift */; };
 		755AEB5CE0137F4E9F269C9C /* FieldNotesEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFF32C2A5F5DAE24AB90BFC /* FieldNotesEditorViewModelTests.swift */; };
 		7570712E42E8BAF175C91BB0 /* InferenceLiveFailurePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF34A1A82F3F68093032D99C /* InferenceLiveFailurePolicy.swift */; };
+		7574FC1CF5C3ADD82F1B1151 /* merian-video-mono.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = EA60E8372D3685469444A450 /* merian-video-mono.mp4 */; };
 		758B8359B204FA0ED4BFF308 /* Array+Safe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251165D598BA9D21EA469EDF /* Array+Safe.swift */; };
 		759AA0846BA1F539AA4B8C17 /* LegacyPurchaseHandoffRemoteService+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621636AA509ED1BEC1082141 /* LegacyPurchaseHandoffRemoteService+Live.swift */; };
 		75BAFC5547D10FB0724BC6E2 /* RevenueCatArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D74C333572216B5F1748599 /* RevenueCatArchitectureTests.swift */; };
@@ -1617,6 +1629,7 @@
 		7ED8DE17D13908CCB2A8B785 /* InferenceHydrationPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6084348719210D5CE1BA58 /* InferenceHydrationPersistenceService.swift */; };
 		7EEE1B4284B58CEB51652BD2 /* SharedMediaNativePhotoAllocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD9FAE2A1F8AA4C7BCCEB4B /* SharedMediaNativePhotoAllocation.swift */; };
 		7EF237365D2E7E94C6BBB1EE /* ScanPublicationEndpointTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADA755465ECB1B12EE1FABB /* ScanPublicationEndpointTransportTests.swift */; };
+		7EF53710EDA858CD184F9A2B /* merian-video-rotated-silent-150.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 9EFC407B84667B4AEA1D876E /* merian-video-rotated-silent-150.mp4 */; };
 		7F0B741ED4B26C114D9B46C3 /* InferenceHistoricalLoadCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0158E6B9A66F32C273B0203E /* InferenceHistoricalLoadCoordinatorTests.swift */; };
 		7F3317ED3B53182089D42569 /* InferenceIdentificationReviewServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F4E832F83D29B04B9787C0 /* InferenceIdentificationReviewServiceTests.swift */; };
 		7F34BDB3589D317F79E1E11F /* SharedMediaNativePreparationValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60A2250EB49A61402250FA3 /* SharedMediaNativePreparationValues.swift */; };
@@ -1905,6 +1918,7 @@
 		97B66AFCB51538C3466B09E3 /* ConfidenceHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32561CD47C794260CAC072E4 /* ConfidenceHeader.swift */; };
 		97BA1F4B17434C337DBA3F24 /* ConsentManagerRestorationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5641EACCFE269D4800558EB /* ConsentManagerRestorationTests.swift */; };
 		97F15F7C8641ADE82382D7D8 /* GridSwipeableCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60421B63E9D7CFDE9439F42F /* GridSwipeableCell.swift */; };
+		981F52A3C9F0AB72E5E2023E /* merian-video-quiet-mono.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = F6AD5E592FEC98FFAB075D07 /* merian-video-quiet-mono.mp4 */; };
 		9835F8566E80C80E0CE08F8A /* LocalScanMediaRecoverySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F7CBFD593952337097458E /* LocalScanMediaRecoverySnapshot.swift */; };
 		985D67922130742148A603B4 /* PurchasePrincipalSecureStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E29F19ACF21E2259B21706 /* PurchasePrincipalSecureStateStore.swift */; };
 		98802AB3729F37B03DB35580 /* ObservationRejectionUndoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5916F10BBD059351D2CE0A78 /* ObservationRejectionUndoService.swift */; };
@@ -2234,6 +2248,7 @@
 		B0146E76FA9F786104EFEB47 /* EnvironmentContextArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9CF2254D692C4F115116CE7 /* EnvironmentContextArchitectureTests.swift */; };
 		B01797F606E1B3A023DB1384 /* PrivateScanMapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625D6A217BB4A6607364D94D /* PrivateScanMapTests.swift */; };
 		B0188BFC68481F8830E7748D /* AuthSessionBootstrapCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82BD0C72F025B607071C88B /* AuthSessionBootstrapCoordinatorTests.swift */; };
+		B041F16A5F8330964A73B93F /* merian-video-silent.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E244E71422C57D0B32A41CEC /* merian-video-silent.mp4 */; };
 		B04FA56D6FBEBA86746F0D17 /* SharedMediaNativeMultipairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF62A18039B8044F938F895F /* SharedMediaNativeMultipairTests.swift */; };
 		B05E3C95C2FA70EE4F0F65FC /* SpeciesSearchDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6375A7C503EE5CD507CFC64 /* SpeciesSearchDependencies.swift */; };
 		B07F3B985AC67880ED1CEF6A /* ExploreContentVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57EFF7F72709639E7B19609 /* ExploreContentVisibilityTests.swift */; };
@@ -2530,6 +2545,7 @@
 		C81145738181DC86AE206BCF /* FieldNotesEditPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2DE471DBA5BA6D74B1695A /* FieldNotesEditPolicy.swift */; };
 		C81867F4090BF6A9E73C1366 /* SharedMediaNativeLifecycleOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90ED1C24DA570F1F1476BC97 /* SharedMediaNativeLifecycleOperations.swift */; };
 		C824E1EFB01C0F87DF914EEF /* CommunityTaxonomySearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4114FE5B4540FC68B2E96027 /* CommunityTaxonomySearchViewModel.swift */; };
+		C82EC0C828C295B50D6D831F /* merian-video-mirrored-stereo-3.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 736B5015A4FB60ED97D72ECF /* merian-video-mirrored-stereo-3.mp4 */; };
 		C838277404815946AB20DF29 /* StagedPreviewAudioBoostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 078390D7C4AA4103402EEF99 /* StagedPreviewAudioBoostTests.swift */; };
 		C83F5EEBC05C2040CAFFBB6F /* MilestoneToastFeedbackDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08412E13F76F4723444A8E13 /* MilestoneToastFeedbackDependenciesTests.swift */; };
 		C8520EC907885558AE4F1FF5 /* SharedMediaNativePhotoTransferReadbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48AF257C3D1D5E16AD0ABC8 /* SharedMediaNativePhotoTransferReadbackTests.swift */; };
@@ -2765,6 +2781,7 @@
 		DAD2B1FE4A90A54309C302A7 /* CommunityConsentTicket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F5D048BB4702A590678516 /* CommunityConsentTicket.swift */; };
 		DB0239CC5BFBEB3C564163E7 /* ProfileStatsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124B77E40CF5FF1AB8B108D /* ProfileStatsModels.swift */; };
 		DB29381A39C2B1DC209628DA /* InsightToolbarRecordSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE86F55297CCA1282005D0A5 /* InsightToolbarRecordSnapshot.swift */; };
+		DB2BE81A7E416F9AECCE938E /* merian-video-rotated-silent-3.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 44B51100B5384624CD718FA3 /* merian-video-rotated-silent-3.mp4 */; };
 		DB2F4DF564FEE7C47601B498 /* SharedMediaStoreReadFence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B423EC377C9C148B28FB70D3 /* SharedMediaStoreReadFence.swift */; };
 		DB5A7D335DCFB45563642F8A /* InferenceLivePresentationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68BC48FDB87EC25CC8CF9F6B /* InferenceLivePresentationCoordinatorTests.swift */; };
 		DB5DE5F9DE1280C33B50903F /* Publisher+MainActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8440B0EF15B1FBE23EF0357B /* Publisher+MainActor.swift */; };
@@ -2793,6 +2810,7 @@
 		DCBFD41563136B7F550A6A62 /* PurchaseIdentitySessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF5F4B4EA67DBB2E0FFD176 /* PurchaseIdentitySessionCoordinator.swift */; };
 		DCDE2D2C11F3138ED92077C9 /* AccountSettingsDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A3BB987B595E88342F6BEA /* AccountSettingsDependencies.swift */; };
 		DCEA870699B332B755B4FD6E /* StagedCaptureMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E220C3099D975ADB8421EB44 /* StagedCaptureMedia.swift */; };
+		DCFA96CC420F0D4CCEFF5603 /* merian-video-stereo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 76BCA4FE610F641A41286E41 /* merian-video-stereo.mp4 */; };
 		DCFEB5653DA9AB81CC895DA8 /* KeychainKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C05C237136EDF4AEE7A0D06 /* KeychainKeys.swift */; };
 		DD1A3AF8306D794204A1BE68 /* MediaAttributionText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8D2FBFADDDB09F9369846B /* MediaAttributionText.swift */; };
 		DD219D63EC5C406E844BB682 /* QueuedObservationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B118BD0EB31200AD827ABFA /* QueuedObservationUITests.swift */; };
@@ -2808,6 +2826,7 @@
 		DDE1583F7857C9BEE1A38966 /* SharedMediaDerivativeWorkFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D88C8CFD9A364DAFD74BD3F /* SharedMediaDerivativeWorkFiles.swift */; };
 		DDE6335BD547450C5F0FA567 /* ExplorePostComposerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34716EE5F3A43359A8A2E965 /* ExplorePostComposerModels.swift */; };
 		DDFAD899A5B9E95E36DD701A /* SharedMediaNativeReceivingTerminalOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F6336CD89A7EC809B0B141 /* SharedMediaNativeReceivingTerminalOwnerTests.swift */; };
+		DDFE865A57098C2128EA9D9E /* merian-video-mono.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = EA60E8372D3685469444A450 /* merian-video-mono.mp4 */; };
 		DE06EB0AD22C75EF142673C9 /* ExploreMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0CA3E6FBA9CFD7BFCF76C4B /* ExploreMapView.swift */; };
 		DE09273CF97E8E4C7007A69A /* IOSSourceSizePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B41ACD601FA2ACD39F7508 /* IOSSourceSizePolicy.swift */; };
 		DE212A880DB9A0FEFEC97EA9 /* AchievementDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A5F89EF2A0B8D20F2DC2C4 /* AchievementDetailViewModelTests.swift */; };
@@ -3016,6 +3035,7 @@
 		ECF25439D082A17753BDEEF6 /* TopToolbarAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7588BEAC746473A12093FFD /* TopToolbarAppearance.swift */; };
 		ED1462E1DDE097B4A96C718F /* NativeInitialHistoryBaseline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09FC875CD60F496D050693FE /* NativeInitialHistoryBaseline.swift */; };
 		ED187FCC8586B776966488D8 /* FullscreenMediaLiveImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDEA8B3FEB055E0D5C1D502 /* FullscreenMediaLiveImageView.swift */; };
+		ED3018468F5E0965AC026038 /* merian-video-fixtures.json in Resources */ = {isa = PBXBuildFile; fileRef = E0F63E885615F1F31182FF1B /* merian-video-fixtures.json */; };
 		ED4422E21269C395C3F83D89 /* SpeciesDictionaryDetailRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1CE78E6CD1DD116BA60F5B /* SpeciesDictionaryDetailRequest.swift */; };
 		ED50AE36457B905083889FB3 /* ExploreNotificationReplyThreadSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1292CCDDDB27245EC64691B1 /* ExploreNotificationReplyThreadSheet.swift */; };
 		ED8288AE7C98286869CB8167 /* SharedMediaNativePairClosure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A9D45A70BB96FE78755FC9 /* SharedMediaNativePairClosure.swift */; };
@@ -3138,6 +3158,7 @@
 		F83620332123758ADFDBDC8C /* AccountDeletionTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96DBEA024E18C034F4EDFCA1 /* AccountDeletionTestSupport.swift */; };
 		F8406D3627F7D6CB1585F9A1 /* SchemaV63.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF26701A33D429FD855E09A2 /* SchemaV63.swift */; };
 		F85A47F77250E16E41C06E23 /* ObservationHistoryEnrollmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE6882E5E4A1799AFC7E979 /* ObservationHistoryEnrollmentTests.swift */; };
+		F865CB874296BE9F1D734A97 /* merian-video-stereo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 76BCA4FE610F641A41286E41 /* merian-video-stereo.mp4 */; };
 		F86815C5CD5525F81208A567 /* ObservationSourceReservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 628A9667BC65C268CBA44603 /* ObservationSourceReservationTests.swift */; };
 		F86D7A75E2229F5879F7EA9B /* CaptureGoalIndicatorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 637EF8BE5F48ED18D891F302 /* CaptureGoalIndicatorPresentation.swift */; };
 		F88DBE82E5C6D059B253FB5E /* IdentifyMediaDescriptors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62119B565737C6A8FD08A33C /* IdentifyMediaDescriptors.swift */; };
@@ -4010,6 +4031,7 @@
 		370B033A4384485E27785052 /* ObservationPublicationDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationPublicationDeliveryTests.swift; sourceTree = "<group>"; };
 		370CF52387EA514214294480 /* InferencePresentationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferencePresentationCoordinatorTests.swift; sourceTree = "<group>"; };
 		3716D1F6898DC0B199EBB721 /* InsightSheetView+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InsightSheetView+Lifecycle.swift"; sourceTree = "<group>"; };
+		371A6AD40CB0C55C74E55E7D /* merian-video-quiet-stereo.mp4 */ = {isa = PBXFileReference; path = "merian-video-quiet-stereo.mp4"; sourceTree = "<group>"; };
 		3736736AD9DBC38B8EA50F3D /* SchemaV50ReleasedActiveSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV50ReleasedActiveSnapshots.swift; sourceTree = "<group>"; };
 		373EF911CEC397032C8E99E8 /* AudioPlaybackPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlaybackPresentationTests.swift; sourceTree = "<group>"; };
 		375BEADECC327D436A207305 /* InferenceMediaPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceMediaPolicy.swift; sourceTree = "<group>"; };
@@ -4189,6 +4211,7 @@
 		443AA96A733B71D73915CF54 /* CommunityIdentificationTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityIdentificationTestFixtures.swift; sourceTree = "<group>"; };
 		44531A439D5599523AE4B4DC /* SharedMediaNativeOriginalOwner+AppPendingCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SharedMediaNativeOriginalOwner+AppPendingCleanup.swift"; sourceTree = "<group>"; };
 		4473C4D613D3AE4870C791D9 /* FeedbackSurveyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSurveyModels.swift; sourceTree = "<group>"; };
+		44B51100B5384624CD718FA3 /* merian-video-rotated-silent-3.mp4 */ = {isa = PBXFileReference; path = "merian-video-rotated-silent-3.mp4"; sourceTree = "<group>"; };
 		44BB54A946D1B5202B6CE09D /* InferenceCompletionAccountScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceCompletionAccountScope.swift; sourceTree = "<group>"; };
 		44D163B52E500DD32BDC6291 /* InferenceLiveFailureCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceLiveFailureCoordinatorTests.swift; sourceTree = "<group>"; };
 		44E338D118EA0AA367E4AB40 /* ObservationVideoAnalysisTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationVideoAnalysisTransportTests.swift; sourceTree = "<group>"; };
@@ -4580,6 +4603,7 @@
 		634A5D50962EF33CDE7A4A3C /* AccountDeletionSecurityArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionSecurityArchitectureTests.swift; sourceTree = "<group>"; };
 		6378A64281806E583D7E2324 /* ObservationReanalysisExecutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationReanalysisExecutionTests.swift; sourceTree = "<group>"; };
 		637EF8BE5F48ED18D891F302 /* CaptureGoalIndicatorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGoalIndicatorPresentation.swift; sourceTree = "<group>"; };
+		639901C184D10D65A3601E2C /* PreparedVideoFixtureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedVideoFixtureTests.swift; sourceTree = "<group>"; };
 		63DD7F6913B8397508237E92 /* CaptureDraftSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDraftSession.swift; sourceTree = "<group>"; };
 		63E042D4A9FD482151BC3055 /* ProfileTabDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabDependencies.swift; sourceTree = "<group>"; };
 		63F09185E2FD8DF6063F4E98 /* SharedMediaNativeAcquisitionGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAcquisitionGraph.swift; sourceTree = "<group>"; };
@@ -4762,6 +4786,7 @@
 		732DD21257E2AB6F8BA4BB54 /* SharedMediaNativeControlParentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeControlParentTests.swift; sourceTree = "<group>"; };
 		733AD50E8B6565B7A602E13F /* EntitlementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementManager.swift; sourceTree = "<group>"; };
 		73410FC59E8D71856022CAE6 /* GBIFHeatmapViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GBIFHeatmapViewModelTests.swift; sourceTree = "<group>"; };
+		736B5015A4FB60ED97D72ECF /* merian-video-mirrored-stereo-3.mp4 */ = {isa = PBXFileReference; path = "merian-video-mirrored-stereo-3.mp4"; sourceTree = "<group>"; };
 		7373D578360FB1C20E4B4EC5 /* SharedMediaNativeAppReleasePairOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAppReleasePairOperations.swift; sourceTree = "<group>"; };
 		738C040B04E857A825775C41 /* InferenceScanReplacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceScanReplacementTests.swift; sourceTree = "<group>"; };
 		738F28A045D1AB8AF661B3DE /* AudioSpectrogramThumbnailLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSpectrogramThumbnailLoader.swift; sourceTree = "<group>"; };
@@ -4810,6 +4835,7 @@
 		76A6A12BD796F1C1DFADB98F /* SchemaV24.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV24.swift; sourceTree = "<group>"; };
 		76ACF69CF3C5E88417564BD4 /* OwnedScanRecoveryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedScanRecoveryPolicy.swift; sourceTree = "<group>"; };
 		76AF453926EB1A126098FEE3 /* CollectionsRefreshIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsRefreshIdentity.swift; sourceTree = "<group>"; };
+		76BCA4FE610F641A41286E41 /* merian-video-stereo.mp4 */ = {isa = PBXFileReference; path = "merian-video-stereo.mp4"; sourceTree = "<group>"; };
 		76C9D2236D19151E7B4E3791 /* SharedMediaInboxOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaInboxOwner.swift; sourceTree = "<group>"; };
 		76DF7B9DB7A5132F7C9EEB88 /* AppURLRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppURLRoutingTests.swift; sourceTree = "<group>"; };
 		76EE7F414C1740F3B4B61DAE /* HistoricalScanReconciliationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalScanReconciliationTests.swift; sourceTree = "<group>"; };
@@ -5299,6 +5325,7 @@
 		9EEA224CFDC3EE31AF37BC1C /* InitialMediaHistoryUIInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialMediaHistoryUIInput.swift; sourceTree = "<group>"; };
 		9EF74EFC32DE8FB37D062D64 /* BackgroundInferenceRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundInferenceRetryTests.swift; sourceTree = "<group>"; };
 		9EFC291D2D062254ACF0BCDF /* SharedMediaNativeAcquisitionBudget+Release.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SharedMediaNativeAcquisitionBudget+Release.swift"; sourceTree = "<group>"; };
+		9EFC407B84667B4AEA1D876E /* merian-video-rotated-silent-150.mp4 */ = {isa = PBXFileReference; path = "merian-video-rotated-silent-150.mp4"; sourceTree = "<group>"; };
 		9F0B49C042DC37734D39B63F /* DatabaseActorTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseActorTestSupport.swift; sourceTree = "<group>"; };
 		9F111E53E2B7A1E09BB6B72D /* SharedMediaNativeDebugHooks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeDebugHooks.swift; sourceTree = "<group>"; };
 		9F1C85B57482E0E37AD87665 /* OfflineQueueManager+ProtectedChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+ProtectedChat.swift"; sourceTree = "<group>"; };
@@ -5402,6 +5429,7 @@
 		A740543B9A9B660CF6698CB7 /* CaptureTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTelemetryTests.swift; sourceTree = "<group>"; };
 		A75B3CCCF7D0097BF9FFEAD8 /* CloudDeletionIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudDeletionIntentTests.swift; sourceTree = "<group>"; };
 		A75EC75E1C81532BCEA25160 /* FieldChatEmptyStateRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldChatEmptyStateRenderingTests.swift; sourceTree = "<group>"; };
+		A76F99295771971C9ECCFB2C /* merian-video-mirrored-stereo-150.mp4 */ = {isa = PBXFileReference; path = "merian-video-mirrored-stereo-150.mp4"; sourceTree = "<group>"; };
 		A78EA80BC8810EF315118C3B /* AppleCredentialRevocationLiveProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleCredentialRevocationLiveProviderTests.swift; sourceTree = "<group>"; };
 		A79F042CDF1170FFAEBD06A3 /* SharedMediaNativeReleaseStartPoststate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeReleaseStartPoststate.swift; sourceTree = "<group>"; };
 		A7A0CD4EF3B0DF9616DB30A9 /* CandidateReviewTicket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateReviewTicket.swift; sourceTree = "<group>"; };
@@ -6087,6 +6115,7 @@
 		E09EC46FC9E5655945C2E3A1 /* ObservationAudioExecutionDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationAudioExecutionDependencies.swift; sourceTree = "<group>"; };
 		E0BDC5AE99053D9B0A841E7B /* SpeciesObservationChartPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesObservationChartPresentation.swift; sourceTree = "<group>"; };
 		E0BEAE0D1922CD513D9CEF2C /* CaptureWorkspaceViewModel+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CaptureWorkspaceViewModel+Lifecycle.swift"; sourceTree = "<group>"; };
+		E0F63E885615F1F31182FF1B /* merian-video-fixtures.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "merian-video-fixtures.json"; sourceTree = "<group>"; };
 		E1387412F6063D6BF12B8BBC /* InferenceIdentificationReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceIdentificationReviewService.swift; sourceTree = "<group>"; };
 		E1441F19FFB87C7D456DC5FF /* SharedMediaNativePhotoRoleMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativePhotoRoleMapping.swift; sourceTree = "<group>"; };
 		E163D995799AD69ADB295DFD /* SharedMediaNativeScopedEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeScopedEligibility.swift; sourceTree = "<group>"; };
@@ -6104,6 +6133,7 @@
 		E202361072D2DCF5DC9D48DE /* ExploreBrowsingEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreBrowsingEndpointTests.swift; sourceTree = "<group>"; };
 		E21A5D0754A66EEEB3FBE41C /* SharedMediaNativeFreezeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeFreezeTests.swift; sourceTree = "<group>"; };
 		E220C3099D975ADB8421EB44 /* StagedCaptureMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedCaptureMedia.swift; sourceTree = "<group>"; };
+		E244E71422C57D0B32A41CEC /* merian-video-silent.mp4 */ = {isa = PBXFileReference; path = "merian-video-silent.mp4"; sourceTree = "<group>"; };
 		E27C3CEBA04378051256826D /* PublicBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicBrand.swift; sourceTree = "<group>"; };
 		E28D5EBA05208BD58DFC8B69 /* FieldNotesEditorDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesEditorDependencies.swift; sourceTree = "<group>"; };
 		E29BEB02348DD7D560BD700C /* UITestSeedCoordinator+IdentificationHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UITestSeedCoordinator+IdentificationHistory.swift"; sourceTree = "<group>"; };
@@ -6204,6 +6234,7 @@
 		EA1538BB151F33E739CAD176 /* CaptureNativeRecoveryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureNativeRecoveryModel.swift; sourceTree = "<group>"; };
 		EA3B02A176BD5D13998B30A4 /* CaptureAudioReanalysisAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAudioReanalysisAccess.swift; sourceTree = "<group>"; };
 		EA59025DEEB0B22213AEDD1F /* FieldChatWelcomePrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldChatWelcomePrompts.swift; sourceTree = "<group>"; };
+		EA60E8372D3685469444A450 /* merian-video-mono.mp4 */ = {isa = PBXFileReference; path = "merian-video-mono.mp4"; sourceTree = "<group>"; };
 		EA69BD98550DB4D8E6464F27 /* ExploreMapViewModelDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapViewModelDependencies.swift; sourceTree = "<group>"; };
 		EA6E62987D6A72130859835B /* FieldNotesVisibilityToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesVisibilityToggle.swift; sourceTree = "<group>"; };
 		EA72178E0FCB2348A8C49E78 /* SharedMediaNativeAllocationStatusRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeAllocationStatusRecoveryTests.swift; sourceTree = "<group>"; };
@@ -6373,6 +6404,7 @@
 		F6959343CE924790AE45600E /* ScanLibraryFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLibraryFilters.swift; sourceTree = "<group>"; };
 		F6A12D61A00E6F04A397ED20 /* PhotoOriginalPickerTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoOriginalPickerTransfer.swift; sourceTree = "<group>"; };
 		F6A659DC054EB60AE7C68FA2 /* ExploreShellDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreShellDependencies.swift; sourceTree = "<group>"; };
+		F6AD5E592FEC98FFAB075D07 /* merian-video-quiet-mono.mp4 */ = {isa = PBXFileReference; path = "merian-video-quiet-mono.mp4"; sourceTree = "<group>"; };
 		F6ED64153ECD74706A41E288 /* SharedMediaNativeReleasePairHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedMediaNativeReleasePairHistoryTests.swift; sourceTree = "<group>"; };
 		F704B276C7DB8DC245489538 /* SchemaV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV2.swift; sourceTree = "<group>"; };
 		F714D36AEA70C8C7D001E622 /* ProfilePublicationsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePublicationsViewModelTests.swift; sourceTree = "<group>"; };
@@ -8022,6 +8054,23 @@
 			path = SpeciesReference;
 			sourceTree = "<group>";
 		};
+		28076E72A16B443ECADE08B9 /* VideoFixtures */ = {
+			isa = PBXGroup;
+			children = (
+				E0F63E885615F1F31182FF1B /* merian-video-fixtures.json */,
+				736B5015A4FB60ED97D72ECF /* merian-video-mirrored-stereo-3.mp4 */,
+				A76F99295771971C9ECCFB2C /* merian-video-mirrored-stereo-150.mp4 */,
+				EA60E8372D3685469444A450 /* merian-video-mono.mp4 */,
+				F6AD5E592FEC98FFAB075D07 /* merian-video-quiet-mono.mp4 */,
+				371A6AD40CB0C55C74E55E7D /* merian-video-quiet-stereo.mp4 */,
+				44B51100B5384624CD718FA3 /* merian-video-rotated-silent-3.mp4 */,
+				9EFC407B84667B4AEA1D876E /* merian-video-rotated-silent-150.mp4 */,
+				E244E71422C57D0B32A41CEC /* merian-video-silent.mp4 */,
+				76BCA4FE610F641A41286E41 /* merian-video-stereo.mp4 */,
+			);
+			path = VideoFixtures;
+			sourceTree = "<group>";
+		};
 		2843ED8ABF16C8AF4F8B33D4 /* PhotoPreparation */ = {
 			isa = PBXGroup;
 			children = (
@@ -9611,6 +9660,7 @@
 				F8223E5C967A0730F705EECE /* MediaPlaybackObservationTests.swift */,
 				0D6564A7F4A3E37FF83A5913 /* MemoryVideoAssetTests.swift */,
 				7419350D9B8B06E044EF3A4E /* ObservationAudioContainerTests.swift */,
+				639901C184D10D65A3601E2C /* PreparedVideoFixtureTests.swift */,
 				25A06015701A2796ED37E5F2 /* ScanMediaPayloadPolicyTests.swift */,
 			);
 			path = Media;
@@ -11561,6 +11611,7 @@
 				59165AA5703C4EE9FFDEBE01 /* InitialCompletionFixtures.json */,
 				A84058116EA5D766E367B18B /* InitialPhotoTransferFixtures.json */,
 				19E6DC98067F7A536B9ABFBE /* VideoAudioFixture.swift */,
+				28076E72A16B443ECADE08B9 /* VideoFixtures */,
 			);
 			name = TestSupport;
 			path = apps/ios/TestSupport;
@@ -15547,6 +15598,16 @@
 				4B80280416E96BE61CF449F8 /* InitialCompletionFixtures.json in Resources */,
 				1579EF38C4C542AE0DBE0FB5 /* InitialPhotoTransferFixtures.json in Resources */,
 				53A41F939BB5BAC626995137 /* NativeProfileLegacySnapshots.json in Resources */,
+				ED3018468F5E0965AC026038 /* merian-video-fixtures.json in Resources */,
+				571B25F5C3775815C4FF8738 /* merian-video-mirrored-stereo-150.mp4 in Resources */,
+				C82EC0C828C295B50D6D831F /* merian-video-mirrored-stereo-3.mp4 in Resources */,
+				DDFE865A57098C2128EA9D9E /* merian-video-mono.mp4 in Resources */,
+				45567236816CF784D8A95DBC /* merian-video-quiet-mono.mp4 in Resources */,
+				3BD7517257096207CDD9D02D /* merian-video-quiet-stereo.mp4 in Resources */,
+				7EF53710EDA858CD184F9A2B /* merian-video-rotated-silent-150.mp4 in Resources */,
+				DB2BE81A7E416F9AECCE938E /* merian-video-rotated-silent-3.mp4 in Resources */,
+				198F8EAE5FDC156429146847 /* merian-video-silent.mp4 in Resources */,
+				F865CB874296BE9F1D734A97 /* merian-video-stereo.mp4 in Resources */,
 				CA40F1FD4425B3A798F48530 /* observation-v1.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -15596,6 +15657,16 @@
 			files = (
 				2123C167FFB3F415A1E43449 /* InitialCompletionFixtures.json in Resources */,
 				13E54EF95F65CCFF42BEAF35 /* InitialPhotoTransferFixtures.json in Resources */,
+				0103147AC64A962F2BA45AFE /* merian-video-fixtures.json in Resources */,
+				191D855C2C6FD06F454FB7FC /* merian-video-mirrored-stereo-150.mp4 in Resources */,
+				33296257F6FCDCD3D028DD19 /* merian-video-mirrored-stereo-3.mp4 in Resources */,
+				7574FC1CF5C3ADD82F1B1151 /* merian-video-mono.mp4 in Resources */,
+				981F52A3C9F0AB72E5E2023E /* merian-video-quiet-mono.mp4 in Resources */,
+				23744F839CB1E418E932DFC5 /* merian-video-quiet-stereo.mp4 in Resources */,
+				27A60CC9FE2B48A9BC2D7CD4 /* merian-video-rotated-silent-150.mp4 in Resources */,
+				3765144C658E50701B99AC5F /* merian-video-rotated-silent-3.mp4 in Resources */,
+				B041F16A5F8330964A73B93F /* merian-video-silent.mp4 in Resources */,
+				DCFA96CC420F0D4CCEFF5603 /* merian-video-stereo.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -16427,6 +16498,7 @@
 				F392AA29D5D6E6E397226AE2 /* PlanViewModelTests.swift in Sources */,
 				764D540CBC0665CA1BC9A93F /* PostHogManagerTests.swift in Sources */,
 				6207FB19511CEE438C0F1528 /* PreferencesArchitectureTests.swift in Sources */,
+				3C270266ED7E1FD9D4FD830B /* PreparedVideoFixtureTests.swift in Sources */,
 				BAA0E68737C2E5CC9ED0B0AA /* PresignedMediaUploadTests.swift in Sources */,
 				34890CC50B40948491154916 /* PrimaryIdentificationNativeTests.swift in Sources */,
 				1318558FD0463F3D21C2FB99 /* PrimaryIdentificationTests.swift in Sources */,

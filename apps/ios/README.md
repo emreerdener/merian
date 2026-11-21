@@ -1741,28 +1741,18 @@ Undo button. Menu and completed candidate-review Undo actions remain available.
 
 ## Synthetic video/audio test fixtures
 
-`TestSupport/VideoAudioFixture.swift` serializes complete synthetic preparation
-across test suites: H.264 writing, AAC preparation and composition export.
-Ownership lasts until preparation completes or error cleanup finishes; an
-incomplete writer is cancelled before release. Cancellation while queued is
-checked after admission, before starting the next writer. The fixture retains
-all 30 frames and the one-second media range, with bounded readiness waits and
-frame/status diagnostics. Its black pixel buffers and legacy adaptor use BGRA,
-the recommended RGB input format for AVAssetWriter on iOS. This fixture-only
-choice preserves the encoded H.264 contract and does not establish the cause of
-previous simulator backpressure. On iOS 26 and later, the pixel-buffer receiver
-replaces legacy readiness polling; earlier runtimes retain the adaptor. Each
-modern append uses synchronous `appendImmediately` and polls backpressure within
-the same five-second cap. Deadline and cancellation checks surround each call;
-writer cancellation happens only after an append returns. Timeout evidence
-records the frame, pre-cancellation writer status and error presence without raw
-codec error text. Failure-only observations also record append attempts,
-backpressure returns, the last returned result, total and longest synchronous
-append duration, and elapsed readiness time. These distinguish repeated
-backpressure from a slow synchronous call without changing the deadline or
-leaving work in flight. Fixed phase logs distinguish admission, video writing,
-AAC and export. This test-only gate does not serialize production capture or
-change extraction behavior.
+`TestSupport/VideoAudioFixture.swift` copies prepared synthetic inputs from the
+test bundle into a private disposable directory per test. The nine tiny H.264
+clips cover the existing silent, mono/stereo, quiet-audio, rotated and mirrored
+configurations, including 0.1-, 1- and 5-second inputs. Their manifest pins
+sizes and SHA-256 digests; unsupported configurations or invalid files fail
+instead of starting an encoder. No input encoding runs during test setup.
+
+Product extraction, retained-video encoding, frame derivation and cancellation
+assertions still execute normally. The fixtures contain no captured media or
+personal metadata and are bundled only with unit/performance tests. The offline
+authoring script and validation procedure are documented in the
+[testing strategy](../../docs/development-guides/08-testing-strategy.md#prepared-synthetic-video-inputs).
 
 ## Native warning checks
 
