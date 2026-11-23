@@ -12681,6 +12681,17 @@ alone exceeded one minute, and the adjacent audit measured almost six seconds to
 sender entry, invalidating the former four-second polling watchdog. Focused
 event regressions cover admission, early failure and waiter cancellation.
 
+`NativePhotoStatusRecoveryTests.cancellationKeepsOwnerUntilStatusSenderDrains`
+uses the same event-based admission boundary for its injected status sender. It
+preserves caller-cancellation/account-transition ownership, late-response
+rejection, unchanged-row and completed-drain assertions. Operation exit ends the
+entry wait, test cancellation unwinds it, and cleanup release is latched even if
+the sender has not reached its pause. A three-minute per-row limit contains the
+durable fixture, operation and cleanup; no product timeout changes. Focused
+helper cases cover sender admission, early operation exit, waiter cancellation
+and release before sender entry. This replaces a four-second polling assumption
+that expired before the sender entered on hosted runners.
+
 ### Fresh PUT signed-expiry lifetime
 
 `NativePhotoUploadLifetimeTests.freshPutTerminationRetainsLeaseAndLocks` keeps

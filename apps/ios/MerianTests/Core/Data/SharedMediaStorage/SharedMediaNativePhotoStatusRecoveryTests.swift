@@ -62,13 +62,6 @@ struct NativePhotoStatusRecoveryTests {
             return .init(store: store, owner: owner, prepared: prepared, allocation: value)
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
-    private func waitUntil(_ predicate: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(4)
-        while !predicate() {
-            guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
-            try await Task.sleep(for: .milliseconds(5))
-        }
-    }
 
     @Test(arguments: [false, true])
     func unreservedStatusCannotDispatch(boundBackend: Bool) async throws {
@@ -231,7 +224,8 @@ struct NativePhotoStatusRecoveryTests {
         } catch { _ = await f.owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
 
-    @Test(arguments: [false, true])
+    // Whole-fixture and cleanup containment, not a sender-entry deadline.
+    @Test(.timeLimit(.minutes(3)), arguments: [false, true])
     func cancellationKeepsOwnerUntilStatusSenderDrains(accountTransition: Bool) async throws {
         let f = try await fixture(11), before = try row(f.store), pause = PhotoStatusRecoveryPause()
         let bytes = try statusBytes(f.allocation, state: "bound", id: UUID())
@@ -239,13 +233,13 @@ struct NativePhotoStatusRecoveryTests {
         var transition: Task<Bool, Never>?
         let began = ContinuousClock.now
         let call = Task {
-            defer { returned = true }
+            defer { returned = true; pause.finishWaiting() }
             return try await f.owner.recoverAppPhotoTransferStatus(f.prepared) { _, validate in
                 try validate(); await pause.wait(); return bytes
             }
         }
         do {
-            try await waitUntil { pause.entered }
+            try await pause.waitForEntry()
             if accountTransition {
                 transition = Task { let result = await f.owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
             } else { call.cancel() }
@@ -262,12 +256,72 @@ struct NativePhotoStatusRecoveryTests {
             throw error
         }
     }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["admitted", "finished", "cancelled", "released-before-entry"])
+    func senderEntryRequiresAdmissionAndUnwindsFailureOrCancellation(_ outcome: String) async throws {
+        let pause = PhotoStatusRecoveryPause()
+        defer { pause.release(); pause.finishWaiting() }
+        switch outcome {
+        case "admitted":
+            let sender = Task { await pause.wait() }
+            do {
+                try await pause.waitForEntry()
+                #expect(pause.entered)
+                pause.release()
+                await sender.value
+            } catch {
+                pause.release(); await sender.value
+                throw error
+            }
+        case "finished":
+            pause.finishWaiting()
+            await #expect(throws: URLError.self) { try await pause.waitForEntry() }
+            #expect(!pause.entered)
+        case "cancelled":
+            let started = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+            let waiting = Task {
+                started.continuation.yield(()); started.continuation.finish()
+                try await pause.waitForEntry()
+            }
+            for await _ in started.stream { break }
+            waiting.cancel()
+            await #expect(throws: CancellationError.self) { try await waiting.value }
+            #expect(!pause.entered)
+        default:
+            // Cleanup may release before an admitted sender reaches its pause.
+            pause.release(); pause.release()
+            await pause.wait()
+            try await pause.waitForEntry()
+            #expect(pause.entered)
+        }
+    }
 }
 
+/// Sender entry is an event; early operation exit and test cancellation end the wait.
 @MainActor
 private final class PhotoStatusRecoveryPause {
     var entered = false
+    private let entry: AsyncStream<Void>
+    private let signal: AsyncStream<Void>.Continuation
     private var continuation: CheckedContinuation<Void, Never>?
-    func wait() async { entered = true; await withCheckedContinuation { continuation = $0 } }
-    func release() { continuation?.resume(); continuation = nil }
+    private var released = false
+    init() {
+        let pair = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        entry = pair.stream; signal = pair.continuation
+    }
+    func waitForEntry() async throws {
+        for await _ in entry { try Task.checkCancellation(); return }
+        try Task.checkCancellation()
+        throw URLError(.cannotLoadFromNetwork)
+    }
+    func wait() async {
+        entered = true; signal.yield(()); signal.finish()
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func finishWaiting() { signal.finish() }
+    func release() {
+        released = true
+        continuation?.resume(); continuation = nil
+    }
 }
