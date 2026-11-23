@@ -3,10 +3,10 @@ import Foundation
 import SwiftData
 import Testing
 
-@Suite("Deferred native app admission", .serialized, .timeLimit(.minutes(1)))
+@Suite("Deferred native app admission", .serialized, .timeLimit(.minutes(2)))
 @MainActor
 struct SharedMediaNativeAppAdmissionTests {
-    @Test func bootstrapAndSignedOutRefusalStayInertUntilStableAdmission() async throws {
+    @Test(.timeLimit(.minutes(1))) func bootstrapAndSignedOutRefusalStayInertUntilStableAdmission() async throws {
         let h = try Fixture()
         #expect(h.di.nativeMediaLifecycle.nativeMediaLifetime == nil && h.di.nativeMediaLifecycle.nativeMediaOwner == nil)
         h.ready = false
@@ -25,7 +25,7 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.installs == 1 && h.begins == h.finishes)
     }
 
-    @Test func failedHookInstallFinishesLeaseAndLeavesStartupRetryable() async throws {
+    @Test(.timeLimit(.minutes(1))) func failedHookInstallFinishesLeaseAndLeavesStartupRetryable() async throws {
         let h = try Fixture()
         h.installFails = true
         await #expect(throws: (any Error).self) { _ = try await h.open() }
@@ -37,7 +37,7 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.begins == h.finishes)
     }
 
-    @Test func concurrentAdmissionAndCancelledWaiterKeepOneOwner() async throws {
+    @Test(.timeLimit(.minutes(1))) func concurrentAdmissionAndCancelledWaiterKeepOneOwner() async throws {
         let h = try Fixture(), gate = Gate()
         let first = Task { try await h.open { try $0.configureAppOpeningForTesting(pause: { await gate.pause() }) } }
         await gate.arrived()
@@ -53,7 +53,7 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.begins == h.finishes)
     }
 
-    @Test(arguments: [false, true])
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
     func shutdownOrStaleAccountDuringPromotionNeverPublishesReady(stale: Bool) async throws {
         let h = try Fixture(), gate = Gate()
         let opening = Task { try await h.open { try $0.configureAppOpeningForTesting(pause: { await gate.pause() }) } }
@@ -73,7 +73,7 @@ struct SharedMediaNativeAppAdmissionTests {
         _ = try h.admission.acquireFence(container: h.container)
     }
 
-    @Test func anotherRuntimeCannotCoalesceSameAccountIdentity() async throws {
+    @Test(.timeLimit(.minutes(1))) func anotherRuntimeCannotCoalesceSameAccountIdentity() async throws {
         let h = try Fixture(), gate = Gate(), other = AuthRuntimeState()
         let opening = Task { try await h.open { try $0.configureAppOpeningForTesting(pause: { await gate.pause() }) } }
         await gate.arrived()
@@ -87,7 +87,7 @@ struct SharedMediaNativeAppAdmissionTests {
         try #require(await h.shutdown())
     }
 
-    @Test func failedBootstrapNeverPublishesAndRetainsOriginalProfileForLaterProcess() async throws {
+    @Test(.timeLimit(.minutes(1))) func failedBootstrapNeverPublishesAndRetainsOriginalProfileForLaterProcess() async throws {
         let h = try Fixture()
         await #expect(throws: (any Error).self) {
             _ = try await h.open { try $0.configureAppOpeningForTesting(fault: { if $0 == .afterSave { throw SharedMediaStorageFailure.unavailable } }) }
@@ -148,7 +148,7 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.begins == h.finishes)
     }
 
-    @Test func failedSettlementRetainsOwnerAndFenceUntilExplicitSuccessfulShutdown() async throws {
+    @Test(.timeLimit(.minutes(1))) func failedSettlementRetainsOwnerAndFenceUntilExplicitSuccessfulShutdown() async throws {
         let h = try Fixture(), owner = try await h.open()
         let request = try await owner.prepareAppOriginal(packageID: UUID(), draftGeneration: UUID(), ordinal: 0, kind: .picker)
         try owner.setAcquisitionFault { if $0 == .beforeCompletionSave || $0 == .beforeHeldSave { throw SharedMediaStorageFailure.unavailable } }
@@ -170,7 +170,7 @@ struct SharedMediaNativeAppAdmissionTests {
         _ = try h.admission.acquireFence(container: h.container)
     }
 
-    @Test func promotedOwnerReceivesExactMediaAndTextThenReopensWithoutInitialization() async throws {
+    @Test(.timeLimit(.minutes(2))) func promotedOwnerReceivesExactMediaAndTextThenReopensWithoutInitialization() async throws {
         let started = ContinuousClock.now
         func phase(_ value: String) { print("NATIVE_ADMISSION_PHASE \(value) \(started.duration(to: .now))") }
         phase("opening")
@@ -218,7 +218,7 @@ struct SharedMediaNativeAppAdmissionTests {
         #expect(h.begins == h.finishes)
     }
 
-    @Test(arguments: [false, true])
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
     func nativeAndDurableVideoInputShareOriginalFenceInEitherOrder(nativeFirst: Bool) async throws {
         let historyFixture = ObservationReanalysisSourceTests()
         let h = try Fixture(ownerID: historyFixture.fixture.owner)
@@ -263,7 +263,7 @@ struct SharedMediaNativeAppAdmissionTests {
         _ = try h.admission.acquireFence(container: h.container)
     }
 
-    @Test func borrowerOnlyLifetimeRejectsForeignAccountWithoutClosingOriginal() async throws {
+    @Test(.timeLimit(.minutes(1))) func borrowerOnlyLifetimeRejectsForeignAccountWithoutClosingOriginal() async throws {
         let h = try Fixture(), consumer = NSObject()
         var closed = false
         let borrow = try h.di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,

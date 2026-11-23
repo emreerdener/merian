@@ -7,7 +7,17 @@ import Testing
 
 @MainActor @Suite(.serialized, .sharedProcessState(.offlineQueueManager), .timeLimit(.minutes(1)))
 struct CaptureVideoReanalysisHostTests {
-    func idle(_ host: CaptureVideoReanalysisHost) async { while host.isBusy { await Task.yield() } }
+    func idle(_ host: CaptureVideoReanalysisHost) async throws {
+        print("CaptureVideoReanalysisHostTests: awaiting host settlement")
+        do {
+            while host.isBusy { try await Task.sleep(for: .milliseconds(5)) }
+            try Task.checkCancellation()
+            print("CaptureVideoReanalysisHostTests: host settled")
+        } catch {
+            #expect(await host.invalidateAndAwait(), "Cancelled host waiter must drain before fixture teardown")
+            throw error
+        }
+    }
 
     @Test func stableAuthRenewsExactClosedLifetimeWithoutReopeningOldOwners() async throws {
         let seed = try ObservationReanalysisLocalVideoInputTests().seed(); defer { seed.remove() }
@@ -82,7 +92,7 @@ struct CaptureVideoReanalysisHostTests {
         host.submit(descriptions: ["  Exact e\u{301} 🐾\n"], scope: host.presentedScope)
         let child = try #require(host.analysisID)
         #expect(starts.isEmpty)
-        await idle(host)
+        try await idle(host)
         #expect(starts == [child])
         #expect(try FileManager.default.contentsOfDirectory(atPath: seed.temporary.path).isEmpty)
         try FileManager.default.removeItem(at: original)
@@ -94,10 +104,10 @@ struct CaptureVideoReanalysisHostTests {
             Issue.record("Reopening created another candidate"); throw MerianError.invalidResponse
         }
         #expect(reopened === host && host.present() && host.analysisID == child)
-        host.retry(scope: host.presentedScope); await idle(host)
+        host.retry(scope: host.presentedScope); try await idle(host)
         #expect(starts == [child, child] && openings == 1)
         host.submit(descriptions: ["Changed"], scope: host.presentedScope)
-        await idle(host)
+        try await idle(host)
         #expect(starts == [child, child] && host.analysisID == child)
         #expect(await owner.invalidateAndAwait())
     }
@@ -119,7 +129,7 @@ struct CaptureVideoReanalysisHostTests {
             try CaptureVideoReanalysisHost(opened: access.open(target, seed.container, UUID()))
         }
         #expect(host.present()); host.select(try #require(host.choices.first), scope: host.presentedScope)
-        host.submit(descriptions: [], scope: host.presentedScope); await idle(host)
+        host.submit(descriptions: [], scope: host.presentedScope); try await idle(host)
         let child = try #require(host.analysisID)
         let receipt = try #require(try ObservationReanalysisInputPersistence.read(child: child, container: seed.container))
         let copied = seed.documents.appendingPathComponent("ReanalysisInputs/\(receipt.slot)/input.mp4")
@@ -302,7 +312,7 @@ struct CaptureVideoReanalysisHostTests {
         host.submit(descriptions: ["Kept"], scope: host.presentedScope)
         let child = try #require(host.analysisID)
         // A preparation failure still ends the waiter; never leave a test waiting for an unreachable signal.
-        await idle(host)
+        try await idle(host)
         #expect(triggered && begins == 4)
         let drained = await SupabaseManager.drainPhotoPreparationBeforeAccountWork(preparation: { await owner.invalidateAndAwait() },
             drain: { #expect(leases == 0 && !host.isBusy); finalDrain = true })

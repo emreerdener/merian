@@ -355,31 +355,21 @@ assert_no_runner_context_in_job_env() {
 
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
-assert_contains "    name: Full iOS unit tests"
-# Keep the complete serial target bounded without restoring the deadline that
-# interrupted healthy execution. Reserve job time for package resolution,
-# compilation and evidence collection as well; UI has its own job budget.
-awk '
-  /^  ios-unit-tests:$/ { in_unit_job = 1; next }
-  in_unit_job && /^  [A-Za-z0-9_-]+:$/ { in_unit_job = 0 }
-  in_unit_job && /^    timeout-minutes:/ { job_timeout = $2 }
-  in_unit_job && /^      - name:/ { in_unit_step = 0 }
-  in_unit_job && /^      - name: Run complete unit-test target$/ {
-    in_unit_step = 1
-  }
-  in_unit_step && /^        timeout-minutes:/ { unit_timeout = $2 }
-  END {
-    exit !(unit_timeout == 40 && job_timeout == 90)
-  }
-' "$workflow" \
-  || fail "Full iOS tests require a 40-minute step and a 90-minute job budget."
+assert_contains "    name: Hosted iOS unit tests"
+assert_count 1 'name: Prepare candidate unit-test simulator'
+assert_count 1 'name: Prepare candidate shard simulator'
+assert_count 2 'python3 -B scripts/discover-ios27-simulator.py --prepare-only'
+assert_count 3 'ios-unit-simulator-qualification.json'
+assert_before 'name: Prepare candidate unit-test simulator' 'name: Compile app, unit, and performance test targets'
+assert_file_contains "$repo_root/Makefile" 'python3 -B scripts/test-prepare-ios-unit-simulator.py'
+python3 -B "$repo_root/scripts/test-ios-unit-shard-workflow.py"
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
-assert_count 3 "runs-on: xcode-27"
-assert_count 3 "/Applications/Xcode_27.0.app/Contents/Developer"
+assert_count 4 "runs-on: xcode-27"
+assert_count 4 "/Applications/Xcode_27.0.app/Contents/Developer"
 # A runner label/path alias may still resolve to a beta during rollout.
 # Require the reviewed release's version and build in every macOS job.
-assert_file_count "$workflow" 3 '"Xcode 27.0"'
-assert_file_count "$workflow" 3 '"Build version 27A266a"'
+assert_file_count "$workflow" 4 '"Xcode 27.0"'
+assert_file_count "$workflow" 4 '"Build version 27A266a"'
 assert_file_count "$workflow" 4 'xcode-27.0-27A266a-spm-'
 for checked_workflow in "$startup_workflow" "$runtime_workflow"; do
   assert_file_contains "$checked_workflow" 'runs-on: xcode-27'
@@ -419,18 +409,28 @@ assert_file_count \
 assert_file_before \
   "$project_guardrails_workflow" \
   "run: make validate-ios-event-routing" \
-  "run: make test-ios-ci-tooling"
+  "run: bundle exec make test-ios-ci-tooling"
+assert_file_before \
+  "$project_guardrails_workflow" \
+  "name: Setup locked iOS project parser" \
+  "run: bundle exec make test-ios-ci-tooling"
+assert_file_count "$project_guardrails_workflow" 2 '"scripts/ios-tooling/**"'
+assert_file_contains "$project_guardrails_workflow" 'BUNDLE_GEMFILE: ${{ github.workspace }}/scripts/ios-tooling/Gemfile'
+assert_file_contains "$project_guardrails_workflow" 'bundler-cache: true'
+[[ -f "$repo_root/scripts/ios-tooling/Gemfile.lock" ]] \
+  || fail "The iOS project parser requires a checked-in dependency lock."
 assert_count 2 "bash scripts/check-ios-project-source-membership.sh"
 assert_count 2 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"
-assert_count 4 "persist-credentials: false"
+assert_count 6 "persist-credentials: false"
 # Lock the reviewed Node.js 24 action major releases while allowing Dependabot
 # to advance commit-pinned patch/minor releases. Major upgrades remain an
 # explicit review boundary.
-assert_action_release "actions/checkout" 4 7
+assert_action_release "actions/checkout" 6 7
 assert_action_release "actions/cache/restore" 3 6
 assert_action_release "actions/cache/save" 1 6
-assert_action_release "actions/upload-artifact" 7 7
+assert_action_release "actions/upload-artifact" 14 7
+assert_action_release "actions/download-artifact" 5 8
 assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
@@ -463,7 +463,7 @@ assert_contains "CODE_SIGNING_ALLOWED=NO"
 assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
-assert_contains 'Critical scan-flow regressions: \`passed\`'
+assert_contains 'Every ordinary inventoried method and observed parameter leaf passed; no skipped or duplicated hosted coverage. The opt-in native/SQL integration requires separate qualification.'
 assert_contains 'Exact analyzing, live-to-queue, retry, completion, protected chat, and explicit refresh UX regressions: \`passed\`'
 assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
@@ -508,20 +508,22 @@ assert_before \
 # accidentally moved back into the unit job would restore the long feedback wait.
 contract_tmp="$(mktemp -d "${TMPDIR:-/tmp}/merian-ios-scheduling.XXXXXX")"
 trap 'rm -rf "$contract_tmp"' EXIT
-for job_id in ios-unit-tests ios-critical-scan-ui ios-release-archive production-readiness; do
+for job_id in ios-unit-build ios-unit-shards ios-unit-tests ios-critical-scan-ui ios-release-archive production-readiness; do
   awk -v header="  $job_id:" '
     $0 == header { in_job = 1; print; next }
     in_job && /^  [A-Za-z0-9_-]+:$/ { exit }
     in_job { print }
   ' "$workflow" > "$contract_tmp/$job_id"
 done
-for job_id in ios-unit-tests ios-critical-scan-ui ios-release-archive; do
+for job_id in ios-unit-build ios-critical-scan-ui ios-release-archive; do
   job_file="$contract_tmp/$job_id"
   assert_file_count "$job_file" 1 '    needs: scope'
   assert_file_count "$job_file" 1 "    if: needs.scope.outputs.should_run == 'true'"
   assert_file_count "$job_file" 1 'actual_sha" != "$GITHUB_SHA'
   assert_file_count "$job_file" 1 '"Build version 27A266a"'
-  assert_file_contains "$contract_tmp/production-readiness" "      - $job_id"
+  if [[ "$job_id" != ios-unit-build ]]; then
+    assert_file_contains "$contract_tmp/production-readiness" "      - $job_id"
+  fi
 done
 unit_job="$contract_tmp/ios-unit-tests"
 ui_job="$contract_tmp/ios-critical-scan-ui"
@@ -533,6 +535,47 @@ assert_file_count "$ui_job" 0 '-only-testing:merianPerformanceTests'
 assert_file_count "$ui_job" 1 '    timeout-minutes: 70'
 assert_file_count "$ui_job" 1 'xcodebuild build-for-testing'
 assert_file_count "$ui_job" 1 'xcodebuild test-without-building'
+assert_file_count "$ui_job" 2 '-scheme MerianCIUI'
+# Execution selectors do not prune a scheme's build-for-testing testables.
+# Keep the UI build independent without removing the unit lane's full bundles.
+python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+root = Path(sys.argv[1])
+project = root / "Merian.xcodeproj"
+if not project.is_dir():
+    project = root / "merian.xcodeproj"
+schemes = project / "xcshareddata/xcschemes"
+primary = ET.parse(schemes / "Merian.xcscheme").getroot()
+ui = ET.parse(schemes / "MerianCIUI.xcscheme").getroot()
+
+def testables(scheme):
+    action = scheme.find("TestAction")
+    assert action is not None and action.get("buildConfiguration") == "Debug"
+    references = action.findall("Testables/TestableReference")
+    assert all(item.get("skipped") == "NO" for item in references)
+    return [item.find("BuildableReference").get("BlueprintName") for item in references]
+
+assert testables(primary) == ["merianTests", "merianPerformanceTests", "merianUITests"]
+assert testables(ui) == ["merianUITests"]
+build = ui.find("BuildAction")
+assert build is not None and build.get("buildImplicitDependencies") == "YES"
+entries = build.findall("BuildActionEntries/BuildActionEntry")
+assert len(entries) == 1 and entries[0].get("buildForTesting") == "YES"
+assert entries[0].find("BuildableReference").get("BlueprintName") == "Merian"
+assert ui.find("TestAction").get("shouldUseLaunchSchemeArgsEnv") == "YES"
+assert ui.find("TestAction/MacroExpansion/BuildableReference").get("BlueprintName") == "Merian"
+def environment(scheme):
+    variables = scheme.findall("LaunchAction/EnvironmentVariables/EnvironmentVariable")
+    return sorted((item.get("key"), item.get("value"), item.get("isEnabled"))
+                  for item in variables)
+assert environment(ui) == environment(primary) == [
+    ("MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR", "1", "YES")
+]
+print("Independent UI build scheme preserves complete unit coverage")
+PY
 assert_file_count "$ui_job" 1 'bash scripts/validate-ios-focused-test-results.sh'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-evidence-'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-failure-'
@@ -640,17 +683,15 @@ if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$workflow"; then
   fail "The required workflow must use in-workflow scope, not event path filters."
 fi
 
-# Building and running the whole unit-test target is deliberate. A selector
-# below the target level can silently remove Camera, inference, or offline-sync
-# coverage while leaving xcodebuild green. The UI bundle is compiled in full,
-# then exactly six deterministic critical-path regressions are executed.
+# Compile and inventory the whole target. Shard selectors come only from that
+# immutable inventory and aggregate reconciliation prevents selected green subsets.
+# The UI bundle still executes exactly its six protected regressions.
 assert_count 1 "-only-testing:merianPerformanceTests"
-assert_count 2 "-only-testing:merianTests"
+assert_count 10 "-only-testing:merianTests"
 assert_count 7 "-only-testing:merianUITests"
 assert_count 6 "-only-testing:merianUITests/"
-if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
-  fail "The production gate must not narrow merianTests to selected suites."
-fi
+# The Python contract confines handwritten selectors to identity and focused
+# prerequisites; complete inventory and shards still require the immutable plan.
 if grep -Fq -- "-skip-testing:merianTests" "$workflow"; then
   fail "The production gate must not skip any merianTests suite."
 fi

@@ -34,6 +34,25 @@ struct ObservationHistorySyncTests {
         try context.save()
         return container
     }
+    func compositionSnapshot() throws -> [String: Any] {
+        let text = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/composition-request-v5.json")
+        let rows = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [[String: Any]])
+        let vector = try #require(rows.first { $0["name"] as? String == "photo-audio" })
+        let request = try #require(vector["input"] as? [String: Any])
+        var snapshot = try videoSnapshot()
+        snapshot["schema_version"] = 6
+        let manifest = try #require(request["evidence_manifest"])
+        snapshot["evidence_manifest"] = manifest
+        let bound = try ObservationCompositionReanalysisRequest(
+            observationID: ObservationHistoryPage.uuid(snapshot["observation_id"]),
+            analysisID: ObservationHistoryPage.uuid(snapshot["analysis_id"]),
+            sourceAnalysisID: ObservationHistoryPage.uuid(snapshot["source_analysis_id"]),
+            manifestBytes: JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys, .withoutEscapingSlashes]))
+        snapshot["request_digest"] = bound.requestDigest
+        return snapshot
+    }
+
     func client(fetch: @escaping (ObservationHistoryPageRequest) async throws -> Data,
                 current: @escaping () -> Bool = { true }, finish: @escaping () -> Void = {}) -> ObservationHistoryCloudClient {
         .init(begin: { expected in

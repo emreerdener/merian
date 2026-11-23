@@ -12,7 +12,7 @@ binary for absence of the local diagnostic category.
 This source preparation does not establish a clean candidate, complete Release
 compilation, signed archive, phone upgrade, TestFlight or all-media acceptance.
 Use the
-[release checklist](../../.artifacts/identification-history-release-checklist.md)
+[release checklist](../release-evidence/identification-history-release-checklist-2026-11-13.md)
 for exact evidence and outstanding approvals. The installed417 simulator and its
 preserved data remain unchanged by this preparation.
 
@@ -42,7 +42,7 @@ Automatic prompts remain **PAUSED**. This is a local simulator artifact, not a
 TestFlight or matching physical-phone build. The later Release preparation above
 supersedes the former disabled Release configuration; Debug and local-only
 archive restrictions remain unchanged. Use the
-[single current release checklist](../../.artifacts/identification-history-release-checklist.md)
+[single current release checklist](../release-evidence/identification-history-release-checklist-2026-11-13.md)
 for all-media, accessibility, resource, cumulative-review and distribution gaps.
 Later deletion/export/redesign and private-library migration remain separate.
 Exact scoped results, failures and preservation evidence are in

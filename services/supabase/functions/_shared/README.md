@@ -309,9 +309,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
 - **`scanPersistence.ts`**: Shared scan-row write settler used by all four scan
   producers. It polls the exact `(scan_id, user_id)` topology after success,
   rejection, or a lost response and classifies the result as committed,
-  definitely rejected, or unknown. Only positive exact-owner absence evidence
-  authorizes pre-insert cleanup; unreadable or contradictory state preserves
-  quota, lifecycle rows, and promoted media.
+  definitely rejected, or unknown. Only a recognized PostgreSQL rejection on a
+  non-timeout/non-throttled 4xx response plus exact-owner absence authorizes
+  pre-insert cleanup. Returned SDK transport errors, missing/zero status,
+  408/429, server/gateway failures and unreadable or contradictory owner state
+  preserve quota, lifecycle rows, and promoted media.
 - **`scanIngestionJobs.ts`**: Canonical durable scan-ingestion boundary. Every
   current scan-producing route uses its strict `begin_scan_ingestion` client to
   establish the job and sanitized intent atomically before provider dispatch,

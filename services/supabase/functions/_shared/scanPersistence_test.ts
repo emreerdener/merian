@@ -1,9 +1,11 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
+  classifyScanWrite,
   isScanPersistenceOutcomeUnknown,
   persistOwnedScanRow,
   ScanPersistenceOutcomeUnknownError,
+  type ScanWriteResponse,
 } from "./scanPersistence.ts";
 
 interface VerificationResult {
@@ -46,7 +48,7 @@ function verificationClient(
 }
 
 function persist(
-  write: () => Promise<{ error: { message: string } | null }>,
+  write: () => Promise<ScanWriteResponse>,
   verificationResults: VerificationResult[],
 ): Promise<void> {
   return persistOwnedScanRow({
@@ -83,7 +85,11 @@ Deno.test("persistOwnedScanRow surfaces a definite rejected write only after pro
   const error = await assertRejects(
     () =>
       persist(
-        () => Promise.resolve({ error: { message: "constraint failed" } }),
+        () =>
+          Promise.resolve({
+            status: 409,
+            error: { message: "constraint failed", code: "23505" },
+          }),
         [missingRow],
       ),
     Error,
@@ -123,4 +129,76 @@ Deno.test("persistOwnedScanRow keeps a reported success ambiguous when exact-own
     "testInsert verification: read timeout",
   );
   assertEquals(isScanPersistenceOutcomeUnknown(error), true);
+});
+
+Deno.test("write classification rejects only recognized database rejections", () => {
+  for (const status of [0, 408, 429, 500, 502, 503, 504, undefined]) {
+    for (const code of ["", "23505"]) {
+      assertEquals(
+        classifyScanWrite({ status, error: { message: "lost", code } }),
+        "unknown",
+      );
+    }
+  }
+  assertEquals(
+    classifyScanWrite({
+      status: 502,
+      error: { message: "gateway", code: "23505" },
+    }),
+    "unknown",
+  );
+  assertEquals(
+    classifyScanWrite({
+      status: 409,
+      error: { message: "duplicate", code: "23505" },
+    }),
+    "rejected",
+  );
+  assertEquals(classifyScanWrite({ status: 201, error: null }), "acknowledged");
+});
+
+Deno.test("pinned Supabase transport failure is a returned status-zero error, never rollback authority", async () => {
+  let writes = 0;
+  let reads = 0;
+  const client = createClient("https://example.invalid", "test-only-key", {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      fetch: (_input, init) => {
+        if (init?.method === "POST") {
+          writes++;
+          return Promise.reject(new TypeError("injected lost transport"));
+        }
+        reads++;
+        return Promise.resolve(
+          new Response("[]", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    },
+  });
+  await assertRejects(() =>
+    persistOwnedScanRow({
+      scanId,
+      userId,
+      operationName: "pinned-client",
+      supabaseAdmin: client,
+      write: async () => {
+        const response = await client.from("scans").upsert({
+          id: scanId,
+          user_id: userId,
+        });
+        assertEquals(response.status, 0);
+        assertEquals(classifyScanWrite(response), "unknown");
+        return response;
+      },
+      verificationDelaysMs: [0, 0, 0],
+    }), ScanPersistenceOutcomeUnknownError);
+  assertEquals(writes, 1);
+  assertEquals(reads, 3);
 });

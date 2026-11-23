@@ -52,6 +52,14 @@ only the exact `P0002` / `analysis_history_not_found` pair as absence. Missing
 RPCs, unknown errors and malformed responses cannot authorize execution. Real
 Edge missing-function retry behavior remains unchanged.
 
+The review endpoint's two missing-route cases preserve this distinction even
+when both responses carry `SB-Error-Code: NOT_FOUND`: confirmation returns
+`edgeFunctionUnavailable`, while the Reject/Undo RPC retains the exact generic
+HTTP 404. Both must dispatch exactly once; neither may refresh or replay. The
+consolidation diagnostic exposed and corrected the older test expectation that
+incorrectly treated both transports as Edge routes; production classification is
+unchanged.
+
 Completion410 adds no database or API change. Gateway-shaped missing-child and
 missing-RPC cases supplement the existing route retry/recovery tests.
 Independent review and75 focused native tests passed, with zero skips. The same
@@ -194,6 +202,17 @@ checks reused. Engine cleared the repair. The
 [scan guide](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#october-29--file-upload-task-lifetime-candidate)
 owns the exact scope and remaining integration. This does not install a CPM
 caller or prove ticket validity, physical staging bounds or remote closure.
+
+The iOS 27 validation candidate adds only the observed arm64 simulator tuple
+`27.2 / 24B8117 / iPhone19,2` to the Debug receiver eligibility guard, retaining
+`26.5 / 23F77 / iPhone18,1`. Test execution, an injected session with a UUID
+scope, a single `merianTests.ScopedMockURLProtocol` from an XCTest bundle, and
+the owned session invalidation acknowledgement remain required. The new tuple
+enables requalification; it is not itself measured-resource evidence. The
+complete transport, Capture allocation and Foundation parser suites must pass
+before full unit shards can start. See the
+[testing strategy](../../../../../docs/development-guides/08-testing-strategy.md).
+Production session behavior and resource assertions are unchanged.
 
 ## October 29 — native v2 transport candidate
 

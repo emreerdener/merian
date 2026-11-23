@@ -32,9 +32,18 @@ struct ObservationVideoDurabilityTests {
         let source = try ObservationReanalysisSource.captureForVideo(observationID: history.observationID,
             ownerID: fixture.fixture.owner, container: history.container)
         let media = try await VideoAudioFixture(channels: audio ? 1 : nil)
-        let cohort = try await ObservationVideoCohortPreparer().prepare(source: media.videoURL, directory: media.outputDirectory,
-            observationID: source.observationID, analysisID: UUID(), sourceAnalysisID: source.analysisID,
-            descriptions: [], cropCenterBasisPoints: 5000, inferenceLongEdge: 768)
+        let trace = VideoDurabilityPreparationTrace()
+        let cohort: ObservationVideoCohort
+        do {
+            cohort = try await ObservationVideoCohortPreparer(validate: { phase in await trace.record(phase) })
+                .prepare(source: media.videoURL, directory: media.outputDirectory,
+                    observationID: source.observationID, analysisID: UUID(), sourceAnalysisID: source.analysisID,
+                    descriptions: [], cropCenterBasisPoints: 5000, inferenceLongEdge: 768)
+        } catch {
+            let phase = await trace.lastCompletedPhase
+            Issue.record("Video fixture cohort preparation failed; last completed phase: \(phase)")
+            throw error
+        }
         return Seed(root: root, storeURL: url, container: history.container, source: source,
                     preparation: try .init(request: cohort.request, source: source), cohort: cohort, media: media)
     }
@@ -484,4 +493,18 @@ struct ObservationVideoDurabilityTests {
         #expect(flock(lock, LOCK_UN) == 0)
     }
 
+}
+
+/// Test diagnostics contain fixed phase labels only, never media or identity data.
+private actor VideoDurabilityPreparationTrace {
+    private(set) var lastCompletedPhase = "none"
+
+    func record(_ phase: ObservationVideoCohortPhase) {
+        switch phase {
+        case .retained: lastCompletedPhase = "retained"
+        case .frames: lastCompletedPhase = "frames"
+        case .audio: lastCompletedPhase = "audio"
+        case .beforeHandoff: lastCompletedPhase = "beforeHandoff"
+        }
+    }
 }

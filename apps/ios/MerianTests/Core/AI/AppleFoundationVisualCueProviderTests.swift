@@ -1,6 +1,8 @@
 #if compiler(>=6.4)
+import Foundation
 import FoundationModels
 import Testing
+import XCTest
 
 @testable import Merian
 
@@ -77,6 +79,33 @@ struct AppleFoundationVisualCueProviderTests {
             let content = try GeneratedContent(json: json)
             #expect(AppleFoundationVisualCueGeneration.completedSnapshots(from: content).isEmpty)
         }
+    }
+}
+
+/// Diagnostic-only observation. This does not qualify transport resources.
+final class SimulatorRuntimeIdentityTests: XCTestCase {
+    func testRecordsBootedGuestIdentity() throws {
+        #if targetEnvironment(simulator) && arch(arm64)
+        let environment = ProcessInfo.processInfo.environment
+        let version = try XCTUnwrap(environment["SIMULATOR_RUNTIME_VERSION"])
+        let build = try XCTUnwrap(environment["SIMULATOR_RUNTIME_BUILD_VERSION"])
+        let model = try XCTUnwrap(environment["SIMULATOR_MODEL_IDENTIFIER"])
+        guard version == "27.2", build == "24B8117",
+              model.range(of: #"^iPhone[0-9]{1,2},[0-9]{1,2}$"#, options: .regularExpression) != nil else {
+            throw NSError(domain: "MerianSimulatorIdentity", code: 1)
+        }
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "runtime_version": version, "runtime_build": build, "model_identifier": model
+        ], options: [.sortedKeys])
+        let attachment = XCTAttachment(string: String(decoding: payload, as: UTF8.self))
+        attachment.name = "merian-simulator-identity.json"
+        attachment.lifetime = .keepAlways
+        XCTContext.runActivity(named: "Observe guest simulator identity") { activity in
+            activity.add(attachment)
+        }
+        #else
+        XCTFail("Identity discovery requires an arm64 simulator")
+        #endif
     }
 }
 #endif

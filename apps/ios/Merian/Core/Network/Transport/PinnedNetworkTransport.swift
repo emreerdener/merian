@@ -16,9 +16,7 @@ enum MerianTLSCertificatePinPolicy {
         systemTrustIsValid: Bool,
         certificateChainHashes: [String]?
     ) -> Bool {
-        guard systemTrustIsValid, let certificateChainHashes else {
-            return false
-        }
+        guard systemTrustIsValid, let certificateChainHashes else { return false }
         return !pinnedCertificateHashes.isEmpty && certificateChainHashes.contains {
             pinnedCertificateHashes.contains($0)
         }
@@ -26,9 +24,7 @@ enum MerianTLSCertificatePinPolicy {
 
     static func requiresPinning(host: String) -> Bool {
         let lowercaseHost = host.lowercased()
-        let normalizedHost = lowercaseHost.last == "."
-            ? String(lowercaseHost.dropLast())
-            : lowercaseHost
+        let normalizedHost = lowercaseHost.last == "." ? String(lowercaseHost.dropLast()) : lowercaseHost
         return normalizedHost == "supabase.co"
             || (
                 normalizedHost.count > "supabase.co".count + 1
@@ -262,12 +258,16 @@ final class PinnedNetworkTransport: @unchecked Sendable {
                 config.httpAdditionalHeaders = ["X-Merian-Test-Scope": scope]
                 #if targetEnvironment(simulator) && arch(arm64)
                 let env = ProcessInfo.processInfo.environment
+                let matchesReceiverRuntime = (env["SIMULATOR_RUNTIME_VERSION"] == "26.5"
+                    && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "23F77"
+                    && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone18,1")
+                    || (env["SIMULATOR_RUNTIME_VERSION"] == "27.2"
+                        && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "24B8117"
+                        && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone19,2")
                 if let classes = config.protocolClasses, classes.count == 1, let receiver = classes.first {
                     measuredReceiver = NSStringFromClass(receiver) == "merianTests.ScopedMockURLProtocol"
                         && Bundle(for: receiver).bundleURL.pathExtension == "xctest"
-                        && env["SIMULATOR_RUNTIME_VERSION"] == "26.5"
-                        && env["SIMULATOR_RUNTIME_BUILD_VERSION"] == "23F77"
-                        && env["SIMULATOR_MODEL_IDENTIFIER"] == "iPhone18,1"
+                        && matchesReceiverRuntime
                 }
                 #endif
             }

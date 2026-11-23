@@ -624,7 +624,7 @@ async function validateWorkflow(): Promise<void> {
     }
   }
   const requiredFragments = [
-    "openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e",
+    "openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675",
     'codex-version: "0.146.0"',
     'model: "gpt-5.6-terra"',
     'effort: "medium"',

@@ -129,7 +129,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_original_completion_owners_keep_exact_existing_limits(self):
         actual = preflight.load_policy(ROOT)
-        expected = {'apps/ios/Merian/Core/Network/MerianNetworkClient.swift': {'counter': 'physical', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/Inference/Request/InferenceLiveRequestService.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/Inference/Result/InferenceLiveResultService.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/InferenceProcessingActor.swift': {'counter': 'physical', 'ceiling': 180}, 'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift': {'counter': 'physical', 'ceiling': 600}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+ScanRecordSupport.swift': {'counter': 'physical', 'ceiling': 220}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+LiveScanPersistence.swift': {'counter': 'physical', 'ceiling': 350}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+OfflineFinalization.swift': {'counter': 'physical', 'ceiling': 250}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/BackgroundInferenceFinalizationService.swift': {'counter': 'physical', 'ceiling': 200}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift': {'counter': 'segments', 'ceiling': 600}}
+        expected = {'apps/ios/Merian/Core/Network/MerianNetworkClient.swift': {'counter': 'physical', 'ceiling': 604}, 'apps/ios/Merian/Core/AI/Inference/Request/InferenceLiveRequestService.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/Inference/Result/InferenceLiveResultService.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/AI/InferenceProcessingActor.swift': {'counter': 'physical', 'ceiling': 180}, 'apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift': {'counter': 'physical', 'ceiling': 600}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+ScanRecordSupport.swift': {'counter': 'physical', 'ceiling': 220}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+LiveScanPersistence.swift': {'counter': 'physical', 'ceiling': 350}, 'apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+OfflineFinalization.swift': {'counter': 'physical', 'ceiling': 250}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/BackgroundInferenceFinalizationService.swift': {'counter': 'physical', 'ceiling': 200}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift': {'counter': 'segments', 'ceiling': 600}, 'apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift': {'counter': 'segments', 'ceiling': 600}}
         expected.update({
             'apps/ios/Merian/Core/Data/AnalysisHistory/ObservationAnalysisReviewTicket.swift': dict(counter='physical', ceiling=600),
             'apps/ios/Merian/Core/Network/Transport/ObservationHistoryMutationTransport.swift': dict(counter='physical', ceiling=600),
@@ -319,8 +319,13 @@ class PolicyTests(unittest.TestCase):
             'apps/ios/Merian/Core/Network/Transport/AuthenticatedTransportDispatcher.swift',
         ]:
             actual = preflight.load_policy(ROOT)
-            # Preserve the existing physical-line review ceiling for each owner.
-            self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=600))
+            # Preserve the exact checked-in baseline limits, including its two
+            # existing global-owner exceptions. No policy ceiling is raised here.
+            ceiling = {
+                'apps/ios/Merian/Core/Network/MerianNetworkClient.swift': 604,
+                'apps/ios/Merian/Core/Data/Database/ScanRepository.swift': 603,
+            }.get(path, 600)
+            self.assertEqual(actual['fileRules'][path], dict(counter='physical', ceiling=ceiling))
             self.assertFalse(any(preflight.within(path, directory) for directory in
                                  [*actual['directoryRules'], *actual['globalOnlyDirectories']]))
             source = root / path

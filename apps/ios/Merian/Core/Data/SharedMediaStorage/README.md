@@ -408,6 +408,11 @@ and drains pending reads before releasing presentation lifetime. This adds no
 preparation, retry, admission, funding, History selection or legacy-proof
 backfill.
 
+The owner-facing preview wrapper lives beside `withReceivingLocks` in
+`SharedMediaNativeOriginalOwner+AppReceiving.swift`. The generic lock callback
+remains private to that file; the separate preview file owns its values and read
+access. Preview does not expose a live receiving-lock grant to module callers.
+
 Completion279 native02 passed 46 methods/109 expanded cases, zero
 failures/skips, with 4,183 unchanged inputs. Engine independently verified
 source and runtime; the first lint failure remains retained. Legacy absence

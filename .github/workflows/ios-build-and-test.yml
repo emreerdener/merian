@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute all ordinary iOS unit suites, record the opt-in native/SQL integration separately, run deterministic analyzing, live-to-queue, queued-retry, queued-completion, and protected-chat UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -54,12 +54,19 @@ jobs:
         id: ios-scope
         run: bash scripts/ci-detect-ios-build-source-changes.sh
 
-  ios-unit-tests:
-    name: Full iOS unit tests
+  ios-unit-build:
+    name: Compile and inventory iOS unit tests
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 340
+    outputs:
+      build_attempt: ${{ steps.plan.outputs.build_attempt }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      products_id: ${{ steps.products.outputs.artifact-id }}
+      plan_id: ${{ steps.plan-artifact.outputs.artifact-id }}
+      requalification_id: ${{ steps.requalification-artifact.outputs.artifact-id }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -168,15 +175,18 @@ jobs:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
-      - name: Select current iOS simulator
+      - name: Prepare candidate unit-test simulator
         id: ios-test-simulator
+        timeout-minutes: 20
         run: |
-          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          mkdir "$RUNNER_TEMP/ios-unit-identity"
+          destination="$(python3 -B scripts/discover-ios27-simulator.py --prepare-only \
+            --evidence "$RUNNER_TEMP/ios-unit-identity/preparation.json")"
           echo "destination=${destination}" >> "$GITHUB_OUTPUT"
           echo "Selected ${destination}"
 
       - name: Compile app, unit, and performance test targets
-        timeout-minutes: 25
+        timeout-minutes: 90
         run: |
           set -o pipefail
           xcode_project="Merian.xcodeproj"
@@ -185,8 +195,8 @@ jobs:
           fi
           xcodebuild build-for-testing \
             -scheme Merian \
-            -project "$xcode_project" \
             -configuration Debug \
+            -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
             -packageCachePath "$SWIFT_PACKAGE_CACHE" \
@@ -199,144 +209,450 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
 
-      - name: Run complete unit-test target
-        id: xcode-tests
-        # The complete serial target outgrew the former 20-minute budget.
-        timeout-minutes: 40
+      - name: Observe exact guest identity inside XCTest
+        id: ios-identity-test
+        timeout-minutes: 10
         run: |
           set -o pipefail
-          xcode_project="Merian.xcodeproj"
-          if [ ! -d "$xcode_project" ]; then
-            xcode_project="merian.xcodeproj"
-          fi
-          xcodebuild test-without-building \
-            -scheme Merian \
-            -project "$xcode_project" \
-            -configuration Debug \
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
-            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
-            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
-            -disablePackageRepositoryCache \
-            -skipPackageUpdates \
-            -disableAutomaticPackageResolution \
-            -derivedDataPath "$XCODE_DERIVED_DATA" \
-            -resultBundlePath "$XCODE_RESULT_BUNDLE" \
+            -resultBundlePath "$RUNNER_TEMP/ios-unit-identity/results.xcresult" \
             -parallel-testing-enabled NO \
-            -only-testing:merianTests \
-            2>&1 | tee -a "$XCODE_BUILD_LOG"
+            -only-testing:merianTests/SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-identity/test.log"
 
-      - name: Validate and summarize unit-test execution
-        if: always()
+      - name: Verify exact guest identity evidence
+        if: always() && steps.ios-identity-test.outcome != 'skipped'
+        timeout-minutes: 5
         env:
-          TEST_STEP_OUTCOME: ${{ steps.xcode-tests.outcome }}
-          IOS_TEST_DESTINATION: ${{ steps.ios-test-simulator.outputs.destination }}
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.ios-identity-test.outcome }}
         run: |
-          summary_available="false"
-          test_tree_available="false"
-          if [ -d "$XCODE_RESULT_BUNDLE" ] \
-            && xcrun xcresulttool get test-results summary \
-              --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_SUMMARY"; then
-            summary_available="true"
-          fi
-          if [ -d "$XCODE_RESULT_BUNDLE" ] \
-            && xcrun xcresulttool get test-results tests \
-              --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_TREE"; then
-            test_tree_available="true"
-          fi
+          evidence="$RUNNER_TEMP/ios-unit-identity"
+          xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json"
+          xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json"
+          xcrun xcresulttool export attachments --path "$evidence/results.xcresult" \
+            --test-id 'SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity()' \
+            --output-path "$evidence/attachments"
+          python3 -B scripts/discover-ios27-simulator.py --verify-directory "$evidence" \
+            --evidence "$RUNNER_TEMP/ios-unit-simulator-qualification.json"
+          git diff --quiet --ignore-submodules --
 
-          jq -n \
-            --arg sha "$GITHUB_SHA" \
-            --arg event "$GITHUB_EVENT_NAME" \
-            --arg destination "${IOS_TEST_DESTINATION:-unavailable}" \
-            --arg outcome "${TEST_STEP_OUTCOME:-unknown}" \
-            --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
-            '{
-              source_sha: $sha,
-              event: $event,
-              simulator_destination: $destination,
-              test_step_outcome: $outcome,
-              xcode: $xcode
-            }' > "$XCODE_EVIDENCE"
-
-          {
-            echo ""
-            echo "### Full iOS unit-test gate"
-            echo ""
-            echo "- Source SHA: \`$GITHUB_SHA\`"
-            echo "- Xcode step: \`${TEST_STEP_OUTCOME:-unknown}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$summary_available" == "true" ]; then
-            jq -r '
-              [
-                "- Result: `\(.result)`",
-                "- Passed: `\(.passedTests // 0)`",
-                "- Failed: `\(.failedTests // 0)`",
-                "- Skipped: `\(.skippedTests // 0)`"
-              ] | .[]
-            ' "$XCODE_TEST_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Result bundle summary: unavailable" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ "${TEST_STEP_OUTCOME:-unknown}" == "success" ]; then
-            if [ "$summary_available" != "true" ]; then
-              echo "xcodebuild succeeded without a readable result summary." >&2
-              exit 1
-            fi
-            if [ "$test_tree_available" != "true" ]; then
-              echo "xcodebuild succeeded without a readable test tree." >&2
-              exit 1
-            fi
-            bash scripts/validate-ios-critical-test-results.sh \
-              "$XCODE_TEST_SUMMARY" \
-              "$XCODE_TEST_TREE"
-            echo "- Critical scan-flow regressions: \`passed\`" \
-              >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Print unit test failure diagnostics
-        if: failure()
-        run: |
-          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
-          bash scripts/extract-ios-test-failure-diagnostics.sh \
-            "$XCODE_TEST_SUMMARY" \
-            "$XCODE_TEST_TREE" \
-            "$XCODE_BUILD_LOG" > "$diagnostics"
-          {
-            echo ""
-            echo "#### iOS unit test diagnostics"
-            echo ""
-            echo '```text'
-            head -n 160 "$diagnostics"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload unit-test evidence
+      - name: Retain simulator identity evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: 10
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-unit-test-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/ios-unit-test-evidence.json
-            ${{ runner.temp }}/ios-unit-test-summary.json
-            ${{ runner.temp }}/ios-unit-test-tree.json
-            ${{ runner.temp }}/ios-unit-xcode-version.txt
+          name: ios-unit-build-identity-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-unit-identity
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload unit-test failure bundle
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Enumerate complete compiled unit target
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -testProductsPath "$RUNNER_TEMP/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests \
+            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
+            -test-enumeration-output-path "$RUNNER_TEMP/ios-unit-inventory.txt" \
+            2>&1 | tee -a "$XCODE_BUILD_LOG"
+
+      - name: Package exact compiled products
+        timeout-minutes: 10
+        run: |
+          python3 -B scripts/ios-unit-shards.py pack \
+            --products "$RUNNER_TEMP/tests.xctestproducts" \
+            --output "$RUNNER_TEMP/ios-unit-products.tar.gz"
+
+      - name: Plan complete suite partition
+        id: plan
+        run: |
+          git diff --quiet --ignore-submodules --
+          python3 -B scripts/ios-unit-shards.py plan \
+            --enumeration "$RUNNER_TEMP/ios-unit-inventory.txt" \
+            --products "$RUNNER_TEMP/ios-unit-products.tar.gz" \
+            --weights scripts/config/ios-unit-shard-weights.json \
+            --output "$RUNNER_TEMP/ios-unit-plan.json"
+
+      - name: Verify focused compiled products
+        timeout-minutes: 5
+        env:
+          IOS_UNIT_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: |
+          python3 -B scripts/ios-unit-shards.py unpack \
+            --plan "$RUNNER_TEMP/ios-unit-plan.json" \
+            --products "$RUNNER_TEMP/ios-unit-products.tar.gz" \
+            --directory "$RUNNER_TEMP/ios-unit-requalification-product"
+
+      - name: Enumerate transport and Foundation requalification suites
+        timeout-minutes: 5
+        env:
+          IOS_UNIT_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: |
+          set -o pipefail
+          mkdir "$RUNNER_TEMP/ios-unit-requalification"
+          cp "$RUNNER_TEMP/ios-unit-plan.json" "$RUNNER_TEMP/ios-unit-requalification/plan.json"
+          cp "$RUNNER_TEMP/ios-unit-inventory.txt" "$RUNNER_TEMP/ios-unit-requalification/full-inventory.txt"
+          cp "$RUNNER_TEMP/ios-unit-simulator-qualification.json" "$RUNNER_TEMP/ios-unit-requalification/qualification.json"
+          xcodebuild test-without-building \
+            -testProductsPath "$RUNNER_TEMP/ios-unit-requalification-product/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests/PinnedPhotoUploadTaskTests \
+            -only-testing:merianTests/CaptureNativePhotoRoleAllocationTests \
+            -only-testing:merianTests/AppleFoundationVisualCueProviderTests \
+            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
+            -test-enumeration-output-path "$RUNNER_TEMP/ios-unit-requalification/enumeration.txt" \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-requalification/enumeration.log"
+          python3 -B scripts/ios-unit-shards.py check-focused-enumeration \
+            --plan "$RUNNER_TEMP/ios-unit-plan.json" \
+            --enumeration "$RUNNER_TEMP/ios-unit-requalification/enumeration.txt"
+
+      - name: Requalify transport resources and iOS 27 parsing
+        id: ios-transport-tests
+        timeout-minutes: 120
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -testProductsPath "$RUNNER_TEMP/ios-unit-requalification-product/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-unit-requalification/results.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests/PinnedPhotoUploadTaskTests \
+            -only-testing:merianTests/CaptureNativePhotoRoleAllocationTests \
+            -only-testing:merianTests/AppleFoundationVisualCueProviderTests \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-requalification/xcodebuild.log"
+
+      - name: Verify complete focused runtime evidence
+        if: always() && steps.ios-transport-tests.outcome != 'skipped'
+        timeout-minutes: 5
+        env:
+          IOS_UNIT_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+          IOS_REQUALIFICATION_OUTCOME: ${{ steps.ios-transport-tests.outcome }}
+        run: |
+          xcrun xcresulttool get test-results summary \
+            --path "$RUNNER_TEMP/ios-unit-requalification/results.xcresult" > "$RUNNER_TEMP/ios-unit-requalification/summary.json"
+          xcrun xcresulttool get test-results tests \
+            --path "$RUNNER_TEMP/ios-unit-requalification/results.xcresult" > "$RUNNER_TEMP/ios-unit-requalification/tests.json"
+          python3 -B scripts/ios-unit-shards.py requalification \
+            --directory "$RUNNER_TEMP/ios-unit-requalification" \
+            --output "$RUNNER_TEMP/ios-unit-requalification/receipt.json"
+          git diff --quiet --ignore-submodules --
+
+      - name: Retain runtime requalification evidence
+        id: requalification-artifact
+        if: always()
+        timeout-minutes: 10
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-unit-test-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          name: ios-unit-requalification-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-unit-requalification
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain compiled unit products
+        id: products
+        timeout-minutes: 10
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-products-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-unit-products.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain immutable unit plan
+        id: plan-artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-plan-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-unit-plan.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain unit build diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-build-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/ios-unit-tests.xcresult
             ${{ runner.temp }}/ios-unit-xcodebuild.log
             ${{ runner.temp }}/ios-unit-package-resolution.log
-            ${{ runner.temp }}/ios-unit-test-tree.json
-            ${{ runner.temp }}/ios-unit-test-diagnostics.txt
+            ${{ runner.temp }}/ios-unit-simulator-qualification.json
+            ${{ runner.temp }}/ios-unit-xcode-version.txt
+            ${{ runner.temp }}/ios-unit-inventory.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  ios-unit-shards:
+    name: iOS unit shard ${{ matrix.index }}
+    needs: ios-unit-build
+    if: needs.ios-unit-build.result == 'success'
+    runs-on: xcode-27
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.ios-unit-build.outputs.matrix) }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      IOS_UNIT_PLAN_SHA256: ${{ needs.ios-unit-build.outputs.plan_sha256 }}
+      IOS_UNIT_BUILD_ATTEMPT: ${{ needs.ios-unit-build.outputs.build_attempt }}
+      IOS_UNIT_PRODUCTS_ID: ${{ needs.ios-unit-build.outputs.products_id }}
+      IOS_UNIT_PLAN_ID: ${{ needs.ios-unit-build.outputs.plan_id }}
+      IOS_UNIT_REQUALIFICATION_ID: ${{ needs.ios-unit-build.outputs.requalification_id }}
+      IOS_UNIT_SHARD: ${{ matrix.index }}
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify shard source and toolchain
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$GITHUB_SHA"
+          git diff --quiet --ignore-submodules --
+          test "$(xcodebuild -version | sed -n '1p')" = "Xcode 27.0"
+          test "$(xcodebuild -version | sed -n '2p')" = "Build version 27A266a"
+          mkdir "$RUNNER_TEMP/ios-unit-evidence"
+
+      - name: Download exact compiled products
+        timeout-minutes: 10
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.ios-unit-build.outputs.products_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/ios-unit-input
+
+      - name: Download exact unit plan
+        timeout-minutes: 10
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.ios-unit-build.outputs.plan_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/ios-unit-input
+
+      - name: Verify and unpack compiled products
+        timeout-minutes: 5
+        run: |
+          python3 -B scripts/ios-unit-shards.py unpack \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --products "$RUNNER_TEMP/ios-unit-input/ios-unit-products.tar.gz" \
+            --directory "$RUNNER_TEMP/ios-unit-product"
+          python3 -B scripts/ios-unit-shards.py selectors \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --index "$IOS_UNIT_SHARD" --output "$RUNNER_TEMP/ios-unit-suites.txt"
+
+      - name: Prepare candidate shard simulator
+        id: ios-test-simulator
+        timeout-minutes: 20
+        run: |
+          mkdir "$RUNNER_TEMP/ios-unit-identity"
+          destination="$(python3 -B scripts/discover-ios27-simulator.py --prepare-only \
+            --evidence "$RUNNER_TEMP/ios-unit-identity/preparation.json")"
+          echo "destination=${destination}" >> "$GITHUB_OUTPUT"
+
+      - name: Observe exact guest identity inside XCTest
+        id: ios-identity-test
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -testProductsPath "$RUNNER_TEMP/ios-unit-product/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-unit-identity/results.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:merianTests/SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-identity/test.log"
+
+      - name: Verify exact guest identity evidence
+        id: identity-receipt
+        if: always() && steps.ios-identity-test.outcome != 'skipped'
+        timeout-minutes: 5
+        env:
+          IOS_IDENTITY_TEST_OUTCOME: ${{ steps.ios-identity-test.outcome }}
+        run: |
+          evidence="$RUNNER_TEMP/ios-unit-identity"
+          xcrun xcresulttool get test-results summary --path "$evidence/results.xcresult" > "$evidence/summary.json"
+          xcrun xcresulttool get test-results tests --path "$evidence/results.xcresult" > "$evidence/tests.json"
+          xcrun xcresulttool export attachments --path "$evidence/results.xcresult" \
+            --test-id 'SimulatorRuntimeIdentityTests/testRecordsBootedGuestIdentity()' \
+            --output-path "$evidence/attachments"
+          python3 -B scripts/discover-ios27-simulator.py --verify-directory "$evidence" \
+            --evidence "$RUNNER_TEMP/ios-unit-evidence/qualification.json"
+          git diff --quiet --ignore-submodules --
+
+      - name: Retain simulator identity evidence
+        if: always()
+        timeout-minutes: 10
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-identity-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}
+          path: ${{ runner.temp }}/ios-unit-identity
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Reconcile selected compiled inventory
+        id: enumeration
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -testProductsPath "$RUNNER_TEMP/ios-unit-product/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -parallel-testing-enabled NO \
+            -only-testing "@$RUNNER_TEMP/ios-unit-suites.txt" \
+            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
+            -test-enumeration-output-path "$RUNNER_TEMP/ios-unit-evidence/enumeration.txt" \
+            2>&1 | tee "$RUNNER_TEMP/ios-unit-shard.log"
+          python3 -B scripts/ios-unit-shards.py check-enumeration \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --index "$IOS_UNIT_SHARD" --enumeration "$RUNNER_TEMP/ios-unit-evidence/enumeration.txt"
+
+      - name: Run complete assigned suites serially
+        id: xcode-tests
+        timeout-minutes: 240
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -testProductsPath "$RUNNER_TEMP/ios-unit-product/tests.xctestproducts" \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-unit-tests.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing "@$RUNNER_TEMP/ios-unit-suites.txt" \
+            2>&1 | tee -a "$RUNNER_TEMP/ios-unit-shard.log"
+
+      - name: Verify shard execution against compiled inventory
+        id: receipt
+        if: always()
+        env:
+          IOS_UNIT_TEST_OUTCOME: ${{ steps.xcode-tests.outcome }}
+        run: |
+          xcrun xcresulttool get test-results summary \
+            --path "$RUNNER_TEMP/ios-unit-tests.xcresult" > "$RUNNER_TEMP/ios-unit-evidence/summary.json"
+          xcrun xcresulttool get test-results tests \
+            --path "$RUNNER_TEMP/ios-unit-tests.xcresult" > "$RUNNER_TEMP/ios-unit-evidence/tests.json"
+          python3 -B scripts/ios-unit-shards.py receipt \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --index "$IOS_UNIT_SHARD" --directory "$RUNNER_TEMP/ios-unit-evidence" \
+            --output "$RUNNER_TEMP/ios-unit-evidence/receipt.json"
+
+      - name: Record terminal shard execution
+        if: always()
+        env:
+          IOS_UNIT_IDENTITY_OUTCOME: ${{ steps.identity-receipt.outcome }}
+          IOS_UNIT_ENUMERATION_OUTCOME: ${{ steps.enumeration.outcome }}
+          IOS_UNIT_NATIVE_OUTCOME: ${{ steps.xcode-tests.outcome }}
+          IOS_UNIT_RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
+        run: |
+          python3 -B scripts/ios-unit-shards.py execution \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --index "$IOS_UNIT_SHARD" --directory "$RUNNER_TEMP/ios-unit-evidence" \
+            --output "$RUNNER_TEMP/ios-unit-evidence/execution.json"
+
+      - name: Retain shard coverage evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}
+          path: ${{ runner.temp }}/ios-unit-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain shard failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ matrix.index }}
+          path: |
+            ${{ runner.temp }}/ios-unit-tests.xcresult
+            ${{ runner.temp }}/ios-unit-shard.log
+          include-hidden-files: true
           if-no-files-found: ignore
+          retention-days: 14
+
+  ios-unit-tests:
+    name: Hosted iOS unit tests
+    needs: [scope, ios-unit-build, ios-unit-shards]
+    if: always() && needs.scope.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IOS_UNIT_PLAN_SHA256: ${{ needs.ios-unit-build.outputs.plan_sha256 }}
+      IOS_UNIT_BUILD_ATTEMPT: ${{ needs.ios-unit-build.outputs.build_attempt }}
+      IOS_UNIT_PRODUCTS_ID: ${{ needs.ios-unit-build.outputs.products_id }}
+      IOS_UNIT_PLAN_ID: ${{ needs.ios-unit-build.outputs.plan_id }}
+      IOS_UNIT_REQUALIFICATION_ID: ${{ needs.ios-unit-build.outputs.requalification_id }}
+    steps:
+      - name: Require successful build and every shard
+        env:
+          BUILD_RESULT: ${{ needs.ios-unit-build.result }}
+          SHARD_RESULT: ${{ needs.ios-unit-shards.result }}
+        run: |
+          test "$BUILD_RESULT" = success
+          test "$SHARD_RESULT" = success
+
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify aggregate source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$GITHUB_SHA"
+          git diff --quiet --ignore-submodules --
+
+      - name: Download exact unit plan
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.ios-unit-build.outputs.plan_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/ios-unit-input
+
+      - name: Download all build-origin shard evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ios-unit-shard-${{ github.run_id }}-build-${{ needs.ios-unit-build.outputs.build_attempt }}-attempt-*-*
+          merge-multiple: false
+          digest-mismatch: error
+          path: ${{ runner.temp }}/ios-unit-shards
+
+      - name: Download exact runtime requalification evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.ios-unit-build.outputs.requalification_id }}
+          merge-multiple: true
+          digest-mismatch: error
+          path: ${{ runner.temp }}/ios-unit-requalification
+
+      - name: Reconcile hosted suites and protected regressions
+        run: |
+          python3 -B scripts/ios-unit-shards.py aggregate \
+            --plan "$RUNNER_TEMP/ios-unit-input/ios-unit-plan.json" \
+            --directory "$RUNNER_TEMP/ios-unit-shards" \
+            --requalification-directory "$RUNNER_TEMP/ios-unit-requalification" --output "$RUNNER_TEMP/ios-unit-aggregate"
+          bash scripts/validate-ios-critical-test-results.sh \
+            "$RUNNER_TEMP/ios-unit-aggregate/summary.json" "$RUNNER_TEMP/ios-unit-aggregate/tests.json"
+          {
+            echo '### Hosted compiled iOS unit coverage'
+            echo 'Every ordinary inventoried method and observed parameter leaf passed; no skipped or duplicated hosted coverage. The opt-in native/SQL integration requires separate qualification.'
+            cat "$RUNNER_TEMP/ios-unit-aggregate/coverage.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain hosted unit coverage evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unit-test-evidence-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-unit-aggregate
+          if-no-files-found: warn
           retention-days: 14
 
   ios-critical-scan-ui:
@@ -464,7 +780,7 @@ jobs:
             xcode_project="merian.xcodeproj"
           fi
           xcodebuild build-for-testing \
-            -scheme Merian \
+            -scheme MerianCIUI \
             -project "$xcode_project" \
             -configuration Debug \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
@@ -504,7 +820,7 @@ jobs:
             xcode_project="merian.xcodeproj"
           fi
           xcodebuild test-without-building \
-            -scheme Merian \
+            -scheme MerianCIUI \
             -project "$xcode_project" \
             -configuration Debug \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
@@ -641,7 +957,7 @@ jobs:
 
       - name: Upload UI-test evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-critical-scan-ui-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
@@ -655,7 +971,7 @@ jobs:
 
       - name: Upload UI-test failure bundle
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-critical-scan-ui-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
@@ -1053,7 +1369,7 @@ jobs:
 
       - name: Upload Release archive evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-release-archive-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
@@ -1066,7 +1382,7 @@ jobs:
 
       - name: Upload current-SHA validation archive
         if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-unsigned-release-archive-${{ github.sha }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/Merian.xcarchive
@@ -1077,7 +1393,7 @@ jobs:
 
       - name: Upload Release archive failure bundle
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-release-archive-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
@@ -1115,7 +1431,7 @@ jobs:
             echo "- Scope job: \`${SCOPE_RESULT}\`"
             echo "- macOS verification required: \`${SHOULD_RUN:-unknown}\`"
             echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
-            echo "- Full iOS tests: \`${UNIT_TEST_RESULT}\`"
+            echo "- Hosted iOS tests: \`${UNIT_TEST_RESULT}\`"
             echo "- Critical scan UI smokes: \`${UI_TEST_RESULT}\`"
             echo "- Current-SHA Release archive: \`${RELEASE_ARCHIVE_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1145,11 +1461,11 @@ jobs:
             || [ "$UI_TEST_RESULT" != "success" ] \
             || [ "$RELEASE_ARCHIVE_RESULT" != "success" ]; then
             echo \
-              "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
+              "Hosted iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "critical scan UI smokes: ${UI_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "The complete unit target, all six critical scan UI smokes, and current-SHA Release archive must all pass." >&2
+            echo "All hosted unit suites, all six critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed the complete iOS unit target, all six critical scan UI smokes, and Release archive validation."
+          echo "The exact workflow SHA passed hosted unit suites, all six critical scan UI smokes, and Release archive validation. Dedicated native/SQL integration is not qualified by this workflow; app activation and distribution require separate evidence."

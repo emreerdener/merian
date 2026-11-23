@@ -1,3 +1,19 @@
+## November 23 unified baseline remains held
+
+The locally consolidated baseline retains the active
+`identification_history_integration_hold`. It includes History, Capture and
+guarded Gemini work beyond the independently validated PR152 source. Neither
+PR152 approval nor its passing jobs qualify this broader source. The automatic
+release verifier must continue returning `deploy_allowed=false` while this hold
+is active. An exact-source release decision and every applicable prerequisite
+are required before clearing it; feature flags are not substitutes.
+
+See the
+[unified baseline preparation record](../release-evidence/unified-development-baseline-2026-11-23.md)
+for source preservation, migration identities, outstanding validation and the
+separate PR150 exclusion. No main merge, publication or deployment is performed
+by local consolidation.
+
 ## Prepared composition release compatibility — November 14
 
 Mixed-media reanalysis is implemented locally behind new default-off composition
@@ -575,7 +591,16 @@ under the existing Production concurrency lock and exact-current-main controls.
 histories in private disposable databases, verifies that ordinary push refuses
 the gaps, applies the approved recovery, and checks normal mode afterward. The
 Explore scenario runs report-visibility, invocation-accounting, and privileged
-routine catalogs. The history scenario runs Gemini assignment, history, reader,
+routine catalogs. Its `run_recovery_catalogs.py` wrapper verifies the generated
+local project, Unix Docker endpoint, fixed recovery port, and immutable running
+container identity before changing only that disposable database's
+`reconcile_identification_usage` cron job. It records the exact job and active
+state, suspends it, verifies suspension and no unfinished cron run, and restores
+and verifies the original state in `finally`, including fixture failure, before
+database cleanup. This prevents background accounting writes from racing the
+accounting fixture's test-trigger DDL; direct reconciler calls and all three
+catalogs remain required. An unknown or busy job fails before fixtures, without
+cancelling it. The history scenario runs Gemini assignment, history, reader,
 append, evidence, funding, protected-analysis, and privileged-routine catalogs
 to prove the delayed order preserves the deployed photo policy and closed
 rollout defaults. Candidate Validation runs both regressions in addition to
@@ -4974,7 +4999,7 @@ the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
-fleet uses one exact `@supabase/supabase-js@2.117.2` dependency for both
+fleet uses one exact `@supabase/supabase-js@2.119.0` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
@@ -8181,7 +8206,10 @@ deployment workflow does not substitute for this admin gate. Main accepts direct
 pushes. The separate admin Vercel project must require
 `Naturebook Admin Quality / test` as a Deployment Check. Workflow YAML alone
 does not block a merge, direct deployment, Force Promote, or manual deployment.
-Verify Vercel is releasing the exact checked commit.
+Verify Vercel is releasing the exact checked commit. The web and admin workflows
+use distinct explicit job names, `Naturebook Web Quality / test` and
+`Naturebook Admin Quality / test`. Import those exact names for their respective
+projects; the unqualified job name `test` is ambiguous across workflows.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin

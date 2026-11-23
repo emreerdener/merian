@@ -211,13 +211,13 @@ export async function insertScan(
     operationName: "audio-spec/insertScan",
     supabaseAdmin,
     write: async () => {
-      const { error } = await supabaseAdmin
+      const { error, status } = await supabaseAdmin
         .from("scans")
         .upsert(scanRow, {
           onConflict: "id",
           ignoreDuplicates: true,
         });
-      return { error };
+      return { error, status };
     },
   });
 }

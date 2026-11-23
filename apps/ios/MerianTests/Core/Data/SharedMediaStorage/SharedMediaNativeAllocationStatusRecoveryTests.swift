@@ -393,33 +393,29 @@ struct NativeAllocationStatusRecoveryTests {
         }
     }
 
-    @Test(arguments: [false, true])
+    // Whole-fixture and cleanup containment, not a recovery or sender-entry SLA.
+    @Test(.timeLimit(.minutes(3)), arguments: [false, true])
     func cancellationRetainsOwnerUntilSenderReturns(_ shutdown: Bool) async throws {
         let f = try await fixture(6)
         let store = f.store, owner = f.owner, prepared = f.prepared
         let before = try NativePhotoStatusRecoveryTests().row(store)
         let release = ImageFocusEngineTests.Signal()
+        let entry = NativeAllocationSenderEntry()
         var entered = false, returned = false, drained = false
         var closing: Task<Bool, Never>?
         let caller = access(6) { request, check, settle in
             try check(); try settle(); entered = true
+            entry.signal()
             await release.wait()
             return try positive(request)
         }
         let began = ContinuousClock.now
-        var maximumPollGap: Duration = .zero
         let call = Task {
-            defer { returned = true }
+            defer { returned = true; entry.finish() }
             return try await caller.recover(owner: owner, prepared: prepared, validate: {})
         }
         do {
-            let deadline = ContinuousClock.now + .seconds(4)
-            while !entered {
-                guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
-                let poll = ContinuousClock.now
-                try await Task.sleep(for: .milliseconds(5))
-                maximumPollGap = max(maximumPollGap, poll.duration(to: .now))
-            }
+            try await entry.wait()
             if shutdown {
                 closing = Task { let result = await owner.invalidateAndAwaitForAccountTransition(); drained = true; return result }
             } else { call.cancel() }
@@ -430,11 +426,36 @@ struct NativeAllocationStatusRecoveryTests {
             #expect(try NativePhotoStatusRecoveryTests().row(store) == before)
             if let closing { #expect(await closing.value) } else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
         } catch {
-            print("Native allocation entry diagnostic elapsed=\(began.duration(to: .now)) maximumPollGap=\(maximumPollGap) entered=\(entered) returned=\(returned)")
+            print("Native allocation entry diagnostic elapsed=\(began.duration(to: .now)) entered=\(entered) returned=\(returned)")
             await release.open(); call.cancel(); _ = await call.result
             if let closing { _ = await closing.value } else { _ = await owner.invalidateAndAwaitForAccountTransition() }
             throw error
         }
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["admitted", "finished", "cancelled"])
+    func senderEntryRequiresAdmissionAndUnwindsFailureOrCancellation(_ outcome: String) async throws {
+        let entry = NativeAllocationSenderEntry(), started = ImageFocusEngineTests.Signal()
+        var drained = false
+        let waiting = Task {
+            defer { drained = true }
+            await started.open()
+            try await entry.wait()
+        }
+        await started.wait()
+        switch outcome {
+        case "admitted":
+            entry.signal()
+            try await waiting.value
+        case "finished":
+            entry.finish()
+            await #expect(throws: URLError.self) { try await waiting.value }
+        default:
+            waiting.cancel()
+            await #expect(throws: CancellationError.self) { try await waiting.value }
+        }
+        #expect(drained)
+        entry.finish()
     }
 
     @Test(arguments: ["beforeSave", "afterSave", "beforeReadback"])
@@ -466,4 +487,22 @@ struct NativeAllocationStatusRecoveryTests {
         } catch { _ = await owner.invalidateAndAwaitForAccountTransition(); throw error }
     }
 
+}
+
+/// Sender admission is an event; early call exit and test cancellation end the wait.
+@MainActor
+private final class NativeAllocationSenderEntry {
+    private let stream: AsyncStream<Void>
+    private let continuation: AsyncStream<Void>.Continuation
+    init() {
+        let pair = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        stream = pair.stream; continuation = pair.continuation
+    }
+    func signal() { continuation.yield(()); continuation.finish() }
+    func finish() { continuation.finish() }
+    func wait() async throws {
+        for await _ in stream { try Task.checkCancellation(); return }
+        try Task.checkCancellation()
+        throw URLError(.cannotLoadFromNetwork)
+    }
 }

@@ -969,6 +969,31 @@ allocation expiry. Production expiry rules, parser checks and clocks are
 unchanged. Exact-source review and compilation passed. The November 1 focused
 run below records execution; full integration qualification remains pending.
 
+### November 15 — hosted fixture admission and signed expiry
+
+Diagnostic run 43699310762 showed that the historical four-second status-entry
+watchdog and ten-second synthetic PUT capability window do not accommodate this
+host's durable validation work. The cancellation test now waits for a sender
+event after validation, with a three-minute whole-fixture containment limit.
+Early operation exit and cancellation unwind into release, join and owner drain;
+both cancellation rows and saved-state assertions remain.
+
+The fresh PUT timeout fixture now models a ticket created 540,000 ms before its
+response, leaving 60,000 ms under the unchanged
+`min(allocationExpiry, created + 600000)` rule. The hosted cancel/account rows
+reached actual upload start 14.21 and 15.45 seconds after ticket issuance; the
+ten-second row expired before task creation. The new fixture still binds the
+original immutable allocation receipt, rounds signed expiry down to seconds,
+requires actual task creation/start and waits for real signed-expiry timeout
+without explicitly cancelling the timeout row. It now requires the exact
+`URLError.timedOut` outcome while retaining lease/coordinator exclusion until
+completion returns. Its three-minute per-row limit contains the complete fixture
+and drain, not product timing. No allocation refresh, clock injection,
+production TTL, 300-second upload maximum or workflow budget changes. The
+deterministic decoder expiry-edge cases remain unchanged. The earlier
+ten-second/four-second results below are historical evidence; these hosted
+fixture repairs still require fresh complete native validation.
+
 ### November 1 — original failures and corrected account fault qualified
 
 `hq028-audit-read-runtime01-reconciled.json` reconciles 29 selected methods / 49
@@ -3905,6 +3930,16 @@ error.
 use it. Explore restored-media updates and owned scan-image repair apply the
 same rule to their own exact owner topology.
 
+A returned SDK error is not itself a database rejection. The shared classifier
+requires a recognized PostgreSQL rejection code and a non-timeout/non-throttled
+4xx status before exact-owner absence can authorize cleanup. Missing status,
+status zero, HTTP 408/429 and server/gateway failures remain unknown even when
+an error payload carries a recognized database code. The three upsert adapters
+forward both `error` and `status`; thrown fetch failures and returned
+status-zero errors preserve the same media/quota guarantees. The pinned-client
+regression injects a fetch failure and verifies bounded owner reads followed by
+`ScanPersistenceOutcomeUnknownError`, without an external request.
+
 For a proven pre-insert retryable failure, the server marks the committed
 provider reservation failed so the stable UUID can make one fenced metered
 retry. Because promotion may have consumed staging objects, iOS clears old
@@ -4890,8 +4925,10 @@ The focused regression inventory includes:
   `BackgroundAccountWorkArchitectureTests`, covering exact upload-owner
   retirement, rejected inference-dispatch requeue, the staged callback race,
   legacy missing-job activation, sole declaration/test ownership, exact
-  Background Transfer and Media Upload consumers, throwing scan/job reads, and
-  balanced per-scan persistence fences;
+  Background Inference, Background Transfer and Media Upload consumers, the
+  single Debug-only initial-media History activation fixture and its
+  compile-time/launch guards, throwing scan/job reads, and balanced per-scan
+  persistence fences;
 - `InferenceLifecyclePersistenceTests`, `InferenceRetryPersistenceTests`, and
   `InferencePersistenceArchitectureTests`, covering durable inference claims,
   retreats, generation checks, timestamp-fenced orphan release, post-wait

@@ -1,7 +1,8 @@
-import AVFoundation
+import CryptoKit
 import Foundation
-import Testing
 
+/// Checked-in synthetic input, copied into a private disposable root for each test.
+/// Product extraction, transcoding, retention and cancellation still run normally.
 struct VideoAudioFixture: Sendable {
     let root: URL
     let videoURL: URL
@@ -12,194 +13,97 @@ struct VideoAudioFixture: Sendable {
         width: Int = 64, height: Int = 64, frameCount: Int = 30,
         transform: CGAffineTransform = .identity, coordinatePattern: Bool = false
     ) async throws {
-        try #require((2...2048).contains(width) && width.isMultiple(of: 2))
-        try #require((2...2048).contains(height) && height.isMultiple(of: 2))
-        try #require((3...150).contains(frameCount))
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("video-audio-tests-\(UUID().uuidString)")
+        try Task.checkCancellation()
+        let directory = try Self.resourceDirectory()
+        let matches = try Self.catalog(in: directory).filter {
+            $0.coordinatePattern == coordinatePattern && $0.channels == channels && $0.amplitude == amplitude && $0.width == width
+                && $0.height == height && $0.frameCount == frameCount
+                && $0.transform == [transform.a, transform.b, transform.c, transform.d, transform.tx, transform.ty]
+        }
+        guard matches.count == 1, let entry = matches.first else { throw FixtureError.unsupportedConfiguration }
+        let bytes = try Self.validatedBytes(entry, in: directory)
+        try Task.checkCancellation()
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("video-audio-tests-\(UUID().uuidString)")
         videoURL = root.appendingPathComponent("capture.mp4")
         outputDirectory = root.appendingPathComponent("prepared")
-        try FileManager.default.createDirectory(
-            at: outputDirectory,
-            withIntermediateDirectories: true
-        )
-        await Self.writerGate.acquire()
         do {
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            try bytes.write(to: videoURL, options: .withoutOverwriting)
             try Task.checkCancellation()
-            try await prepare(
-                channels: channels, amplitude: amplitude, width: width, height: height,
-                frameCount: frameCount, transform: transform, coordinatePattern: coordinatePattern
-            )
-            await Self.writerGate.release()
         } catch {
-            remove()
-            await Self.writerGate.release()
+            try? FileManager.default.removeItem(at: root)
             throw error
         }
     }
 
-    /// Keep the fixture's encoder permit through AAC creation and composition export.
-    private func prepare(
-        channels: Int?, amplitude: Double, width: Int, height: Int,
-        frameCount: Int, transform: CGAffineTransform, coordinatePattern: Bool
-    ) async throws {
-        let silentURL = root.appendingPathComponent("silent.mp4")
-        try await Self.writeSilentVideo(
-            to: silentURL, width: width, height: height, frameCount: frameCount, transform: transform, coordinatePattern: coordinatePattern
-        )
-        guard let channels else {
-            try FileManager.default.copyItem(at: silentURL, to: videoURL)
-            return
-        }
-        let audioURL = root.appendingPathComponent("tone.m4a")
-        try Self.writeAAC(to: audioURL, channels: channels, amplitude: amplitude, frameCount: frameCount)
-        let composition = AVMutableComposition()
-        for (url, mediaType) in [(silentURL, AVMediaType.video), (audioURL, .audio)] {
-            let asset = AVURLAsset(url: url)
-            let source = try #require(try await asset.loadTracks(withMediaType: mediaType).first)
-            let track = try #require(composition.addMutableTrack(
-                withMediaType: mediaType,
-                preferredTrackID: kCMPersistentTrackID_Invalid
-            ))
-            if mediaType == .video { track.preferredTransform = transform }
-            try track.insertTimeRange(
-                CMTimeRange(start: .zero, duration: CMTime(value: Int64(frameCount), timescale: 30)),
-                of: source,
-                at: .zero
-            )
-        }
-        let exporter = try #require(AVAssetExportSession(
-            asset: composition,
-            presetName: AVAssetExportPresetPassthrough
-        ))
-        try await exporter.export(to: videoURL, as: .mp4)
-    }
-
     func outputFiles() throws -> [URL] {
-        try FileManager.default.contentsOfDirectory(
-            at: outputDirectory,
-            includingPropertiesForKeys: nil
-        )
+        try FileManager.default.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: nil)
     }
 
     func remove() {
         try? FileManager.default.removeItem(at: root)
     }
 
-    private static func writeAAC(to url: URL, channels: Int, amplitude: Double, frameCount: Int) throws {
-        let sampleCount = frameCount * 1600
-        try autoreleasepool {
-            let file = try AVAudioFile(forWriting: url, settings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 48_000,
-                AVNumberOfChannelsKey: channels,
-                AVEncoderBitRateKey: 128_000
-            ])
-            let buffer = try #require(AVAudioPCMBuffer(
-                pcmFormat: file.processingFormat,
-                frameCapacity: AVAudioFrameCount(sampleCount)
-            ))
-            buffer.frameLength = AVAudioFrameCount(sampleCount)
-            let samples = try #require(buffer.floatChannelData)
-            for channel in 0..<channels {
-                for frame in 0..<sampleCount {
-                    samples[channel][frame] = Float(sin(2 * .pi * 880 * Double(frame) / 48_000) * amplitude)
-                }
-            }
-            try file.write(from: buffer)
-        }
+    enum FixtureError: Error, Equatable { case missingResource, invalidCatalog, invalidMedia, unsupportedConfiguration }
+
+    struct Entry: Codable, Sendable {
+        let name: String
+        let channels: Int?
+        let amplitude: Double
+        let width: Int
+        let height: Int
+        let frameCount: Int
+        let transform: [Double]
+        let coordinatePattern: Bool
+        let byteCount: Int
+        let sha256: String
     }
 
-    private static let writerGate = VideoFixtureWriterGate()
+    private struct Catalog: Decodable {
+        let version: Int
+        let fixtures: [Entry]
+    }
 
-    private static func writeSilentVideo(
-        to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform, coordinatePattern: Bool
-    ) async throws {
-        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height
-        ])
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: input,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-                kCVPixelBufferWidthKey as String: width,
-                kCVPixelBufferHeightKey as String: height
-            ]
-        )
-        input.transform = transform
-        writer.add(input)
-        // Keep encoder ownership until completion or cancellation, including
-        // failed assertions and cancellation during fixture preparation.
-        defer {
-            if writer.status == .writing { writer.cancelWriting() }
-        }
-        try #require(writer.startWriting())
-        writer.startSession(atSourceTime: .zero)
-        var pixelBuffer: CVPixelBuffer?
-        #expect(CVPixelBufferCreate(
-            kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB,
-            nil, &pixelBuffer
-        ) == kCVReturnSuccess)
-        let pixels = try #require(pixelBuffer)
-        CVPixelBufferLockBaseAddress(pixels, [])
-        if let base = CVPixelBufferGetBaseAddress(pixels) {
-            memset(base, 0, CVPixelBufferGetDataSize(pixels))
-            if coordinatePattern {
-                let bytes = base.assumingMemoryBound(to: UInt8.self)
-                let stride = CVPixelBufferGetBytesPerRow(pixels)
-                for y in 0..<height {
-                    for x in 0..<width {
-                        let index = y * stride + x * 4
-                        bytes[index] = 255
-                        bytes[index + 1] = UInt8(x * 255 / max(1, width - 1))
-                        bytes[index + 2] = UInt8(y * 255 / max(1, height - 1))
-                        bytes[index + 3] = 64
-                    }
-                }
-            }
-        }
-        CVPixelBufferUnlockBaseAddress(pixels, [])
-        for frame in 0..<frameCount {
-            try Task.checkCancellation()
-            let deadline = ContinuousClock.now + .seconds(5)
-            while !input.isReadyForMoreMediaData, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(5))
-            }
-            try #require(
-                input.isReadyForMoreMediaData,
-                "Fixture writer stalled at frame \(frame), status \(writer.status.rawValue), error \(String(describing: writer.error))"
-            )
-            try #require(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)))
-        }
-        writer.endSession(atSourceTime: CMTime(value: Int64(frameCount), timescale: 30))
-        input.markAsFinished()
-        await writer.finishWriting()
-        try #require(writer.status == .completed)
+    static func resourceDirectory() throws -> URL {
+        guard let directory = Bundle(for: VideoFixtureBundleAnchor.self).resourceURL,
+            FileManager.default.fileExists(atPath: directory.appendingPathComponent("merian-video-fixtures.json").path)
+        else { throw FixtureError.missingResource }
+        return directory
+    }
+
+    static func catalog(in directory: URL) throws -> [Entry] {
+        let bytes = try Data(contentsOf: directory.appendingPathComponent("merian-video-fixtures.json"))
+        let catalog = try JSONDecoder().decode(Catalog.self, from: bytes)
+        guard catalog.version == 2, catalog.fixtures.count == 15,
+              Set(catalog.fixtures.map(\.name)).count == catalog.fixtures.count,
+              catalog.fixtures.allSatisfy({ entry in
+                  entry.name.range(of: #"^[a-z][a-z0-9-]{0,63}$"#, options: .regularExpression) != nil
+                      && (entry.channels == nil || entry.channels == 1 || entry.channels == 2)
+                      && [0.01, 0.2].contains(entry.amplitude)
+                      && (2...2048).contains(entry.width) && entry.width.isMultiple(of: 2)
+                      && (2...2048).contains(entry.height) && entry.height.isMultiple(of: 2)
+                      && (3...150).contains(entry.frameCount) && entry.transform.count == 6
+                      && entry.transform.allSatisfy(\.isFinite)
+                      && (1...1_048_576).contains(entry.byteCount)
+                      && entry.sha256.range(of: #"^[a-f0-9]{64}$"#, options: .regularExpression) != nil
+              }) else { throw FixtureError.invalidCatalog }
+        return catalog.fixtures
+    }
+
+    static func validatedBytes(_ entry: Entry, in directory: URL) throws -> Data {
+        // Validate names here too: integrity tests call this boundary independently.
+        guard entry.name.range(of: #"^[a-z][a-z0-9-]{0,63}$"#, options: .regularExpression) != nil,
+              (1...1_048_576).contains(entry.byteCount) else { throw FixtureError.invalidCatalog }
+        let url = directory.appendingPathComponent("merian-video-" + entry.name + ".mp4")
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true,
+              values.fileSize == entry.byteCount else { throw FixtureError.invalidMedia }
+        let bytes = try Data(contentsOf: url)
+        guard bytes.count == entry.byteCount,
+              SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == entry.sha256
+        else { throw FixtureError.invalidMedia }
+        return bytes
     }
 }
 
-// Synthetic encoders share process resources even when Swift Testing runs
-// independent suites concurrently. No production capture ownership uses this.
-private actor VideoFixtureWriterGate {
-    private var occupied = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    func acquire() async {
-        if !occupied {
-            occupied = true
-            return
-        }
-        await withCheckedContinuation { waiters.append($0) }
-    }
-
-    func release() {
-        if waiters.isEmpty {
-            occupied = false
-        } else {
-            waiters.removeFirst().resume()
-        }
-    }
-}
+private final class VideoFixtureBundleAnchor: NSObject {}

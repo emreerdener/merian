@@ -1582,15 +1582,23 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 [local build storage procedure](../../docs/development-guides/08-testing-strategy.md#local-ios-build-storage)
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
-Hosted **iOS Build and Test** runs the complete unit target, four critical scan
-UI smokes, and the Release archive as three independent jobs after source
-scoping. Each uses the same exact commit and pinned toolchain; Production
-readiness requires all three. Unit and UI jobs build only their respective
-bundles (the unit job also compiles the report-only performance bundle) and keep
-separate evidence artifacts. See the
-[CI contract and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
-for evidence ownership. Full unit coverage and shared-state serialization remain
-required.
+Hosted **iOS Build and Test** compiles and inventories the complete unit target
+once, retains the existing opt-in native/SQL integration as a separate
+qualification, and executes all other whole suites serially across isolated
+runner/simulator shards. **Hosted iOS unit tests** proves every ordinary
+inventoried method passed exactly once; the receipt explicitly records the
+integration as not executed and does not claim complete-target qualification.
+All parameter rows, durable fixtures, assertions and shared-state guards remain.
+The six critical scan UI smokes and Release archive stay independent. Production
+readiness requires the unit aggregate and both of those gates at the exact
+commit and pinned toolchain. That result does not clear the separate integration
+or app-release requirements. The unit build also compiles the report-only
+performance bundle; sharding does not qualify device performance. See the
+[complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
+for artifact provenance, process-isolation limits and the requirement to rerun
+all jobs together, and
+[CI evidence and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
+for retained diagnostics.
 
 Unit tests should mirror the production owner:
 
@@ -1733,14 +1741,18 @@ Undo button. Menu and completed candidate-review Undo actions remain available.
 
 ## Synthetic video/audio test fixtures
 
-`TestSupport/VideoAudioFixture.swift` serializes complete synthetic preparation
-across test suites: H.264 writing, AAC preparation and composition export.
-Ownership lasts until preparation completes or error cleanup finishes; an
-incomplete writer is cancelled before release. Cancellation while queued is
-checked after admission, before starting the next writer. The fixture retains
-all 30 frames and the one-second media range, with bounded readiness waits and
-frame/status diagnostics. This test-only gate does not serialize production
-capture or change extraction behavior.
+`TestSupport/VideoAudioFixture.swift` copies prepared synthetic inputs from the
+test bundle into a private disposable directory per test. The nine tiny H.264
+clips cover the existing silent, mono/stereo, quiet-audio, rotated and mirrored
+configurations, including 0.1-, 1- and 5-second inputs. Their manifest pins
+sizes and SHA-256 digests; unsupported configurations or invalid files fail
+instead of starting an encoder. No input encoding runs during test setup.
+
+Product extraction, retained-video encoding, frame derivation and cancellation
+assertions still execute normally. The fixtures contain no captured media or
+personal metadata and are bundled only with unit/performance tests. The offline
+authoring script and validation procedure are documented in the
+[testing strategy](../../docs/development-guides/08-testing-strategy.md#prepared-synthetic-video-inputs).
 
 ## Native warning checks
 

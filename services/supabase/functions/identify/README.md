@@ -178,10 +178,12 @@ transaction through `_shared/scanIngestionCompatibility.ts`.
   code cannot write `failed_terminal` or settle the hold directly. Staged-image
   promotion supplies the exact storage-key-to-public-URL disposition to
   finalization.
-- Every insert settles through `_shared/scanPersistence.ts`. A returned database
-  rejection plus a definitive missing-owner read permits quota/media cleanup; a
-  lost response or unavailable exact-owner verification preserves committed
-  quota and promoted media and returns retryable 503.
+- Every insert settles through `_shared/scanPersistence.ts`, forwarding the SDK
+  response status with its error. A recognized PostgreSQL rejection on a
+  non-timeout/non-throttled 4xx response plus a definitive missing-owner read
+  permits quota/media cleanup. Returned status-zero errors, lost responses,
+  408/429/server errors and unavailable exact-owner verification preserve
+  committed quota and promoted media and return retryable 503.
 - `failed_scan_ingestions` is still written as legacy ops history, but
   `scan_ingestion_jobs` / `scan_ingestion_intents` are the primary recovery
   surface for current rows.

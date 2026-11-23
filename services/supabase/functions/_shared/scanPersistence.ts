@@ -2,6 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface PersistenceErrorLike {
   message: string;
+  code?: string;
+}
+
+export interface ScanWriteResponse {
+  error: PersistenceErrorLike | null;
+  status?: number;
 }
 
 export interface PersistOwnedScanRowOptions {
@@ -9,7 +15,7 @@ export interface PersistOwnedScanRowOptions {
   userId: string;
   operationName: string;
   supabaseAdmin: SupabaseClient;
-  write: () => Promise<{ error: PersistenceErrorLike | null }>;
+  write: () => Promise<ScanWriteResponse>;
   /**
    * Delay before each verification attempt. Tests pass zeroes; production
    * uses short bounded polls so a request whose response was lost while its
@@ -18,7 +24,42 @@ export interface PersistOwnedScanRowOptions {
   verificationDelaysMs?: readonly number[];
 }
 
-type WriteOutcome = "reported_success" | "reported_rejected" | "unknown";
+export type ScanWriteOutcome = "acknowledged" | "rejected" | "unknown";
+
+// Only a recognized PostgreSQL rejection over a non-gateway HTTP response is
+// positive evidence. SDK transport errors are returned values too (status 0).
+const REJECTION_CODES = new Set([
+  "22001",
+  "22003",
+  "22P02",
+  "23502",
+  "23503",
+  "23505",
+  "23514",
+  "23P01",
+  "42501",
+  "42P01",
+  "42703",
+  "42804",
+  "42883",
+]);
+export function classifyScanWrite(
+  response: ScanWriteResponse,
+): ScanWriteOutcome {
+  if (
+    response.status === undefined || response.status === 0 ||
+    response.status === 408 || response.status === 429
+  ) return "unknown";
+  if (
+    response.status >= 200 && response.status < 300 && response.error === null
+  ) {
+    return "acknowledged";
+  }
+  return response.status >= 400 && response.status < 500 &&
+      response.error != null && REJECTION_CODES.has(response.error.code ?? "")
+    ? "rejected"
+    : "unknown";
+}
 
 const DEFAULT_VERIFICATION_DELAYS_MS = [0, 25, 75] as const;
 
@@ -62,7 +103,7 @@ function sleep(milliseconds: number): Promise<void> {
  * Execute an idempotent scan insert and settle it only through an exact
  * (scan_id, user_id) owner read.
  *
- * A returned PostgREST error plus a definitive missing-owner read is a known
+ * A recognized database rejection plus an exact missing-owner read is a known
  * rejection and can use normal rollback. A thrown/lost write response, a
  * reported-success response with no owner row, or an unreadable verification
  * remains ambiguous and is surfaced through the typed error above.
@@ -70,13 +111,14 @@ function sleep(milliseconds: number): Promise<void> {
 export async function persistOwnedScanRow(
   options: PersistOwnedScanRowOptions,
 ): Promise<void> {
-  let writeOutcome: WriteOutcome = "reported_success";
+  let writeOutcome: ScanWriteOutcome = "unknown";
   let writeFailure: Error | null = null;
 
   try {
-    const { error } = await options.write();
+    const response = await options.write();
+    writeOutcome = classifyScanWrite(response);
+    const { error } = response;
     if (error) {
-      writeOutcome = "reported_rejected";
       writeFailure = new Error(
         `${options.operationName}: ${error.message}`,
       );
@@ -119,10 +161,10 @@ export async function persistOwnedScanRow(
       if (persistedScan) return;
       sawDefinitiveMissingOwner = true;
 
-      // A database error response proves this statement was rejected. Once a
+      // Only a recognized database rejection proves this statement failed. Once a
       // same-primary read also proves there is no idempotent owner row, normal
       // rollback is safe and additional polls cannot change that conclusion.
-      if (writeOutcome === "reported_rejected") break;
+      if (writeOutcome === "rejected") break;
     } catch (error) {
       verificationFailure = asError(
         error,
@@ -132,7 +174,7 @@ export async function persistOwnedScanRow(
   }
 
   if (
-    writeOutcome === "reported_rejected" &&
+    writeOutcome === "rejected" &&
     sawDefinitiveMissingOwner &&
     writeFailure
   ) {

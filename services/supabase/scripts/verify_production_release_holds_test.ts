@@ -80,7 +80,7 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
 
-Deno.test("the history integration hold blocks release while preserving the beta exception", async () => {
+Deno.test("unified development keeps the history source freeze active", async () => {
   const decision = await evaluateProductionReleaseHolds(
     new URL("../release-holds.json", import.meta.url),
   );
@@ -95,12 +95,21 @@ Deno.test("the history integration hold blocks release while preserving the beta
   assertEquals(productionHoldCommandSucceeds("source-gate", decision), false);
 });
 
-Deno.test("repository history hold denies automatic release before live control access", async () => {
+Deno.test("an active history hold denies automatic release before live control access", async () => {
+  const source = JSON.parse(
+    await Deno.readTextFile(new URL("../release-holds.json", import.meta.url)),
+  );
+  assertEquals(
+    source.holds.find((hold: { id: string }) =>
+      hold.id === "identification_history_integration_hold"
+    ).active,
+    true,
+  );
   let called = false;
   const result = await evaluateAutomaticProductionRelease(
     new URL("../release-holds.json", import.meta.url),
     candidateSha,
-    Deno.readTextFile,
+    () => Promise.resolve(JSON.stringify(source)),
     {
       verifyRepositoryControls: () => {
         called = true;
