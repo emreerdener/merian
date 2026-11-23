@@ -1,3 +1,59 @@
+## Initial capture plan and prepared audio staging
+
+`initialEvidenceCapturePlan.ts` separates client-known upload membership from
+reserved server-audio identities and supports exact recovery from bound prepared
+bytes. `initialCaptureAudioStaging.ts` orders reservation, DSP, immutable
+binding, conditional write and complete-output verification.
+`initialCaptureAudioStageRepository.ts` supplies the service-only durable action
+adapter and backend-bound private storage in a separate capture-stage namespace.
+Deletion hands opaque obligations to the existing typed V4 private-erasure
+worker. `initialCaptureClientStaging.ts` and the prepared `upload-capture-stage`
+route bind authenticated client uploads to a separate exact inventory in the
+same private stage. Consumed writes recover only by verified readback. The
+ordinary retention join now adopts only a complete exact manifest, then retires
+both client and DSP objects. The schema-4 begin successor and private live
+Identify branch are connected in source. Accepted result binding precedes scan
+insertion; exact sealed-plan recovery survives job/intent cleanup. Native mixed
+original holds/dispatch remain unfinished and deployment is not authorized. See
+the
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-capture-upload-plan-and-audio-recovery--november-20).
+
+## November 20 ordinary retained originals
+
+The prepared initial manifest V8 separates source-image storage bounds (32 MiB
+each / 64 MiB cohort) from prepared/provider images (5 MiB total). Reader17
+dual-reads V7/V8 while reader16 remains V7-only. Public media resolution3 maps
+to SQL protocol4; an internal role-aware receipt permits the larger bound only
+for an exact completed V8 source image. V7 digests and limits remain unchanged.
+
+`retainInitialEvidenceFromSource` reserves the complete graph and processes one
+qualified source lease at a time. It releases the read lease before readback,
+including on failure/cancellation, and leaves durable holds/reservations to
+their existing completion or erasure owner. Ready objects recover without a
+local read. The legacy cohort-Map helper refuses V8. These are prepared
+interfaces; the live initial-evidence fence remains until submission, recovery
+and original release are connected and validated together. See the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-ordinary-original-evidence-v8--november-20).
+
+## November 14 completed-media preparation
+
+`resolve-history-media` uses `parseCompletedMediaReceipt` for a short-lived
+owner-private original-media ticket after SQL proves completed manifest
+membership. It supports photo, WAV and retained-video artifacts without changing
+`resolve-history-photo`. See the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-completed-media-resolution--november-14).
+It remains undeployed local preparation; the audio/video shared-toolbar preload
+now depends on this resolver.
+
+## November 14 composition SQL parity
+
+The private `20261114192749` migration mirrors the prepared composition
+fingerprint and inventory. It introduces no public RPC or live admission. The
+[database contract](../../../../../docs/backend-and-data/04-database-schema.md#november-14--private-composition-metadata-contract)
+owns its privileges and scope. Use the single SQL inventory projection when
+implementing allocation; do not independently reconstruct video roles or node
+positions.
+
 # Observation analysis history
 
 Private backend preparation for the
@@ -7,6 +63,42 @@ remain closed, existing scans are unchanged, and no endpoint calls the private
 history selection transaction.
 
 ## Owners and bounds
+
+The November 14 `composition*` modules prepare a single ordered shared-toolbar
+child, its metadata fingerprint, complete artifact inventory, monotonic receipt
+decoder and all-or-nothing provider-evidence materialization. The native codecs
+share golden request vectors. Source reservation and the dedicated composition
+upload route now use these helpers. They are **not wired into execution
+admission or the app queue**. See the
+[prepared composition contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14)
+for bounds, compatibility and unfinished integration. This work is separate from
+the pending backend compatibility release.
+
+`compositionSourceReservation.ts` owns the prepared schema-3 source envelope,
+exact inventory identity and held/unavailable/reserved response. It snapshots
+before asynchronous hashing and supplies no inferred vacancy or release. No app
+consumer is installed yet. The source Edge route explicitly selects
+schema3/reader14; composition upload uses a separate authenticated endpoint.
+Local reader14 source reservation/recovery SQL now owns default-closed metadata
+bindings. The local allocation migration adds the complete immutable schema-3
+inventory/readiness and dispatch-correlated expiry seam; the local V3 cleanup
+worker integrates that seam with correlated receipts and aggregate health. Full
+mixed execution/native delivery remain unfinished. See the
+[ownership contract](../../../../../docs/backend-and-data/04-database-schema.md#november-14--prepared-composition-ownership-and-allocation).
+
+The private SQL readiness helper now checks the entire ready/unexpired cohort
+under canonical locks, and the execution-profile helper derives the same quota
+profile as `compositionExecutionPolicy.ts`. Both remain prerequisites with no
+API grant or admission/dispatch caller.
+
+`claimedExecution.ts` owns the shared post-claim worker sequence. The V4 wrapper
+retains its closed decoder and saved-byte behavior. `compositionExecution.ts`
+adds a separate V5 decoder, profile/snapshot binding, received-outcome capture
+and complete-manifest draft. `compositionProduction.ts` prepares the dedicated
+service adapter, but no route calls it and its composition SQL RPC is not yet
+installed. Never fall back to the V4 RPC or treat this helper as admission.
+Unknown dispatch/invocation stays unresolved; known outcomes resume without
+provider execution. The generic worker explicitly rejects both V4 and V5.
 
 `sourceDiscovery.ts` owns the prepared, non-wired source-discovery request and
 closed response decoder. Its 2 KiB byte boundary and exact owner/parent/source

@@ -8,10 +8,21 @@ struct NativeReceivedStatusTransport {
     static let maximumBytes = 4096
     enum RecoveryPhase: String, Sendable {
         case admission, completion
+        case captureCompletion = "capture-completion"
         var maximumResponseBytes: Int {
-            self == .admission ? 8192 : InitialCompletionDocuments.statusResponseMaximumBytes
+            switch self {
+            case .admission: 8192
+            case .completion: InitialCompletionDocuments.statusResponseMaximumBytes
+            case .captureCompletion: CaptureCompletionTransport.maximumResponseBytes
+            }
         }
-        var maximumRequestBytes: Int { self == .admission ? 2 * 1_048_576 + 4096 : 8192 }
+        var maximumRequestBytes: Int {
+            switch self {
+            case .admission: 2 * 1_048_576 + 4096
+            case .completion: 8192
+            case .captureCompletion: CaptureCompletionTransport.maximumRequestBytes
+            }
+        }
     }
     private let baseURL: String
     private let dispatcher: AuthenticatedTransportDispatcher

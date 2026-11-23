@@ -230,9 +230,12 @@ Deno.test("every scan producer preserves quota and media while DB persistence is
     );
 
     const failureTail = source.slice(ambiguityFence);
+    const requiredGuard = path === "../identify-multimodal/index.ts"
+      ? "if (!persistenceOutcomeUnknown && !privateResultBindingAttempted)"
+      : "if (!persistenceOutcomeUnknown)";
     const quotaFailure = failureTail.indexOf("quotaLease.fail()");
     const quotaGuard = failureTail.lastIndexOf(
-      "if (!persistenceOutcomeUnknown)",
+      requiredGuard,
       quotaFailure,
     );
     assert(
@@ -265,7 +268,7 @@ Deno.test("every scan producer preserves quota and media while DB persistence is
         stagedAssetFailure,
       );
       assert(
-        guardWindow.includes("if (!persistenceOutcomeUnknown)"),
+        guardWindow.includes(requiredGuard),
         `${path} may retire staged assets while the scan write is ambiguous`,
       );
     }
@@ -274,12 +277,12 @@ Deno.test("every scan producer preserves quota and media while DB persistence is
 
 Deno.test("every scan-row adapter uses the exact-owner persistence boundary", async () => {
   const databaseAdapters = [
-    "../_shared/identify/db.ts",
-    "../identify-describe/db.ts",
-    "../audio-spec/db.ts",
+    { path: "../_shared/identify/db.ts", row: "scanRow" },
+    { path: "../identify-describe/db.ts", row: "row" },
+    { path: "../audio-spec/db.ts", row: "row" },
   ] as const;
 
-  for (const path of databaseAdapters) {
+  for (const { path, row } of databaseAdapters) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
     assertStringIncludes(
       source,
@@ -288,12 +291,12 @@ Deno.test("every scan-row adapter uses the exact-owner persistence boundary", as
     );
     assertStringIncludes(
       source,
-      "scanId: row.id",
+      `scanId: ${row}.id`,
       `${path} does not verify the exact scan ID`,
     );
     assertStringIncludes(
       source,
-      "userId: row.user_id",
+      `userId: ${row}.user_id`,
       `${path} does not verify the exact scan owner`,
     );
   }

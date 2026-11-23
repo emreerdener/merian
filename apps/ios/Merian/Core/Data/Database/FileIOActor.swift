@@ -23,6 +23,35 @@ public actor FileIOActor {
     private let copyIO: CopyIO
     private let documents: URL
     private let temporaryDirectory: URL
+    private struct PendingProducerCleanup {
+        let revision: UUID
+        let operation: @Sendable () async throws -> Void
+    }
+    private var pendingProducerCleanup: [ObjectIdentifier: PendingProducerCleanup] = [:]
+
+    /// Failed disposable-output cleanup stays strongly owned across caller exit.
+    /// Only already-drained producers may enter this retry registry.
+    func settleProducerCleanup(owner: any AnyObject & Sendable,
+                               operation: @escaping @Sendable () async throws -> Void) async -> Bool {
+        let id = ObjectIdentifier(owner)
+        let revision = UUID()
+        pendingProducerCleanup[id] = .init(revision: revision, operation: operation)
+        do {
+            try await operation()
+            if pendingProducerCleanup[id]?.revision == revision { pendingProducerCleanup[id] = nil }
+            return true
+        } catch { return false }
+    }
+
+    func retryProducerCleanup() async -> Bool {
+        for (id, pending) in Array(pendingProducerCleanup) {
+            do {
+                try await pending.operation()
+                if pendingProducerCleanup[id]?.revision == pending.revision { pendingProducerCleanup[id] = nil }
+            } catch { continue }
+        }
+        return pendingProducerCleanup.isEmpty
+    }
 
     init(documents: URL, temporaryDirectory: URL, copyIO: CopyIO = .live) {
         self.copyIO = copyIO
@@ -93,8 +122,65 @@ public actor FileIOActor {
         }
     }
 
+    /// Captures only a verified flat disposable file. This receipt never grants
+    /// access to retained originals or any private media-store namespace.
+    func readRetainedOriginal(_ receipt: LegacyMediaFileRetirement, maximumBytes: Int) -> Data? {
+        receipt.read(maximumBytes: maximumBytes)
+    }
+
+    func retirementForDisposableFile(at path: String) -> LegacyMediaFileRetirement? {
+        withFile(at: path, bareRoots: [documents]) { directory, name, descriptor in
+            LegacyMediaFileRetirement(directory: directory, name: name, descriptor: descriptor)
+        }
+    }
+
+    /// Cleanup ignores task cancellation; account drain must join its result.
+    func retireDisposableFiles(_ receipts: [LegacyMediaFileRetirement]) -> Bool {
+        var complete = true
+        for receipt in receipts where !receipt.remove(synchronize: copyIO.synchronize) { complete = false }
+        return complete
+    }
+
     public func persistAudioFile(tempPath: String) -> String? {
         persistMediaFile(tempPath: tempPath, suffix: "audio", preferredExtension: "wav")
+    }
+
+    /// One verified historical WAV becomes an ordinary workspace-owned staging
+    /// file. This does not adopt the saved original or create a queue operation.
+    func stageHistoryAudio(_ bytes: Data) -> String? {
+        guard ObservationAudioContainer.isValid(bytes) else { return nil }
+        return stageHistoryMedia(bytes, suffix: "wav")
+    }
+
+    func stageHistoryVideo(_ bytes: Data) -> String? {
+        guard !bytes.isEmpty, bytes.count <= ScanMediaPayloadPolicy.maxSavedVideoBytes else { return nil }
+        return stageHistoryMedia(bytes, suffix: "mp4")
+    }
+
+    private func stageHistoryMedia(_ bytes: Data, suffix: String) -> String? {
+        guard !Task.isCancelled, let directory = LegacyMediaDirectory(documents) else { return nil }
+        let name = "\(UUID().uuidString.lowercased())_history-staging.\(suffix)"
+        let fd = openat(directory.fd, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return nil }
+        defer { Darwin.close(fd) }
+        var complete = false
+        defer { if !complete { _ = directory.remove(name, matching: fd) } }
+        let written = bytes.withUnsafeBytes { buffer -> Bool in
+            var offset = 0
+            while offset < buffer.count {
+                guard !Task.isCancelled else { return false }
+                let remaining = UnsafeRawBufferPointer(rebasing: buffer[offset...])
+                let count = copyIO.write(fd, remaining)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0, count <= remaining.count else { return false }
+                offset += count
+            }
+            return true
+        }
+        guard written, copyIO.synchronize(fd) == 0, copyIO.synchronize(directory.fd) == 0,
+              !Task.isCancelled, directory.matches(name, descriptor: fd) else { return nil }
+        complete = true
+        return name
     }
 
     public func persistVideoFile(tempPath: String) -> String? {
@@ -132,11 +218,49 @@ public actor FileIOActor {
     /// directory synchronization; this actor owns the existing bounded copy.
     func copyVideoInput(filename: String, ownedOutput: Int32) -> Bool {
         guard !filename.isEmpty, !filename.contains("/"), !filename.contains("\0"), !Task.isCancelled else { return false }
+        return copyVideoInput(path: filename, expected: nil, ownedOutput: ownedOutput)
+    }
+
+    /// A process-local descriptor identity for an explicitly workspace-owned
+    /// file. This grants no authority over the scan's mutable legacy attachments.
+    struct StagedVideoInput: Equatable, Sendable {
+        let path: String
+        fileprivate let identity: VideoSnapshot.Identity
+        fileprivate let rootDevice: dev_t
+        fileprivate let rootInode: ino_t
+        var binding: String {
+            "\(rootDevice):\(rootInode):\(identity.device):\(identity.inode):\(identity.size):" +
+                "\(identity.modifiedSeconds):\(identity.modifiedNanos):\(identity.changedSeconds):\(identity.changedNanos)"
+        }
+    }
+
+    func stagedVideoInput(path: String) -> StagedVideoInput? {
+        guard !Task.isCancelled else { return nil }
+        return withFile(at: path, bareRoots: [documents]) { directory, _, fd in
+            var info = stat(), root = stat()
+            guard fstat(fd, &info) == 0, fstat(directory.fd, &root) == 0,
+                  info.st_size > 0, info.st_size <= off_t(ScanMediaPayloadPolicy.maxSavedVideoBytes) else { return nil }
+            return StagedVideoInput(path: path, identity: .init(info), rootDevice: root.st_dev, rootInode: root.st_ino)
+        }
+    }
+
+    func copyVideoInput(_ input: StagedVideoInput, ownedOutput: Int32) -> Bool {
+        copyVideoInput(path: input.path, expected: input, ownedOutput: ownedOutput)
+    }
+
+    private func copyVideoInput(path: String, expected: StagedVideoInput?, ownedOutput: Int32) -> Bool {
+        guard !Task.isCancelled else { return false }
         var destination = stat()
         guard fstat(ownedOutput, &destination) == 0, destination.st_mode & S_IFMT == S_IFREG,
               destination.st_nlink == 1, destination.st_size == 0,
               lseek(ownedOutput, 0, SEEK_CUR) == 0 else { return false }
-        return withFile(at: filename, bareRoots: [documents]) { source, name, sourceFD in
+        return withFile(at: path, bareRoots: [documents]) { source, name, sourceFD in
+            if let expected {
+                var info = stat(), root = stat()
+                guard fstat(sourceFD, &info) == 0, fstat(source.fd, &root) == 0,
+                      root.st_dev == expected.rootDevice, root.st_ino == expected.rootInode,
+                      VideoSnapshot.Identity(info) == expected.identity else { return false }
+            }
             guard let initial = copyBytes(from: sourceFD, to: ownedOutput,
                     maximumBytes: off_t(ScanMediaPayloadPolicy.maxSavedVideoBytes), cancellable: true),
                   copyIO.synchronize(ownedOutput) == 0, !Task.isCancelled,
@@ -156,16 +280,35 @@ public actor FileIOActor {
     /// The returned token is process-local input ownership, never historical media evidence.
     func snapshotVideoFile(filename: String) -> VideoSnapshot? {
         guard !filename.isEmpty, !filename.contains("/"), !Task.isCancelled else { return nil }
-        return withFile(at: filename, bareRoots: [documents]) { source, name, sourceFD in
+        return snapshotMediaFile(path: filename, suffix: "mp4", maximumBytes: ScanMediaPayloadPolicy.maxSavedVideoBytes)
+    }
+
+    /// Capture's preparer returns an owned absolute playback URL. This entry
+    /// accepts only flat Documents/temporary files through the same descriptor
+    /// checks, without widening History's basename-only attachment interface.
+    func snapshotCapturePlayback(path: String) -> VideoSnapshot? {
+        guard path.hasPrefix("/") else { return nil }
+        return snapshotMediaFile(path: path, suffix: "mp4", maximumBytes: ScanMediaPayloadPolicy.maxSavedVideoBytes)
+    }
+
+    /// Freeze an explicitly staged audio file before AVFoundation opens a URL.
+    /// The same descriptor and flat-root checks apply to Documents and temporary inputs.
+    func snapshotAudioFile(path: String) -> VideoSnapshot? {
+        snapshotMediaFile(path: path, suffix: "wav", maximumBytes: ScanMediaPayloadPolicy.maxInferenceAudioBytes)
+    }
+
+    private func snapshotMediaFile(path: String, suffix: String, maximumBytes: Int) -> VideoSnapshot? {
+        guard !Task.isCancelled else { return nil }
+        return withFile(at: path, bareRoots: [documents]) { source, name, sourceFD in
             guard let destination = LegacyMediaDirectory(temporaryDirectory) else { return nil }
-            let copiedName = "\(UUID().uuidString.lowercased())_reanalysis-video.mp4"
+            let copiedName = "\(UUID().uuidString.lowercased())_reanalysis-input.\(suffix)"
             let output = openat(destination.fd, copiedName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
             guard output >= 0 else { return nil }
             defer { Darwin.close(output) }
             var complete = false
             defer { if !complete { _ = destination.remove(copiedName, matching: output) } }
             guard let initial = copyBytes(from: sourceFD, to: output,
-                    maximumBytes: off_t(ScanMediaPayloadPolicy.maxSavedVideoBytes), cancellable: true),
+                    maximumBytes: off_t(maximumBytes), cancellable: true),
                   copyIO.synchronize(output) == 0, copyIO.synchronize(destination.fd) == 0,
                   !Task.isCancelled, source.matches(name, descriptor: sourceFD, snapshot: initial),
                   destination.matches(copiedName, descriptor: output) else { return nil }
@@ -186,6 +329,33 @@ public actor FileIOActor {
     @discardableResult
     func discardVideoSnapshot(_ snapshot: VideoSnapshot) -> Bool {
         withVideoSnapshot(snapshot) { directory, name, fd in directory.remove(name, matching: fd) } ?? false
+    }
+
+    /// Reads only this owner's immutable disposable snapshot. Rechecks its
+    /// descriptor and named identity after the bounded read; no path authority
+    /// is inferred from the caller's URL.
+    func readVideoSnapshot(_ snapshot: VideoSnapshot, maximumBytes: Int) -> Data? {
+        guard maximumBytes > 0, maximumBytes <= ScanMediaPayloadPolicy.maxSavedVideoBytes else { return nil }
+        return withVideoSnapshot(snapshot) { directory, name, fd in
+            guard !Task.isCancelled, snapshot.identity.size > 0,
+                  snapshot.identity.size <= maximumBytes else { return nil }
+            var bytes = Data(count: Int(snapshot.identity.size)), offset = 0
+            let complete = bytes.withUnsafeMutableBytes { buffer -> Bool in
+                while offset < buffer.count {
+                    guard !Task.isCancelled else { return false }
+                    let count = pread(fd, buffer.baseAddress!.advanced(by: offset), buffer.count - offset, off_t(offset))
+                    if count < 0 && errno == EINTR { continue }
+                    guard count > 0 else { return false }
+                    offset += count
+                }
+                return true
+            }
+            var final = stat()
+            guard complete, !Task.isCancelled, fstat(fd, &final) == 0,
+                  VideoSnapshot.Identity(final) == snapshot.identity,
+                  directory.matches(name, descriptor: fd, snapshot: final) else { return nil }
+            return bytes
+        }
     }
 
     private func withVideoSnapshot<T>(_ snapshot: VideoSnapshot,
@@ -295,64 +465,5 @@ public actor FileIOActor {
             return body(directory, name, fd)
         }
         return nil
-    }
-}
-
-/// A synchronous, descriptor-scoped capability for one trusted flat legacy root.
-/// It cannot name descendants and is never passed across an actor suspension.
-private final class LegacyMediaDirectory {
-    let url: URL
-    private(set) var fd: Int32
-
-    init?(_ url: URL) {
-        self.url = url
-        fd = Self.openDirectory(url)
-        guard fd >= 0 else { return nil }
-        guard flock(fd, LOCK_SH | LOCK_NB) == 0 else {
-            Darwin.close(fd)
-            fd = -1
-            return nil
-        }
-    }
-
-    deinit { if fd >= 0 { Darwin.close(fd) } }
-
-    private static func openDirectory(_ url: URL) -> Int32 {
-        var current = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard current >= 0 else { return -1 }
-        for part in url.pathComponents.dropFirst() {
-            let next = openat(current, part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-            Darwin.close(current)
-            guard next >= 0 else { return -1 }
-            current = next
-        }
-        return current
-    }
-
-    func matches(_ name: String, descriptor: Int32, snapshot: stat? = nil) -> Bool {
-        guard !name.isEmpty, !name.contains("/"), name != ".", name != ".." else { return false }
-        let current = Self.openDirectory(url)
-        guard current >= 0 else { return false }
-        defer { Darwin.close(current) }
-        var heldRoot = stat(), namedRoot = stat(), held = stat(), named = stat()
-        let identityMatches = fstat(fd, &heldRoot) == 0 && fstat(current, &namedRoot) == 0
-            && heldRoot.st_dev == namedRoot.st_dev && heldRoot.st_ino == namedRoot.st_ino
-            && fstat(descriptor, &held) == 0 && fstatat(fd, name, &named, AT_SYMLINK_NOFOLLOW) == 0
-            && held.st_mode & S_IFMT == S_IFREG && named.st_mode & S_IFMT == S_IFREG
-            && held.st_nlink == 1 && named.st_nlink == 1
-            && held.st_dev == named.st_dev && held.st_ino == named.st_ino
-        guard identityMatches else { return false }
-        guard let snapshot else { return true }
-        return held.st_size == snapshot.st_size
-            && held.st_mtimespec.tv_sec == snapshot.st_mtimespec.tv_sec
-            && held.st_mtimespec.tv_nsec == snapshot.st_mtimespec.tv_nsec
-            && held.st_ctimespec.tv_sec == snapshot.st_ctimespec.tv_sec
-            && held.st_ctimespec.tv_nsec == snapshot.st_ctimespec.tv_nsec
-    }
-
-    func remove(_ name: String, matching descriptor: Int32, snapshot: stat? = nil,
-                synchronize: (Int32) -> Int32 = { fsync($0) }) -> Bool {
-        guard matches(name, descriptor: descriptor, snapshot: snapshot), unlinkat(fd, name, 0) == 0 else { return false }
-        return synchronize(fd) == 0
     }
 }

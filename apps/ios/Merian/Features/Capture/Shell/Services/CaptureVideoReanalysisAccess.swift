@@ -17,11 +17,12 @@ struct CaptureVideoReanalysisAccess {
         let choices: [ObservationReanalysisLocalVideoInput.Choice]
         let isCurrent: @MainActor () -> Bool
         let submit: (@escaping @MainActor @Sendable () -> Bool) async throws -> CaptureVideoResumeAccess.Admission
+        var workspaceInput: ((String, Set<String>) async throws -> ObservationReanalysisLocalVideoInput.Choice)?
     }
     let open: (HistoricalReanalysisTarget, ModelContainer, UUID) throws -> Opened
 
     static func prepared(account: ObservationHistoryCloudClient, ownership: ObservationReanalysisPreparationOwner,
-                         configuration: Configuration,
+                         configuration: Configuration, workspace: Bool = false,
                          currentOwner: @escaping @MainActor @Sendable () -> UUID?,
                          generation: @escaping @MainActor @Sendable () -> UInt64,
                          sessionIsCurrent: @escaping @MainActor @Sendable (AuthTransitionSession) -> Bool,
@@ -39,8 +40,8 @@ struct CaptureVideoReanalysisAccess {
             guard authSession.userID == target.ownerID, current(), account.isCurrent(lease) else { throw ObservationHistoryError.accountChanged }
             let source = try ObservationReanalysisSource.captureForVideo(observationID: target.observationID,
                 analysisID: target.analysisID, ownerID: target.ownerID, container: container)
-            let choices = try ObservationReanalysisLocalVideoInput.choices(source: source, container: container)
-            guard !choices.isEmpty else { throw ObservationHistoryError.unavailable }
+            let choices = try workspace ? [] : ObservationReanalysisLocalVideoInput.choices(source: source, container: container)
+            guard workspace || !choices.isEmpty else { throw ObservationHistoryError.unavailable }
             let store = try ObservationReanalysisFileStore(documents: documents())
             let directory = try configuration.temporaryDirectory()
             try configuration.prepareLifetime()
@@ -49,7 +50,7 @@ struct CaptureVideoReanalysisAccess {
             guard current(), account.isCurrent(lease) else { throw ObservationHistoryError.accountChanged }
             let session = CaptureVideoReanalysisSession(source: source, generation: presentationGeneration, container: container)
             let producer = ObservationVideoPreparationProducer(files: store, ownership: ownership, account: account)
-            return Opened(session: session, choices: choices, isCurrent: current, submit: { presentationIsCurrent in
+            var opened = Opened(session: session, choices: choices, isCurrent: current, submit: { presentationIsCurrent in
                 try await session.submit(generation: presentationGeneration, files: configuration.files,
                     temporaryDirectory: directory, startup: startup, borrowing: borrowing, producer: producer, isCurrentAccount: current,
                     isCurrentPresentation: presentationIsCurrent, start: { ready in
@@ -57,6 +58,13 @@ struct CaptureVideoReanalysisAccess {
                         return configuration.resume.start(ready, authSession, expectedGeneration, container, store)
                     })
             })
+            if workspace {
+                opened.workspaceInput = { path, ownedPaths in
+                    try await ObservationReanalysisLocalVideoInput.workspaceChoice(source: source, path: path,
+                        ownedPaths: ownedPaths, files: configuration.files, container: container, isCurrent: current)
+                }
+            }
+            return opened
         })
     }
 }

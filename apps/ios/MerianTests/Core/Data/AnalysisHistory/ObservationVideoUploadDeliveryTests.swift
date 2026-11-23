@@ -189,7 +189,8 @@ struct ObservationVideoUploadDeliveryTests {
         let start = try #require(execution.range(of: "func cancelPreparedAnalysisDispatch() {\n"))
         let end = try #require(execution[start.upperBound...].range(of: "\n    }"))
         let helper = String(execution[start.upperBound..<end.lowerBound])
-        let owners = ["sourceReservationOwner", "videoReservationOwner", "videoUploadOwner", "audioExecutionOwner", "videoExecutionOwner"]
+        let owners = ["sourceReservationOwner", "videoReservationOwner", "compositionReservationOwner", "videoUploadOwner",
+                      "compositionUploadOwner", "audioExecutionOwner", "videoExecutionOwner", "compositionExecutionOwner"]
         #expect(helper.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) } == owners.map { $0 + ".cancel()" })
     }
 }

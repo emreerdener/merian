@@ -14,7 +14,6 @@ final class CaptureWorkspaceOperationState {
     private var deferredRouteRequestID: UUID?
     private var opensExploreAfterWhatsNew = false
     private var pendingLocalSheet: CaptureWorkspaceViewModel.ActiveSheet?
-    private var requiredGalleryCropImageIDs: [UUID] = []
     private var refinementStagingTask: Task<Void, Never>?
     private var activeCropTask: Task<Void, Never>?
 
@@ -151,31 +150,6 @@ final class CaptureWorkspaceOperationState {
     func clearExternalImportPresentationHistory(for importID: UUID) {
         slotBlockedExternalImportIDs.remove(importID)
         paywallPresentedExternalImportIDs.remove(importID)
-    }
-
-    func appendRequiredGalleryCrop(imageID: UUID) {
-        requiredGalleryCropImageIDs.append(imageID)
-    }
-
-    func containsRequiredGalleryCrop(imageID: UUID) -> Bool {
-        requiredGalleryCropImageIDs.contains(imageID)
-    }
-
-    func firstRequiredGalleryCropImageID() -> UUID? {
-        requiredGalleryCropImageIDs.first
-    }
-
-    func removeRequiredGalleryCrop(imageID: UUID) {
-        requiredGalleryCropImageIDs.removeAll { $0 == imageID }
-    }
-
-    func removeFirstRequiredGalleryCrop() {
-        guard !requiredGalleryCropImageIDs.isEmpty else { return }
-        requiredGalleryCropImageIDs.removeFirst()
-    }
-
-    func removeAllRequiredGalleryCrops() {
-        requiredGalleryCropImageIDs.removeAll()
     }
 
     func setRefinementStagingTask(_ task: Task<Void, Never>) {

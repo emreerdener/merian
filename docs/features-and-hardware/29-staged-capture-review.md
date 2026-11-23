@@ -1,21 +1,193 @@
-# Staged capture review and shared Describe
+# Staged capture review and Field notes
 
-This is the current product and lifecycle contract for the Scan, Record, and
-Describe workspace. It describes repository behavior, not deployment status. The
-[implementation record](../rfcs/staged-review-shared-describe-2026-09-26.md)
-retains the pinned provider/provenance checkpoint, exact implementation commits,
-validation results, and outstanding distribution evidence. The
-[adaptive-toolbar follow-up](../rfcs/adaptive-staged-toolbar-2026-09-27.md)
-records the later layout changes and their local validation separately.
+This document separates the current successor source checkpoint from the
+retained staging/submission contracts. Repository implementation is not a
+production deployment or qualification claim.
 
-## Planned successor (2026-10-18)
+## Current integrated source contract — November 21, 2026
 
-The [consolidated capture plan](../product/capture-review-plan.md) joins the
-proposed Scan/Record simplification, Add details sheet, default media review,
-combined photo editor, video/audio review, and shared draft toolbar. It is a
-planning document, not an activation or completion claim. Existing behavior
-below remains distinct; shared media/submission work requires its own explicit
-handoff and qualification before this redesign is implemented.
+This checkpoint supersedes older implementation-status statements below; dated
+sections preserve their original scope and evidence. The connected successor
+uses Scan (photo/video) and Record workspaces, one shared review toolbar and
+optional autosaved Field notes. Identify/Reanalyze submits the entire staged
+observation, including unvisited items. No Next or per-item confirmation is
+required. Removing the final media item clears supplementary notes and prompt
+state. Empty Scan and Record restore the leading goal/persona control when a
+goal exists; a draft shows trash. Active recording hides goal presentation.
+Purchase policies, scan packs, quantity controls and analysis banners remain
+outside this work.
+
+Manual photo selection is represented in both initial and reanalysis evidence.
+Capture retains original-media custody separately from prepared/display
+artifacts; accepted submissions keep their exact identity through execution,
+result saving, History enrollment and retry. Mixed-media reanalysis preserves
+the approved one-observation History contract. History continuation requires no
+extra user confirmation or repeated provider submission. The native
+admission/qualification configuration remains unchanged; source integration does
+not activate a build.
+
+Closing review seals playback and joins readers before releasing retained files.
+Reusable audio pages receive a fresh local playback scope only after the old
+scope fully closes. An injected disposable preview scope remains closed forever.
+Recorder original custody survives reset while a draft hold or copy still needs
+it; cleanup uses exact-file receipts and joins readers before unlinking.
+
+Account sign-out/deletion and cold recovery now call the accepted whole-library
+cleanup owner before generic purge, retaining operation, store, parent and
+physical-absence checks. Native69/70 qualify those joins and the bounded
+complete zero-row audit. The final endpoint/custody extraction and audio
+reappearance checks passed within the failed native72 run. Native74 exposed a
+missing cancellation of entered writer work. The successor keeps escaped
+endpoints weak, revokes deep writer authority, cancels the exact entered child
+and joins its termination before closing files. Native75 passed 10 tests in two
+suites for that correction, including known-response settlement. Native77 passed
+all eight Composition execution tests, including first-success selection and
+later explicit-selection replay. Native78 repeated that suite successfully and
+passed 14 of 18 UI journeys. Native79 passed 43 policy/Composition checks and 16
+of 18 UI journeys, including active and paused recording completion. Its two
+remaining test assertions are corrected in native80, which also expands the
+actual close/rotation/selection labels to 44 points. Native80 was interrupted
+after full-target checks exposed a registry-order defect and stale test
+expectations. Its frozen inputs matched at exit. Reviewed corrections and the
+large-text Field notes heading fix passed 116 focused unit tests and 18 UI
+journeys in native81. Visual review exposed clipped multiline input at
+accessibility XXXL; native82 bounds the Field notes input to its visible
+viewport and gives it internal caret scrolling. Native82 passed 15 unit tests
+and five affected UI journeys; screenshots confirm final-line/caret visibility
+at accessibility XXXL and standard keyboard clearance. Native83 passed all 1,563
+XCTest methods but later video Swift Testing checks failed; its interrupted
+result is not a complete-target pass. Native84 passed all 34 focused tests for
+private producer ownership, receipt-preserving rollback, cleanup retry and the
+orientation-aware pixel reference, with unchanged source/fixture pins. Under the
+user's updated early-switch direction, native85 was gracefully interrupted with
+7,184 passing methods, 13 assertion failures, one interruption failure and eight
+declared skips. Its inputs matched after actual process exit. Of 607 unexecuted
+compiled methods, 41 belong to the required Capture dependency closure; 566
+remain open broader baseline evidence. Native86 runs 58 targeted methods/111
+cases after reviewed test/policy corrections, including two missing video
+History UI flows. Native86 passed 57 of 58 methods and all 69 parameter cases.
+Its one failure exposed a lost video soundtrack offset. The follow-up uses
+asset-timed PCM extraction with bounded silence for empty edits, relative to the
+original audio track start. Native87 passed the timing regression, terminal
+acceptance and both video History UI flows: 30 of 31 methods/42 of 43 expanded
+cases passed, with one new fixture failing before production. Native88 corrected
+only that fixture and passed all three timeline methods, with unchanged input
+pins. Source/dependency and simulator/configuration reconciliation closes the
+authorized targeted validation. Local implementation is ready for manual-device
+review; installed selection gestures and physical capture remain unqualified.
+There is no automatic full-target rerun, and the complete-target release gate
+remains open. The [Capture plan](../product/capture-review-plan.md) records
+exact-source evidence and remaining physical-device/deployed-environment checks.
+No release is claimed.
+
+## Successor foundation — November 15, 2026
+
+The [consolidated capture plan](../product/capture-review-plan.md) is authorized
+for implementation after the scoped History handoff. The foundation now exposes
+Scan and Record only; saved mode ordering filters the retired Describe value
+without removing historical decoding. The default-off automatic setting reads
+“Identify automatically”. Optional supporting Field notes is opened through the
+shared draft toolbar, with session/account/generation-fenced autosave and
+matching outer-dismissal occupancy. Identify awaits final dictation. See the
+[Field notes contract](11-describe-and-voice-dictation.md) for that lifecycle.
+
+The complete combined media review/editor successor remains in progress and
+needs native validation. The older staged-review and shared-Describe material
+below records retained behavior where not superseded by this checkpoint; it does
+not authorize restoring standalone Describe or new text-only admission. The
+[original implementation record](../rfcs/staged-review-shared-describe-2026-09-26.md)
+and [adaptive-toolbar record](../rfcs/adaptive-staged-toolbar-2026-09-27.md)
+preserve their historical evidence.
+
+## Whole-observation submission correction — November 16, 2026
+
+Identify (new observation) and Reanalyze (reanalysis) submit the whole staged
+observation. Imported-item review is optional, with no Next button, confirmation
+queue, or requirement to visit every item. Imports still open review and revoke
+automatic submission. Default preparation supplies centered-square AI/display
+artifacts even for unvisited photos; native imports bind a stable normalized
+square recipe to each retained original before staging. Optional displayed edits
+must commit before whole-observation validation, freeze and admission.
+Preparation/edit failure preserves the draft without admission; admission
+failure retains valid committed edits for manual retry. Accepted operations
+retain their exact saved request identity. Focused native validation passed on
+November 16: 132 XCTest cases, 18 Swift Testing tests across three suites, and
+the Field notes keyboard/return UI test. The
+[consolidated capture plan](../product/capture-review-plan.md#product-correction--2026-11-16)
+records the working-tree baseline, retained XCResult, static checks and scope
+limits; this is not qualification of the complete successor or deployment.
+
+Shell owns `CapturePhotoReviewCommit`, fenced to item, draft generation and
+account. It blocks competing actions until native recipe or legacy image
+preparation/persistence completes. Account replacement cancels and retires the
+commit before retained-owner transition branches; stale completions cannot
+submit another draft or release a successor commit. Each imported editor is
+keyed by item ID so its geometry cannot leak into the next photo.
+
+The next source increment uses one Shell-owned `CaptureMediaReviewSession` for
+photo, audio and video pages and their shared toolbar. Selection uses stable
+node IDs; successful thumbnail navigation commits optional photo edits. Review
+Add more commits edits and returns to capture. Field notes and
+historical-description navigation do not commit media. Unchanged photos preserve
+prepared bytes. Edited photos derive from the original and retain insertion
+order; the profile/avatar cropper is unchanged.
+
+The outer review presentation retains its ID through matching dismissal, even
+when its content retires before mounting. Child notes and Prompts cannot release
+review occupancy, resume hardware or drain deferred navigation. Playback retires
+while audio/video review opens notes so dictation can own the audio session.
+Identify awaits dictation, commits the selected photo, then calls the existing
+whole-observation admission owner. A retained frozen request returns to the
+existing root retry/recovery controls without changing its identity.
+
+Manual subject selection remains unexposed while initial submission is
+integrated. The successor codecs now retain manual focus for initial evidence
+(manifest 7, result 8) and composition reanalysis (manifest 6, result 7).
+Selection, review and receipt-bound Undo validate these typed results before
+mutation. This source support does not establish end-to-end original-media
+retention: ordinary photo queue attachments are display derivatives, and raw
+video sources are currently draft-owned. They must not be relabeled as
+originals.
+
+Video review starts paused. Shared canonical square preparation and atomic
+changed-video artifact replacement are now implemented in successor source; full
+integration and qualification remain pending. These requirements are not waived.
+Shared review source and its native/UI evidence are recorded in the
+implementation plan. `CapturePhotoReviewTests.swift` runs within
+`CaptureWorkspaceViewModelRefinementTests`; native validation is recorded in the
+[implementation plan](../product/capture-review-plan.md).
+
+## History reanalysis integration status
+
+The shared Capture toolbar is the new reanalysis entry. It retains the displayed
+identification as the source while users edit or replace staged content and
+Field notes. Submission is explicit. Pure photo, single-audio and single-video
+compositions use the existing corresponding durable History owners; completed
+V1–V6 results can supply the source identity independently of the new media
+type. Original V2 photos, V4 audio and V5 video are loaded by immutable manifest
+membership. Video frames and companion audio remain one toolbar item.
+
+Audio and video original loading requires the new protected
+`resolve-history-media` endpoint. Its local implementation/validation is not a
+production deployment. Legacy results without immutable artifact membership do
+not authorize borrowing a mutable parent attachment as an original.
+
+Mixed-media schema-5 submissions now connect the shared workspace to retained
+preparation, reservation, ordered whole-cohort upload and execution owners. A
+result-6 source uses this lane even if the edited composition contains one media
+type. The dedicated backend path preserves all submitted nodes and emits a
+result-6 snapshot for reader14. These changes are local and default-off;
+coordinated backend release is required for live testing.
+
+Successful completion makes the new identification current, even if another
+version was selected during execution. Failures preserve the current result.
+Replay never overrides a later deliberate selection. The existing progress sheet
+offers continuation of saved mixed work; once invocation is consumed, only an
+original-result check is allowed. Exact media and notes are retained through
+restart without silently resubmitting AI. Native completion persists the result
+before refreshing server-selected state, preserving it if refresh fails. The
+[composition contract](../backend-and-data/05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14)
+owns the wire and rollout boundaries.
 
 ## Capacity and settings
 
@@ -23,7 +195,7 @@ handoff and qualification before this redesign is implemented.
 | ---------------- | ----------------------------------------- | --------------------------------------------------- |
 | Free             | One photo or standalone audio recording   | One optional note                                   |
 | Pro              | Two media items, including Pro-only video | One optional note                                   |
-| Description only | None required                             | One description                                     |
+| Description only | Fresh admission blocked                   | Preserve historical records and accepted replay     |
 | Reanalysis       | Two physical items                        | Historical descriptions plus one current supplement |
 
 Text never consumes a physical slot. Multiple historical descriptions remain
@@ -34,12 +206,11 @@ The [scan allowance contract](../backend-and-data/18-complimentary-pro-scans.md)
 owns Free eligibility, Pro-first funding, quotas, and
 exhausted-Pro/remaining-Free fallback. Placeholders never enter payloads.
 
-The tray renders one add-media placeholder per usable empty physical slot. A
-Describe-first Pro draft shows two empty media nodes followed by its note; Free
-shows one usable empty media node, a locked second node with a **PRO** badge,
-then its note. A Free draft with one photo or recording retains the locked node.
-Two occupied physical slots leave no media placeholder. The note remains
-separate, regardless of the starting capture mode.
+The tray renders one add-media placeholder per usable empty physical slot. The
+optional note never replaces a media slot. A Free draft with one photo or
+recording retains a locked second node with a **PRO** badge. Two occupied
+physical slots leave no media placeholder. The note remains separate, regardless
+of the starting capture mode.
 
 Tapping the locked node opens the default paywall without requesting photo
 library access. Its 48 pt control is labelled **Add another media item with
@@ -51,10 +222,10 @@ never grants additional admission capacity, changes reanalysis capacity, or
 reveals the tray outside its existing staged-review visibility rules.
 
 Staged review is the default on new and existing installations. Workspace's
-**Auto-submit scans** uses the new `autoSubmitScans` key, registered as `false`;
-legacy confirmation and multi-capture values do not initialize it. Later
-explicit choices persist. Its description is: “Submit each capture immediately,
-skipping review and the chance to add a note or another media item.” There is no
+**Identify automatically** uses the `autoSubmitScans` key, registered as
+`false`; legacy confirmation and multi-capture values do not initialize it.
+Later explicit choices persist. Its description is: “Identify immediately after
+taking a photo or finishing a recording, without reviewing first.” There is no
 multi-capture preference: the media budget follows entitlement and capture
 context.
 
@@ -68,7 +239,12 @@ effect, haptic, and background-upload behavior remains defined by the
 it restores ordinary constraint evaluation and upload eligibility, subject to
 the normal permission, funding, connectivity, and recovery checks.
 
-## One text editor
+## Historical Describe editor contract — superseded November 15, 2026
+
+The following records the retired Describe-workspace behavior. It is not the
+current Field notes contract. The integrated contract above replaces this entry
+point with optional review-toolbar notes, requires physical media for
+submission, and clears supplementary notes when the final media item is removed.
 
 Root Describe is the only editor for ordinary text and the current reanalysis
 supplement. Both **Add note** and **Edit note** navigate there and focus the
@@ -117,90 +293,63 @@ preview-only staged metadata. See the
 
 ## Tray and protected discard
 
-The media row displays physical captures, usable add-media placeholders, and the
-Free upgrade placeholder described above. One note node follows it: outlined
-message bubble when empty, filled message bubble when populated, with **Add
-note** / **Edit note** accessibility labels. Text-only scans use that same note
-node once. Reanalysis may also show historical text nodes. The once-per-install
-tooltip says “Add a note about what you noticed.”
+The shared review toolbar contains physical-media nodes, usable add-media
+placeholders, the existing capacity upgrade placeholder when applicable, one
+Field notes node, and a text-labelled **Identify** or **Reanalyze** button.
+Reanalysis may also display separate historical descriptions. Reviewing any
+individual item is optional; the primary action commits current edits and
+submits the entire staged observation. There is no per-item confirmation or Next
+button.
 
-Physical capture controls remain available while capacity remains; the note
-remains reachable at full capacity. The top Scan / Record / Describe selector
-stays visible and usable even when every media slot and the note are populated.
-Nodes retain 48 pt touch targets with 8 pt spacing. The tray uses one row only
-when all nodes and the submission button fit at their ideal sizes. Otherwise,
-complete media nodes wrap in chronological order in a separate rounded glass
-container above the action row; the note remains last. Discard stays on the left
-and Identify/Analyze on the right, with 8 pt between rows. There is no clipped
-horizontal media viewport or hidden discard gesture.
+Scan (photo/video) and Record are the capture workspaces. Field notes opens from
+the review toolbar, including at full media capacity, and autosaves into the
+current draft. Its empty/populated pencil-and-page symbol uses supported SF
+Symbols with a fallback; accessibility labels are **Add field notes** and **Edit
+field notes**. The selected note node has a blue border. An upward swipe on the
+toolbar also opens notes when mutation is allowed. The notes editor keeps the
+same observation toolbar above the keyboard and has an accessible close handle;
+closing returns to the originating review. Removing the final physical item
+clears supplementary notes and returns to empty capture.
 
-Compact layout places the media-only glass capsule between the independently
-floating Discard and Identify/Analyze buttons, with a 16 pt gap on each side.
-Both circular action controls use 52 pt diameters in compact and expanded
-layouts, with 24 pt semibold icons, centered alongside the media capsule. The
-capsule retains 8 pt internal padding and the toolbar retains 16 pt outer
-horizontal margins. Expanded layout retains that padding and those outer
-margins, with 8 pt between complete media rows and between the media container
-and action row. Both layouts share the main navigation bar's bottom anchor
-without additional bottom padding; expanded content grows upward. Selection is
-based on actual available width and ideal content sizes, not a node-count or
-device-model threshold.
+Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
+and the primary action inside one glass capsule with 12 pt horizontal, 16 pt
+top, and 10 pt bottom padding. The toolbar has 16 pt outer horizontal margins.
+When ideal contents do not fit, whole media nodes wrap in chronological order
+above the primary action inside one rounded glass container; Field notes stays
+last among the nodes. The decision uses available width and ideal content size,
+not device or node-count thresholds. Identify/Reanalyze uses a blue text capsule
+with at least 48 pt height and 18 pt horizontal text padding, preserving its
+context-specific accessibility label, submission hint, disabled state, and Large
+Content Viewer label.
 
-On iOS 26+, the tray and circular discard control use native Liquid Glass.
-Earlier iOS uses material; Reduce Transparency or the existing
-Expedition/thermal effect policy selects an opaque adaptive background. The tray
-follows the app's color scheme consistently across Scan, Record, and Describe.
-**Identify** and **Analyze** both use a white up arrow in a 52 pt primary accent
-blue circle, matching Share’s blue and Discard’s diameter. Both retain their
-context-specific accessibility label and submission hint, disabled behavior, and
-Large Content Viewer label. Once per install, a full physical-media tray shows
-“Submit to identify” (or “Submit to analyze” for reanalysis) directly above the
-submit button for four seconds. It waits for submission readiness and for the
-note tooltip to finish, and disappears if the tray becomes incomplete or locked.
-The optional note is not required to trigger it. The once-per-install note
-tooltip remains. Action controls remain 52 pt at accessibility text sizes, while
-note-tooltip text can wrap. Media icons retain their meanings. Both the note and
-audio-review nodes have a visible circular border. Empty note and add-media
-nodes share a dashed border and transparent background. Populated notes, audio,
-historical text, and photo/video thumbnail backing use opaque primary system
-backgrounds (white in light appearance) and solid borders. Empty nodes reveal
-the tray beneath, including its reduced-transparency or reduced-effect fallback.
-Add-media plus icons, including the Pro upgrade placeholder, and note icons use
-the same adaptive primary color (white in dark appearance, dark in light
-appearance), while their dashed borders remain subdued. Note content changes the
-bubble from outlined to filled rather than changing its foreground color. Audio
-uses a primary-contrast waveform; its appearance does not imply a disabled
-state. It remains a playback-review button, subject to the shared
-draft/admission locks.
+Native Liquid Glass on iOS 26+ and material on earlier versions respect the
+existing Expedition, thermal, and Reduce Transparency policies. Populated nodes
+use an opaque primary system background and a solid border. Empty media and
+notes nodes use transparent backgrounds and dashed borders. Icons use adaptive
+primary contrast. Audio remains a playback-review action, subject to the shared
+draft/admission locks. The once-per-install note tooltip remains; the separate
+submit tooltip appears for four seconds when physical capacity is full and
+submission is ready, after the note tooltip has finished.
 
-Only the staging tray reports its rendered height to Shell.
+Only the staging toolbar reports its rendered height to Shell.
 `CaptureChromeLayout` retains the baseline 124 pt capture-control inset, or uses
-the tray height plus 16 pt when larger. Describe's content reservation,
-camera/audio overlay clearance, and composing center follow this same increment.
-Capture controls and UIKit-hosted Describe never report heights back into this
-calculation. Compact layouts preserve ordinary positions; expanded layouts
-animate unless Reduce Motion is enabled, including tray appearance and tooltip
-dismissal. Keyboard editing in Describe continues to hide bottom chrome and
-restores the measured layout on dismissal.
+the toolbar height plus 16 pt when larger. Camera/audio clearance follows that
+increment. Expanded content grows upward; animation respects Reduce Motion.
 
-The neutral discard surface has a semibold trash icon with a deeper red in light
-appearance and a brighter red in dark appearance for contrast. The empty note
-icon uses the plain `bubble.left` outline without interior lines or a plus
-badge; a populated note uses `text.bubble.fill`. Tapping discard presents:
-
-- **Discard this scan?**
-- “Your staged media and description will be removed.”
-- **Keep editing** / **Discard scan**
-
-Reanalysis uses **Discard reanalysis?** and preserves the original scan,
-restoring its insight after confirmed discard. Opening or dismissing the
-confirmation preserves content. While presented, submission and composition
-actions are blocked. Confirmation is bound to the originating draft generation.
+The Shell's leading goal/persona control is shown for empty capture and replaced
+by trash while a draft exists, then restored when the draft clears. It is hidden
+while recording. Trash requests confirmation bound to the originating draft
+generation. Initial capture asks **Discard observation?**, explains that all
+added photos, recordings, and details will be removed, and offers **Keep
+editing** / **Discard**. Reanalysis asks **Discard reanalysis?** and explicitly
+preserves the original observation. Opening or dismissing confirmation preserves
+content; submission and composition mutations remain blocked while it is open.
 
 Confirmed discard clears draft media, shared text, editor, and refinement state;
-it stops dictation, invalidates pending callbacks, and deletes only draft-owned
-files. Individual media removal keeps its existing behavior. Enqueue-pending
-work cannot be discarded.
+it stops dictation, invalidates pending callbacks, and retires only draft-owned
+files through their lifecycle owners. Removing one item preserves the remaining
+media and notes; removing the final item clears supplementary notes.
+Enqueue-pending work cannot be discarded.
 
 ## Readiness and automatic capture attempts
 
@@ -217,27 +366,26 @@ in Library/Profile; it never opens sign-in over Capture or bypasses queue gates.
 Register photo, audio, video, and import work before asynchronous execution.
 `isDraftReadyForSubmission` is shared by UI and submission entry points and is
 rechecked after admission and before enqueue. Recording, capture, import,
-preparation, required crop, and unresolved refinement hydration block
-submission. Prepared media commits and its operation resolves in the same draft;
-stale completions cannot update a successor. Failure resolves the operation,
-revokes automatic eligibility, and retains existing content for manual review.
+preparation, a pending displayed-media edit, and unresolved refinement hydration
+block submission. Prepared media commits and its operation resolves in the same
+draft; stale completions cannot update a successor. Failure resolves the
+operation, revokes automatic eligibility, and retains existing content for
+manual review.
 
 Automatic eligibility is minted at capture entry only when Auto-submit is on,
 the entire composition including pending text is empty, and no reanalysis is
-active. It follows that attempt through recording/preparation and the initial
-required crop; its button reads **Crop and submit** while that automatic attempt
-remains eligible, otherwise **Confirm crop**. Video may submit after
-preparation. Completion may consume this eligibility but cannot create it.
-Turning the preference off revokes it even across an off/on cycle. Turning it
-on, recropping, removing content, or adding context never arms an existing
-attempt. Reanalysis is always manual.
+active. It follows that attempt through recording/preparation; eligible fresh
+captures submit immediately and bypass review. Completion may consume this
+eligibility but cannot create it. Turning the preference off revokes it even
+across an off/on cycle. Turning it on, recropping, removing content, or adding
+context never arms an existing attempt. Reanalysis and imported media are always
+manual. All manual submission buttons read Identify or Reanalyze.
 
-Fresh automatic gallery selection is limited to one photo. Pending text makes
-the composition manual and retains its normal physical-media budget. Picker
-entry admits a minimum one-photo addition; selection-time admission checks the
-actual chosen count before file loading. Final submission still rechecks the
-complete evidence. Late admission responses from discarded generations produce
-neither a paywall nor an error on the next draft. The
+Gallery selection retains the normal physical-media budget. Picker entry admits
+a minimum one-photo addition; selection-time admission checks the actual chosen
+count before file loading. Final submission still rechecks the complete
+evidence. Late admission responses from discarded generations produce neither a
+paywall nor an error on the next draft. The
 [Photos import guide](./26-photos-share-import.md#gallery-admission-and-free-fallback)
 explains that boundary.
 

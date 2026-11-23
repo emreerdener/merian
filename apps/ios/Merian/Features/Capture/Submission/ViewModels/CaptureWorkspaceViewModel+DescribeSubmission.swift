@@ -14,7 +14,7 @@ extension CaptureWorkspaceViewModel {
     ) async -> Bool {
         guard !isDraftMutationLocked, !observationContext.isEmpty else { return false }
         let submitImmediately = diContainer.appSettings.autoSubmitScans
-            && stagedCapture.isEmpty && baseRefinementContext == nil
+            && stagedCapture.isEmpty && !isReanalyzing
         updateDescriptionDraft(observationContext)
         isReviewActive = true
         synchronizeSharedDescription()
@@ -37,7 +37,7 @@ extension CaptureWorkspaceViewModel {
 
         let stagedContext = observationContext
 
-        if baseRefinementContext != nil {
+        if isReanalyzing {
             guard stagedCapture.canStageRefinementDescription else { return .rejected }
             if let index = stagedCapture.refinementSupplementIndex {
                 stagedCapture.observationContexts[index].context = stagedContext
@@ -51,11 +51,8 @@ extension CaptureWorkspaceViewModel {
         }
 
         if let index = stagedCapture.observationContexts.indices.last {
-            let addedAt = stagedCapture.observationContexts[index].addedAt
-            stagedCapture.observationContexts[index] = StagedObservationContext(
-                context: stagedContext,
-                addedAt: addedAt
-            )
+            // Preserve this item's stable identity and insertion time on autosave.
+            stagedCapture.observationContexts[index].context = stagedContext
             return .staged
         }
 
@@ -66,6 +63,9 @@ extension CaptureWorkspaceViewModel {
     /// The toolbar must not clear a rejected draft or submit evidence without it.
     /// Synchronous preparation also snapshots text before asynchronous admission begins.
     func prepareActiveStagedSubmission(descriptionDraft: inout ObservationContext) -> Bool {
+        if reanalysisEditor?.isFrozen == true {
+            return isDraftReadyForSubmission && isDraftAccountCurrent
+        }
         guard !isDraftMutationLocked, isDraftReadyForSubmission else { return false }
         switch stagePendingDescribeDraftForActiveSubmission(descriptionDraft) {
         case .emptyDraft:

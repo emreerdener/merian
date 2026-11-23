@@ -50,14 +50,15 @@ final class SharedMediaNativeAppReceivingOperations {
     }
     private func prepareRequest(packageID: UUID, pairIDs: [UUID], operationID: UUID, queueID: UUID, observationID: UUID,
                                 bindingID: UUID, generation: UUID, eventID: UUID, timestamp: Date,
-                                intentRevision: Int64? = nil, restagedFromSHA256: String? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws
+                                intentRevision: Int64? = nil, restagedFromSHA256: String? = nil,
+                                cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort, photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws
         -> (SharedMediaNativeAppReceivingRequest, [SharedMediaPhotoRetirementInspection]) {
         try validate(); try facts.requireMutable(packageID)
         let c = fresh(), cRows = try target(c, packageID), inventory = cRows.inventory, package = cRows.package, member = cRows.member
         let states = try SharedMediaNativeFreezeFacts.states(context: c, inventory: inventory, package: package, member: member, pairIDs: pairIDs)
         let proofs = try await SharedMediaNativeAppReceivingIO.inspect(states, io: io, check: validate, verify: verify)
         let freeze = try SharedMediaNativeFreezeFacts.request(context: c, inventory: inventory, package: package, member: member,
-            binding: binding, operationID: operationID, pairIDs: pairIDs, proofs: proofs)
+            binding: binding, operationID: operationID, pairIDs: pairIDs, proofs: proofs, cohortFormat: cohortFormat)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(profile: authority.profile,
             package: .init(package), member: .init(member), cohort: freeze.commit.cohort,
             operationID: operationID, queueID: queueID, observationID: observationID, bindingID: bindingID,
@@ -81,6 +82,7 @@ final class SharedMediaNativeAppReceivingOperations {
     }
     func stage(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
                identity: SharedMediaNativeReceivingStageIdentity,
+               cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort,
                expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil, photoAdmission: SharedMediaNativePhotoAdmission? = nil,
                beforeImmutableSave: () throws -> Void = {}) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         try validate()
@@ -100,7 +102,7 @@ final class SharedMediaNativeAppReceivingOperations {
         let (request, proofs) = try await prepareRequest(packageID: packageID, pairIDs: pairIDs,
             operationID: identity.operationID, queueID: identity.queueID, observationID: identity.observationID,
             bindingID: identity.bindingID, generation: identity.generation, eventID: identity.eventID, timestamp: identity.timestamp,
-            intentRevision: 0, photoAdmission: photoAdmission)
+            intentRevision: 0, cohortFormat: cohortFormat, photoAdmission: photoAdmission)
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
         try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
         try expectedMetadata?.requireReceivingSelection(prepared)
@@ -133,7 +135,7 @@ final class SharedMediaNativeAppReceivingOperations {
         try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
         try requireFreshReceivingIdentity(prepared, context: current)
         guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage,
-            member: oldMember, binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze else {
+            member: oldMember, binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs, cohortFormat: frozen.format) == request.freeze else {
             throw SharedMediaStorageFailure.stale
         }
         _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: current, inventory: oldInventory,
@@ -448,7 +450,7 @@ extension SharedMediaNativeAppReceivingOperations {
         let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
         let ids = try frozen.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).pairID }
         guard try SharedMediaNativeFreezeFacts.request(context: c, inventory: inventory, package: package, member: member,
-            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs) == request.freeze else {
+            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs, cohortFormat: frozen.format) == request.freeze else {
             throw SharedMediaStorageFailure.stale
         }
         let originals = try SharedMediaNativeAppReceivingIO.originalFacts(frozen, context: c, inventoryID: authority.profile.inventoryID)
@@ -476,7 +478,7 @@ extension SharedMediaNativeAppReceivingOperations {
         let current = fresh(), currentRows = try target(current, prepared.package.id), oldInventory = currentRows.inventory, oldPackage = currentRows.package, oldMember = currentRows.member
         _ = try requirePrepared(prepared, context: current, inventory: oldInventory)
         guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage, member: oldMember,
-            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs) == request.freeze,
+            binding: binding, operationID: prepared.operationID, pairIDs: ids, proofs: proofs, cohortFormat: frozen.format) == request.freeze,
               try SharedMediaNativeAppReceivingIO.originalFacts(frozen, context: current, inventoryID: authority.profile.inventoryID) == originals else { throw SharedMediaStorageFailure.stale }
         try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
         for observation in proofs { try verify(observation) }
@@ -551,7 +553,14 @@ extension SharedMediaNativeAppReceivingOperations {
             operationID: ids.operationID, queueID: ids.queueID, observationID: ids.observationID, bindingID: ids.bindingID,
             generation: ids.generation, eventID: ids.eventID, timestamp: ids.timestamp,
             intentRevision: SharedMediaStoragePolicy.add(predecessor.revision, 1),
-            restagedFromSHA256: SharedMediaAcquisitionEncoding.digest(predecessor.encoded()))
+            restagedFromSHA256: SharedMediaAcquisitionEncoding.digest(predecessor.encoded()),
+            cohortFormat: predecessor.frozenCohortFormat)
+        let restaged = try SharedMediaNativeFrozenCohort.decode(request.freeze.commit.cohort.bytes)
+        if let digest = predecessor.initialFieldNotesSHA256 {
+            guard try SharedMediaAcquisitionEncoding.digest(SharedMediaNativeDraftEnvelope.bytes(restaged.initialFieldNotes)) == digest else {
+                throw SharedMediaStorageFailure.stale
+            }
+        }
         let prepared = try SharedMediaNativeReceivingIntent.Prepared(request)
         try prepared.requireSelection(draftGeneration: draftGeneration, pairIDs: pairIDs)
         let c = fresh(), cRows = try target(c, packageID), inventory = cRows.inventory, package = cRows.package, member = cRows.member
@@ -582,7 +591,7 @@ extension SharedMediaNativeAppReceivingOperations {
         try requirePrestate(request, context: current, package: oldPackage, member: oldMember)
         try requireFreshReceivingIdentity(prepared, context: current)
         guard try SharedMediaNativeFreezeFacts.request(context: current, inventory: oldInventory, package: oldPackage, member: oldMember,
-            binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs) == request.freeze,
+            binding: binding, operationID: prepared.operationID, pairIDs: pairIDs, proofs: proofs, cohortFormat: frozen.format) == request.freeze,
               try SharedMediaNativeAppReceivingIO.originalFacts(frozen, context: current, inventoryID: authority.profile.inventoryID) == originals else { throw SharedMediaStorageFailure.stale }
         try after.totals.checkAvailable(availableBytes(), additionalReservation: added)
         for observation in proofs { try verify(observation) }

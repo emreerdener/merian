@@ -7,18 +7,76 @@ import SwiftData
 /// The mutex protects consumption; descriptors remain locked until their sole
 /// receiving owner closes them. There is no reopen or lock-release interval.
 final class SharedMediaNativeLockedRoot: @unchecked Sendable {
+    struct CaptureBinding: Sendable {
+        let rootIdentity: String, childIdentity: String
+        let marker: Data
+    }
+    struct CaptureTransfer: Sendable {
+        let root: Int32, child: Int32
+        let binding: CaptureBinding
+    }
     private let mutex = NSLock()
     private var descriptors: (Int32, Int32)?
     private let url: URL
-    fileprivate init(url: URL, root: Int32, child: Int32 = -1) {
-        self.url = url; descriptors = (root, child)
+    private let captureBinding: CaptureBinding?
+    fileprivate init(url: URL, root: Int32, child: Int32 = -1, captureBinding: CaptureBinding? = nil) {
+        self.url = url; descriptors = (root, child); self.captureBinding = captureBinding
     }
     deinit { if let (root, child) = descriptors { Darwin.close(root); if child >= 0 { Darwin.close(child) } } }
     func consume(at url: URL) throws -> (root: Int32, child: Int32) {
         mutex.lock(); defer { mutex.unlock() }
         guard url == self.url, let result = descriptors else { throw SharedMediaStorageFailure.closed }
+        if let captureBinding {
+            do { try Self.requireCapture(result, at: url, binding: captureBinding) } catch {
+                descriptors = nil; Darwin.close(result.0); if result.1 >= 0 { Darwin.close(result.1) }
+                throw error
+            }
+        }
         descriptors = nil; return result
     }
+    /// Capture consumers must not accept the unmarked photo/inbox capability.
+    func consumeCapture(at url: URL) throws -> CaptureTransfer {
+        mutex.lock(); defer { mutex.unlock() }
+        guard url == self.url, let result = descriptors else { throw SharedMediaStorageFailure.closed }
+        do {
+            guard let captureBinding else { throw SharedMediaStorageFailure.conflict }
+            try Self.requireCapture(result, at: url, binding: captureBinding)
+            descriptors = nil
+            return .init(root: result.0, child: result.1, binding: captureBinding)
+        } catch {
+            descriptors = nil; Darwin.close(result.0); if result.1 >= 0 { Darwin.close(result.1) }
+            throw error
+        }
+    }
+    static func requireCapture(_ descriptors: (Int32, Int32), at url: URL, binding: CaptureBinding) throws {
+        var root = stat(), namedRoot = stat(), child = stat(), namedChild = stat()
+        guard fstat(descriptors.0, &root) == 0, lstat(url.path, &namedRoot) == 0,
+              fstat(descriptors.1, &child) == 0,
+              fstatat(descriptors.0, SharedMediaCaptureRootJournal.childName, &namedChild, AT_SYMLINK_NOFOLLOW) == 0,
+              root.st_mode & S_IFMT == S_IFDIR, namedRoot.st_mode & S_IFMT == S_IFDIR,
+              child.st_mode & S_IFMT == S_IFDIR, namedChild.st_mode & S_IFMT == S_IFDIR,
+              "\(root.st_dev):\(root.st_ino)" == binding.rootIdentity,
+              "\(namedRoot.st_dev):\(namedRoot.st_ino)" == binding.rootIdentity,
+              "\(child.st_dev):\(child.st_ino)" == binding.childIdentity,
+              "\(namedChild.st_dev):\(namedChild.st_ino)" == binding.childIdentity,
+              !binding.marker.isEmpty, binding.marker.count <= 512 else { throw SharedMediaStorageFailure.conflict }
+        let marker = SharedMediaCaptureRootJournal.marker
+        guard fgetxattr(descriptors.0, marker, nil, 0, 0, 0) == binding.marker.count else { throw SharedMediaStorageFailure.conflict }
+        var bytes = [UInt8](repeating: 0, count: binding.marker.count)
+        guard bytes.withUnsafeMutableBytes({ fgetxattr(descriptors.0, marker, $0.baseAddress, $0.count, 0, 0) }) == bytes.count,
+              Data(bytes) == binding.marker else { throw SharedMediaStorageFailure.conflict }
+    }
+
+    #if DEBUG
+    @MainActor
+    static func qualificationErasureParent(_ parent: URL) throws -> SharedMediaNativeLockedRoot {
+        guard TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
+        let handle = try SharedMediaNativeBootstrapFiles.lockParent(parent)
+        let copy = fcntl(handle.fd, F_DUPFD_CLOEXEC, 0)
+        guard copy >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        return SharedMediaNativeLockedRoot(url: parent, root: copy)
+    }
+    #endif
 }
 
 enum SharedMediaNativeBootstrapBoundary: String, CaseIterable, Sendable {
@@ -58,7 +116,11 @@ final class SharedMediaNativeBootstrapFiles {
     private var roots: [String: SharedMediaNativeLockedRoot] = [:]
     private var expectedIntent = Data(), expectedFinal = Data()
     private let expectedParentReceipt: Data?
-    private var expectedNames: Set<String> { SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: expectedParentReceipt) }
+    private var baseNames: Set<String> { SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: expectedParentReceipt) }
+    private var captureSnapshot: SharedMediaCaptureControlSnapshot?
+    private var captureSnapshotValid = true, captureQualified = false
+    var captureRootNeedsRecovery: Bool { captureSnapshot != nil && !captureQualified }
+    private var expectedNames: Set<String> { baseNames.union(captureSnapshot?.names ?? []) }
     private var expectedIdentities: [String] = []
     private var expectedProgress: [Data] = []
     private(set) var profile: SharedMediaNativeAppProfile?
@@ -75,7 +137,9 @@ final class SharedMediaNativeBootstrapFiles {
         expectedParentReceipt = try Self.read(fd, SharedMediaNativeBootstrapCodec.parentReceiptName)
         try SharedMediaNativeBootstrapCodec.validateParent(expectedParentReceipt, store: authority.storeIdentity,
             storeParent: storeParentIdentity, parent: parentIdentity)
-        guard try Self.names(fd).isSubset(of: expectedNames) else { throw SharedMediaStorageFailure.conflict }
+        let initialNames = try Self.names(fd, maximum: baseNames.count + SharedMediaCaptureRootJournal.names.count)
+        let allowed = authority.existingOnly ? baseNames.union(SharedMediaCaptureRootJournal.names) : baseNames
+        guard initialNames.isSubset(of: allowed) else { throw SharedMediaStorageFailure.conflict }
         let savedIntent = try Self.read(fd, SharedMediaNativeBootstrapCodec.intentName)
         let savedFinal = try Self.read(fd, SharedMediaNativeBootstrapCodec.finalName)
         let savedProgress = try SharedMediaNativeBootstrapCodec.progressNames.map { try Self.read(fd, $0) }
@@ -176,6 +240,8 @@ final class SharedMediaNativeBootstrapFiles {
             generation: intent.generation, storeIdentity: intent.store, physicalBinding: physical,
             receiptDigest: SharedMediaNativeBootstrapCodec.digest(expectedFinal), physicalBindingFormat: bindingFormat)
         self.profile = profile
+        captureSnapshot = try SharedMediaCaptureControlSnapshot.read(parentFD: fd, parentIdentity: parentIdentity,
+            baseNames: baseNames, profile: profile)
         let binding = try profile.binding
         try authority.validateDatabase(profile: profile)
         let committed = try authority.isCommitted()
@@ -188,7 +254,7 @@ final class SharedMediaNativeBootstrapFiles {
             try Self.bind(descriptors[name]!, marker: Self.marker(name)!, bytes: binding, allowCreate: !committed)
             try authority.boundary([.afterAuthorityMarker, .afterPhotoMarker, .afterInboxMarker][index])
         }
-        guard try Self.names(fd) == expectedNames else {
+        guard try Self.names(fd, maximum: expectedNames.count) == expectedNames else {
             throw SharedMediaStorageFailure.conflict
         }
         for (name, child) in [("authority", ""), ("photo", "photo/PhotoPreparation"), ("inbox", "inbox/InboxSources")] {
@@ -202,11 +268,17 @@ final class SharedMediaNativeBootstrapFiles {
     }
     var inspectionMeasurement: SharedMediaNativeInspectionMeasurement { .init(authority: authority) }
     func check() throws {
+        guard captureSnapshotValid else { throw SharedMediaStorageFailure.conflict }
+        if let profile {
+            guard try SharedMediaCaptureControlSnapshot.read(parentFD: parentFD, parentIdentity: parentIdentity,
+                baseNames: baseNames, profile: profile) == captureSnapshot else { throw SharedMediaStorageFailure.conflict }
+            if captureQualified { try qualifyEmptyCaptureRoot(profile: profile) }
+        }
         let measurement = inspectionMeasurement
         func readControl(_ name: String) throws -> Data? {
             try measurement.measure(.controlReadAndSync) { try Self.read(parentFD, name, synchronizeParent: false, measurement: measurement) }
         }
-        guard try measurement.measure(.bootstrapEnumeration, { try Self.names(parentFD) }) == expectedNames,
+        guard try measurement.measure(.bootstrapEnumeration, { try Self.names(parentFD, maximum: expectedNames.count) }) == expectedNames,
               try readControl(SharedMediaNativeBootstrapCodec.parentReceiptName) == expectedParentReceipt,
               try measurement.measure(.bootstrapDirectoryIdentity, { try SharedMediaStorageFileOwner.directoryIdentity(parent, measurement: measurement) }) == parentIdentity,
               try readControl(SharedMediaNativeBootstrapCodec.intentName) == expectedIntent,
@@ -225,6 +297,91 @@ final class SharedMediaNativeBootstrapFiles {
         try measurement.measure(.controlParentSync) {
             guard fsync(parentFD) == 0 else { throw SharedMediaStorageFailure.unavailable }
         }
+    }
+    /// Explicit operation only. The caller supplies a fresh dispatch authority;
+    /// the bootstrap's opening grant must never be reused after opening returns.
+    func recoverCaptureRoot(authority: SharedMediaNativeBootstrapAuthority) throws {
+        try authority.validate()
+        guard let profile, authority.parent == parent else { throw SharedMediaStorageFailure.closed }
+        try authority.validateDatabase(profile: profile)
+        try check()
+        captureQualified = false
+        captureSnapshotValid = false
+        do {
+            try recoverCaptureFiles(authority: authority, profile: profile)
+            captureSnapshot = try SharedMediaCaptureControlSnapshot.read(parentFD: parentFD, parentIdentity: parentIdentity,
+                baseNames: baseNames, profile: profile)
+            captureSnapshotValid = true
+            try qualifyEmptyCaptureRoot(profile: profile)
+            try authority.validateDatabase(profile: profile)
+            captureQualified = true
+            try check()
+        } catch {
+            // Retain only freshly read evidence, never infer the missing suffix.
+            // Even a complete record stays recovery-only until qualification.
+            captureQualified = false
+            do {
+                captureSnapshot = try SharedMediaCaptureControlSnapshot.read(parentFD: parentFD, parentIdentity: parentIdentity,
+                    baseNames: baseNames, profile: profile)
+                captureSnapshotValid = true
+            } catch { captureSnapshotValid = false }
+            throw error
+        }
+    }
+    /// The fresh dispatch grant and both directory locks live only for this
+    /// operation. A successful read never qualifies generic app mutations.
+    func withCaptureArtifactFiles<T>(authority: SharedMediaNativeBootstrapAuthority,
+                                     body: (SharedMediaCaptureArtifactFiles) async throws -> T) async throws -> T {
+        try authority.validate()
+        guard let profile, authority.parent == parent else { throw SharedMediaStorageFailure.closed }
+        try authority.validateDatabase(profile: profile)
+        // Do not recursively acquire the empty-root locks while the explicit
+        // artifact owner holds them. Ordinary dispatch remains recovery-only.
+        captureQualified = false
+        try check()
+        captureSnapshotValid = false
+        do {
+            let controls = try SharedMediaNativeCaptureRootFiles(authority: authority, parentDescriptor: parentFD,
+                profile: profile, createOrResume: true)
+            captureSnapshot = try SharedMediaCaptureControlSnapshot.read(parentFD: parentFD, parentIdentity: parentIdentity,
+                baseNames: baseNames, profile: profile)
+            captureSnapshotValid = true
+            let files = try SharedMediaCaptureArtifactFiles(controls: controls,
+                rootURL: parent.appendingPathComponent(SharedMediaCaptureRootJournal.rootName, isDirectory: true))
+            try check()
+            let result = try await body(files)
+            try files.check()
+            try authority.validateDatabase(profile: profile)
+            try check()
+            return result
+        } catch {
+            do {
+                captureSnapshot = try SharedMediaCaptureControlSnapshot.read(parentFD: parentFD, parentIdentity: parentIdentity,
+                    baseNames: baseNames, profile: profile)
+                captureSnapshotValid = true
+            } catch { captureSnapshotValid = false }
+            throw error
+        }
+    }
+
+    private func recoverCaptureFiles(authority: SharedMediaNativeBootstrapAuthority, profile: SharedMediaNativeAppProfile) throws {
+        let root = try SharedMediaNativeCaptureRootFiles(authority: authority, parentDescriptor: parentFD,
+            profile: profile, createOrResume: true)
+        try root.check()
+    }
+    private func qualifyEmptyCaptureRoot(profile: SharedMediaNativeAppProfile) throws {
+        // Until the artifact inventory owner is installed, no unaccounted file
+        // may become invisible to ordinary inspection or cleanup.
+        let root = try SharedMediaNativeCaptureRootFiles(parent: parent, parentDescriptor: parentFD,
+            profile: profile, baseNames: baseNames, createOrResume: false, validate: {
+                guard try Self.identity(self.parentFD) == self.parentIdentity,
+                      try SharedMediaStorageFileOwner.directoryIdentity(self.parent) == self.parentIdentity else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+            }, fault: nil)
+        let descriptors = try root.take().consume(at: parent.appendingPathComponent(SharedMediaCaptureRootJournal.rootName, isDirectory: true))
+        defer { Darwin.close(descriptors.root); Darwin.close(descriptors.child) }
+        guard try Self.names(descriptors.child).isEmpty else { throw SharedMediaStorageFailure.conflict }
     }
     private func requireSpace(materializedBytes: Int64) throws {
         var value = statfs(); guard fstatfs(parentFD, &value) == 0, value.f_bsize > 0 else { throw SharedMediaStorageFailure.unavailable }
@@ -252,7 +409,7 @@ final class SharedMediaNativeBootstrapFiles {
         var value = stat(); guard fstat(fd, &value) == 0 else { throw SharedMediaStorageFailure.unavailable }
         return "\(value.st_dev):\(value.st_ino)"
     }
-    private static func marker(_ name: String) -> String? {
+    fileprivate static func marker(_ name: String) -> String? {
         switch name {
         case "authority": "com.merian.shared-media-store-v1"
         case "photo": "com.merian.p1-shared-v1"
@@ -260,7 +417,7 @@ final class SharedMediaNativeBootstrapFiles {
         default: nil
         }
     }
-    private static func directory(_ parent: Int32, _ name: String, create: Bool) throws -> Int32 {
+    fileprivate static func directory(_ parent: Int32, _ name: String, create: Bool) throws -> Int32 {
         // No receipt means no authority to adopt an existing path, even empty.
         // A crash between mkdir and its durable receipt remains held.
         if create, mkdirat(parent, name, 0o700) != 0 { throw SharedMediaStorageFailure.conflict }
@@ -269,7 +426,7 @@ final class SharedMediaNativeBootstrapFiles {
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { Darwin.close(fd); throw SharedMediaStorageFailure.busy }
         return fd
     }
-    fileprivate static func names(_ fd: Int32) throws -> Set<String> {
+    fileprivate static func names(_ fd: Int32, maximum: Int = SharedMediaNativeBootstrapCodec.controlNames.count + 1) throws -> Set<String> {
         let copy = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard copy >= 0 else { throw SharedMediaStorageFailure.unavailable }
         guard let directory = fdopendir(copy) else { Darwin.close(copy); throw SharedMediaStorageFailure.unavailable }
@@ -278,11 +435,12 @@ final class SharedMediaNativeBootstrapFiles {
         while true {
             errno = 0; guard let entry = readdir(directory) else { guard errno == 0 else { throw SharedMediaStorageFailure.unavailable }; break }
             let name = withUnsafePointer(to: &entry.pointee.d_name) { $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) } }
-            if name != "." && name != ".." { result.insert(name); guard result.count <= SharedMediaNativeBootstrapCodec.controlNames.count + 1 else { throw SharedMediaStorageFailure.conflict } }
+            if name != "." && name != ".." { result.insert(name); guard result.count <= maximum else { throw SharedMediaStorageFailure.conflict } }
         }
         return result
     }
     fileprivate static func read(_ parent: Int32, _ name: String, synchronizeParent: Bool = true,
+                                 maximumBytes: Int64 = PhotoPreparationPolicy.metadata,
                                  measurement: SharedMediaNativeInspectionMeasurement? = nil) throws -> Data? {
         let measurement = measurement ?? SharedMediaNativeInspectionMeasurement()
         let fd = openat(parent, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
@@ -290,7 +448,8 @@ final class SharedMediaNativeBootstrapFiles {
         defer { Darwin.close(fd) }
         var before = stat(), after = stat(), named = stat()
         guard fstat(fd, &before) == 0, before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
-              before.st_size > 0, before.st_size <= PhotoPreparationPolicy.metadata else { throw SharedMediaStorageFailure.conflict }
+              maximumBytes > 0, maximumBytes <= PhotoPreparationPolicy.metadata,
+              before.st_size > 0, before.st_size <= maximumBytes else { throw SharedMediaStorageFailure.conflict }
         var bytes = [UInt8](repeating: 0, count: Int(before.st_size)); var offset = 0
         while offset < bytes.count {
             let count = bytes.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress!.advanced(by: offset), $0.count - offset) }
@@ -319,7 +478,7 @@ final class SharedMediaNativeBootstrapFiles {
         }
         guard fsync(fd) == 0, fsync(parent) == 0 else { throw SharedMediaStorageFailure.unavailable }
     }
-    private static func checkMarker(_ fd: Int32, marker: String, bytes: Data, allowMissing: Bool) throws {
+    fileprivate static func checkMarker(_ fd: Int32, marker: String, bytes: Data, allowMissing: Bool) throws {
         let size = fgetxattr(fd, marker, nil, 0, 0, 0)
         if size < 0 { guard allowMissing, errno == ENOATTR else { throw SharedMediaStorageFailure.conflict }; return }
         guard size == bytes.count else { throw SharedMediaStorageFailure.conflict }
@@ -327,7 +486,7 @@ final class SharedMediaNativeBootstrapFiles {
         guard saved.withUnsafeMutableBytes({ fgetxattr(fd, marker, $0.baseAddress, size, 0, 0) }) == size,
               Data(saved) == bytes else { throw SharedMediaStorageFailure.conflict }
     }
-    private static func bind(_ fd: Int32, marker: String, bytes: Data, allowCreate: Bool) throws {
+    fileprivate static func bind(_ fd: Int32, marker: String, bytes: Data, allowCreate: Bool) throws {
         let size = fgetxattr(fd, marker, nil, 0, 0, 0)
         if size >= 0 {
             guard size == bytes.count else { throw SharedMediaStorageFailure.conflict }
@@ -351,9 +510,14 @@ final class SharedMediaNativeBootstrapFiles {
 final class SharedMediaNativeBootstrapDiscovery {
     let parent: URL, inventoryID: UUID
     let existingProfile: SharedMediaNativeAppProfile?
+    /// Provisional control evidence only. Neither a final record nor discovery
+    /// grants capture access: physical qualification and explicit recovery are
+    /// separate. Default repository opening still holds any extension.
+    let captureRootPrefix: SharedMediaCaptureRootJournal.Prefix?
     private let ownerID: UUID, container: ModelContainer, startup: NativeReleaseStartupAdmission
     private let storeURL: URL, parentIdentity: String, storeIdentity: String
     private let controls: [Data?]
+    private let captureControls: [Data?], parentNames: Set<String>
     private var held: SharedMediaNativeBootstrapHandoff?
     #if DEBUG
     private var beforeTransfer: (() throws -> Void)?
@@ -413,12 +577,14 @@ final class SharedMediaNativeBootstrapDiscovery {
                 }
         } else { handle = try SharedMediaNativeBootstrapFiles.lockParent(parent) }
         let identity = try SharedMediaNativeBootstrapFiles.identity(handle.fd)
-        let names = try SharedMediaNativeBootstrapFiles.names(handle.fd)
+        let names = try SharedMediaNativeBootstrapFiles.names(handle.fd,
+            maximum: SharedMediaNativeBootstrapCodec.controlNames.count + 1 + SharedMediaCaptureRootJournal.names.count)
         let parentReceipt = try SharedMediaNativeBootstrapFiles.read(handle.fd, SharedMediaNativeBootstrapCodec.parentReceiptName)
         guard creationAnchor == nil || parentReceipt != nil else { throw SharedMediaStorageFailure.conflict }
         try SharedMediaNativeBootstrapCodec.validateParent(parentReceipt, store: storeIdentity,
             storeParent: fence.binding().parent, parent: identity)
-        guard names.isSubset(of: SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: parentReceipt)) else { throw SharedMediaStorageFailure.conflict }
+        guard names.isSubset(of: SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: parentReceipt)
+            .union(SharedMediaCaptureRootJournal.names)) else { throw SharedMediaStorageFailure.conflict }
         let records = try Self.readControls(handle.fd)
         let inventoryID: UUID
         if let raw = records[0] {
@@ -442,10 +608,20 @@ final class SharedMediaNativeBootstrapDiscovery {
         let profile = try SharedMediaNativeBootstrapDatabase.discoveryProfile(container,
             inventoryID: inventoryID, ownerID: ownerID, storeIdentity: storeIdentity)
         guard profile == nil || records[1] != nil else { throw SharedMediaStorageFailure.conflict }
+        let captureRecords = try Self.readCaptureControls(handle.fd)
+        if !names.isDisjoint(with: SharedMediaCaptureRootJournal.names) {
+            guard let profile, let intent = captureRecords[0] else { throw SharedMediaStorageFailure.conflict }
+            captureRootPrefix = try .init(profile: profile, parentIdentity: identity, intent: intent,
+                root: captureRecords[1], namespace: captureRecords[2], final: captureRecords[3])
+        } else {
+            guard captureRecords.allSatisfy({ $0 == nil }) else { throw SharedMediaStorageFailure.conflict }
+            captureRootPrefix = nil
+        }
         try startup.require(container: container, fence: fence)
         self.parent = parent; self.inventoryID = inventoryID; self.ownerID = ownerID
         self.container = container; self.startup = startup; storeURL = configuration.url
         parentIdentity = identity; controls = records; existingProfile = profile
+        captureControls = captureRecords; parentNames = names
         self.storeIdentity = storeIdentity
         try Self.requireStore(store, at: configuration.url, identity: storeFileIdentity)
         held = .init(fence: fence, parent: handle, store: store, storeURL: configuration.url, storeFileIdentity: storeFileIdentity)
@@ -467,7 +643,12 @@ final class SharedMediaNativeBootstrapDiscovery {
         try Self.requireStore(result.store, at: storeURL, identity: result.storeFileIdentity)
         guard try SharedMediaStorageFileOwner.directoryIdentity(parent) == parentIdentity,
               try SharedMediaNativeBootstrapFiles.identity(result.parent.fd) == parentIdentity,
-              try Self.readControls(result.parent.fd) == controls else { throw SharedMediaStorageFailure.conflict }
+              try Self.readControls(result.parent.fd) == controls,
+              try Self.readCaptureControls(result.parent.fd) == captureControls,
+              try SharedMediaNativeBootstrapFiles.names(result.parent.fd,
+                maximum: SharedMediaNativeBootstrapCodec.controlNames.count + 1 + SharedMediaCaptureRootJournal.names.count) == parentNames else {
+            throw SharedMediaStorageFailure.conflict
+        }
         let values = try parent.resourceValues(forKeys: [.isDirectoryKey, .isExcludedFromBackupKey])
         guard values.isDirectory == true, values.isExcludedFromBackup == true else { throw SharedMediaStorageFailure.conflict }
         let profile = try SharedMediaNativeBootstrapDatabase.discoveryProfile(container,
@@ -545,6 +726,13 @@ final class SharedMediaNativeBootstrapDiscovery {
         try ([SharedMediaNativeBootstrapCodec.intentName, SharedMediaNativeBootstrapCodec.finalName]
             + SharedMediaNativeBootstrapCodec.progressNames + [SharedMediaNativeBootstrapCodec.parentReceiptName]).map { try SharedMediaNativeBootstrapFiles.read(fd, $0) }
     }
+    private static func readCaptureControls(_ fd: Int32) throws -> [Data?] {
+        let names = [SharedMediaCaptureRootJournal.intentName, SharedMediaCaptureRootJournal.rootReceiptName,
+            SharedMediaCaptureRootJournal.childReceiptName, SharedMediaCaptureRootJournal.finalName]
+        return try names.map {
+            try SharedMediaNativeBootstrapFiles.read(fd, $0, maximumBytes: Int64(SharedMediaCaptureRootJournal.maximumRecordBytes))
+        }
+    }
 }
 
 @MainActor
@@ -563,5 +751,684 @@ struct SharedMediaNativeBootstrapHandoff {
                      store: SharedMediaNativeBootstrapDescriptor, storeURL: URL, storeFileIdentity: String) {
         self.fence = fence; self.parent = parent; self.store = store; self.storeFileIdentity = storeFileIdentity
         self.storeURL = storeURL
+    }
+}
+
+/// Cleanup-only lease over an existing control parent and exact constructed
+/// store. It never creates roots, acquires normal dispatch or mints bootstrap
+/// authority. Kept here so descriptor transfers and control reads stay private.
+@MainActor
+final class SharedMediaNativeErasureParent {
+    private typealias Files = SharedMediaNativeBootstrapFiles
+    let parent: URL
+    let storeIdentity: String
+    let storeFileIdentity: String
+    let storeParentIdentity: String
+    let controlParentIdentity: String
+    let parentReceiptSHA256: String
+    private let container: ModelContainer
+    private let admission: NativeReleaseStartupAdmission
+    private let authorization: SharedMediaNativeErasureAuthorization
+    private let operation: SharedMediaNativeErasureAuthorization.Identity
+    private let runtimeCheckpoint: () throws -> Void
+    private let fence: SharedMediaStoreReadFence
+    private let storeURL: URL
+    private let store: SharedMediaNativeBootstrapDescriptor
+    private let handle: SharedMediaNativeBootstrapDescriptor
+    private let parentReceipt: Data
+
+    static func open(container: ModelContainer, admission: NativeReleaseStartupAdmission,
+                     authorization: SharedMediaNativeErasureAuthorization,
+                     runtimeCheckpoint: @escaping () throws -> Void) throws -> SharedMediaNativeErasureParent {
+        guard !TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
+        return try .init(container: container, admission: admission, authorization: authorization,
+            parent: URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL
+                .appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName), runtimeCheckpoint: runtimeCheckpoint)
+    }
+
+    #if DEBUG
+    static func qualification(container: ModelContainer, admission: NativeReleaseStartupAdmission,
+                              authorization: SharedMediaNativeErasureAuthorization, parent: URL,
+                              runtimeCheckpoint: @escaping () throws -> Void) throws -> SharedMediaNativeErasureParent {
+        let live = URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL
+            .appendingPathComponent(SharedMediaNativeBootstrapCodec.parentName)
+        guard TestExecutionCoordinator.isRunningTests, parent != live else { throw SharedMediaStorageFailure.closed }
+        return try .init(container: container, admission: admission, authorization: authorization,
+            parent: parent, runtimeCheckpoint: runtimeCheckpoint)
+    }
+    #endif
+
+    private init(container: ModelContainer, admission: NativeReleaseStartupAdmission,
+                 authorization: SharedMediaNativeErasureAuthorization, parent: URL,
+                 runtimeCheckpoint: @escaping () throws -> Void) throws {
+        let operation = try authorization.require(container: container)
+        try runtimeCheckpoint()
+        let fence = try admission.acquireFence(container: container)
+        try admission.require(container: container, fence: fence)
+        guard !container.mainContext.hasChanges, let configuration = container.configurations.first,
+              parent != configuration.url.deletingLastPathComponent() else { throw SharedMediaStorageFailure.conflict }
+        let opened = Darwin.open(configuration.url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard opened >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        let store = SharedMediaNativeBootstrapDescriptor(opened)
+        let fileIdentity = try Files.identity(opened)
+        try SharedMediaNativeBootstrapDiscovery.requireStore(store, at: configuration.url, identity: fileIdentity)
+        let storeIdentity = try SharedMediaNativeEligibility.storeIdentity(at: configuration.url)
+        let storeParent = try fence.binding().parent
+        let handle = try Files.lockParent(parent), controlParent = try Files.identity(handle.fd)
+        // Live cleanup never adopts an unreceipted control parent, even empty.
+        guard let receipt = try Files.read(handle.fd, SharedMediaNativeBootstrapCodec.parentReceiptName) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        try SharedMediaNativeBootstrapCodec.validateParent(receipt, store: storeIdentity,
+            storeParent: storeParent, parent: controlParent)
+        self.container = container; self.admission = admission; self.authorization = authorization
+        self.operation = operation; self.runtimeCheckpoint = runtimeCheckpoint; self.fence = fence
+        self.parent = parent; storeURL = configuration.url; self.store = store; self.handle = handle
+        self.storeIdentity = storeIdentity; storeFileIdentity = fileIdentity; storeParentIdentity = storeParent
+        controlParentIdentity = controlParent; parentReceipt = receipt
+        parentReceiptSHA256 = SharedMediaAcquisitionEncoding.digest(receipt)
+        try check()
+    }
+
+    func check() throws {
+        guard try authorization.require(container: container) == operation,
+              !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.stale }
+        try runtimeCheckpoint(); try admission.require(container: container, fence: fence)
+        try SharedMediaNativeBootstrapDiscovery.requireStore(store, at: storeURL, identity: storeFileIdentity)
+        guard try SharedMediaNativeEligibility.storeIdentity(at: storeURL) == storeIdentity,
+              try fence.binding().parent == storeParentIdentity,
+              try Files.identity(handle.fd) == controlParentIdentity,
+              try SharedMediaStorageFileOwner.directoryIdentity(parent) == controlParentIdentity,
+              try Files.read(handle.fd, SharedMediaNativeBootstrapCodec.parentReceiptName) == parentReceipt else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let allowed = SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: parentReceipt)
+            .union(SharedMediaCaptureRootJournal.names)
+        let attributes = try parent.resourceValues(forKeys: [.isDirectoryKey, .isExcludedFromBackupKey])
+        guard attributes.isDirectory == true, attributes.isExcludedFromBackup == true else { throw SharedMediaStorageFailure.conflict }
+        guard try Files.names(handle.fd, maximum: allowed.count).isSubset(of: allowed) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        try SharedMediaNativeBootstrapDiscovery.requireStore(store, at: storeURL, identity: storeFileIdentity)
+        try runtimeCheckpoint()
+        guard try authorization.require(container: container) == operation else { throw SharedMediaStorageFailure.stale }
+    }
+
+    func require(header: SharedMediaNativeErasureHeader, profile: SharedMediaNativeAppProfile) throws {
+        try check(); try authorization.require(header: header, profile: profile, container: container)
+        guard profile.storeIdentity == storeIdentity, header.storeFileIdentity == storeFileIdentity,
+              header.storeParentIdentity == storeParentIdentity, header.controlParentIdentity == controlParentIdentity,
+              header.parentReceiptSHA256 == parentReceiptSHA256 else { throw SharedMediaStorageFailure.conflict }
+    }
+
+    func makeHeader(profile: SharedMediaNativeAppProfile, controlSHA256: String, sourceRevision: Int64,
+                    sourceTables: [SharedMediaNativeErasureGraph.Table],
+                    chain: SharedMediaNativeErasureManifest.Chain) throws -> SharedMediaNativeErasureHeader {
+        try check()
+        guard chain.operationID == operation.operationID, chain.profile == profile, let digest = chain.digest else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let header = SharedMediaNativeErasureHeader(version: 1, operation: operation.operation,
+            operationID: operation.operationID, profileSHA256: try SharedMediaAcquisitionEncoding.digest(profile.binding),
+            storeFileIdentity: storeFileIdentity, storeParentIdentity: storeParentIdentity,
+            controlParentIdentity: controlParentIdentity, parentReceiptSHA256: parentReceiptSHA256,
+            controlSHA256: controlSHA256, sourceRevision: sourceRevision, sourceTables: sourceTables,
+            pageCount: chain.pageCount, entryCount: chain.entryCount, lastPageSHA256: digest)
+        try require(header: header, profile: profile)
+        return header
+    }
+
+    func requireOperation(_ id: UUID) throws {
+        try check()
+        guard operation.operationID == id else { throw SharedMediaStorageFailure.stale }
+    }
+
+    /// Independently empty native namespace for a new accepted operation.
+    /// An older terminal receipt is checked only as existing metadata; it never
+    /// supplies authority for this operation or substitutes for the zero-row
+    /// and descriptor-held physical absence checks.
+    func emptyLibraryIdentity() throws -> String? {
+        try check()
+        try SharedMediaNativeErasureJournal.requireNoNativeRows(container: container, checkpoint: { try self.check() })
+        return try emptyPhysicalIdentity()
+    }
+
+    /// Physical proof only. This is not zero-row evidence or purge authority.
+    func emptyPhysicalIdentity() throws -> String? {
+        try check()
+        guard try Files.names(handle.fd, maximum: 1) == [SharedMediaNativeBootstrapCodec.parentReceiptName] else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let marker = SharedMediaNativeErasureTerminalReceipt.marker
+        let count = fgetxattr(handle.fd, marker, nil, 0, 0, 0)
+        if count < 0 {
+            guard errno == ENOATTR else { throw SharedMediaStorageFailure.unavailable }
+            try check(); return nil
+        }
+        guard count > 0, count <= SharedMediaNativeErasureTerminalReceipt.maximumBytes else { throw SharedMediaStorageFailure.conflict }
+        var bytes = [UInt8](repeating: 0, count: count)
+        guard bytes.withUnsafeMutableBytes({ fgetxattr(handle.fd, marker, $0.baseAddress, $0.count, 0, 0) }) == count else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let data = Data(bytes), receipt = try SharedMediaNativeErasureTerminalReceipt.decode(data)
+        guard receipt.profile.storeIdentity == storeIdentity, receipt.header.storeFileIdentity == storeFileIdentity,
+              receipt.header.storeParentIdentity == storeParentIdentity, receipt.header.controlParentIdentity == controlParentIdentity,
+              receipt.header.parentReceiptSHA256 == parentReceiptSHA256 else { throw SharedMediaStorageFailure.conflict }
+        try check(); return SharedMediaAcquisitionEncoding.digest(data)
+    }
+
+    /// Existing roots only. The returned owner can inspect sources but cannot
+    /// bootstrap, finish a creation prefix, or obtain normal media admission.
+    func openSources() throws -> SharedMediaNativeErasureSources {
+        try check()
+        return try SharedMediaNativeErasureSources(parent: self, descriptor: handle.fd) { [self] profile in
+            try check()
+            guard profile.storeIdentity == storeIdentity,
+                  operation.signOutOwnerID.map({ $0 == profile.ownerID }) ?? true else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+    }
+
+    func makeTree(profile: SharedMediaNativeAppProfile, header: SharedMediaNativeErasureHeader,
+                  pages: @escaping SharedMediaNativeErasureTree.Pages) throws -> SharedMediaNativeErasureTree {
+        try require(header: header, profile: profile)
+        return try .init(parent: parent, held: transfer(), profile: profile, header: header,
+            checkpoint: { [self] in try require(header: header, profile: profile) }, pages: pages)
+    }
+
+    /// Decode a candidate only after independently binding the accepted outer
+    /// operation and held store/parent. The receipt is not an Auth grant.
+    func recoverTerminal() throws -> SharedMediaNativeErasureTerminal {
+        try check()
+        let marker = SharedMediaNativeErasureTerminalReceipt.marker
+        let count = fgetxattr(handle.fd, marker, nil, 0, 0, 0)
+        guard count > 0, count <= SharedMediaNativeErasureTerminalReceipt.maximumBytes else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        var bytes = [UInt8](repeating: 0, count: count)
+        guard bytes.withUnsafeMutableBytes({ fgetxattr(handle.fd, marker, $0.baseAddress, $0.count, 0, 0) }) == count else {
+            throw SharedMediaStorageFailure.stale
+        }
+        let receipt = try SharedMediaNativeErasureTerminalReceipt.decode(Data(bytes))
+        try require(header: receipt.header, profile: receipt.profile)
+        return try SharedMediaNativeErasureTree.recoverTerminal(container: container, parent: parent,
+            held: transfer(), expected: receipt, checkpoint: { [self] in
+                try require(header: receipt.header, profile: receipt.profile)
+            })
+    }
+
+    private func transfer() throws -> SharedMediaNativeLockedRoot {
+        try check()
+        let copy = fcntl(handle.fd, F_DUPFD_CLOEXEC, 0)
+        guard copy >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        return SharedMediaNativeLockedRoot(url: parent, root: copy)
+    }
+}
+
+/// Read-only fixed-root inspection under an accepted cleanup operation. The
+/// physical source audit must still join every media leaf to its durable row.
+/// Directory existence alone never supplies artifact ownership.
+@MainActor
+final class SharedMediaNativeErasureSources {
+    private typealias Files = SharedMediaNativeBootstrapFiles
+    private typealias Codec = SharedMediaNativeBootstrapCodec
+    private typealias Capture = SharedMediaCaptureRootJournal
+    typealias Entry = SharedMediaNativeErasureManifest.Entry
+    let profile: SharedMediaNativeAppProfile
+    let controlSHA256: String
+    let hasCompleteCapture: Bool
+    private let parent: SharedMediaNativeErasureParent
+    private let descriptor: Int32
+    private let validate: (SharedMediaNativeAppProfile) throws -> Void
+    private let records: [String: Data]
+    private let entries: [Entry]
+    private let roots: [String: SharedMediaNativeBootstrapDescriptor]
+    private let captureBinding: Data?
+    private let expectedNames: Set<String>
+
+    fileprivate init(parent: SharedMediaNativeErasureParent, descriptor: Int32,
+                     validate: @escaping (SharedMediaNativeAppProfile) throws -> Void) throws {
+        try parent.check()
+        self.parent = parent; self.descriptor = descriptor; self.validate = validate
+        var records: [String: Data] = [:], roots: [String: SharedMediaNativeBootstrapDescriptor] = [:]
+        var entries: [Entry] = []
+        func record(_ name: String) throws -> Data {
+            guard let bytes = try Files.read(descriptor, name) else { throw SharedMediaStorageFailure.conflict }
+            records[name] = bytes
+            entries.append(.init(namespace: .control, token: name, kind: .file,
+                identity: try Self.fileIdentity(descriptor, name)))
+            return bytes
+        }
+        let intentBytes = try record(Codec.intentName)
+        let intent = try Codec.decode(Codec.Intent.self, intentBytes)
+        let format = try SharedMediaNativeAppProfile.PhysicalBindingFormat(journalVersion: intent.version)
+        guard intent.store == parent.storeIdentity, intent.parent == parent.controlParentIdentity,
+              intent.storeParent == parent.storeParentIdentity, intent.names == Codec.names else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        let progressBytes = try Codec.progressNames.map(record)
+        let progress = try progressBytes.map { try Codec.decode(Codec.Progress.self, $0) }
+        let finalBytes = try record(Codec.finalName), final = try Codec.decode(Codec.Final.self, finalBytes)
+        guard final.version == intent.version, final.intentDigest == Codec.digest(intentBytes),
+              final.identities.count == 5, final.progressDigests == progressBytes.map(Codec.digest),
+              Set(final.identities + [parent.controlParentIdentity]).count == 6 else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        for (index, name) in Codec.names.enumerated() {
+            let parts = name.split(separator: "/").map(String.init)
+            let base = parts.count == 1 ? descriptor : roots[parts[0]]!.fd
+            let item = progress[index], identity = final.identities[index]
+            guard item.version == intent.version, item.intentDigest == final.intentDigest,
+                  item.name == name, item.identity == identity,
+                  item.parentIdentity == (try Files.identity(base)) else { throw SharedMediaStorageFailure.conflict }
+            roots[name] = try Self.open(base, parts.last!, url: parent.parent.appendingPathComponent(name), identity: identity)
+            let namespace = try Self.namespace(parts[0])
+            entries.append(.init(namespace: namespace, token: parts.count == 1 ? "." : parts[1], kind: .directory, identity: identity))
+        }
+        let profile = try SharedMediaNativeAppProfile(ownerID: intent.ownerID, inventoryID: intent.inventoryID,
+            generation: intent.generation, storeIdentity: intent.store,
+            physicalBinding: SharedMediaNativeAppProfile.rootBinding(format: format, authority: final.identities[0], sources: [
+                SharedMediaPhotoLedger.namespace: parent.parent.appendingPathComponent("photo"),
+                SharedMediaInboxFiles.namespace: parent.parent.appendingPathComponent("inbox")]),
+            receiptDigest: Codec.digest(finalBytes), physicalBindingFormat: format)
+        try validate(profile)
+        self.profile = profile
+        let baseNames = Codec.controlNames.union([Codec.parentReceiptName])
+        let capture = try SharedMediaCaptureControlSnapshot.read(parentFD: descriptor,
+            parentIdentity: parent.controlParentIdentity, baseNames: baseNames, profile: profile)
+        var captureBinding: Data?
+        if let capture {
+            let names = [Capture.intentName, Capture.rootReceiptName, Capture.childReceiptName, Capture.finalName]
+            for (name, bytes) in zip(names, capture.records) {
+                if let bytes {
+                    guard try record(name) == bytes else { throw SharedMediaStorageFailure.stale }
+                } else { entries.append(.init(namespace: .control, token: name, kind: .absent, identity: nil)) }
+            }
+            let prefix = capture.prefix
+            if let root = prefix.root {
+                roots[Capture.rootName] = try Self.open(descriptor, Capture.rootName,
+                    url: parent.parent.appendingPathComponent(Capture.rootName), identity: root.identity)
+                entries.append(.init(namespace: .capture, token: ".", kind: .directory, identity: root.identity))
+                if let child = prefix.namespace {
+                    let key = Capture.rootName + "/" + Capture.childName
+                    roots[key] = try Self.open(roots[Capture.rootName]!.fd, Capture.childName,
+                        url: parent.parent.appendingPathComponent(key), identity: child.identity)
+                    entries.append(.init(namespace: .capture, token: Capture.childName, kind: .directory, identity: child.identity))
+                    if let final = prefix.final {
+                        let binding = try final.binding(intent: prefix.intent, root: root, namespace: child)
+                        let fd = roots[Capture.rootName]!.fd
+                        if fgetxattr(fd, Capture.marker, nil, 0, 0, 0) >= 0 {
+                            try Files.checkMarker(fd, marker: Capture.marker, bytes: binding, allowMissing: false)
+                            captureBinding = binding
+                        } else { guard errno == ENOATTR else { throw SharedMediaStorageFailure.conflict } }
+                    }
+                } else { entries.append(.init(namespace: .capture, token: Capture.childName, kind: .absent, identity: nil)) }
+            } else {
+                entries.append(.init(namespace: .capture, token: ".", kind: .absent, identity: nil))
+                entries.append(.init(namespace: .capture, token: Capture.childName, kind: .absent, identity: nil))
+            }
+        } else {
+            for name in [Capture.intentName, Capture.rootReceiptName, Capture.childReceiptName, Capture.finalName] {
+                entries.append(.init(namespace: .control, token: name, kind: .absent, identity: nil))
+            }
+            entries.append(.init(namespace: .capture, token: ".", kind: .absent, identity: nil))
+            entries.append(.init(namespace: .capture, token: Capture.childName, kind: .absent, identity: nil))
+        }
+        self.records = records; self.roots = roots; self.entries = entries
+        self.captureBinding = captureBinding; hasCompleteCapture = captureBinding != nil
+        expectedNames = baseNames.union(capture?.names ?? [])
+        // Include absent controls in the fixed encoding, so a newly added
+        // prefix changes the initial/rebuilt manifest header.
+        let controls = entries.filter { $0.namespace == .control }.sorted { $0.key < $1.key }.map { [$0.token, records[$0.token]?.base64EncodedString() ?? ""] }
+        controlSHA256 = try Codec.digest(Codec.encode(controls))
+        try check()
+    }
+
+    func check() throws {
+        try validate(profile)
+        guard try Files.names(descriptor, maximum: expectedNames.count) == expectedNames else { throw SharedMediaStorageFailure.conflict }
+        for entry in entries {
+            if entry.namespace == .control {
+                guard try Files.read(descriptor, entry.token) == records[entry.token],
+                      try Self.fileIdentity(descriptor, entry.token) == entry.identity else { throw SharedMediaStorageFailure.stale }
+            } else {
+                let key = entry.namespace.rawValue + (entry.token == "." ? "" : "/" + entry.token)
+                if let root = roots[key], let identity = entry.identity {
+                    guard try Files.identity(root.fd) == identity,
+                          try SharedMediaStorageFileOwner.directoryIdentity(parent.parent.appendingPathComponent(key)) == identity,
+                          try parent.parent.appendingPathComponent(key).resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true else {
+                        throw SharedMediaStorageFailure.stale
+                    }
+                } else if entry.token == "." {
+                    guard try !Files.names(descriptor, maximum: expectedNames.count).contains(entry.namespace.rawValue) else {
+                        throw SharedMediaStorageFailure.conflict
+                    }
+                }
+            }
+        }
+        for (root, children) in [("authority", Set<String>()), ("photo", ["PhotoPreparation"]), ("inbox", ["InboxSources"])] {
+            guard try Files.names(roots[root]!.fd) == children else { throw SharedMediaStorageFailure.conflict }
+            try Files.checkMarker(roots[root]!.fd, marker: Files.marker(root)!, bytes: profile.binding, allowMissing: false)
+        }
+        if let root = roots[Capture.rootName] {
+            let child = roots[Capture.rootName + "/" + Capture.childName]
+            guard try Files.names(root.fd) == (child == nil ? [] : [Capture.childName]) else { throw SharedMediaStorageFailure.conflict }
+            if let captureBinding { try Files.checkMarker(root.fd, marker: Capture.marker, bytes: captureBinding, allowMissing: false) } else {
+                guard fgetxattr(root.fd, Capture.marker, nil, 0, 0, 0) < 0, errno == ENOATTR else { throw SharedMediaStorageFailure.conflict }
+                if let child { guard try Files.names(child.fd).isEmpty else { throw SharedMediaStorageFailure.conflict } }
+            }
+        }
+        try validate(profile)
+    }
+
+    /// Bind the independently opened controls to the exact operation header.
+    /// A syntactically valid digest from a caller is never sufficient evidence.
+    func require(header: SharedMediaNativeErasureHeader) throws {
+        try check()
+        try parent.require(header: header, profile: profile)
+        guard header.profileSHA256 == (try SharedMediaAcquisitionEncoding.digest(profile.binding)),
+              header.controlSHA256 == controlSHA256 else { throw SharedMediaStorageFailure.conflict }
+        try check()
+    }
+
+    func appendFixedEntries(to spool: SharedMediaNativeErasureManifestSpool) throws {
+        try check()
+        for entry in entries { try spool.append(entry) }
+        try check()
+    }
+
+    func visitPhotoEntries(_ observe: (Entry) throws -> Void) async throws {
+        try check()
+        guard let namespace = roots["photo/PhotoPreparation"] else { throw SharedMediaStorageFailure.closed }
+        try await SharedMediaNativeErasurePhotoWalk.visit(namespace: namespace.fd, ownerID: profile.ownerID,
+            checkpoint: { try self.check() }, observe: observe)
+        try check()
+    }
+
+    func inspectPhoto(_ request: SharedMediaNativeErasurePhotoRead.Request) throws -> SharedMediaNativeErasurePhotoRead.Observation {
+        try check()
+        guard let namespace = roots["photo/PhotoPreparation"] else { throw SharedMediaStorageFailure.closed }
+        return try SharedMediaNativeErasurePhotoRead.inspect(request, namespace: namespace.fd, ownerID: profile.ownerID,
+            checkpoint: { try self.check() })
+    }
+
+    func requireEmptyInbox() throws {
+        try check()
+        guard let namespace = roots["inbox/InboxSources"], try Files.names(namespace.fd, maximum: 0).isEmpty else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        try check()
+    }
+
+    func captureFiles() throws -> SharedMediaCaptureArtifactFiles? {
+        try check()
+        guard hasCompleteCapture else { return nil }
+        guard let root = roots[Capture.rootName], let child = roots[Capture.rootName + "/" + Capture.childName],
+              let captureBinding else { throw SharedMediaStorageFailure.conflict }
+        let binding = try SharedMediaNativeLockedRoot.CaptureBinding(rootIdentity: Files.identity(root.fd),
+            childIdentity: Files.identity(child.fd), marker: captureBinding)
+        let rootCopy = fcntl(root.fd, F_DUPFD_CLOEXEC, 0)
+        guard rootCopy >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        let childCopy = fcntl(child.fd, F_DUPFD_CLOEXEC, 0)
+        guard childCopy >= 0 else { Darwin.close(rootCopy); throw SharedMediaStorageFailure.unavailable }
+        let url = parent.parent.appendingPathComponent(Capture.rootName, isDirectory: true)
+        let transfer = SharedMediaNativeLockedRoot(url: url, root: rootCopy, child: childCopy, captureBinding: binding)
+        return try SharedMediaCaptureArtifactFiles(erasureRoot: transfer, rootURL: url, checkpoint: { [self] in try check() })
+    }
+
+    private static func namespace(_ name: String) throws -> SharedMediaNativeErasureManifest.Namespace {
+        guard let value = SharedMediaNativeErasureManifest.Namespace(rawValue: name) else { throw SharedMediaStorageFailure.invalid }
+        return value
+    }
+    private static func open(_ parent: Int32, _ name: String, url: URL, identity: String) throws -> SharedMediaNativeBootstrapDescriptor {
+        let value = try SharedMediaNativeBootstrapDescriptor(Files.directory(parent, name, create: false))
+        guard try Files.identity(value.fd) == identity,
+              try SharedMediaStorageFileOwner.directoryIdentity(url) == identity,
+              try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        return value
+    }
+    private static func fileIdentity(_ parent: Int32, _ name: String) throws -> String? {
+        var value = stat()
+        guard fstatat(parent, name, &value, AT_SYMLINK_NOFOLLOW) == 0 else {
+            guard errno == ENOENT else { throw SharedMediaStorageFailure.conflict }; return nil
+        }
+        guard value.st_mode & S_IFMT == S_IFREG, value.st_nlink == 1 else { throw SharedMediaStorageFailure.conflict }
+        return "\(value.st_dev):\(value.st_ino):\(value.st_size):\(value.st_mtimespec.tv_sec):\(value.st_mtimespec.tv_nsec):\(value.st_ctimespec.tv_sec):\(value.st_ctimespec.tv_nsec)"
+    }
+}
+
+// The additive root shares file-private I/O with the base bootstrap. Keeping
+// both here prevents arbitrary control-file writes from becoming a module API.
+enum SharedMediaCaptureRootBoundary: CaseIterable {
+    case afterIntent, afterRootDirectory, afterRootReceipt
+    case afterNamespaceDirectory, afterNamespaceReceipt, afterFinal, afterMarker
+}
+
+private final class SharedMediaCaptureRootDescriptor {
+    let fd: Int32
+    init(_ fd: Int32) { self.fd = fd }
+    deinit { Darwin.close(fd) }
+}
+
+/// Additive directory registration under the existing store and control-parent
+/// fence. This does not authorize an artifact write, queue admission or release.
+/// The native repository must first validate the immutable base bootstrap.
+@MainActor
+final class SharedMediaNativeCaptureRootFiles {
+    private typealias Journal = SharedMediaCaptureRootJournal
+    private typealias Files = SharedMediaNativeBootstrapFiles
+    private let parent: URL, parentIdentity: String
+    private let parentHandle: SharedMediaCaptureRootDescriptor
+    private let validate: () throws -> Void
+    private let baseNames: Set<String>
+    private let records: [String: Data]
+    private let rootIdentity: String, namespaceIdentity: String, binding: Data
+    private var transfer: SharedMediaNativeLockedRoot?
+
+    convenience init(authority: SharedMediaNativeBootstrapAuthority, parentDescriptor: Int32,
+                     profile: SharedMediaNativeAppProfile, createOrResume: Bool) throws {
+        try authority.validateDatabase(profile: profile)
+        guard try authority.isCommitted() else { throw SharedMediaStorageFailure.closed }
+        let receipt = try Files.read(parentDescriptor, SharedMediaNativeBootstrapCodec.parentReceiptName)
+        try self.init(parent: authority.parent, parentDescriptor: parentDescriptor, profile: profile,
+            baseNames: SharedMediaNativeBootstrapCodec.allowedNames(parentReceipt: receipt),
+            createOrResume: createOrResume, validate: { try authority.validateDatabase(profile: profile) },
+            fault: { try authority.captureBoundary($0) })
+    }
+
+    fileprivate init(parent: URL, parentDescriptor: Int32, profile: SharedMediaNativeAppProfile,
+                     baseNames: Set<String>, createOrResume: Bool, validate: @escaping () throws -> Void,
+                     fault: ((SharedMediaCaptureRootBoundary) throws -> Void)?) throws {
+        try validate()
+        let duplicate = fcntl(parentDescriptor, F_DUPFD_CLOEXEC, 0)
+        guard duplicate >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        let parentHandle = SharedMediaCaptureRootDescriptor(duplicate)
+        let parentID = try Files.identity(duplicate)
+        self.parent = parent; self.parentHandle = parentHandle; self.parentIdentity = parentID
+        self.validate = validate; self.baseNames = baseNames
+        func requireParent() throws {
+            try validate()
+            guard try SharedMediaStorageFileOwner.directoryIdentity(parent) == parentID,
+                  try Files.identity(duplicate) == parentID else { throw SharedMediaStorageFailure.conflict }
+            let names = try Files.names(duplicate, maximum: baseNames.count + Journal.names.count)
+            guard baseNames.isSubset(of: names), names.isSubset(of: baseNames.union(Journal.names)) else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+        func boundary(_ value: SharedMediaCaptureRootBoundary) throws {
+            try requireParent()
+            #if DEBUG
+            try fault?(value)
+            #endif
+        }
+        try requireParent()
+        let savedIntent = try Files.read(duplicate, Journal.intentName, maximumBytes: Int64(Journal.maximumRecordBytes))
+        let savedRoot = try Files.read(duplicate, Journal.rootReceiptName, maximumBytes: Int64(Journal.maximumRecordBytes))
+        let savedChild = try Files.read(duplicate, Journal.childReceiptName, maximumBytes: Int64(Journal.maximumRecordBytes))
+        let savedFinal = try Files.read(duplicate, Journal.finalName, maximumBytes: Int64(Journal.maximumRecordBytes))
+        guard createOrResume || savedFinal != nil else { throw SharedMediaStorageFailure.closed }
+        let intent: Journal.Intent
+        if let savedIntent {
+            let prefix = try Journal.Prefix(profile: profile, parentIdentity: parentID,
+                intent: savedIntent, root: savedRoot, namespace: savedChild, final: savedFinal)
+            intent = prefix.intent
+        } else {
+            guard createOrResume, savedRoot == nil, savedChild == nil, savedFinal == nil,
+                  try Files.names(duplicate, maximum: baseNames.count + Journal.names.count) == baseNames else {
+                throw SharedMediaStorageFailure.conflict
+            }
+            intent = try .init(profile: profile, parentIdentity: parentID, operationID: UUID())
+        }
+        if savedFinal == nil {
+            var space = statfs()
+            guard fstatfs(duplicate, &space) == 0, space.f_bsize > 0 else { throw SharedMediaStorageFailure.unavailable }
+            let (available, overflow) = UInt64(space.f_bavail).multipliedReportingOverflow(by: UInt64(space.f_bsize))
+            guard !overflow, available <= Int64.max,
+                  Int64(available) >= PhotoPreparationPolicy.minimumFree + Int64(4 * Journal.maximumRecordBytes + 512) else {
+                throw PhotoPreparationFailure.storageLimit
+            }
+        }
+        if savedIntent == nil { try Files.write(duplicate, Journal.intentName, Journal.encode(intent)) }
+        try boundary(.afterIntent)
+        func openDirectory(base: Int32, name: String, url: URL, receipt: Data?, kind: Journal.DirectoryKind,
+                           receiptName: String, directoryBoundary: SharedMediaCaptureRootBoundary,
+                           receiptBoundary: SharedMediaCaptureRootBoundary) throws -> (SharedMediaCaptureRootDescriptor, Journal.Directory) {
+            try requireParent()
+            guard receipt != nil || createOrResume else { throw SharedMediaStorageFailure.closed }
+            let handle = try SharedMediaCaptureRootDescriptor(Files.directory(base, name, create: receipt == nil))
+            let identity = try Files.identity(handle.fd), parentIdentity = try Files.identity(base)
+            let record: Journal.Directory
+            if let receipt {
+                record = try Journal.decode(Journal.Directory.self, receipt)
+                try record.require(intent: intent, kind: kind, parentIdentity: parentIdentity)
+                guard record.identity == identity else { throw SharedMediaStorageFailure.conflict }
+            } else {
+                // A crash before the creation receipt leaves an ambiguous path.
+                // A later attempt uses mkdir(O_EXCL semantics), never adoption.
+                try boundary(directoryBoundary)
+                guard try Files.names(handle.fd).isEmpty else { throw SharedMediaStorageFailure.conflict }
+                var url = url, attributes = URLResourceValues(); attributes.isExcludedFromBackup = true
+                try url.setResourceValues(attributes)
+                guard fsync(handle.fd) == 0, fsync(base) == 0 else { throw SharedMediaStorageFailure.unavailable }
+                record = try .init(intent: intent, kind: kind, parentIdentity: parentIdentity, identity: identity)
+                try requireParent()
+                try Files.write(duplicate, receiptName, Journal.encode(record))
+            }
+            try boundary(receiptBoundary)
+            let values = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
+            guard values.isExcludedFromBackup == true,
+                  try SharedMediaStorageFileOwner.directoryIdentity(url) == identity else { throw SharedMediaStorageFailure.conflict }
+            return (handle, record)
+        }
+        let rootURL = parent.appendingPathComponent(Journal.rootName, isDirectory: true)
+        let (root, rootRecord) = try openDirectory(base: duplicate, name: Journal.rootName, url: rootURL,
+            receipt: savedRoot, kind: .root, receiptName: Journal.rootReceiptName,
+            directoryBoundary: .afterRootDirectory, receiptBoundary: .afterRootReceipt)
+        guard try Files.names(root.fd).isSubset(of: [Journal.childName]) else { throw SharedMediaStorageFailure.conflict }
+        let (child, childRecord) = try openDirectory(base: root.fd, name: Journal.childName,
+            url: rootURL.appendingPathComponent(Journal.childName, isDirectory: true), receipt: savedChild,
+            kind: .namespace, receiptName: Journal.childReceiptName,
+            directoryBoundary: .afterNamespaceDirectory, receiptBoundary: .afterNamespaceReceipt)
+        guard childRecord.identity != parentID else { throw SharedMediaStorageFailure.conflict }
+        let final = try Journal.Final(intent: intent, root: rootRecord, namespace: childRecord)
+        let finalBytes = try Journal.encode(final)
+        if let savedFinal {
+            guard savedFinal == finalBytes else { throw SharedMediaStorageFailure.conflict }
+        } else {
+            guard try Files.names(child.fd).isEmpty else { throw SharedMediaStorageFailure.conflict }
+            try Files.write(duplicate, Journal.finalName, finalBytes)
+        }
+        try boundary(.afterFinal)
+        let markerBytes = try final.binding(intent: intent, root: rootRecord, namespace: childRecord)
+        try Files.checkMarker(root.fd, marker: Journal.marker, bytes: markerBytes, allowMissing: createOrResume)
+        if createOrResume { try Files.bind(root.fd, marker: Journal.marker, bytes: markerBytes, allowCreate: true) }
+        try boundary(.afterMarker)
+        records = try [Journal.intentName: Journal.encode(intent), Journal.rootReceiptName: Journal.encode(rootRecord),
+            Journal.childReceiptName: Journal.encode(childRecord), Journal.finalName: finalBytes]
+        binding = markerBytes; rootIdentity = rootRecord.identity; namespaceIdentity = childRecord.identity
+        // Duplicate the locked descriptions; neither directory is reopened or
+        // unlocked during the one-shot handoff to its artifact owner.
+        let rootCopy = fcntl(root.fd, F_DUPFD_CLOEXEC, 0)
+        guard rootCopy >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        let childCopy = fcntl(child.fd, F_DUPFD_CLOEXEC, 0)
+        guard childCopy >= 0 else { Darwin.close(rootCopy); throw SharedMediaStorageFailure.unavailable }
+        transfer = SharedMediaNativeLockedRoot(url: rootURL, root: rootCopy, child: childCopy,
+            captureBinding: .init(rootIdentity: rootIdentity, childIdentity: namespaceIdentity, marker: binding))
+        try check()
+    }
+
+    func check() throws {
+        try validate()
+        guard try Files.identity(parentHandle.fd) == parentIdentity,
+              try SharedMediaStorageFileOwner.directoryIdentity(parent) == parentIdentity,
+              try Files.names(parentHandle.fd, maximum: baseNames.count + Journal.names.count) == baseNames.union(Journal.names) else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        for (name, bytes) in records {
+            guard try Files.read(parentHandle.fd, name, maximumBytes: Int64(Journal.maximumRecordBytes)) == bytes else { throw SharedMediaStorageFailure.conflict }
+        }
+        let rootURL = parent.appendingPathComponent(Journal.rootName, isDirectory: true)
+        let fd = openat(parentHandle.fd, Journal.rootName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw SharedMediaStorageFailure.conflict }; defer { Darwin.close(fd) }
+        guard try Files.identity(fd) == rootIdentity, try Files.names(fd) == [Journal.childName],
+              try SharedMediaStorageFileOwner.directoryIdentity(rootURL.appendingPathComponent(Journal.childName)) == namespaceIdentity else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        for url in [rootURL, rootURL.appendingPathComponent(Journal.childName)] {
+            guard try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+        try Files.checkMarker(fd, marker: Journal.marker, bytes: binding, allowMissing: false)
+        try validate()
+    }
+
+    func take() throws -> SharedMediaNativeLockedRoot {
+        try check()
+        guard let result = transfer else { throw SharedMediaStorageFailure.closed }
+        transfer = nil
+        return result
+    }
+
+    #if DEBUG
+    static func qualification(parent: URL, profile: SharedMediaNativeAppProfile, createOrResume: Bool,
+                              fault: ((SharedMediaCaptureRootBoundary) throws -> Void)? = nil,
+                              validate: @escaping () throws -> Void = {}) throws -> SharedMediaNativeCaptureRootFiles {
+        guard TestExecutionCoordinator.isRunningTests else { throw SharedMediaStorageFailure.closed }
+        let support = URL.applicationSupportDirectory.resolvingSymlinksInPath().standardizedFileURL
+        guard parent == parent.resolvingSymlinksInPath().standardizedFileURL, parent != support,
+              parent.pathComponents.starts(with: support.pathComponents) else { throw SharedMediaStorageFailure.invalid }
+        let fd = try SharedMediaStorageFileOwner.openDirectory(parent); defer { Darwin.close(fd) }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw SharedMediaStorageFailure.busy }
+        return try .init(parent: parent, parentDescriptor: fd, profile: profile, baseNames: [],
+            createOrResume: createOrResume, validate: validate, fault: fault)
+    }
+    #endif
+}
+
+/// Passive bounded snapshot. It conveys no directory or artifact authority.
+@MainActor
+private struct SharedMediaCaptureControlSnapshot: Equatable {
+    let names: Set<String>
+    let records: [Data?]
+    let prefix: SharedMediaCaptureRootJournal.Prefix
+
+    static func read(parentFD: Int32, parentIdentity: String, baseNames: Set<String>,
+                     profile: SharedMediaNativeAppProfile) throws -> Self? {
+        typealias Journal = SharedMediaCaptureRootJournal
+        typealias Files = SharedMediaNativeBootstrapFiles
+        let names = try Files.names(parentFD, maximum: baseNames.count + Journal.names.count)
+        guard names.isSubset(of: baseNames.union(Journal.names)) else { throw SharedMediaStorageFailure.conflict }
+        let extensionNames = names.intersection(Journal.names)
+        guard !extensionNames.isEmpty else { return nil }
+        let records = try [Journal.intentName, Journal.rootReceiptName, Journal.childReceiptName, Journal.finalName]
+            .map { try Files.read(parentFD, $0, maximumBytes: Int64(Journal.maximumRecordBytes)) }
+        guard let intent = records[0] else { throw SharedMediaStorageFailure.conflict }
+        let prefix = try Journal.Prefix(profile: profile, parentIdentity: parentIdentity,
+            intent: intent, root: records[1], namespace: records[2], final: records[3])
+        return .init(names: extensionNames, records: records, prefix: prefix)
     }
 }

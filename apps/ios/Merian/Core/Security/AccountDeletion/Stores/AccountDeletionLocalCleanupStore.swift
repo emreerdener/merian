@@ -11,9 +11,15 @@ enum AccountDeletionLocalCleanupStore {
         let readState: @MainActor () -> AccountDeletionLocalRecoveryState?
         let validateSession: @MainActor () -> Bool
         let validateLibrary: @MainActor (AnyObject?) -> Bool
+        var expectedMarker: AccountDeletionCleanupMarker?
+        var readMarker: @MainActor () -> AccountDeletionCleanupMarker? = { nil }
+        var markerPrepared = true
+
+        var cleanupOperationID: UUID? { expectedMarker?.operationID }
 
         var isCurrent: Bool {
-            (expectedState?.requiresRecoveryCapability != true || expectedCapability != nil) &&
+            markerPrepared && readMarker() == expectedMarker &&
+                (expectedState?.requiresRecoveryCapability != true || expectedCapability != nil) &&
                 validateSession() && validateLibrary(nil) && readState() == expectedState &&
                 capabilityStore.matchesExisting(expectedCapability)
         }
@@ -36,20 +42,35 @@ enum AccountDeletionLocalCleanupStore {
     ) -> AccountDeletionLocalRecoveryState? {
         let key = UserDefaultsKeys.pendingLocalAccountDeletionCleanup
         let storedValue = userDefaults.object(forKey: key)
-        if let rawValue = storedValue as? String {
-            // An unknown future state remains fail-closed at the non-destructive
-            // intake boundary. This build must re-confirm server acceptance,
-            // never infer permission to erase local state from an unknown value.
-            return AccountDeletionLocalRecoveryState(rawValue: rawValue)
-                ?? .intakePending
+        guard let storedValue else { return nil }
+        if let marker = AccountDeletionCleanupMarker.decode(storedValue) { return marker.phase }
+        if let legacy = AccountDeletionCleanupMarker.legacyState(storedValue) { return legacy }
+        // Unknown or malformed data remains pending and grants no accepted cleanup.
+        return .intakePending
+    }
+
+    static func marker(userDefaults: UserDefaults = .standard) -> AccountDeletionCleanupMarker? {
+        AccountDeletionCleanupMarker.decode(userDefaults.object(forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup))
+    }
+
+    /// Called only by the accepted recovery composition while its session,
+    /// library and durable proof still match. Reads never upgrade implicitly.
+    @MainActor static func prepareAcceptedMarker(
+        expected: AccountDeletionLocalRecoveryState, userDefaults: UserDefaults = .standard
+    ) -> Bool {
+        guard [.cleanupPending, .capabilityCleanupPending, .capabilityRetirementPending].contains(expected),
+              state(userDefaults: userDefaults) == expected else { return false }
+        if let saved = marker(userDefaults: userDefaults) {
+            return saved.phase == expected && persistMarker(saved, userDefaults: userDefaults)
         }
-        // Builds predating the two-phase protocol stored a Boolean only after
-        // server acceptance. Preserve that recovery meaning during upgrade.
-        if let legacyAcceptedMarker = storedValue as? Bool,
-           legacyAcceptedMarker {
-            return .cleanupPending
-        }
-        return nil
+        let key = UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        guard AccountDeletionCleanupMarker.legacyState(userDefaults.object(forKey: key)) == expected else { return false }
+        return persistMarker(.init(phase: expected, operationID: UUID()), userDefaults: userDefaults)
+    }
+
+    private static func persistMarker(_ marker: AccountDeletionCleanupMarker, userDefaults: UserDefaults) -> Bool {
+        userDefaults.set(marker.storedValue, forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+        return userDefaults.synchronize() && self.marker(userDefaults: userDefaults) == marker
     }
 
     static func isPending(
@@ -174,17 +195,11 @@ enum AccountDeletionLocalCleanupStore {
         eventSender: (any AppEventSending)?,
         emitEvent: Bool = true
     ) -> Bool {
-        userDefaults.set(
-            state.rawValue,
-            forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
-        )
-        // This marker is the local side of an irreversible request. Force the
-        // preferences domain to disk, then read it back before allowing the
-        // network mutation to start.
-        guard userDefaults.synchronize(),
-              self.state(userDefaults: userDefaults) == state else {
-            return false
-        }
+        let previous = userDefaults.object(forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+        let saved = AccountDeletionCleanupMarker.decode(previous)
+        guard previous == nil || saved != nil || AccountDeletionCleanupMarker.legacyState(previous) != nil else { return false }
+        let next = AccountDeletionCleanupMarker(phase: state, operationID: saved?.operationID ?? UUID())
+        guard persistMarker(next, userDefaults: userDefaults) else { return false }
         if emitEvent {
             let sender = eventSender ?? AppDIContainer.shared.appEventPublisher
             sender.send(.accountDeletionRecoveryStateChanged)

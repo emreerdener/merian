@@ -14,6 +14,7 @@ final class CaptureVideoReanalysisHost {
     private var work: Task<Void, Never>?
     private var invalidated = false
     private var invalidationHandler: (() -> Void)?
+    private var lastAdmission: CaptureVideoResumeAccess.Admission?
 
     init(opened: CaptureVideoReanalysisAccess.Opened) { self.opened = opened }
     var choices: [ObservationReanalysisLocalVideoInput.Choice] { opened?.choices ?? [] }
@@ -46,7 +47,7 @@ final class CaptureVideoReanalysisHost {
             return
         }
         let expected = presentation
-        isBusy = true; message = nil
+        isBusy = true; message = nil; lastAdmission = nil
         work = Task { [weak self] in
             guard let self else { return }
             defer { work = nil; isBusy = false }
@@ -55,6 +56,7 @@ final class CaptureVideoReanalysisHost {
                     self?.presentation == expected && self?.isPresented == true && self?.isCurrent == true
                 }
                 guard presentation == expected, isPresented, !Task.isCancelled, validate() else { return }
+                lastAdmission = result
                 switch result {
                 case .started, .coalesced:
                     message = "Your saved video request is being checked. Completed results appear in identification history."
@@ -71,6 +73,25 @@ final class CaptureVideoReanalysisHost {
     func retry(scope: Presentation?) {
         guard let descriptions = opened?.session.plan?.descriptions else { return }
         submit(descriptions: descriptions, scope: scope)
+    }
+
+    /// The shared toolbar supplies its explicitly owned final clip. Legacy
+    /// attachment discovery and the old selection form are not involved.
+    func submitFromWorkspace(path: String, ownedPaths: Set<String>, descriptions: [String]) async throws -> CaptureVideoResumeAccess.Admission {
+        guard work == nil, validate(), let opened, let prepare = opened.workspaceInput else { throw ObservationHistoryError.unavailable }
+        if !isFrozen {
+            let choice = try await prepare(path, ownedPaths)
+            try Task.checkCancellation()
+            guard validate(), work == nil, !isFrozen else { throw ObservationHistoryError.unavailable }
+            selected = choice
+        }
+        guard present() else { throw ObservationHistoryError.unavailable }
+        submit(descriptions: descriptions, scope: presentedScope)
+        guard let waiter = work else { throw ObservationHistoryError.unavailable }
+        await withTaskCancellationHandler { await waiter.value } onCancel: { waiter.cancel() }
+        try Task.checkCancellation()
+        guard validate(), let lastAdmission else { throw ObservationHistoryError.unavailable }
+        return lastAdmission
     }
 
     func close() {

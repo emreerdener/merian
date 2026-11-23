@@ -1,18 +1,54 @@
+## November 20 — typed capture-stage cleanup
+
+The local V4 successor also drains retired capture stages through the existing
+dispatcher. The new typed acquisition selects one oldest due obligation across
+History and stage registries. Stage objects use `capture-stage/v1/` and require
+their recorded private backend digest; History retains `evidence/v1/`. Marker
+writing and settlement preserve the namespace/backend/object/token tuple. No
+stage TTL, additional retirement RPC or second worker is introduced. Old worker
+acquisition remains History-only. All existing request/claim/reserve budgets
+stay unchanged, and exact prior settlement remains available after pause.
+
+The current terminal receipt is V4. SQL can reconcile old V2/V3 receipts, but
+health schema2 and the monitor require V4 before stage cleanup is qualified.
+Stage failures, expired claims, pending/deferred work and unknown/oldest age are
+reported separately and count toward the shared drain budget. Local contract
+checks do not establish hosted storage or rollout qualification. Any future
+cutover requires the same explicit target authorization, pause and positive
+drain before replacing SQL/Edge; no activation is part of this work.
+
+## November 14 — local mixed cleanup integration
+
+The prepared V3 worker adds one composition retirement opportunity under the
+existing current-dispatch fence. No schedule, flags or credentials change. The
+90-second request, 50-second pre-claim reserve, original 60-second claim and
+single-object marker limit remain unchanged. Three worst-case 12-second
+retirement stages still leave the required claim/marker/settlement budget;
+scheduling overhead can make the worker decline a fresh claim.
+
+Deployment must pause and positively drain the existing worker before changing
+its receipt generation, apply the SQL/Edge candidate, verify V3 support, then
+resume only with the explicitly approved target operation. Retained unknown
+requests are never cleared automatically. Migrations accept old V2 terminal
+receipts, but an old database cannot consume V3 receipts. This is local
+preparation, not deployment or complete mixed reanalysis acceptance.
+
 # Erase observation evidence
 
-Prepared service-authenticated POST worker for the private history outbox.
-`private_evidence_erasure_enabled` defaults false and independently gates new
-retirement and claims. The prepared private scheduler and monitor are inactive;
-no cron registration or activation is included. Configured source participates
-in normal future main deployment planning; runtime-off is not a deployment
-exclusion. This worker is separate from public-copy erasure.
+Prepared service-authenticated POST worker for private History and capture-stage
+outboxes. `private_evidence_erasure_enabled` defaults false and independently
+gates new retirement and claims. The prepared private scheduler and monitor are
+inactive; no cron registration or activation is included. Configured source
+participates in normal future main deployment planning; runtime-off is not a
+deployment exclusion. This worker is separate from public-copy erasure.
 
 One invocation gives each existing retirement owner one bounded opportunity:
 photo/audio retires at most one expired unbound cohort (up to five receipts) or
 one legacy receipt; video retires at most one complete six/seven-object
-allocation. Immutable descriptors and expiry remain with their SQL owners. A
+allocation; mixed compositions retire at most one complete allocation of up to
+eight objects. Immutable descriptors and expiry remain with their SQL owners. A
 failed or unknown retirement acknowledgement does not retry that lane or block
-the other lane and already-enqueued obligations. The worker then claims at most
+the other lanes and already-enqueued obligations. The worker then claims at most
 one due opaque object, writes a permanent empty marker using dedicated
 private-history write credentials, verifies HEAD, and settles the original
 token. The outbox survives private history deletion. Caller bodies and keys are
@@ -31,9 +67,11 @@ The local recovery-fence successor requires `X-Merian-Evidence-Dispatch`;
 missing or malformed values return400 before work. A canonical lowercase UUIDv4
 is passed into each versioned acquisition RPC, which independently verifies the
 current enabled dispatch under a singleton lock held through that operation.
-Only completed work returns the strict eight-field terminal receipt:
-`schema_version: 2`, `dispatch_id` equal to that UUID, plus the same six
-counters. A present empty, malformed or duplicate-combined header returns400
+Only completed work returns the strict nine-field terminal receipt:
+`schema_version: 4`, `dispatch_id` equal to that UUID, plus seven counters
+including `composition_retired` (0–8). SQL still accepts already-dispatched
+V2/V3 receipts and records their generation; they do not certify capture-stage
+cleanup. A present empty, malformed or duplicate-combined header returns400
 before any worker operation; it never falls back to legacy. The UUID never
 replaces service authentication or object-claim authority. It is not logged or
 included in health telemetry and is echoed only after terminal work. Errors
@@ -85,9 +123,9 @@ handles opaque keys and legacy service JWTs. Its fixed private endpoint uses a
 120-second HTTP timeout. The proposed one-minute cron is not created here.
 
 A durable pending request prevents overlap across cron transactions. Only a
-strict, bounded v2 terminal worker receipt with the original durable random
-`pending_dispatch_id`, exactly one matching transport response, and a finite
-nonfuture response timestamp releases the slot automatically. Migration
+strict, bounded V2, V3 or V4 terminal worker receipt with the original durable
+random `pending_dispatch_id`, exactly one matching transport response, and a
+finite nonfuture response timestamp releases the slot automatically. Migration
 `20261111200839_correlate_private_evidence_dispatch.sql` adds this correlation
 without backfilling legacy pending slots. Numeric transport IDs can repeat after
 unlogged pg_net storage recovery, including recovery without a new postmaster;
@@ -134,8 +172,13 @@ known oldest age, unknown-age count, expired retirement discovery candidates,
 intent/result-bound objects, unbound objects outside discovery, and sanitized
 worker/schedule readiness. Discovery is a lock-free estimate, not authority or
 proof of locked retirement eligibility; video discovery does not revalidate the
-full source/descriptor receipt. The retirement owners remain authoritative.
-Health reads never reconcile a slot, claim work or modify any state.
+full source/descriptor receipt. The retirement owners remain authoritative. The
+monitor accepts both exact legacy and mixed health shapes. Mixed health requires
+the paired composition count and nullable receipt generation; null/V2 reports
+`composition_receipt_unverified` even with an empty queue. V3 does not override
+heartbeat age, worker failures or object-capacity limits. Unknown or partial
+fields reject without exposing the response body. Health reads never reconcile a
+slot, claim work or modify any state.
 
 The monitor script is
 `services/supabase/scripts/monitor_observation_evidence_erasure.ts`. It requires

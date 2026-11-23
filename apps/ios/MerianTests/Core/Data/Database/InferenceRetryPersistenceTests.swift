@@ -12,6 +12,30 @@ struct InferenceRetryPersistenceTests {
 
     // MARK: - Retry persistence
 
+    @Test(arguments: [nil, "", "Later edited note"] as [String?])
+    func completionPreservesLocalNoteIncludingExplicitClear(_ edited: String?) async throws {
+        let container = try createIsolatedContainer(), context = ModelContext(container)
+        let id = UUID().uuidString.lowercased()
+        let queue = OfflineQueuedScan(id: id, scanState: .staged)
+        queue.fieldNotes = InitialFieldNotesSeed.make(contexts: [.init(freeText: " Submitted evidence ")])
+        context.insert(queue)
+        try context.save()
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(try await actor.preservedScanRecordFieldNotes(scanId: id) == "Submitted evidence")
+        let record = LocalScanRecord(id: id, speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: edited)
+        context.insert(record)
+        try context.save()
+        #expect(try await actor.preservedScanRecordFieldNotes(scanId: id) == edited)
+        #expect(queue.fieldNotes == "Submitted evidence")
+    }
+
+    @Test func initialNoteUsesCanonicalDescriptionOrderWithoutChangingEvidence() {
+        let contexts = [ObservationContext(freeText: "  First\n"), .init(freeText: " \n "), .init(freeText: "Second  ")]
+        #expect(InitialFieldNotesSeed.make(contexts: contexts) == "First\n\nSecond")
+        #expect(contexts.first?.freeText == "  First\n")
+        #expect(InitialFieldNotesSeed.make(contexts: [.init(freeText: " \n ")]) == nil)
+    }
+
     @Test func testScheduleInferenceRetryRejectsOlderPersistedGeneration() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

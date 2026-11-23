@@ -1,5 +1,19 @@
 # App Lifecycle
 
+`NativeMediaLifetimeCoordinator` owns the app's retained native-media admission,
+account drain, and Capture recovery workers. `AppDIContainer` constructs it once
+from stable injected service identities. Its private runtime state remains the
+source of exact lifetime, container and quiescence checks.
+
+`NativeLibraryCleanup` owns accepted sign-out/deletion cleanup and
+acknowledgement. It receives the coordinator's captured runtime check and reads
+the current prepared host through a weak closure. Native completion remains
+retained and revalidated across generic History-file cleanup; failure preserves
+recovery authority. Its isolated DEBUG environment changes test directories and
+fault injection only. Tests exercise actual retained-consumer exit,
+generic-cleanup failure, sessionless retry and parent replacement across
+suspension.
+
 `AppLifecycleManager.swift` is the app-owned `@MainActor` scene-phase
 orchestrator. `MerianApp` constructs it from `AppDIContainer` and forwards
 active, inactive, and background transitions.

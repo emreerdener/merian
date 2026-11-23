@@ -69,6 +69,32 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
               ["identify", "identify-multimodal"].contains(function) else {
             throw MerianError.invalidResponse
         }
+        if let raw = payload["capturePlan"] {
+            guard function == "identify-multimodal", let user = payload["user_id"] as? String,
+                  let owner = UUID(uuidString: user), user == owner.uuidString.lowercased() else {
+                throw MerianError.invalidResponse
+            }
+            let plan = try CaptureInitialEvidencePlan(ownerID: owner,
+                data: JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys, .withoutEscapingSlashes]))
+            guard id == plan.scanID.uuidString.lowercased() else { throw MerianError.invalidResponse }
+            for key in ["initialEvidence", "initial_evidence", "privateCaptureStage", "capture_plan",
+                        "captureSourceObservations", "captureSourceProofs", "captureSources", "audioBase64",
+                        "audio_comparison", "audio_prompt_comparison"] where payload[key] != nil {
+                throw MerianError.invalidResponse
+            }
+            for key in ["imageBase64s", "audioBase64s", "r2ObjectKeys", "audioR2ObjectKeys", "videoR2ObjectKeys",
+                        "visualMediaItems", "visual_media_items", "audioMediaItems", "audio_media_items",
+                        "ownerMediaTimeline", "owner_media_timeline", "observation_contexts"] {
+                if let value = payload[key] {
+                    guard let array = value as? [Any], array.isEmpty else { throw MerianError.invalidResponse }
+                }
+            }
+            let shape = try Self(capturePlan: plan)
+            inputProfile = shape.inputProfile
+            flashFallbackEligible = shape.flashFallbackEligible
+            originalAnalysisID = shape.originalAnalysisID
+            return
+        }
         func count(_ key: String) throws -> Int {
             guard let value = payload[key] else { return 0 }
             guard let values = value as? [String] else { throw MerianError.invalidResponse }
@@ -111,6 +137,25 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
             videos: visualVideo || audioVideo ? 1 : 0
         )
         originalAnalysisID = scanID
+    }
+
+    private init(capturePlan plan: CaptureInitialEvidencePlan) throws {
+        var images = 0, audio = 0, videos = 0, descriptions = 0
+        for item in plan.items {
+            switch item {
+            case .image: images += 1
+            case .audio: audio += 1
+            case .description: descriptions += 1
+            case .video(let video):
+                videos += 1; images += video.frames.count
+                if video.audio != nil { audio += 1 }
+            }
+        }
+        inputProfile = videos > 0 ? (audio > 0 ? .videoAudio : .videoFrames)
+            : images > 0 ? (audio > 0 ? .photoAudio : .photo) : .audio
+        flashFallbackEligible = IdentificationEvidenceAllowance.permitsFreeScan(
+            images: images, audio: audio, descriptions: descriptions, videos: videos)
+        originalAnalysisID = plan.scanID
     }
 }
 

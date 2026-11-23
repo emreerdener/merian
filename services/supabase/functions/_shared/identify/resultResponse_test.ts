@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAudioHandler } from "../../audio-spec/index.ts";
 import { encodeWav16 } from "../../audio-spec/wav.ts";
@@ -119,6 +119,12 @@ function database(
   stage: Stage,
   source: Source,
   savedScan: CompletedScanResponseRow = scan,
+  recovery: {
+    restage?: boolean;
+    sealedAfterJobLoss?: boolean;
+    sealedOwner?: string;
+    unavailable?: boolean;
+  } = {},
 ) {
   const savedEnvelope = buildCompletedIdentifyEnvelope(savedScan, null);
   const events: string[] = [];
@@ -131,6 +137,24 @@ function database(
     rpc(name: string, args: Record<string, unknown> = {}) {
       events.push(name);
       switch (name) {
+        case "recover_owned_initial_completion":
+          assertEquals(args, { p_owner: user.id, p_scan: scanId });
+          if (recovery.unavailable) {
+            throw new Error("Synthetic completion lookup unavailable");
+          }
+          if (recovery.sealedAfterJobLoss) {
+            return response({
+              ...savedEnvelope,
+              initial_evidence: {
+                schema_version: 1,
+                owner_id: recovery.sealedOwner ?? user.id,
+                scan_id: scanId,
+                generation: "00000000-0000-4000-8000-000000000777",
+                evidence_digest: "a".repeat(64),
+              },
+            });
+          }
+          return response(null);
         case "get_entitlement_rollout_service":
           return response({
             entitlement_mode: "complimentary",
@@ -138,7 +162,12 @@ function database(
             mode_version: 1,
           });
         case "recover_stranded_scan_ingestion_attempt":
-          return response({ outcome: "job_not_found" });
+          assertEquals(args, { p_user_id: user.id, p_scan_id: scanId });
+          return response({
+            outcome: recovery.restage
+              ? "media_restage_required"
+              : "job_not_found",
+          });
         case "ensure_scan_user_profile":
           return response(null);
         case "reserve_identification_quota":
@@ -210,7 +239,7 @@ function database(
           );
           if (table === "scan_ingestion_jobs") {
             return response(
-              complete
+              complete && !recovery.sealedAfterJobLoss
                 ? {
                   status: "complete",
                   response_envelope: source === "stored" ? savedEnvelope : null,
@@ -423,5 +452,117 @@ Deno.test("primary replay requires protocol 5 at every handler and completion br
     else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", original);
     console.log = log;
     console.error = error;
+  }
+});
+
+Deno.test("saved observations replay before retired-upload rejection in every media handler", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const retiredOwner = "00000000-0000-4000-8000-000000000999";
+  const oldKey = (name: string) => `staging/${retiredOwner}/${name}`;
+  let networkCalls = 0;
+  globalThis.fetch = () => {
+    networkCalls++;
+    throw new Error("Recovery must not access storage or a provider");
+  };
+  try {
+    for (
+      const endpoint of [
+        "identify",
+        "audio-spec",
+        "identify-multimodal",
+      ] as const
+    ) {
+      for (
+        const mode of [
+          "stored",
+          "reconstructed",
+          "sealed",
+          "missing",
+          "unavailable",
+          "wrong-owner",
+          "obsolete-reader",
+        ] as const
+      ) {
+        await t.step(`${endpoint}/${mode}`, async () => {
+          const db = database(
+            mode === "missing" || mode === "unavailable" ? "quota" : "initial",
+            mode === "reconstructed" ? "reconstructed" : "stored",
+            scan,
+            {
+              restage: true,
+              sealedAfterJobLoss: mode === "sealed" || mode === "wrong-owner",
+              sealedOwner: mode === "wrong-owner" ? retiredOwner : undefined,
+              unavailable: mode === "unavailable",
+            },
+          );
+          const req = new Request(`https://example.invalid/${endpoint}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Merian-Entitlement-Protocol": "3",
+              "X-Merian-Identification-Protocol": mode === "obsolete-reader"
+                ? "3"
+                : "4",
+            },
+            body: JSON.stringify({
+              // Only the authenticated owner is allowed to read the saved outcome.
+              user_id: retiredOwner,
+              client_scan_id: scanId,
+              r2ObjectKeys: [oldKey("image.webp")],
+              audio_r2_key: oldKey("audio.wav"),
+              audioR2ObjectKeys: [oldKey("audio.wav")],
+              videoR2ObjectKeys: [oldKey("video.mp4")],
+            }),
+          });
+          const run = () => handlers[endpoint](req, user, db.client);
+          if (mode === "unavailable" || mode === "wrong-owner") {
+            await assertRejects(run);
+          } else {
+            const result = await run();
+            if (mode === "missing") {
+              assertEquals(result.status, 409);
+              assertEquals(
+                (await result.json()).code,
+                "scan_media_restage_required",
+              );
+            } else if (mode === "obsolete-reader") {
+              assertEquals(result.status, 426);
+              const body = await result.json();
+              assertEquals(body.code, "client_update_required");
+              assertEquals("data" in body, false);
+              assertEquals(
+                result.headers.get("X-Merian-Idempotent-Replay"),
+                null,
+              );
+            } else {
+              assertEquals(result.status, 200);
+              assertEquals(
+                result.headers.get("X-Merian-Idempotent-Replay"),
+                mode === "reconstructed" ? "reconstructed" : "stored",
+              );
+              const body = await result.json();
+              assertEquals(body.data, envelope.data);
+              if (mode === "sealed") {
+                assertEquals(body.initial_evidence.owner_id, user.id);
+                assertEquals(body.initial_evidence.scan_id, scanId);
+              }
+            }
+          }
+          assertEquals(
+            db.events.filter((name) =>
+              ![
+                "get_entitlement_rollout_service",
+                "recover_stranded_scan_ingestion_attempt",
+                "recover_owned_initial_completion",
+              ].includes(name)
+            ),
+            [],
+          );
+          assertEquals(networkCalls, 0);
+        });
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });

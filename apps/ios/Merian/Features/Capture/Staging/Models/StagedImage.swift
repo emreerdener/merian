@@ -3,6 +3,29 @@ import UIKit
 /// One staged photograph. Its inference, display, thumbnail, and original
 /// representations stay together so collection indexes cannot drift apart.
 struct StagedImage {
+    /// Presentation provenance only; never a file or submission capability.
+    enum ReviewBasis: Equatable {
+        case unproven
+        case nativeOriginal(SharedMediaNativePreparationRecipe)
+        case preparedArtifact(sha256: String)
+        case squareCropSource
+    }
+    let reviewBasis: ReviewBasis
+
+    var hasPreparedReviewIdentity: Bool {
+        guard case let .preparedArtifact(sha256) = reviewBasis else { return false }
+        return original.lastCropDisplaySize == nil && original.lastCropQuarterTurns == 0
+            && original.lastCropScale == 1 && original.lastCropOffset == .zero
+            && SharedMediaAcquisitionEncoding.digest(compressedData) == sha256
+    }
+
+    var startsWithFullAspectReview: Bool {
+        switch reviewBasis {
+        case let .nativeOriginal(recipe): return recipe.format != .cameraStill && recipe.cropDisplaySize == nil
+        case .preparedArtifact: return hasPreparedReviewIdentity
+        case .unproven, .squareCropSource: return false
+        }
+    }
     /// UI identity is separate from immutable history-media identity. Edits retain lineage only.
     enum ReanalysisProvenance: Equatable, Sendable {
         case added
@@ -49,7 +72,8 @@ struct StagedImage {
         focusRegion: NormalizedImageFocusRegion? = nil,
         addedAt: Date = Date(),
         reanalysisProvenance: ReanalysisProvenance = .added,
-        photoOriginalReference: PhotoOriginalReference? = nil
+        photoOriginalReference: PhotoOriginalReference? = nil,
+        reviewBasis: ReviewBasis = .unproven
     ) {
         self.photoOriginalReference = photoOriginalReference
         self.compressedData = compressedData
@@ -59,6 +83,7 @@ struct StagedImage {
         self.focusRegion = focusRegion
         self.addedAt = addedAt
         self.reanalysisProvenance = reanalysisProvenance
+        self.reviewBasis = reviewBasis
     }
 
     func replacing(
@@ -75,7 +100,8 @@ struct StagedImage {
             focusRegion: focusRegion,
             addedAt: addedAt,
             reanalysisProvenance: compressedData != nil || original != nil ? reanalysisProvenance.edited : reanalysisProvenance,
-            photoOriginalReference: photoOriginalReference
+            photoOriginalReference: photoOriginalReference,
+            reviewBasis: original.map { $0.image === self.original.image } == false ? .unproven : reviewBasis
         )
     }
 
@@ -88,7 +114,8 @@ struct StagedImage {
             focusRegion: focusRegion,
             addedAt: addedAt,
             reanalysisProvenance: reanalysisProvenance,
-            photoOriginalReference: photoOriginalReference
+            photoOriginalReference: photoOriginalReference,
+            reviewBasis: reviewBasis
         )
     }
 }

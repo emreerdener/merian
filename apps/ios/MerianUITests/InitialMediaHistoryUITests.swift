@@ -63,14 +63,11 @@ import XCTest
     }
     private func openHistory(_ app: XCUIApplication, baseline: String) {
         app.buttons["InitialHistoryOpen"].tap()
-        let row = app.buttons["HistoryRow_" + baseline]
+        let row = UITestAppLauncher.historyCard(app, id: baseline)
         XCTAssertTrue(row.waitForExistence(timeout: 90))
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "HistoryRow_")).count, 1)
-        row.tap()
-        XCTAssertTrue(app.staticTexts["This is your current identification."].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Synthetic audio result."].exists)
-        XCTAssertTrue(app.staticTexts["Original evidence is unavailable for this saved identification."].exists)
-        app.buttons["HistoryDone"].tap()
+        XCTAssertTrue(row.label.contains("Current"))
+        XCTAssertFalse(app.navigationBars["Identification preview"].exists)
+        UITestAppLauncher.closeHistory(app)
         XCTAssertTrue(app.buttons["InitialHistoryOpen"].waitForExistence(timeout: 30))
     }
     private func ready(_ app: XCUIApplication, timeout: TimeInterval) {

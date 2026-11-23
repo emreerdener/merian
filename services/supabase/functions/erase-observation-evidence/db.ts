@@ -1,3 +1,4 @@
+import type { PrivateErasureTarget } from "./handler.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicationAbortable } from "../_shared/analysisHistory/publicationDeadline.ts";
 
@@ -28,8 +29,12 @@ export function evidenceErasureRepository(
       rpc("retire_expired_observation_video_evidence_for_dispatch", {
         p_dispatch_id: dispatch,
       }, signal),
+    retireComposition: (signal: AbortSignal) =>
+      rpc("retire_expired_observation_composition_evidence_for_dispatch", {
+        p_dispatch_id: dispatch,
+      }, signal),
     claim: (signal: AbortSignal) =>
-      rpc("claim_observation_evidence_erasure_for_dispatch", {
+      rpc("claim_private_evidence_erasure_v4_for_dispatch", {
         p_dispatch_id: dispatch,
       }, signal),
     finish: async (
@@ -37,8 +42,11 @@ export function evidenceErasureRepository(
       token: string,
       success: boolean,
       signal: AbortSignal,
+      target: PrivateErasureTarget,
     ): Promise<boolean> => {
-      const value = await rpc("finish_observation_evidence_erasure", {
+      const value = await rpc("finish_private_evidence_erasure_v4", {
+        p_namespace: target.namespace,
+        p_backend: target.backend_sha256,
         p_object: object,
         p_claim: token,
         p_success: success,

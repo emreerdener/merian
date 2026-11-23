@@ -9,6 +9,24 @@ import UniformTypeIdentifiers
 
 @Suite("External image import store")
 struct ExternalImageImportStoreTests {
+    @Test func verifiedTransferRejectsChangedBytesAndRetiresOnlyMatchingOriginal() async throws {
+        let root = makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source.png"), bytes = Data([1, 2, 3, 4])
+        try bytes.write(to: source)
+        let store = ExternalImageImportStore(rootURL: root.appendingPathComponent("Inbox"))
+        let item = try await store.stageIncomingImage(at: source)
+        let url = try #require(await store.fileURL(for: item))
+        await #expect(throws: (any Error).self) {
+            try await store.retireVerified(item, byteCount: 4, sha256: SharedMediaAcquisitionEncoding.digest(Data([4, 3, 2, 1])))
+        }
+        #expect(try Data(contentsOf: url) == bytes)
+        #expect(await store.pendingImports() == [item])
+        try await store.retireVerified(item, byteCount: 4, sha256: SharedMediaAcquisitionEncoding.digest(bytes))
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(await store.pendingImports() == [])
+    }
+
     private final class SecurityScopeRecorder: @unchecked Sendable {
         private let lock = NSLock()
         private var active = false

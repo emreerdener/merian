@@ -56,6 +56,8 @@ struct PreparedHistoryReanalysisComposition {
          audioSource: CaptureAudioSourceReanalysisAccess.Configuration? = nil,
          video: CaptureVideoResumeAccess.Configuration? = nil,
          freshVideo: CaptureVideoReanalysisAccess.Configuration? = nil,
+         compositionStart: CaptureReanalysisAccess.CompositionStart? = nil,
+         compositionContinuation: ReanalysisStatusAccess.CompositionContinuation? = nil,
          retainedPhotoOwner: (@MainActor () async throws -> SharedMediaNativeOriginalOwner)? = nil,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
@@ -76,7 +78,7 @@ struct PreparedHistoryReanalysisComposition {
         selectedReview = .prepared(cloud: cloud, session: session)
         var statusConfiguration = retirement
         statusConfiguration?.documents = documents
-        status = .prepared(session: session, retirement: statusConfiguration)
+        status = .prepared(session: session, retirement: statusConfiguration, composition: compositionContinuation)
         reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
             generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
             dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
@@ -107,12 +109,37 @@ struct PreparedHistoryReanalysisComposition {
                 currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
                 containerIsCurrent: containerIsCurrent, documents: documents)
         }
+        let workspaceVideoAccess: CaptureVideoReanalysisAccess? = freshVideo.map { configuration in
+            .prepared(account: cloud, ownership: preparationOwner, configuration: configuration, workspace: true,
+                currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
+                containerIsCurrent: containerIsCurrent, documents: documents)
+        }
         videoResume = video.map { configuration in
             .prepared(account: cloud, ownership: preparationOwner, configuration: configuration,
                 currentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent,
                 containerIsCurrent: containerIsCurrent, documents: documents)
         }
-        capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, retainedOwner: retainedPhotoOwner, documents: documents,
+        let sourceAccess = audioSourceCapture, hostOwner = self.audioHostOwner
+        let workspaceAudioHost: CaptureWorkspaceAudioReanalysis.HostFactory? = sourceAccess.flatMap { access in
+            hostOwner.map { owner in
+                { target, container in
+                    try owner.open(target: target, container: container, route: .source) {
+                        try CaptureAudioReanalysisHost(source: access.open(target, container, UUID()))
+                    }
+                }
+            }
+        }
+        let workspaceVideoHost: CaptureWorkspaceVideoReanalysis.HostFactory? = workspaceVideoAccess.flatMap { access in
+            hostOwner.map { owner in
+                { target, container in
+                    try owner.openVideo(target: target, container: container) {
+                        try CaptureVideoReanalysisHost(opened: access.open(target, container, UUID()))
+                    }
+                }
+            }
+        }
+        capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, retainedOwner: retainedPhotoOwner,
+            audioHost: workspaceAudioHost, videoHost: workspaceVideoHost, compositionStart: compositionStart, documents: documents,
             isCurrentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent, requestSubmitted: submitted, requestCleanup: cleanup)
     }
 
@@ -164,10 +191,12 @@ struct PreparedHistoryReanalysisComposition {
                     dependencies.appEventPublisher.send(.scanLibraryChanged)
                 }), audio: audioConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
                 audioStatusOwner: queue.audioStatusOwner,
-                audioHostOwner: dependencies.preparedReanalysisHostOwner,
+                audioHostOwner: dependencies.nativeMediaLifecycle.preparedReanalysisHostOwner,
                 audioSource: audioSourceConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
                 video: videoConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
                 freshVideo: freshVideoConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
-                retainedPhotoOwner: { try await dependencies.nativeMediaOwnerForFeature() })
+                compositionStart: compositionConfiguration(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                compositionContinuation: compositionContinuation(in: dependencies, cloud: cloud, client: MerianNetworkClient.shared),
+                retainedPhotoOwner: { try await dependencies.nativeMediaLifecycle.nativeMediaOwnerForFeature() })
     }
 }

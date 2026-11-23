@@ -142,7 +142,7 @@ struct MerianApp: App {
         container = bootstrapOutcome.container
         nativeReleaseStartupAdmission = bootstrapOutcome.nativeReleaseAdmission
         // Failure leaves native composition unavailable; ordinary installation is gated off.
-        try? dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,
+        try? dependencies.nativeMediaLifecycle.configureNativeMediaLifetime(container: bootstrapOutcome.container,
             admission: bootstrapOutcome.nativeReleaseAdmission)
         startupStoreState = bootstrapOutcome.startupStoreState
         startupRecoveryNotice = StartupRecoveryNoticePolicy.combined(
@@ -450,11 +450,11 @@ struct MerianApp: App {
         guard let modelContext = container?.mainContext else { return false }
         let completed = await diContainer.supabaseManager
             .resumePendingAccountDeletionLocalCleanup { scope in
-                await diContainer.scanRepository.purgeAllData(
+                await diContainer.nativeMediaLifecycle.libraryCleanup.purgeLibraryForAccountDeletion(
                     modelContext: modelContext,
+                    scope: scope,
                     resetDerivedState:
-                        diContainer.privateScanMapStore.resetSensitiveState,
-                    validateAuthorization: { scope.permitsLibraryPurge(in: modelContext.container) }
+                        diContainer.privateScanMapStore.resetSensitiveState
                 )
             }
         isAccountDeletionRecoveryPending =

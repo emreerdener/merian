@@ -17,15 +17,58 @@ struct ObservationAudioReanalysisRequestTests {
         try .init(observationID: observation, analysisID: analysis, sourceAnalysisID: source, evidence: evidence)
     }
 
+    @Test func savedProtocolSixRemainsByteExact() throws {
+        // Frozen protocol-6 fixture and independently computed digest; never rewrite saved work.
+        let bytes = Data(#"""
+        {
+          "analysis_id": "00000000-0000-4000-8000-000000000003",
+          "entitlement_protocol": 3,
+          "evidence_manifest": {
+            "items": [
+              {
+                "kind": "description",
+                "text": "  before / 🌱  "
+              },
+              {
+                "byte_count": 46,
+                "content_type": "audio/wav",
+                "kind": "audio",
+                "media_id": "00000000-0000-4000-8000-000000000005",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "kind": "description",
+                "text": "after"
+              }
+            ],
+            "schema_version": 3
+          },
+          "expected_processor_permission": "google_gemini",
+          "history_protocol": 9,
+          "identification_protocol": 6,
+          "observation_id": "00000000-0000-4000-8000-000000000002",
+          "request_digest": "dfb5618dc14705a9a9ea209822bc2c961d61b4ad979e4f14b72a7f5407ec371e",
+          "schema_version": 3,
+          "source_analysis_id": "00000000-0000-4000-8000-000000000004"
+        }
+        """#.utf8)
+        let row = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        #expect(row["identification_protocol"] as? Int == 6)
+        let restored = try ObservationAudioReanalysisRequest(savedBody: bytes)
+        #expect(restored.body == bytes)
+        #expect(restored.requestDigest == "dfb5618dc14705a9a9ea209822bc2c961d61b4ad979e4f14b72a7f5407ec371e")
+    }
+
     @Test func exactSavedBytesAndOrderedEvidenceSurviveReopening() throws {
         let evidence: [ObservationAudioReanalysisRequest.Evidence] = [.description("  before / 🌱  "), .audio(audio), .description("after")]
         let original = try request(evidence)
         let restored = try ObservationAudioReanalysisRequest(savedBody: original.body)
         #expect(restored == original)
         #expect(restored.evidence == evidence)
-        #expect(original.requestDigest == "dfb5618dc14705a9a9ea209822bc2c961d61b4ad979e4f14b72a7f5407ec371e")
+        #expect(original.requestDigest == "0a2be5d2b032138ad06ce4b46b5d017c366a2981be49e3f898fbab746a892303")
         let row = try #require(JSONSerialization.jsonObject(with: original.body) as? [String: Any])
         #expect(row["history_protocol"] as? Int == 9)
+        #expect(row["identification_protocol"] as? Int == 7)
         #expect(row["expected_processor_permission"] as? String == "google_gemini")
         let spaced = try JSONSerialization.data(withJSONObject: row, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         #expect(try ObservationAudioReanalysisRequest(savedBody: spaced).body == spaced)

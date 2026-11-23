@@ -11,6 +11,7 @@ import {
 } from "./evidence.ts";
 import {
   getHistoryEvidenceConfig,
+  PrivateCaptureStageObjectStorage,
   PrivateHistoryEvidenceStorage,
 } from "./evidenceStorage.ts";
 
@@ -355,6 +356,130 @@ Deno.test("history provider materialization verifies bytes and denies erased con
     "history_evidence_verification_failed",
   );
 });
+
+Deno.test("private streamed verification checks full bytes and permanently erased replay", async () => {
+  const f = await fixture(), signal = new AbortController().signal;
+  await f.storage.writeOnce(f.receipt, bytes);
+  assertEquals(await f.storage.verifyStored(f.receipt, signal), undefined);
+  await f.storage.erase(f.receipt.object_id);
+  await assertRejects(() => f.storage.verifyStored(f.receipt, signal));
+});
+
+Deno.test("private streamed verification rejects truncated changed oversized and malformed responses", async () => {
+  const f = await fixture();
+  for (
+    const scenario of [
+      "truncated",
+      "changed",
+      "oversized",
+      "encoded",
+      "range",
+      "missingLength",
+      "partial",
+      "emptyChunks",
+    ]
+  ) {
+    const headers = new Headers({
+      "Content-Type": f.receipt.content_type,
+      "Content-Length": String(f.receipt.byte_count),
+      "x-amz-meta-sha256": f.receipt.sha256,
+    });
+    if (scenario === "encoded") headers.set("Content-Encoding", "gzip");
+    if (scenario === "range") headers.set("Content-Range", "bytes 0-2/4");
+    if (scenario === "missingLength") headers.delete("Content-Length");
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        if (scenario === "emptyChunks") {
+          for (let i = 0; i < 33; i++) c.enqueue(new Uint8Array());
+        } else {
+          c.enqueue(
+            scenario === "truncated"
+              ? bytes.slice(1)
+              : scenario === "changed"
+              ? new Uint8Array([1, 2, 4])
+              : scenario === "oversized"
+              ? new Uint8Array(4)
+              : bytes,
+          );
+          if (["truncated", "changed"].includes(scenario)) c.close();
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const storage = new PrivateHistoryEvidenceStorage(
+      () => f.config,
+      () => f.config,
+      () =>
+        Promise.resolve(
+          new Response(stream, {
+            headers,
+            status: scenario === "partial" ? 206 : 200,
+          }),
+        ),
+    );
+    await assertRejects(() =>
+      storage.verifyStored(f.receipt, new AbortController().signal)
+    );
+    if (!["truncated", "changed"].includes(scenario)) assert(cancelled);
+  }
+});
+
+Deno.test("private streamed verification hashes reused chunks and cancels a stalled read", async () => {
+  const f = await fixture();
+  const headers = {
+    "Content-Type": f.receipt.content_type,
+    "Content-Length": "3",
+    "x-amz-meta-sha256": f.receipt.sha256,
+  };
+  let index = 0;
+  const shared = new Uint8Array(1);
+  const storage = new PrivateHistoryEvidenceStorage(
+    () => f.config,
+    () => f.config,
+    () =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(c) {
+              if (index === 3) {
+                c.close();
+                return;
+              }
+              shared[0] = bytes[index++];
+              c.enqueue(shared);
+            },
+          }, { highWaterMark: 0 }),
+          { headers },
+        ),
+      ),
+  );
+  await storage.verifyStored(f.receipt, new AbortController().signal);
+  let cancelled = false;
+  const controller = new AbortController();
+  const stalled = new PrivateHistoryEvidenceStorage(
+    () => f.config,
+    () => f.config,
+    () =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull() {
+              controller.abort();
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }, { highWaterMark: 0 }),
+          { headers },
+        ),
+      ),
+  );
+  await assertRejects(() => stalled.verifyStored(f.receipt, controller.signal));
+  assert(cancelled);
+});
 Deno.test("history provider materialization rejects mismatched digest and oversized streams", async () => {
   const f = await fixture();
   for (const body of [new Uint8Array([8, 8, 8]), new Uint8Array(4)]) {
@@ -586,5 +711,113 @@ Deno.test("private storage leaves retryable HTTP failures to the durable owner",
         Math.random = originalRandom;
       }
     });
+  }
+});
+
+Deno.test("private capture stage erasure cannot overwrite History with the same object UUID", async () => {
+  const f = await fixture(), signal = new AbortController().signal;
+  const objects = new Map<string, { bytes: Uint8Array; headers: Headers }>();
+  const transport = async (request: Request) => {
+    const key = new URL(request.url).pathname, existing = objects.get(key);
+    if (request.method === "PUT") {
+      if (existing && request.headers.get("if-none-match") === "*") {
+        return new Response(null, { status: 412 });
+      }
+      objects.set(key, {
+        bytes: new Uint8Array(await request.arrayBuffer()),
+        headers: new Headers(request.headers),
+      });
+      return new Response(null, { status: 200 });
+    }
+    return new Response(
+      request.method === "GET" ? existing?.bytes.slice() : null,
+      {
+        status: existing ? 200 : 404,
+        headers: existing?.headers,
+      },
+    );
+  };
+  const history = new PrivateHistoryEvidenceStorage(
+    () => f.config,
+    () => f.config,
+    transport,
+  );
+  const stage = new PrivateCaptureStageObjectStorage(
+    () => f.config,
+    () => f.config,
+    transport,
+  );
+  await history.writeOnce(f.receipt, bytes, signal);
+  await stage.writeOnce(f.receipt, bytes, signal);
+  assertEquals([...objects.keys()].sort(), [
+    `/synthetic-private/capture-stage/v1/${f.receipt.object_id}`,
+    `/synthetic-private/evidence/v1/${f.receipt.object_id}`,
+  ]);
+  const stream = await stage.openBoundStream(f.receipt, signal);
+  assertEquals(new Uint8Array(await new Response(stream).arrayBuffer()), bytes);
+  await stage.erase(f.receipt.object_id, signal);
+  await assertRejects(() => stage.writeOnce(f.receipt, bytes, signal));
+  await assertRejects(() => stage.openBoundStream(f.receipt, signal));
+  assertEquals(await history.readVerified(f.receipt, signal), bytes);
+  await assertRejects(
+    () => stage.signedRead(f.receipt),
+    Error,
+    "capture_stage_signed_read_forbidden",
+  );
+  assertEquals(
+    objects.get(`/synthetic-private/capture-stage/v1/${f.receipt.object_id}`)
+      ?.bytes.length,
+    0,
+  );
+});
+
+Deno.test("private bound stream rejects partial encoded erased or mismatched responses before consumption", async () => {
+  const f = await fixture();
+  for (
+    const change of [
+      "length",
+      "hash",
+      "type",
+      "encoded",
+      "partial",
+      "erased",
+      "status",
+      "aborted",
+    ]
+  ) {
+    let cancelled = false;
+    const controller = new AbortController();
+    const storage = new PrivateCaptureStageObjectStorage(
+      () => f.config,
+      () => f.config,
+      () => {
+        const headers = new Headers({
+          "content-type": f.receipt.content_type,
+          "content-length": String(f.receipt.byte_count),
+          "x-amz-meta-sha256": f.receipt.sha256,
+        });
+        if (change === "length") headers.set("content-length", "2");
+        if (change === "hash") headers.set("x-amz-meta-sha256", "0".repeat(64));
+        if (change === "type") headers.set("content-type", "audio/wav");
+        if (change === "encoded") headers.set("content-encoding", "gzip");
+        if (change === "partial") headers.set("content-range", "bytes 0-2/3");
+        if (change === "erased") headers.set("x-amz-meta-erased", "true");
+        if (change === "aborted") controller.abort();
+        return Promise.resolve(
+          new Response(
+            new ReadableStream({
+              cancel() {
+                cancelled = true;
+              },
+            }),
+            { headers, status: change === "status" ? 206 : 200 },
+          ),
+        );
+      },
+    );
+    await assertRejects(() =>
+      storage.openBoundStream(f.receipt, controller.signal)
+    );
+    assertEquals(cancelled, true, change);
   }
 });

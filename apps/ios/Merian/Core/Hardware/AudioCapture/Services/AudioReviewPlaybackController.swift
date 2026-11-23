@@ -52,6 +52,7 @@ final class AudioReviewPlaybackController {
         var activationTask: Task<Void, Never>?
         var lease: AudioSessionCoordinator.Lease?
         var seekTask: Task<Void, Never>?
+        var retiredSeekTasks: [Task<Void, Never>] = []
         var progressTask: Task<Void, Never>?
         var completionTask: Task<Void, Never>?
     }
@@ -138,6 +139,8 @@ final class AudioReviewPlaybackController {
             _ = await priorRetirement?.value
             await playback.activationTask?.value
             await playback.seekTask?.value
+            for task in playback.retiredSeekTasks { await task.value }
+            await playback.progressTask?.value
             let time = await playback.player.playbackTime()
             await playback.player.stop()
             if let lease = playback.lease { await deactivateSession(lease) }
@@ -146,12 +149,27 @@ final class AudioReviewPlaybackController {
         }
     }
 
+    /// Await the actual player stop before retiring its source file. Completion
+    /// timers carry no file reads and are independently fenced by generation.
+    func drain() async {
+        await retireReaders().value
+    }
+
+    func retireReaders() -> Task<Void, Never> {
+        stop()
+        let pending = retirementTask
+        return Task { _ = await pending?.value }
+    }
+
     func seek(to progress: Double) {
         guard activePlayback != nil else { return }
         activePlayback?.progress = min(1, max(0, progress))
         activePlayback?.seekRevision += 1
         activePlayback?.completionTask?.cancel()
-        activePlayback?.seekTask?.cancel()
+        if let previous = activePlayback?.seekTask {
+            previous.cancel()
+            activePlayback?.retiredSeekTasks.append(previous)
+        }
         guard let playback = activePlayback, playback.isPlaying else { return }
         activePlayback?.seekTask = Task { [weak self] in
             guard let self else { return }

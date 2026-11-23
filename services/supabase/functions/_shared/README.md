@@ -21,6 +21,43 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
 
 ## Infrastructure Map
 
+- **`captureSourceCollector.ts`**: Prepared read-only signed storage collection
+  into private source snapshots. Validates the complete ordered inventory before
+  I/O; bounds actual streamed bytes, aggregate image capacity, per-item and
+  whole-operation deadlines, and cancels failed/late bodies. It has no installed
+  route or SQL authority. See the
+  [collector contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-20--prepared-authenticated-source-collector).
+- **`captureSourceEvidence.ts`**: Prepared server-only byte snapshots and
+  version-1 transient source observations for image, audio and raw video.
+  Private copies precede awaits; provider preparation uses that same content.
+  The intent builder requires a process-local handle and exact complete ordered
+  source membership. The prepared collector supplies it; no live route does. It
+  grants no SQL admission, immutable storage, completion or release authority.
+  See the
+  [source snapshot contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#november-20--prepared-source-byte-snapshots).
+- **`capturePromotionStorage.ts`**: Prepared capture-specific verified-byte
+  transfer. Requires fresh durable-operation authorization before every I/O,
+  retains a hash-verified source snapshot across staging overwrites, sends one
+  conditional PUT and verifies exact destination bytes. Unknown writes remain
+  held; it never deletes either object. `verifyCapturePromotionDestination`
+  reauthorizes and hashes only the saved destination after an issued write;
+  absence, mismatch or uncertain reads remain held. It neither rereads staging
+  nor retries PUT. `capturePromotionDb.ts` composes fixed service RPCs with that
+  verifier, including retained-cohort recovery after source/job/intent loss and
+  post-byte receipt persistence. Fresh transfer registers the complete cohort
+  first. No route or storage signer is installed; source-proof admission and
+  finalization remain open. The transfer grants no completion/publication or
+  retirement authority. See the
+  [ingestion contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#prepared-capture-promotion-byte-transfer).
+
+- **`identify/initialEvidenceEnvelopeV1.ts`**: Versioned ordinary completion
+  proof composed around the frozen Identify result contract. Owns strict proof
+  parsing and the exact accepted-identity verifier; shared ingestion bookkeeping
+  receives the required verifier from its caller instead of importing provider
+  schemas. Generated Swift rejects explicit null while retaining legacy
+  omission. The initial-evidence route remains fenced until its continuation is
+  integrated.
+
 - **`edgeHandler.ts`**: Authenticated user-facing function wrapper, custom-auth
   `serveEdge(...)` registration, preflight handling, background task dispatch,
   structured operational logging, auth timing, and additive `Server-Timing`
@@ -240,16 +277,19 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   final scan exists, identify finalization marks them promoted/deleted/failed,
   and write paths make best-effort `scan_media_assets` refresh calls after scan
   inserts or video repair updates. The `reconcile-scan-media-assets` worker owns
-  stale staged-row repair and abandonment cleanup, while checking active
-  ingestion jobs before abandoning staged upload-session media. Composer and
-  status paths prefer ready display/playback asset rows before falling back to
-  `captured_media` and legacy arrays. Historical compatibility manifests may
-  prove `has_audio` through a nested audio reference, but strict Captured Media
-  Wire V1 canonicalization drops that field. Current positive values must come
-  from verified normalized/durable playback metadata; V1 and legacy URL-array
-  fallbacks default false. `scan-media-health` reads the same lifecycle state
-  for deploy smoke checks and operational drift alerts, but does not mutate
-  media rows. Structured signing registration is idempotent for one
+  stale staged-row repair and abandonment classification. As of the November 19
+  source checkpoint, it is quarantined: reads/HEAD and audit telemetry continue,
+  all storage/asset/scan/job effects are held, and hypothetical counts are
+  separately labeled preview. Exact durable retirement and late-write recovery
+  are required before its effects can resume; request flags cannot enable them.
+  Composer and status paths prefer ready display/playback asset rows before
+  falling back to `captured_media` and legacy arrays. Historical compatibility
+  manifests may prove `has_audio` through a nested audio reference, but strict
+  Captured Media Wire V1 canonicalization drops that field. Current positive
+  values must come from verified normalized/durable playback metadata; V1 and
+  legacy URL-array fallbacks default false. `scan-media-health` reads the same
+  lifecycle state for deploy smoke checks and operational drift alerts, but does
+  not mutate media rows. Structured signing registration is idempotent for one
   authenticated owner/client-scan/deterministic key, composes compatible
   subsets, reuses the original upload session after an ambiguous response, and
   enforces the six-source union before signing.
@@ -531,12 +571,16 @@ identical:
   Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this
   identify-specific subdomain.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
-  staging keys. `parseAudioTransport(...)` validates array shape, nonempty
-  members, and mutual exclusion of inline and staged audio before any `.length`
-  read, decode, or object-key lookup. Inline bytes are authoritative: a legacy
-  destination hint accompanying inline image or audio bytes is validated for
-  traversal but excluded from the staged source manifest, ownership checks,
-  promotion, deletion, and strict finalization.
+  staging keys. Staged images stream against remaining aggregate capacity; every
+  unread concurrent response is cancelled on failure. The shared media budget
+  reader cancels bodies rejected by Content-Length before allocation. These
+  transport bounds do not certify immutable source bytes or ownership.
+  `parseAudioTransport(...)` validates array shape, nonempty members, and mutual
+  exclusion of inline and staged audio before any `.length` read, decode, or
+  object-key lookup. Inline bytes are authoritative: a legacy destination hint
+  accompanying inline image or audio bytes is validated for traversal but
+  excluded from the staged source manifest, ownership checks, promotion,
+  deletion, and strict finalization.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
   promotion. Copy/upload responses and subsequent staging deletion are checked
   explicitly; a non-2xx/non-404 deletion fails promotion and triggers strict

@@ -9,6 +9,8 @@ function fixture() {
   let time = 0;
   const wall = Date.parse("2026-10-01T00:00:00Z");
   const row = {
+    namespace: "history" as "history" | "capture_stage",
+    backend_sha256: null as string | null,
     object_id: object,
     claim_token: token,
     claim_expires_at: new Date(wall + 60_000).toISOString(),
@@ -31,6 +33,11 @@ function fixture() {
       assert(!signal.aborted);
       calls.push("retireVideo");
       return Promise.resolve(7);
+    },
+    retireComposition: (signal) => {
+      assert(!signal.aborted);
+      calls.push("retireComposition");
+      return Promise.resolve(8);
     },
     claim: () => {
       calls.push("claim");
@@ -60,18 +67,34 @@ Deno.test("private erasure retires one cohort, marks one frozen object and settl
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 1,
     acknowledged: 1,
   });
-  assertEquals(f.calls, ["retire", "retireVideo", "claim", ["erase", object], [
-    "finish",
-    object,
-    token,
-    true,
-  ]]);
-  assertEquals(f.limits, [90_000, 12_000, 12_000, 12_000, 25_000, 12_000]);
+  assertEquals(f.calls, [
+    "retire",
+    "retireVideo",
+    "retireComposition",
+    "claim",
+    ["erase", object],
+    [
+      "finish",
+      object,
+      token,
+      true,
+    ],
+  ]);
+  assertEquals(f.limits, [
+    90_000,
+    12_000,
+    12_000,
+    12_000,
+    12_000,
+    25_000,
+    12_000,
+  ]);
 });
 Deno.test("private erasure does no storage work when disabled or empty", async () => {
   const f = fixture();
@@ -79,12 +102,60 @@ Deno.test("private erasure does no storage work when disabled or empty", async (
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 0,
     marked: 0,
     acknowledged: 0,
   });
-  assertEquals(f.calls, ["retire", "retireVideo"]);
+  assertEquals(f.calls, ["retire", "retireVideo", "retireComposition"]);
+});
+Deno.test("stage marker and settlement retain the frozen namespace and backend", async () => {
+  const f = fixture();
+  f.row.namespace = "capture_stage";
+  f.row.backend_sha256 = "a".repeat(64);
+  const targets: unknown[] = [];
+  f.deps.erase = (_id, _signal, target) => {
+    targets.push(target);
+    assert(Object.isFrozen(target));
+    f.row.namespace = "history";
+    f.row.backend_sha256 = null;
+    return Promise.resolve();
+  };
+  f.deps.finish = (_id, _token, _success, _signal, target) => {
+    targets.push(target);
+    return Promise.resolve(true);
+  };
+  assertEquals((await eraseObservationEvidence(f.deps)).acknowledged, 1);
+  assertEquals(
+    targets,
+    Array(2).fill({
+      namespace: "capture_stage",
+      backend_sha256: "a".repeat(64),
+    }),
+  );
+});
+Deno.test("untyped or mismatched namespace claims cannot reach storage", async () => {
+  const { namespace: _namespace, backend_sha256: _backend, ...legacy } =
+    fixture().row;
+  for (
+    const row of [
+      legacy,
+      { ...fixture().row, namespace: "capture_stage" },
+      { ...fixture().row, backend_sha256: "a".repeat(64) },
+      {
+        ...fixture().row,
+        namespace: "capture_stage",
+        backend_sha256: "A".repeat(64),
+      },
+      { ...fixture().row, namespace: "other" },
+    ]
+  ) {
+    const f = fixture();
+    f.deps.claim = () => Promise.resolve(row);
+    await assertRejects(() => eraseObservationEvidence(f.deps));
+    assertEquals(f.calls, ["retire", "retireVideo", "retireComposition"]);
+  }
 });
 Deno.test("private erasure rejects malformed bounded receipts before storage", async () => {
   for (
@@ -96,7 +167,7 @@ Deno.test("private erasure rejects malformed bounded receipts before storage", a
     const f = fixture();
     f.deps.claim = () => Promise.resolve(value);
     await assertRejects(() => eraseObservationEvidence(f.deps));
-    assertEquals(f.calls, ["retire", "retireVideo"]);
+    assertEquals(f.calls, ["retire", "retireVideo", "retireComposition"]);
   }
 });
 Deno.test("late claim reply preserves completion reserve and never extends original lease", async () => {
@@ -108,12 +179,13 @@ Deno.test("late claim reply preserves completion reserve and never extends origi
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 0,
     acknowledged: 1,
   });
-  assertEquals(f.calls, ["retire", "retireVideo", [
+  assertEquals(f.calls, ["retire", "retireVideo", "retireComposition", [
     "finish",
     object,
     token,
@@ -129,12 +201,13 @@ Deno.test("expired claim cannot write or settle and future clock skew cannot ext
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 0,
     acknowledged: 0,
   });
-  assertEquals(f.calls, ["retire", "retireVideo"]);
+  assertEquals(f.calls, ["retire", "retireVideo", "retireComposition"]);
   const g = fixture();
   g.row.claim_expires_at = "2027-01-01T00:00:00Z";
   g.deps.claim = () => {
@@ -142,7 +215,7 @@ Deno.test("expired claim cannot write or settle and future clock skew cannot ext
     return Promise.resolve(g.row);
   };
   await eraseObservationEvidence(g.deps);
-  assertEquals(g.calls, ["retire", "retireVideo", [
+  assertEquals(g.calls, ["retire", "retireVideo", "retireComposition", [
     "finish",
     object,
     token,
@@ -155,6 +228,7 @@ Deno.test("storage failure or lost acknowledgement never retries external I/O", 
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 0,
@@ -166,12 +240,19 @@ Deno.test("storage failure or lost acknowledgement never retries external I/O", 
   assertEquals(await eraseObservationEvidence(g.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 1,
     acknowledged: 0,
   });
-  assertEquals(g.calls, ["retire", "retireVideo", "claim", ["erase", object]]);
+  assertEquals(g.calls, [
+    "retire",
+    "retireVideo",
+    "retireComposition",
+    "claim",
+    ["erase", object],
+  ]);
 });
 Deno.test("private erasure respects parent cancellation before I/O and between marker and settlement", async () => {
   const f = fixture(), controller = new AbortController();
@@ -188,12 +269,18 @@ Deno.test("private erasure respects parent cancellation before I/O and between m
   assertEquals(await eraseObservationEvidence(g.deps, active.signal), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 0,
     acknowledged: 0,
   });
-  assertEquals(g.calls, ["retire", "retireVideo", "claim"]);
+  assertEquals(g.calls, [
+    "retire",
+    "retireVideo",
+    "retireComposition",
+    "claim",
+  ]);
 });
 Deno.test("private erasure aborts stalled storage but leaves time to report failure", async () => {
   const f = fixture(), storage = new AbortController();
@@ -206,6 +293,7 @@ Deno.test("private erasure aborts stalled storage but leaves time to report fail
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 5,
     video_retired: 7,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 1,
     marked: 0,
@@ -217,11 +305,11 @@ Deno.test("unknown claim reply does not probe, retry or reach storage", async ()
   const f = fixture();
   f.deps.claim = () => Promise.reject(new Error("unknown"));
   await assertRejects(() => eraseObservationEvidence(f.deps));
-  assertEquals(f.calls, ["retire", "retireVideo"]);
+  assertEquals(f.calls, ["retire", "retireVideo", "retireComposition"]);
 });
 
 Deno.test("each retirement lane progresses independently after the other's lost acknowledgement", async () => {
-  for (const phase of ["retire", "retireVideo"] as const) {
+  for (const phase of ["retire", "retireVideo", "retireComposition"] as const) {
     const f = fixture();
     let attempts = 0;
     f.deps[phase] = () => {
@@ -233,6 +321,10 @@ Deno.test("each retirement lane progresses independently after the other's lost 
     assertEquals(result.retirement_failures, 1);
     assertEquals(result.retired, phase === "retire" ? 0 : 5);
     assertEquals(result.video_retired, phase === "retireVideo" ? 0 : 7);
+    assertEquals(
+      result.composition_retired,
+      phase === "retireComposition" ? 0 : 8,
+    );
     assertEquals([result.claimed, result.marked, result.acknowledged], [
       1,
       1,
@@ -242,19 +334,33 @@ Deno.test("each retirement lane progresses independently after the other's lost 
 });
 
 Deno.test("invalid retirement counts never inflate receipts or block an independently claimed obligation", async () => {
-  for (const [phase, maximum] of [["retire", 5], ["retireVideo", 7]] as const) {
+  for (
+    const [phase, maximum] of [["retire", 5], ["retireVideo", 7], [
+      "retireComposition",
+      8,
+    ]] as const
+  ) {
     for (const value of [-1, maximum + 1, 1.5, "1", null, Number.NaN]) {
       const f = fixture();
       f.deps[phase] = () => Promise.resolve(value);
       const result = await eraseObservationEvidence(f.deps);
       assertEquals(result.retirement_failures, 1);
       assertEquals(result.marked, 1);
-      assertEquals(result[phase === "retire" ? "retired" : "video_retired"], 0);
+      assertEquals(
+        result[
+          phase === "retire"
+            ? "retired"
+            : phase === "retireVideo"
+            ? "video_retired"
+            : "composition_retired"
+        ],
+        0,
+      );
     }
   }
 });
 
-Deno.test("two failed retirement stages retain enough original request budget for one marker and settlement", async () => {
+Deno.test("three failed retirement stages retain enough original request budget for one marker and settlement", async () => {
   const f = fixture();
   const fail = () => {
     f.advance(12_000);
@@ -262,23 +368,34 @@ Deno.test("two failed retirement stages retain enough original request budget fo
   };
   f.deps.retire = fail;
   f.deps.retireVideo = fail;
+  f.deps.retireComposition = fail;
   f.deps.claim = () => {
-    f.row.claim_expires_at = "2026-10-01T00:01:24Z";
+    f.row.claim_expires_at = "2026-10-01T00:01:36Z";
     return Promise.resolve(f.row);
   };
   const result = await eraseObservationEvidence(f.deps);
-  assertEquals(result.retirement_failures, 2);
+  assertEquals(result.retirement_failures, 3);
   assertEquals([result.claimed, result.marked, result.acknowledged], [1, 1, 1]);
-  assertEquals(f.limits, [90_000, 12_000, 12_000, 12_000, 25_000, 12_000]);
+  assertEquals(f.limits, [
+    90_000,
+    12_000,
+    12_000,
+    12_000,
+    12_000,
+    25_000,
+    12_000,
+  ]);
 });
 
 Deno.test("zero retirement does not suppress an independently granted cleanup claim", async () => {
   const f = fixture();
-  f.deps.retire = f.deps.retireVideo = () => Promise.resolve(0);
+  f.deps.retire = f.deps.retireVideo = f.deps.retireComposition = () =>
+    Promise.resolve(0);
   const result = await eraseObservationEvidence(f.deps);
   assertEquals(result, {
     retired: 0,
     video_retired: 0,
+    composition_retired: 0,
     retirement_failures: 0,
     claimed: 1,
     marked: 1,
@@ -309,12 +426,13 @@ Deno.test("slow scheduling cannot acquire a claim without the unchanged marker r
   assertEquals(await eraseObservationEvidence(f.deps), {
     retired: 0,
     video_retired: 6,
+    composition_retired: 8,
     retirement_failures: 0,
     claimed: 0,
     marked: 0,
     acknowledged: 0,
   });
-  assertEquals(f.calls, []);
+  assertEquals(f.calls, ["retireComposition"]);
 });
 
 Deno.test("complete six and seven-object video retirement receipts preserve one marker capacity", async () => {

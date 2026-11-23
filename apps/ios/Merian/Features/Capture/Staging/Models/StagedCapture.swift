@@ -15,6 +15,8 @@ struct StagedCapture {
     /// Ownership survives UI clearing. Only an explicit durable release may
     /// remove it; missing access must never select the legacy submit path.
     var nativePhotoDraft: NativePhotoDraft?
+    /// Journal order survives restart independently of media timestamps.
+    var retainedItemOrder: [UUID]?
 
     /// Staged photographs. Capped by the active capture policy.
     var images: [StagedImage] = []
@@ -62,12 +64,13 @@ struct StagedCapture {
     var discardableLocalMediaFilePaths: [String] {
         audios.map(\.filePath)
             + videos.flatMap { video in
-                [video.filePath, video.audioFilePath].compactMap { $0 }
+                [video.filePath, video.audioFilePath, video.originalFilePath].compactMap { $0 }
             }
     }
 
     /// Resets every modality atomically while retaining duplicate-submit state.
     mutating func clearAll() {
+        retainedItemOrder = nil
         images.removeAll()
         audios.removeAll()
         videos.removeAll()

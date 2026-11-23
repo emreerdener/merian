@@ -1,7 +1,64 @@
 # Initial analysis and reanalysis: reliability review and hardening plan
 
-Status: proposed; source review and planning only. Updated 2026-10-10. No
-engine, schema, funding, deployment, or activation change is made by this RFC.
+## Current implementation checkpoint — November 19, 2026
+
+Implementation and validation are authorized and remain incomplete. Capture is
+the single implementation writer; History and Hardening provide read-only
+contract and safety review. This supersedes the planning-only status and writer
+assignments in the dated historical sections below. Activation, deployment,
+hosted scheduling and publication remain unauthorized.
+
+The next priority is the capture cleanup race: durable admission before external
+I/O, exact per-object retirement separate from renewable claims, and recoverable
+late-write cleanup obligations. Coverage must include existing-scan repairs,
+abandonment, scan deletion without a surviving scan row, and account deletion.
+Atomic native queue/original holds, qualified final release, exact submission
+recovery/finalization and History enrollment remain required integration work.
+Completion requires evidence for those user journeys and race/failure contracts
+plus the affected repository gates. Isolated foundation tests do not establish
+end-to-end readiness. The previously observed hosted video timeout remains an
+unresolved release finding; deterministic local tests cannot close it.
+
+The November 19 source quarantine now forces `reconcile-scan-media-assets` into
+diagnostic evaluation even when a caller requests live work. HEAD/read checks
+and a `dry_run` audit row remain; actual mutation counts are zero, all
+candidates remain pending and hypothetical counts are labeled `preview`.
+Independent Hardening review found no effect bypass. This temporarily holds
+stranded-video repair and abandonment cleanup, and is not the durable retirement
+solution. Other promotion callers, existing deployed workers, issued URLs and
+in-flight storage requests remain separate qualification obligations.
+
+See the [Capture checkpoint](../product/capture-review-plan.md) for current
+source and native validation evidence. The October review status below is
+historical: this RFC began as source review and planning only on 2026-10-10.
+
+November 19 evening (Chicago) continuation: the versioned completion-proof
+envelope preserves the frozen result schema, rejects null/malformed or unequal
+proofs, and admits strict proof into History V8 snapshots. Legacy queue access
+now rejects surviving V70/V71 liabilities independently of queue presence or
+receipt validity. Native37 passed 37 functions across three suites; full Edge
+and Supabase tooling gates passed. These checks do not close atomic admission,
+app-specific ordinary accounting/release, durable object retirement, or
+end-to-end qualification. The strict live producer remains disabled. Hosted
+schedules were neither queried nor changed in this continuation.
+
+November 19 late continuation (Chicago): new staging PUTs now receive a durable
+exact-backend/key capability record before the signer returns them. Scan and
+account retirement preserve that record across cascades; deletion/HEAD passes
+retain unresolved authority after negative observations. The account-intake
+advisory fence avoids the existing cleanup job/owner lock inversion. The private
+account-merge wrapper permits only transaction-bound metadata reparenting and
+retires the old-owner capability. Source reclassification and moving away from a
+registered key cannot bypass the fence. Independent review found and closed the
+merge and source-classification findings. These changes cover newly registered
+staging uploads, not promotion/COPY, legacy capabilities or abandonment. The
+worker quarantine and strict route fence remain necessary.
+
+The native whole-store ordinary audit separately checks complete accepted
+V71/V70 membership and rejects orphan or foreign rows. It does not enable app
+mutations or submission. Neither isolated audit qualification nor staging-only
+cleanup proves the full Identify/Reanalyze/History journey. Final evidence and
+remaining integration are tracked in the Capture plan above.
 
 ## Current scope amendment — October 12, 2026
 
@@ -440,21 +497,24 @@ under real roles.
 Add integration tests for funding reservation followed by admission denial or
 uncertain acknowledgement, holds without jobs and lifecycle receipts surviving
 quota pruning. Primary dispatch authorization remains after successful
-admission. Add two-device concurrent admission, subscription transition, month
-boundary via fake funding, repeated settlement, durable result with lost client
-response, restart with damaged queue metadata, and missing local evidence. Use
-synthetic providers and storage barriers first; paid/provider/device/runtime
-qualification remains separately authorized and explicitly recorded when unrun.
+admission. Add two-device concurrent admission, current subscription transition,
+repeated settlement, durable result with lost client response, restart with
+damaged queue metadata, and missing local evidence. Use synthetic providers and
+storage barriers first; paid/provider/device/runtime qualification remains
+separately authorized and explicitly recorded when unrun.
 
 For reanalysis also test selection A → B during preparation/execution of child
-C; completion appends C while B stays selected; lost append replies recover
-exactly one C and one settlement; stale source/review revisions fail without
-rebasing; parent deletion during upload/inference blocks C; child discard
-preserves siblings; account switch prevents private callbacks; expired/missing
-evidence requires explicit remediation. Verify non-biological retention,
-account-deletion allowlist, restore/Undo races and delayed authority
-reconciliation. Run the shared invariant suite against both paths plus these
-path-specific end-to-end cases.
+C. The approved November Capture contract supersedes the earlier selection
+wording: first successful completion makes C current through authoritative state
+refresh; failure preserves the current result. Local append does not infer
+selection before that refresh. A later deliberate B selection survives C replay;
+lost append replies recover exactly one C and one settlement; stale
+source/review revisions fail without rebasing; parent deletion during
+upload/inference blocks C; child discard preserves siblings; account switch
+prevents private callbacks; expired/missing evidence requires explicit
+remediation. Verify non-biological retention, account-deletion allowlist,
+restore/Undo races and delayed authority reconciliation. Run the shared
+invariant suite against both paths plus these path-specific end-to-end cases.
 
 Release criteria: at most one primary dispatch authorization per owner and
 logical analysis ID across all attempt, reservation and recovery-claim IDs; zero
@@ -621,10 +681,31 @@ or storage races.
 | LIFE-06 | Late upload/copy after cancellation cleanup                     | Capability-expiry timeline, repeated deletion and no binding                     |
 | LIFE-07 | Funding reserve then denial/unknown admission                   | No stranded proven-unused hold; ambiguity never releases; one settlement         |
 | LIFE-08 | Restart/account merge/delete during every await boundary        | Exact owner/generation fencing, preserved dispatch-used fact, collision rollback |
-| LIFE-09 | Child C completes while selection changes A to B                | One appended C, B stays selected, correct review/credit projection               |
+| LIFE-09 | Child C completes while selection changes A to B                | One C, first completion selects C; later deliberate selection survives replay    |
 | LIFE-10 | Maximum supported media and slow dependencies                   | Real abort propagation, memory/CPU measurements and settlement reserve           |
-| LIFE-11 | Lost delivery, two devices and month/subscription transition    | Same saved result and original funding association, no second consumption        |
+| LIFE-11 | Lost delivery, two clients and current subscription transition  | Same saved result and original funding association, no second consumption        |
 | LIFE-12 | All legacy callers and old workers against new states           | Fail-closed compatibility and no pruning/replay of held work                     |
+
+### Current Capture funding qualification boundary — November 21, 2026
+
+LIFE-11 qualifies the implemented reservation and subscription contracts,
+without adding purchase policies. Replay44 executed
+`initial_assignment_entitlement_projection.sql` (held complimentary → paid Pro,
+exact replay retains original reservation/plan and one hold),
+`complimentaryScansConcurrencyDb.test.ts` (overlapping clients produce one
+reservation/attempt), and `identificationInvocationConcurrencyDb.test.ts`
+(duplicate commitment and completion/deletion ordering). Native
+`fundingLostAcknowledgementReplaysOriginalAfterColdOpen` independently covers
+lost delivery, cold recovery and rejection of a replacement entitlement result.
+These are distinct proof boundaries; they do not claim physical two-device or
+real-provider qualification.
+
+No monthly grant or scan-pack accounting policy is implemented by this scope.
+Qualification of a future month/expiry adapter belongs to that policy's delivery
+and must prove original funding continuity before activation. It is deferred,
+not passed, and is not a current Capture implementation blocker. Existing
+expiry, pruning and retry fences must still retain their original funding
+association under today's contracts.
 
 ### Deadline and operational acceptance decisions
 

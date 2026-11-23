@@ -35,7 +35,8 @@ struct CaptureAdmissionTests {
         case description(String)
     }
 
-    @Test func testEnqueueCapture_WithValidData_PersistsQueuedScan() async throws {
+    @Test(arguments: [false, true])
+    func testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput: Bool) async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }
 
@@ -44,7 +45,7 @@ struct CaptureAdmissionTests {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         manager.modelContext = context
         manager.isOnline = false
-        let scanId = UUID().uuidString
+        let scanId = UUID().uuidString.lowercased()
         defer {
             manager.deferredLiveUploadScanIds.remove(scanId)
             snapshot.restore(manager)
@@ -54,7 +55,7 @@ struct CaptureAdmissionTests {
             manager.enqueueCapture(
                 imageDatas: [Data("dummy_image".utf8)],
                 telemetry: dummyTelemetry,
-                scanId: scanId,
+                scanId: uppercaseInput ? scanId.uppercased() : scanId,
                 startSyncImmediately: false,
                 onQueued: { continuation.resume(returning: $0) }
             )
@@ -87,7 +88,7 @@ struct CaptureAdmissionTests {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         manager.modelContext = context
         manager.isOnline = false
-        let scanId = UUID().uuidString
+        let scanId = UUID().uuidString.lowercased()
         defer {
             manager.deferredLiveUploadScanIds.remove(scanId)
             snapshot.restore(manager)
@@ -137,7 +138,7 @@ struct CaptureAdmissionTests {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         manager.modelContext = context
         manager.isOnline = false
-        let scanId = UUID().uuidString
+        let scanId = UUID().uuidString.lowercased()
         defer { snapshot.restore(manager) }
 
         manager.enqueueDescribe(
@@ -168,7 +169,7 @@ struct CaptureAdmissionTests {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         manager.modelContext = context
         manager.isOnline = false
-        let scanId = UUID().uuidString
+        let scanId = UUID().uuidString.lowercased()
         let audioFilename = try makeTempAudioFilename()
         defer {
             manager.deferredLiveUploadScanIds.remove(scanId)
@@ -225,7 +226,7 @@ struct CaptureAdmissionTests {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         manager.modelContext = context
         manager.isOnline = false
-        let scanId = UUID().uuidString
+        let scanId = UUID().uuidString.lowercased()
         let videoFilename = try makeTempVideoFilename()
         defer {
             manager.deferredLiveUploadScanIds.remove(scanId)

@@ -45,6 +45,7 @@ that layout.
 - [scan-media-health](./scan-media-health/README.md)
 - [sync-collections](./sync-collections/README.md)
 - [upload-observation-video](./upload-observation-video/README.md)
+- [upload-observation-composition](./upload-observation-composition/README.md)
 
 ### Explore publication, feeds, comments, and reactions
 

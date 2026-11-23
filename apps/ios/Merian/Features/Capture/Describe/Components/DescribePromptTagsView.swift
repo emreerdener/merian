@@ -6,6 +6,7 @@ struct DescribePromptTagsView: View {
     let selectionFeedback: @MainActor () -> Void
     let onSelectTag: @MainActor (_ tag: GuidedQuestion.Tag) -> Void
     let onAdvanceQuestion: @MainActor () -> Void
+    var promptOverride: String?
 
     @State private var pendingAutoAdvance: PendingAutoAdvance?
 
@@ -39,7 +40,7 @@ struct DescribePromptTagsView: View {
         if promptViewModel.activeQuestions.indices.contains(
             promptViewModel.activeQuestionIndex
         ) {
-            Text(promptViewModel.currentPrompt)
+            Text(promptOverride ?? promptViewModel.currentPrompt)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundStyle(.primary)

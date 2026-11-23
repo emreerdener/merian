@@ -74,6 +74,7 @@ final class CaptureAudioReanalysisHost {
     private var presentation = UUID()
     private var work: Task<Void, Never>?
     private var invalidationHandler: (() -> Void)?
+    private var lastAdmission: CaptureAudioReanalysisSession.SourceAdmission?
 
     init(opened: CaptureAudioReanalysisAccess.Opened) { self.opened = .legacy(opened); route = .legacy }
     init(source: CaptureAudioSourceReanalysisAccess.Opened) { opened = .source(source); route = .source }
@@ -125,7 +126,7 @@ final class CaptureAudioReanalysisHost {
             return
         }
         let expected = presentation
-        isBusy = true; message = nil
+        isBusy = true; message = nil; lastAdmission = nil
         work = Task { [weak self] in
             guard let self else { return }
             defer { work = nil; isBusy = false }
@@ -134,6 +135,7 @@ final class CaptureAudioReanalysisHost {
                     self?.presentation == expected && self?.isPresented == true && self?.isCurrent == true
                 }
                 guard presentation == expected, isPresented, !Task.isCancelled, validate() else { return }
+                lastAdmission = admission
                 switch admission {
                 case .started, .coalesced:
                     message = "Your saved request is being checked. Completed results appear in identification history."
@@ -150,6 +152,20 @@ final class CaptureAudioReanalysisHost {
     func retry() {
         guard let choices = opened?.session.plan?.choices else { return }
         submit(choices)
+    }
+
+    /// Shared Capture uses the retained source host without presenting a second
+    /// form. The host still freezes one identity and owns its joined waiter.
+    func submitFromWorkspace(_ choices: [CaptureAudioReanalysisPlan.Choice]) async throws -> CaptureAudioReanalysisSession.SourceAdmission {
+        guard route == .source, work == nil, inputWork == nil, picker == nil, present() else {
+            throw ObservationHistoryError.unavailable
+        }
+        submit(choices)
+        guard let waiter = work else { throw ObservationHistoryError.unavailable }
+        await withTaskCancellationHandler { await waiter.value } onCancel: { waiter.cancel() }
+        try Task.checkCancellation()
+        guard validate(), let lastAdmission else { throw ObservationHistoryError.unavailable }
+        return lastAdmission
     }
 
     func close() {

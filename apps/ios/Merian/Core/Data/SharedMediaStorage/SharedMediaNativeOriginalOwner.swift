@@ -31,6 +31,26 @@ final class SharedMediaNativeOriginalOwner {
         guard openKind == .appDispatch, phase == .ready, let registration else { return false }
         return drain.isCurrent(registration)
     }
+    var isReadyForCaptureDispatch: Bool {
+        guard openKind == .appDispatch, phase == .captureReady, let registration else { return false }
+        return drain.isCurrent(registration)
+    }
+    /// Receipt-specific local settlement may coexist with another reserved draft.
+    /// Each operation still proves the completed target and audits the full root.
+    var isReadyForCaptureSettlement: Bool {
+        guard openKind == .appDispatch, phase == .captureReady || phase == .capturePending,
+              let registration else { return false }
+        return drain.isCurrent(registration)
+    }
+    var requiresCaptureRecovery: Bool {
+        guard openKind == .appDispatch, phase == .captureRootRecovery, let registration else { return false }
+        return drain.isCurrent(registration)
+    }
+    var isReadyForCaptureDraft: Bool {
+        guard openKind == .appDispatch, phase == .ready || phase == .captureReady || phase == .capturePending,
+              let registration else { return false }
+        return drain.isCurrent(registration)
+    }
     private init(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                  openKind: SharedMediaNativeOriginalOpenKind = .qualification) throws {
         self.account = account; self.drain = drain; self.openKind = openKind
@@ -45,11 +65,10 @@ final class SharedMediaNativeOriginalOwner {
         try .init(account: account, drain: drain,
             openKind: discovery.existingProfile == nil ? .appInitialization : .appDispatch)
     }
-    func openApp(container: ModelContainer, discovery: SharedMediaNativeBootstrapDiscovery) async throws -> SharedMediaNativeScopedSnapshot {
+    func openApp(container: ModelContainer, discovery: SharedMediaNativeBootstrapDiscovery) async throws -> SharedMediaNativeAppOpenResult {
         guard openKind == (discovery.existingProfile == nil ? .appInitialization : .appDispatch) else { throw SharedMediaStorageFailure.closed }
-        let result = try await openAppProfile(container: container, parent: discovery.parent,
+        return try await openAppProfile(container: container, parent: discovery.parent,
             inventoryID: discovery.inventoryID, discovery: discovery, initializationOnly: false)
-        guard case .dispatch(let snapshot) = result else { throw SharedMediaStorageFailure.closed }; return snapshot
     }
     /// All entry points retain the same grant minting and one discovery transfer.
     private func openAppProfile(container: ModelContainer, parent: URL, inventoryID: UUID,
@@ -72,7 +91,9 @@ final class SharedMediaNativeOriginalOwner {
                         return SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
                             profile: profile, parent: parent, writerEpoch: writerEpoch)
                     })
-                try check(lease); phase = .ready; return result
+                try check(lease)
+                if case .captureRootRecovery = result { phase = .captureRootRecovery } else { phase = .ready }
+                return result
             }
         } catch {
             if phase != .suspended { phase = .failed }
@@ -85,6 +106,38 @@ final class SharedMediaNativeOriginalOwner {
                                        fault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)? = nil) throws {
         guard phase == .unopened else { throw SharedMediaStorageFailure.closed }
         debug.scopedPagePause = pause; debug.bootstrapFault = fault; debug.inspectionTrace = trace
+    }
+    func configureCaptureRootRecoveryForTesting(fault: ((SharedMediaCaptureRootBoundary) throws -> Void)?) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureRootFault = fault
+    }
+    func configureCaptureDraftJournalForTesting(_ fault: ((SharedMediaCaptureDraftJournalBoundary) throws -> Void)?) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureDraftJournalFault = fault
+    }
+    func configureCaptureSourceDiscardForTesting(_ fault: ((SharedMediaCaptureSourceDiscardBoundary) throws -> Void)?) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureSourceDiscardFault = fault
+    }
+    func configureCaptureAcceptedReleaseForTesting(_ fault: ((SharedMediaCaptureReleaseBoundary) throws -> Void)?) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureAcceptedReleaseFault = fault
+    }
+
+    func configureCaptureArtifactWritingForTesting(fault: ((SharedMediaCaptureArtifactWriteBoundary) throws -> Void)? = nil,
+                                                   pause: (@Sendable (Int) async -> Void)? = nil) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureArtifactWriteFault = fault
+        debug.captureArtifactWritePause = pause
+    }
+    func configureCaptureSubmissionWritingForTesting(fault: ((SharedMediaCaptureReservationBoundary) throws -> Void)? = nil,
+                                                     availableBytes: Int64? = nil) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureSubmissionWriteFault = fault; debug.captureSubmissionAvailableBytes = availableBytes
+    }
+    func configureCaptureExecutionForTesting(afterResponse: @escaping () throws -> Void) throws {
+        guard TestExecutionCoordinator.isRunningTests, cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        debug.captureExecutionResponseReceived = afterResponse
     }
     static func debugOwner(account: PhotoOriginalPreparationOwner.AccountAccess, drain: SharedMediaNativeOriginalDrain,
                            kind: SharedMediaNativeOriginalOpenKind) throws -> SharedMediaNativeOriginalOwner {
@@ -146,8 +199,97 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
 
+    /// Resume or create only the additive root under a fresh registered operation.
+    /// No artifact upload, queue admission or cleanup capability escapes.
+    func recoverAppCaptureRoot() async throws -> SharedMediaNativeScopedSnapshot {
+        try await withCaptureRootDispatch { [self] storage, grant in
+            try storage.recoverAppCaptureRoot(grant: grant)
+            let snapshot = try await storage.inspectApp(grant: grant)
+            try grant.validate()
+            phase = .ready
+            return snapshot
+        }
+    }
+
+    /// Publishes only the role proven by fresh whole-store qualification.
+    /// Capture readiness never authorizes ordinary or native-photo mutations.
+    func resumeAppCaptureRoot() async throws {
+        try await withCaptureRootDispatch { [self] storage, grant in
+            let result = try await storage.resumeAppCaptureRoot(grant: grant)
+            try grant.validate()
+            try publishCaptureQualification(result)
+        }
+    }
+
     func inspectApp() async throws -> SharedMediaNativeScopedSnapshot {
         try await withAppDispatch(settled: false) { storage, grant in try await storage.inspectApp(grant: grant) }
+    }
+    func inspectAppCaptureArtifacts() async throws -> SharedMediaNativeScopedSnapshot {
+        try await withCaptureRootDispatch { try await $0.inspectAppCaptureArtifacts(grant: $1) }
+    }
+
+    /// Supplies only fixed Capture endpoints; neither repository nor grant
+    /// crosses this boundary. Requalification occurs after the file borrow ends.
+    func captureRootWorkflow<T: Sendable>(
+        requalify: Bool = false,
+        _ body: @escaping @MainActor (SharedMediaNativeAppCaptureOperations) async throws -> T
+    ) async throws -> T {
+        try await withCaptureRootDispatch { [self] storage, grant in
+            let result = try await storage.appCaptureWorkflow(grant: grant, body: body)
+            if requalify { try publishCaptureQualification(await storage.resumeAppCaptureRoot(grant: grant)) }
+            try grant.validate()
+            return result
+        }
+    }
+
+    func captureSettlementWorkflow<T: Sendable>(
+        _ body: @escaping @MainActor (SharedMediaNativeAppCaptureOperations) async throws -> T
+    ) async throws -> T {
+        try await withCaptureSettlement { storage, grant in
+            try await storage.appCaptureWorkflow(grant: grant, body: body)
+        }
+    }
+
+    private func publishCaptureQualification(_ result: SharedMediaNativeAppOpenResult) throws {
+        switch result {
+        case .dispatch: phase = .ready
+        case .captureDispatch: phase = .captureReady
+        case .capturePending: phase = .capturePending
+        default: throw SharedMediaStorageFailure.closed
+        }
+    }
+    private func withCaptureSettlement<T: Sendable>(
+        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T
+    ) async throws -> T {
+        guard isReadyForCaptureSettlement,
+              pendingSettlement == nil, !releaseStageSettlement.hasPending,
+              cancelActive == nil else { throw SharedMediaStorageFailure.closed }
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+            let result = try await body(storage, grant)
+            try grant.validate()
+            return result
+        }
+    }
+
+    private func withCaptureRootDispatch<T: Sendable>(
+        _ body: @escaping @MainActor (SharedMediaNativeStorageRepository, SharedMediaNativeAppDispatchGrant) async throws -> T
+    ) async throws -> T {
+        guard openKind == .appDispatch, phase == .ready || phase == .captureRootRecovery || phase == .captureReady || phase == .capturePending,
+              pendingSettlement == nil, !releaseStageSettlement.hasPending, cancelActive == nil else {
+            throw SharedMediaStorageFailure.closed
+        }
+        phase = .captureRootRecovery
+        return try await performOperation { [self] lease, identity in
+            guard let storage, let appProfile, let appParent else { throw SharedMediaStorageFailure.closed }
+            let grant = SharedMediaNativeAppDispatchGrant(owner: self, identity: identity, lease: lease,
+                profile: appProfile, parent: appParent, writerEpoch: writerEpoch)
+            let result = try await body(storage, grant)
+            try grant.validate()
+            return result
+        }
     }
     func appMetadataWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppMetadataOperations) throws -> T) async throws -> T {
         try await appOperation(settled: false, open: { try await $0.appMetadata(grant: $1) }, body: body)
@@ -157,6 +299,22 @@ final class SharedMediaNativeOriginalOwner {
     }
     func appOriginalLifecycle<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppOriginalOperations) async throws -> T) async throws -> T {
         try await appOperation(open: { try await $0.appOriginal(grant: $1) }, body: body)
+    }
+    /// Local funding is already claimed. Queue rows and all original holds
+    /// commit together; this acknowledgement grants no network dispatch.
+    func acceptAppOrdinary(_ admission: SharedMediaOrdinaryQueueAdmission,
+                           holds: SharedMediaOrdinaryHoldCohort) async throws -> SharedMediaOrdinarySubmissionAcceptance {
+        let scanID = admission.submission.scanID.uuidString.lowercased()
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanID)
+        do {
+            let result = try await appOperation(open: { try await $0.appOrdinaryAcceptance(grant: $1) },
+                body: { try await $0.accept(admission, holds: holds) })
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanID)
+            return result
+        } catch {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanID)
+            throw error
+        }
     }
     func appPendingWorkflow<T: Sendable>(_ body: @escaping @MainActor (SharedMediaNativeAppPendingOperations) async throws -> T) async throws -> T {
         try await appOperation(open: { try await $0.appPending(grant: $1) }, body: body)
@@ -194,8 +352,9 @@ final class SharedMediaNativeOriginalOwner {
         }
     }
     func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
+                                        cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort,
                                         authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization) async throws -> SharedMediaNativeReceivingIntent.Prepared {
-        try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
+        try await withAppDispatch { try await self.stageAppReceivingWithAdmission(metadata: metadata, pairIDs: pairIDs, cohortFormat: cohortFormat, authorize: authorize, storage: $0, grant: $1, releaseStage: self.releaseStageSettlement) }
     }
     /// One retained account operation also bounds overlapping status attempts.
     func allocateAppPhoto(_ prepared: SharedMediaNativeReceivingIntent.Prepared, reserveRoleMapping: Bool = false,
@@ -403,7 +562,8 @@ final class SharedMediaNativeOriginalOwner {
     }
 
     private func check(_ lease: AccountBoundWorkLease) throws {
-        guard phase == .opening || phase == .ready, let registration, drain.isCurrent(registration),
+        guard phase == .opening || phase == .ready || phase == .captureRootRecovery || phase == .captureReady || phase == .capturePending,
+              let registration, drain.isCurrent(registration),
               lease.session.userID == account.ownerID, account.isCurrent(lease) else { throw PhotoPreparationFailure.accountChanged }
         try Task.checkCancellation()
     }
@@ -431,7 +591,8 @@ final class SharedMediaNativeOriginalOwner {
         cancelActive = { task.cancel() }
         awaitActive = { _ = await task.result }
         let result = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
-        guard phase == .ready, drain.isCurrent(registration) else { throw PhotoPreparationFailure.accountChanged }
+        guard phase == .ready || phase == .captureRootRecovery || phase == .captureReady || phase == .capturePending,
+              drain.isCurrent(registration) else { throw PhotoPreparationFailure.accountChanged }
         try Task.checkCancellation()
         return result
     }

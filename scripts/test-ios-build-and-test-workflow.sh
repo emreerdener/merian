@@ -1270,8 +1270,36 @@ while IFS="|" read -r \
   if ! grep -Eq \
     '^[[:space:]]*@Test([[:space:](]|$)' \
     <<<"$protected_annotation"; then
-    fail \
-      "Critical-result validator references a declaration that is not bound to @Test: $protected_case_name"
+    # XCTest discovers zero-argument test* methods, including methods declared
+    # in an extension of a suite inheriting through a shared fixture base.
+    # Require the actual XCTestCase ancestry; a similarly named helper is not
+    # sufficient evidence that the runner discovers this protected case.
+    if [[ "$protected_case_name" != test* ]] \
+      || [[ -n "$protected_display_name" ]] \
+      || ! grep -Eq "func[[:space:]]+${protected_declaration_name}[[:space:]]*\\([[:space:]]*\\)" <<<"$protected_annotation" \
+      || ! python3 - "$ios_test_sources" "$protected_suite_name" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+parents = {}
+for path in Path(sys.argv[1]).rglob("*.swift"):
+    for name, bases in re.findall(r"\bclass\s+(\w+)\s*:\s*([^{}]+)\{", path.read_text()):
+        parents[name] = [base.strip() for base in bases.split(",")]
+pending, visited = [sys.argv[2]], set()
+while pending:
+    name = pending.pop()
+    if name == "XCTestCase":
+        sys.exit(0)
+    if name not in visited:
+        visited.add(name)
+        pending.extend(parents.get(name, []))
+sys.exit(1)
+PY
+    then
+      fail \
+        "Critical-result validator references a declaration not discoverable by Swift Testing or XCTest: $protected_case_name"
+    fi
   fi
   if [[ -n "$protected_display_name" ]] \
     && ! grep -Fq \

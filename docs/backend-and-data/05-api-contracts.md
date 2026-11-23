@@ -1,3 +1,466 @@
+## Private capture Identify continuation — November 20
+
+The existing `identify-multimodal` handler accepts the closed `capturePlan` V1
+instead of legacy media arrays. Client-supplied final evidence/server proofs and
+nonempty legacy media are rejected. It checks exact sealed recovery first, then
+prepares the complete private stage, freezes telemetry/privacy in schema-4
+admission, retains all source/prepared artifacts and materializes only verified
+provider inputs. Ordered notes, image MIME/focus and video lineage survive.
+Audio DSP remains owned by staging and is not repeated in Identify.
+
+`recover_private_capture_completion(owner, plan)` is service-only and compares
+the entire ordered client graph to sealed V9 evidence before returning the exact
+completion envelope. It rejects foreign, retired, deleting and tombstoned owners
+or scans, changed generation and changed media/notes/geometry. It does not need
+transient jobs/intents and cannot reopen admission. An unsealed operation
+returns null and follows ordinary recovery.
+
+Accepted result binding precedes scan insertion. The private finalizer requires
+exact ready retained evidence, immutable admission/witness/result identity and
+the existing entitlement fence; public media arrays stay empty. First insertion
+uses frozen privacy, while a retry preserves later edits to the inserted scan. A
+separate bounded finalization continuation prevents provider time from
+exhausting its budget. Retry is suppressed only once result binding dispatch is
+attempted, because an unknown reply may already have accepted the result. Native
+callers, durable mixed-media holds and replay wiring remain incomplete; this
+source contract has not been activated or deployed.
+
+The native `CaptureStageTransport` implements one pinned account-bound binary
+attempt with a 130-second request budget and a 1 KiB streamed JSON reply cap. It
+validates exact artifact bytes before dispatch and complete receipt identity
+after the actual task drains. A prior artifact receipt must bind the same plan
+and server request hash. Upload readiness never releases local originals. The
+transport has no automatic Auth/network retries; durable-owner wiring and native
+qualification remain pending.
+
+## Typed capture-stage erasure — November 20
+
+The existing private-erasure dispatcher has a V4 worker contract. Its new
+service-only claim returns exactly `namespace`, `backend_sha256`, `object_id`,
+`claim_token` and `claim_expires_at`. History and retired capture stages share
+one oldest-due selection and one 60-second lease per acquisition, with separate
+registries and object namespaces. Old worker acquisition never returns stage
+objects. The stage marker writer requires the recorded backend digest to match
+its private storage configuration; it cannot fall back to History or a current
+unrelated bucket.
+
+Settlement binds namespace, backend, object and original token. Exact existing
+claims may finish after pause, while new acquisition still requires the current
+dispatch fence. There is no extra retirement RPC or changed worker time budget.
+V2/V3 receipts can reconcile their original dispatch, but only V4 qualifies the
+stage-capable worker. Health schema2 separately reports stage pending/deferred/
+live/expired claims, marker failures and oldest/unknown age. Monitor
+qualification requires V4 plus healthy queues; an empty queue or receipt alone
+is insufficient. No gates, scheduling or hosted deployment are enabled by these
+changes.
+
+## Prepared capture upload plan and audio recovery — November 20
+
+`initialEvidenceCapturePlan.ts` owns the closed version-1 client-known plan:
+scan and generation plus ordered image, audio, video and description nodes.
+Image nodes retain V9 preparation geometry. Audio nodes reserve a prepared media
+ID; they cannot supply hypothetical server output lengths or hashes. The plan
+projects client uploads separately from server outputs. The prepared
+authenticated upload route below accepts this plan; the native submission path
+and hosted route are not activated.
+
+`initialCaptureAudioStaging.ts` binds the complete canonical plan, authenticated
+owner and fixed processing recipe to a SHA-256 request identity. Its staging
+repository must reserve every destination before DSP and atomically bind actual
+output metadata before a conditional write. A lost binding acknowledgement
+cannot grant another write. Recovery requires the exact stored ordered WAV
+outputs, including their lengths, hashes and canonical format, and never
+recomputes bound output from raw audio. Reads enforce byte/chunk limits and
+cancellation deadlines. Readiness follows verification of the whole output set.
+
+The durable adapter calls the service-only `initial_capture_audio_stage_action`
+RPC with canonical request text and its SHA-256 identity. The database repeats
+plan, owner, deletion, backend and phase checks. A one-shot write grant whose
+acknowledgement is lost stays consumed/unknown. Bound missing outputs cannot be
+recomputed. Private conditional storage uses `capture-stage/v1/{opaque UUID}`;
+stage objects cannot obtain signed public reads. Every read/write reauthorizes
+the exact request and object.
+
+`upload-capture-stage` is the prepared authenticated POST ingress. Its binary
+wire1 is a four-byte big-endian metadata length, UTF-8 JSON containing exactly
+`schema_version: 1`, `plan`, and `media_id`, then the exact artifact bytes.
+Metadata is capped at 1,044,736 bytes; existing per-role and cohort budgets
+apply within the 32 MiB per-original ceiling. JWT identity supplies the owner.
+Neither an owner override, object ID/key, role override, nor prepared-audio
+upload is accepted. Success returns only schema1, scan ID, generation, canonical
+request hash, media ID and `ready: true`. It is private/no-store, not an
+admission or native-release receipt. Authentication precedes body reads;
+request, RPC and storage deadlines are 120, 5 and 30 seconds respectively.
+
+The service-only `initial_capture_client_stage_action` binds an immutable child
+inventory under the same stage parent. All roles/IDs/ordering come from the
+canonical complete plan. Write grants are consumed before conditional PUT.
+Unknown writes permit readback-only recovery; a missing object never authorizes
+a second PUT. Complete follows exact private readback. The distinct
+`claim_initial_capture_stage_preparation` requires every client artifact ready
+before issuing the single server attempt; the existing DSP action still owns all
+prepared-audio writes. Neither service RPC is granted to clients.
+
+The retention join compares the final V9 manifest, including original identities
+and photo geometry, against the bound stage. Only complete ready ordinary
+retention adopts the digest and retires all stage objects into typed V4 erasure.
+Adopted replay uses retained evidence; a missing V9 audio stage fails closed.
+Historical V7/V8 semantics remain unchanged. The schema-4 begin successor and
+live continuation are connected locally. Staging alone grants no ingestion
+admission, funding, provider execution, original release, or History result
+completion. Missing or uncertain output remains held. Existing V7/V8 manifests
+and digests retain their semantics; complete actual output builds the V9 initial
+manifest. The private `capturePlan` continuation is connected in local source;
+native dispatch and end-to-end qualification remain open. Client-supplied
+`initialEvidence`/`initial_evidence` final proofs remain rejected.
+
+## Initial photo preparation geometry — November 20
+
+Nested initial manifest V9 adds a required closed `preparation` object to every
+image node. Reader18 accepts V7/V8/V9; earlier readers retain their existing
+version limits. The outer original-result snapshot remains version8. Private
+media protocol3 (SQL protocol4) retains the V8 role-specific byte limits for V9.
+
+Preparation contains schema1, `upright_source_top_left_v1`, the native format,
+crop display size, quarter turns, scale, offsets, camera vertical center and
+source selection. Nullable fields are explicit. Validation matches the native
+recipe's three format combinations. No subscription, environment, location, file
+token or path is exported. IEEE754 binary64 framing normalizes signed zero; the
+enclosing manifest digest binds geometry and both artifact identities/hashes.
+Prepared-image focus remains a separate coordinate space. Geometry does not
+promise pixel-identical re-encoding. A still recipe without crop size preserves
+full-aspect semantics; it must not silently restore a square crop.
+
+The forward migration is applied only to the owned disposable database. Focused
+cross-language SQL/Edge digest and lifecycle tests pass. Native integration,
+complete gates and large-original runtime qualification remain open. No rollout
+gate or live submission fence is opened by this contract extension.
+
+## Prepared ordinary artifact upload — November 20
+
+`upload-initial-evidence` accepts one bounded binary artifact for an existing
+ordinary ingestion job. Authenticated owner and the closed whole-manifest
+request are checked by the existing reservation RPC before any private write.
+Conditional PUT, exact stored-byte readback and one-artifact readiness are
+required; ready retries also read back. No funding, provider dispatch, result
+completion or client-original release is granted. The request accepts no object
+key or owner override. The 32 MiB wire artifact ceiling applies only when the
+manifest role permits it; prepared images remain within the 5 MiB aggregate. See
+the
+[route contract](../../services/supabase/functions/upload-initial-evidence/README.md).
+The route is undeployed and the live Identify initial-evidence fence remains.
+
+## Prepared internal source observations — November 20
+
+The server-only intent builder can now receive process-local retained byte
+snapshots and emit a version-1 `captureSourceObservations` envelope. This is not
+a client request/response field. Raw payload fields do not populate it. The
+prepared authenticated collector can produce the handle, but no runtime route
+supplies it to admission. The existing service-only `begin_scan_ingestion` RPC
+can now bind complete observations to locked staged ownership and replace them
+with canonical version-1 `captureSourceProofs` in a private durable admission.
+Retries require that same observation or canonical proof and return the original
+checksums. Alternate writers cannot create or replace that witness. This is a
+trusted-server database contract, not independent attestation of a storage read.
+Existing intent schema 3 and legacy persisted versions remain unchanged. See the
+[durable admission contract](16-scan-ingestion-reliability-and-recovery.md#november-20--durable-capture-source-admission)
+and
+[source snapshot contract](16-scan-ingestion-reliability-and-recovery.md#november-20--prepared-source-byte-snapshots)
+for exact bounds, membership, byte-ownership and remaining admission
+requirements. No generated Swift DTO changes.
+
+## Saved-result retries after identity merge — November 20
+
+The `identify`, `audio-spec` and `identify-multimodal` routes recover the exact
+authenticated owner's completed result before applying a retired-upload refresh
+rejection. Saved outcomes replay with the existing result contract and reader
+gate; a missing outcome still returns `409 scan_media_restage_required` for
+retired-owner staging keys. Recovery errors and foreign sealed evidence cannot
+authorize fresh media/provider work. No request fields or DTOs change. See
+[identity merge interruption](16-scan-ingestion-reliability-and-recovery.md#identity-merge-interruption).
+
+## Prepared capture destination receipts — November 20
+
+Service-only `register_capture_promotion_ingestion` accepts the complete bounded
+binding array plus cohort UUID and begin-ingestion checksums, resolves the job
+under existing locks and returns only `cohortId`, `jobId`, `cohortSHA256`.
+`authorize_capture_promotion_recovery` returns true only for an exact retained,
+issued, cohort-bound, unretired destination. The service must then verify the
+actual bounded bytes before `record_capture_promotion_verification`; its closed
+receipt contains `operationId`, `cohortId`, `verifiedAt`, `origin`. Valid origin
+values are `write_acknowledged`, `write_precondition_failed`, and
+`destination_recovery`; retries preserve the first timestamp and origin.
+
+The prepared `_shared/capturePromotionDb.ts` service composition now calls these
+fixed interfaces and attests only after actual destination-byte verification.
+Its closed receipt decoder checks operation/cohort identity, timestamp and the
+three origins; recovery accepts the earlier saved origin. Unknown outcomes
+remain held without automatic write retry. These are internal service
+interfaces, not client endpoints or an installed runtime path. No
+native/generated Identify DTO changes. Receipt persistence grants no
+finalization, original release, cleanup, publication or History admission. See
+the
+[canonical recovery contract](16-scan-ingestion-reliability-and-recovery.md#november-20--retained-destination-verification)
+for exact authorization, lifecycle and recovery requirements.
+
+## Prepared ordinary original-evidence V8 — November 20
+
+Nested `evidence_manifest.schema_version: 8` is the retained-original successor
+to V7. The outer completed initial baseline remains snapshot8 and the retention
+request/completion proof remain schema1. V7 data and typed digest framing are
+unchanged. V8 binds its version in the digest and permits source images up to 32
+MiB each / 64 MiB total. Prepared images, including video frames, still share 5
+MiB; existing audio/video, item-count and focus-coordinate rules remain. The
+aggregate graph limit is 69 MiB, separately enforced from every role limit.
+Display derivatives remain local and are not included as original evidence.
+
+Reader17 dual-reads V7/V8; reader16 remains V7-only. Page, state, action and
+enrollment guards reject V8 for earlier readers. Public media resolution3 maps
+to SQL protocol4. Its internal schema3 receipt adds verified `artifact_role`;
+only `source_image` may use the 32 MiB bound. The public ticket remains schema1,
+with no internal object/role fields, a 30-second lifetime, and a second exact
+receipt check after signing. Native validation joins the ticket to the exact
+immutable V8 source role before permitting that bound. Generic image/provider
+and historical V7 limits do not expand.
+
+`retainInitialEvidenceFromSource` reserves the full immutable graph before
+opening one qualified source lease at a time. It checks length before copying,
+verifies the bytes, writes conditionally, and closes the read lease even on
+cancellation before storage readback/ready acknowledgement. A ready artifact can
+recover through storage without reopening the local original. This releases only
+the read lease, never the durable original hold. The older whole-buffer Map
+helper rejects V8. Failed operations leave reservations owned for retry or
+erasure; retention is not inference or original-release authority.
+
+This is a prepared candidate with validation in progress. The live
+`initialEvidence` HTTP fence and existing rollout holds remain closed until the
+ordinary queue, retention, recovery, finalization and History paths are
+connected and qualified together.
+
+## Reserved manual-focus successor contracts — November 16
+
+Capture owns the coordinated extension for user-selected photo regions in
+initial identification and reanalysis. History, Hardening and the isolated
+release workstream reported no conflicting allocation on November 16:
+
+| Contract                                              | Reserved generation | Boundary                                                                                        |
+| ----------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------- |
+| Focus-aware composition reanalysis input and manifest | 6                   | Requires a real source analysis; preserves ordered physical media and supporting text.          |
+| Completed focused composition reanalysis              | 7                   | Reanalysis only; never an initial baseline with an invented predecessor.                        |
+| Ordinary initial retained-evidence baseline           | 8                   | Initial only, with null predecessor and independently verified ordered artifact/focus evidence. |
+
+These are successor allocations, **not enabled or qualified protocols**. The
+current metadata parser recognizes optional `focus_region` on V6 image nodes; V5
+admission and completed-V6 readers still reject that manifest generation. Live
+writers, reader capability negotiation, SQL settlement, source reuse and cleanup
+must be extended together before exposure. Existing canonical requests and
+completed records are not rewritten into these generations.
+
+Use the existing ordinary queue, scan/job/funding completion transaction and
+`OrdinaryInferenceCompletion` proof owner. Initial evidence and the completed
+scan/result must be bound durably with idempotent uncertain-outcome recovery;
+there is no best-effort evidence write after reporting success. Verify exact
+bytes and retain their lifecycle ownership before exposing reusable originals.
+Extend the existing History enrollment/source readers rather than introducing a
+second dispatcher or work kind. Dormant `initialAnalysis` execution scaffolding
+and photo-only CPM are not generic mixed-media replacements. Existing native
+photo cohorts independently retain digest-verified AI artifacts and focus; their
+V3 baseline is an identity/display fence, not a claim that these local bytes are
+unavailable.
+
+Older beta builds need not submit these new contracts. That waiver does not
+remove strict current validation, historical readability or exact recovery of
+already-admitted operations. Missing new evidence cannot silently fall back to a
+V3 unavailable baseline or a descriptorless submission.
+
+## Prepared completed-media resolution — November 14
+
+Local `POST resolve-history-media` adds immutable original-media preparation for
+shared Capture. It is not deployed; the native audio/video toolbar preload is
+prepared to call it. The exact body is
+`{observation_id, analysis_id, media_id, resolution_protocol: 1}`; the verified
+Edge account supplies ownership. The service-only SQL resolver requires both
+existing reader gates, completed V2 photo / V4 audio / V5 video manifest
+membership and the existing owner/deletion locks. The local reader14 candidate
+also resolves result-6 composition membership. V5 includes retained source,
+frames and optional companion audio; V1/V3 never borrow mutable parent media.
+Ready but incomplete uploads and nonmembers cannot resolve.
+
+The existing schema-1 photo ticket envelope and bounded ephemeral transport are
+reused. Tickets expire after 30 seconds, use HTTPS account-scoped R2 hosts, are
+returned with `private, no-store`, and contain no separate internal object ID.
+Signing is followed by another exact receipt/ownership check. JPEG/PNG/HEIC/WebP
+are capped at 5 MiB, canonical WAV at 2,700,000 bytes, and MP4 at 12 MiB. The
+existing photo endpoint and its protocol remain unchanged. Capabilities may
+remain usable until expiry after a later deletion; no new ticket bypasses the
+fence.
+
+Native `ObservationCompositionSource` captures exact immutable bytes and ordered
+notes, keeping a video and its derivatives as one toolbar node.
+`ObservationHistoryMediaLoader` revalidates account, source and deletion around
+resolution/download/digest suspensions and verifies exact bytes before returning
+transient Data. This read capability grants no submission, export, upload or
+legacy replacement authority. Single-audio/video workspace ownership and
+submission use their existing retained lanes. The local mixed submission
+candidate uses the same workspace with a separate durable schema-5 envelope;
+local native service tests pass; coordinated deployment and live runtime
+verification remain pending.
+
+## Prepared shared-toolbar composition contract — November 14
+
+The local `analysisHistory/compositionManifest.ts` and `compositionAdmission.ts`
+define schema-5 requests for one ordered reanalysis child. The local candidate
+now has explicit admission, execution, settlement and native queue wiring. It is
+**default-off, undeployed and not yet qualified end to end**. The pending Gemini
+compatibility release does not by itself enable this contract. Older persisted
+photo/audio/video requests retain their original validators, bytes and retry
+identities.
+
+The request names the observation, displayed source identification, new child,
+replay digest, E3/I7/H10 claims and `google_gemini` permission. Its manifest
+contains ordered description, JPEG/PNG image, PCM WAV audio, or retained-video
+nodes. A video node keeps the existing `retained_clip_v1` source, five derived
+frames and optional companion audio; it is not flattened into unrelated photos
+in storage. Description text is preserved byte-for-byte. The manifest admits at
+most five photo-only physical nodes, otherwise two physical nodes with at most
+one video, two audio artifacts including companion audio, 5 MiB aggregate image
+bytes and 32 MiB aggregate artifact bytes. Notes do not consume physical slots.
+
+`compositionFingerprint.ts` binds the complete graph, ordered notes, identities
+and protocol claims using versioned UTF-8 netstrings. The native
+`ObservationCompositionReanalysisRequest` additionally seals its own saved body
+with its deterministic JSON digest, matching the existing native video request
+behavior. That local integrity check is distinct from the server's semantic
+replay identity; server callers must validate the complete fingerprint and
+immutable request, not assume a client digest proves media bytes.
+
+`compositionCohort.ts` projects one complete artifact inventory, retaining node
+positions and video roles. `compositionEvidence.ts` validates prepared schema-3
+receipts against owner, graph, fingerprint, unique object allocation and
+monotonic readiness. `compositionMaterialization.ts` reuses existing WAV and
+retained-video byte validators, requires every artifact before returning any AI
+evidence, preserves timeline order and never forwards retained source clips to
+the provider. The connected production adapter bounds reads before allocation
+and honors cancellation; a decoded receipt supplies no account or deletion
+authority.
+
+`compositionSourceReservation.ts` prepares a distinct schema-3 request envelope
+and bounded source receipt with the same identity as the artifact inventory. It
+freezes the caller's complete input and receipt before hashing yields, requires
+exact owner/parent/source/child/digest/fingerprint agreement, and only
+recognizes reserved, held or unavailable. None grants upload, execution,
+inferred vacancy or release. The local source-ownership migration adds dedicated
+**reader14** service-only reserve/get RPCs, with schema-3 envelopes and
+default-off composition reservation/recovery/runtime gates. Fresh reservation
+also keeps the existing source gate; recovery keeps the existing discovery gate.
+Exact replay precedes fresh gates. Reader11 photo/audio and reader12 video
+remain unchanged; reader13 belongs to the separate Gemini contract.
+
+The local allocation migration adds reader14 reserve/complete RPCs and private
+ordered allocation rows. Source occupancy, exact inventory, fixed five-minute
+expiry and object identity are immutable; readiness acknowledges individual
+verified objects and returns the complete schema-3 receipt. Fresh allocation and
+readiness require existing media plus composition evidence/runtime gates. Replay
+does not extend expiry. Expired inventory can retire only through the current
+correlated cleanup dispatch, leaving permanent erasure obligations and retained
+allocation identity. The local cleanup worker now includes the composition
+stage, a correlated schema-3 terminal receipt and aggregate health. The local
+native candidate now has separate reservation, upload and consumed-execution
+owners. The prepared public source/upload boundary is described below. These
+migrations remain local preparation, not deployed features. Legacy
+source/evidence envelopes cannot consume V5 metadata.
+
+`reserve-observation-analysis-source` now explicitly selects schema3/reader14
+for composition candidates. It never falls back to reader11/12/13. The existing
+1 MiB input, 2 KiB streamed reply and five-second RPC budgets remain unchanged.
+`compositionSourceReservationRepository` also provides exact read-only recovery;
+there is no HTTP recovery caller yet. An absent/held/error result grants no
+replacement, upload or execution authority.
+
+### Prepared composition item upload
+
+`POST upload-observation-composition` accepts `application/octet-stream` wire1:
+four-byte big-endian metadata length, strict UTF-8 JSON, then one exact
+artifact. Metadata has exactly `schema_version: 1`, `reader_version: 14`,
+`candidate` (the schema3 source envelope), and `media_id`. Metadata is capped at
+1 MiB plus 256 bytes; wire length adds four framing bytes and the existing 32
+MiB evidence ceiling. Complete-manifest limits further bound the target bytes.
+The endpoint authenticates before reading the body and derives owner from the
+verified user. The shared 120-second deadline covers authentication, ingress and
+upload work.
+
+`compositionVerification` is shared with provider materialization: membership,
+length and digest must match the original graph; WAV, retained clips, video
+frames and companion audio use the existing closed validators. Photo transport
+retains its exact-byte policy. No transformations or replacement bytes are
+created. The coordinator reserves the whole inventory, conditionally writes the
+one target through existing private `writeOnce`, then awaits SQL readiness.
+Already-ready targets return the exact receipt without storage writes, including
+expired replay. Unknown/lost answers never remint identity or retry in-request.
+
+The dedicated evidence repository uses five-second RPCs and a 16 KiB actual
+streamed response cap. Completion binds the prior object and enforces unchanged
+expiry, complete ordered membership and monotonic readiness. Source membership,
+account/deletion fences and default-closed gates remain authoritative in SQL. No
+caller object key, owner, completion timestamp or expiry is accepted. All
+responses are private/no-store. Invalid framing/metadata returns400, body
+limit413, MIME415, method405, authentication401; exact conflicts return409 and
+unknown/failed upstream operations sanitized503. Old photo/audio/video endpoint
+bytes and readers remain unchanged. The native composition upload owner calls
+this route; provider dispatch uses the separate execution lane described below.
+Deployment and activation remain separate.
+
+The prepared V5 worker (`compositionExecution.ts`) uses the existing
+claimed-work sequence through `claimedExecution.ts`, while V4 retains its own
+decoder and saved draft bytes. `compositionExecutionPolicy.ts` derives the
+profile from all nodes, including video companion audio, and binds it to the
+original Gemini quota, model, tier, policy and execution snapshot. Received
+outcomes preserve the schema-one outcome/provenance/usage envelope; the V5 draft
+retains the complete ordered manifest and original child/source identity. False,
+malformed or uncertain dispatch never invokes AI; unknown invocation stays held.
+Known outcomes resume without media reads or another inference. Generic
+execution and capture reject V5, just as they reject V4.
+
+`compositionProduction.ts` now connects the dedicated composition advance RPC to
+`analyze-observation` and the existing bounded recovery scheduler. Migrations
+`20261114223045`, `20261114223231` and `20261114223656` add default-off
+admission, claim/dispatch, original funding, immutable outcome/draft/accounting
+proofs, terminal settlement and successful source release. Completed input-5
+requests emit result-6 snapshots, exposed only to reader14; old readers refuse
+the whole affected history. Native page/state, selection, review and Undo use
+reader14. Legacy execution/retirement readers retain their narrower contracts.
+This is local implementation, not live runtime or release qualification;
+existing requests and saved outcomes are not rewritten.
+
+Successful composition completion atomically selects the new identification,
+including when another version was selected during execution. The existing
+selection owner writes projection, revision and reconciliation. Its operation
+UUID is generated server-side and bound by the private immutable
+`composition_completion_selections` row; clients cannot preclaim a predictable
+operation. The completion matcher proves the exact receipt without requiring the
+version to remain current. Replay never reselects; a later intentional selection
+remains valid. Selection enablement is a prerequisite for this lane.
+
+Native execution persists the exact completed result before fetching current
+server-selected state through `ObservationHistoryStateSyncService`. Cancellation
+or account loss prevents that additional read; a failed refresh preserves the
+result for the existing History refresh. Saved mixed work resumes through the
+existing progress sheet. Consumed work offers only an original-result check,
+never a second inference; the durable state is revalidated before and after
+reopening prepared files.
+
+The private SQL codec in `20261114192749` mirrors the same fingerprint and
+node-indexed inventory. It grants no API access or execution authority. Shared
+request vectors, recursive mutation parity, catalog role denials and focused
+native/backend tests cover this prepared boundary. Source reservation/retirement
+SQL, atomic upload, funding/execution, result readers, immutable original-media
+resolution and native durable preparation/recovery now have local
+implementations. Native compilation and focused service/delivery checks pass;
+the complete native gate and live all-media walkthrough are tracked in the
+current verification record. The composition worker treats retained video frames
+as one video graph, separately from standalone photos; it does not route
+photo+video through the legacy five-image cap. Two-video support is not added.
+
 ## Gemini I7 / V3 compatibility
 
 The additive Gemini protocol, reader-13 inheritance, exact immutable-request
@@ -2199,6 +2662,13 @@ and the unread bell. Sharing is a future layer.
 
 ## Deno `/generate-upload-urls` Edge Node
 
+Newly returned staging URLs additionally require durable exact-key capability
+registration, using the actual signed expiry and canonical asset/session when
+present. Registration failure or unknown acknowledgement returns 503 with no
+URLs. Owner/scan deletion and retired-key reuse fail closed. Wire DTOs are
+unchanged; this requirement does not qualify older capabilities or promotion
+objects.
+
 To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a
 structured media manifest. The cross-language contract lives in
 `docs/contracts/media-staging-upload-manifest.json`; Swift and Deno tests both
@@ -2388,6 +2858,13 @@ exact platform-managed current or legacy server key. Supabase gateway JWT
 verification is disabled so pg_net can reach the function, and the function
 performs service-key validation internally. Opaque keys use `apikey` only.
 
+**Source checkpoint, November 19, 2026:** reconciliation is quarantined pending
+durable per-object retirement and late-write recovery. Both values of `dryRun`
+produce diagnostic-only evaluation; request flags cannot restore mutations.
+Reads and R2 HEAD remain available. The sole database write is an audit row with
+`dry_run` status and zero actual effect counts. Hosted scheduling and deployment
+were not changed by this source patch.
+
 Optional request payload:
 
 ```json
@@ -2399,34 +2876,26 @@ Optional request payload:
 }
 ```
 
-Response payload:
+The response retains `scanned`, `promoted`, `repairedVideoScans`,
+`deletedStagingObjects`, `failedAssets`, `missingObjects`, `stillPending` and
+`errors`, and adds:
 
-```json
-{
-  "success": true,
-  "scanned": 3,
-  "promoted": 1,
-  "repairedVideoScans": 1,
-  "deletedStagingObjects": 2,
-  "failedAssets": 1,
-  "missingObjects": 0,
-  "stillPending": 1,
-  "errors": []
-}
-```
+- `executionMode: "quarantined"`;
+- `holdReason: "durable_object_authority_required"`;
+- `preview`: the same counters/errors from hypothetical snapshot classification.
 
-The worker only reconciles media lifecycle state. It can repair an existing scan
-that has a surviving staged playback video by promoting the video, updating
-`video_storage_urls`, rebuilding `captured_media`, and refreshing ready
-`scan_media_assets` rows. It can also delete abandoned staging objects and mark
-their staged rows failed. Before treating an orphan as abandoned, it checks the
-matching `scan_ingestion_jobs` row: active leases and future retry windows keep
-the media pending, repaired scans complete only through the shared
-claimed-key/canonical-media finalization routine, and TTL-abandoned media marks
-the job `failed_terminal` with a structured terminal reason. Sanitized
-`scan_ingestion_intents` rows preserve staged media/audio/video and text-only
-replay metadata for operations and `replay-scan-ingestion`, but this worker does
-not replay AI inference for scans that never created a cloud scan row.
+Top-level promoted, repaired, deleted and failed-asset counts are always zero;
+all scanned candidates remain pending. Missing-object counts are read-only HEAD
+observations. Preview counts must never be treated as completed effects or
+permission to perform them. A successful response means evaluation completed,
+not that cleanup or repair ran.
+
+Stranded-video repair, asset lifecycle writes and abandonment terminalization
+remain held. Normal producer-owned successful identification is separate. The
+successor must establish exact authority before any storage or binding effect,
+protect retained History evidence even without a transient job, and retain
+cleanup obligations for late PUT/COPY. This quarantine does not protect other
+promotion callers, old deployed workers, or requests already dispatched.
 
 ---
 
@@ -2460,10 +2929,27 @@ Response payload:
   "dispatched": 1,
   "completedExisting": 0,
   "skippedExistingIncomplete": 0,
+  "heldForInitialRecovery": 0,
   "failedDispatches": 0,
-  "errors": []
+  "errors": [],
+  "privateFinalization": {
+    "claimed": 1,
+    "completed": 1,
+    "alreadyComplete": 0,
+    "held": 0
+  }
 }
 ```
+
+The prepared private continuation is independent of legacy replay. It claims at
+most five accepted private-origin V9 results per request with fixed five-minute
+scheduling leases, reuses the saved result and existing entitlement finalizer,
+and never invokes inference or reserves new quota. `privateFinalization` reports
+only aggregate counts; a failed claim returns `{ "unavailable": true }` in that
+field while legacy replay continues. Per-item uncertainty increments `held`
+without terminalization. Request options above continue to configure only the
+legacy dispatcher. This source contract does not imply hosted deployment or
+activation of private capture.
 
 The worker claims due `scan_ingestion_jobs` rows whose paired
 `scan_ingestion_intents` are `resumable = true` and not inline-redacted,
@@ -3008,6 +3494,19 @@ Internal service-role endpoint. Processes pending or retryable failed
 ## Deno `/identify` Edge Node
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
+
+The local completion-proof boundary uses the separate executable
+`_shared/identify/initialEvidenceEnvelopeV1.ts` descriptor. It preserves the
+frozen Identify result contract and result digest, adding only the outer
+`initial_evidence` proof (schema version 1, owner, scan, submission generation,
+evidence digest). Omission supports legacy responses; explicit null and
+malformed proof fail validation on both Deno and generated Swift. Strict
+finalization requires a synchronous verifier of the exact accepted identity
+before dispatch and validates the RPC-returned proof; it cannot fall back to a
+legacy completion RPC. Recovery after transient job expiry uses the sealed
+durable response rather than reconstructing evidence from mutable scan rows.
+This boundary does not lift the initial-evidence request refusal above or
+qualify live submission integration.
 
 When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server
 enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/`
@@ -7386,6 +7885,18 @@ A unified identification pipeline that merges the active capabilities of
 entry point. The current iOS client routes new inference traffic here. Supports
 ordered compositions of images, audio, and descriptive context.
 
+As of the November 19, 2026 local source candidate, requests containing either
+`initialEvidence` or `initial_evidence` receive
+`503
+analysis_history_unavailable` before media, funding, provider or
+persistence work. Presence is sufficient, including null or malformed values.
+Direct calls still run the entitlement-protocol check first; internal replay
+also receives this refusal. This temporary boundary prevents silent legacy
+submission while the durable initial-evidence continuation is incomplete. It
+does not enable manual-selection rollout or change ordinary marker-free
+submissions. See the
+[route integration boundary](../../services/supabase/functions/identify-multimodal/README.md#initial-evidence-integration-boundary--november-19-2026).
+
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
 On iOS, the hand-written `IdentifyVisualMediaItem`, `IdentifyAudioMediaItem`,
@@ -11285,7 +11796,20 @@ Successful response:
   "claimed": 2,
   "completed": 2,
   "deferred": 0,
-  "health_status": "healthy"
+  "health_status": "healthy",
+  "capture_object_retirement": {
+    "claimed": 1,
+    "observedAbsent": 1,
+    "deferred": 0,
+    "unresolved": 1,
+    "health": {
+      "unresolved_count": 1,
+      "due_count": 0,
+      "leased_count": 0,
+      "error_count": 0,
+      "oldest_retired_age_seconds": 60
+    }
+  }
 }
 ```
 
@@ -11294,6 +11818,15 @@ IDs, media URLs, and provider bodies are omitted. The independent Scan Media
 Health Monitor calls the service-only `get_scan_deletion_health()` path every 30
 minutes and warns at 15 minutes/25 pending jobs; it becomes critical at one
 hour/100 pending jobs or any expired lease.
+
+The additive capture retirement section reports registered staging PUT
+obligations separately. Its `unresolved` count covers the claimed batch;
+`health` covers all retired registry rows. Absence is a point-in-time
+observation, never physical completion. A bounded pass performs exact-backend
+DELETE then HEAD and retains all keys for later rechecks. Existing `completed`
+and `health_status` describe scan-row reconciliation only. COPY/publication and
+legacy capability retirement remain separate, unqualified work; source changes
+do not imply deployment.
 
 ---
 
@@ -13118,13 +13651,17 @@ returns42501. Omitting the required RPC argument is a routing/signature denial
 (for example PostgREST404/PGRST202), not a guaranteed42501 response. The
 service-role and private implementation grants remain separate boundaries.
 Photo/audio retirement returns an integer from zero to five; video retirement
-returns zero to seven. The photo/audio owner retires one exact expired unbound
-cohort, or one legacy noncohort receipt. Discovery and the locked recheck
-exclude intent/result-owned evidence; invalid or mismatched immutable cohorts
-are held while later eligible work can progress. The original cohort descriptor
-and expiry survive receipt cleanup, so retrying an expired analysis cannot
-allocate new object keys. Parent/account deletion continues to remove private
-descriptors and enqueue opaque obligations.
+returns zero to seven. The local mixed successor adds
+`retire_expired_observation_composition_evidence_for_dispatch(p_dispatch_id UUID)`,
+returning zero to eight under the same authority. It retires one complete
+expired unbound composition allocation and preserves its immutable allocation
+identity. The photo/audio owner retires one exact expired unbound cohort, or one
+legacy noncohort receipt. Discovery and the locked recheck exclude
+intent/result-owned evidence; invalid or mismatched immutable cohorts are held
+while later eligible work can progress. The original cohort descriptor and
+expiry survive receipt cleanup, so retrying an expired analysis cannot allocate
+new object keys. Parent/account deletion continues to remove private descriptors
+and enqueue opaque obligations.
 
 An admitted claim returns SQL null when no obligation is due, otherwise exactly
 `object_id`, `claim_token`, and `claim_expires_at`. Its one-minute lease is
@@ -13135,61 +13672,75 @@ closes; successful settlement still requires the trusted caller to PUT and
 HEAD-verify the permanent empty marker. The prepared
 `erase-observation-evidence` service-authenticated POST endpoint now connects
 these versioned RPCs and requires the canonical dispatch header before work. It
-consumes no caller body or object key. Terminal receipts retain the v2 UUID and
-six bounded counters. Legacy requests are refused; no fallback is allowed.
-Existing exact-token settlement remains independent of current dispatch. This
-intentional service-only cutover requires closed gates and positively drained
-old SQL transactions before activation; it is not an iOS wire change. All
-responses are no-store. Each media lane gets one bounded retirement attempt; a
-failure, malformed count or unknown acknowledgement is counted without retrying
-or assuming rollback. That lane's zero count is not proof of zero mutations. The
-independent other lane and authoritative registry claim can still progress.
-Parent cancellation and the overall deadline stop subsequent work. One request
-then marks at most one independently claimed opaque object. A 90-second shared
-request deadline caps twelve-second RPCs and a 25-second PUT/HEAD stage. Storage
-starts only with at least 38 seconds left in the original 60-second claim and
-request, reserving twelve seconds plus scheduling margin for settlement. The
-claim is never renewed, and no new claim is acquired with less than50seconds
-left for its RPC and existing marker reserve. Zero claims is not an
-empty-backlog assertion. Retirement failures, `claimed=1, marked=0` even with
-`acknowledged=1`, or `marked=1, acknowledged=0` are unhealthy outcomes; HTTP200
-alone does not prove successful cleanup. Failed or uncertain marker writes
-report failure when time allows; lost acknowledgements recover through the
-durable outbox without in-request retries. Parent cancellation reaches both
-storage calls. Configured source participates in future main deployment
-planning; no deployment, schedule or activation is implied. Public-copy cleanup
-cannot drain this separate private outbox.
+consumes no caller body or object key. The local mixed successor emits schema3
+with the same dispatch UUID and seven bounded counters, adding
+`composition_retired` (0–8). SQL retains V2 receipt compatibility and records
+the observed generation; V2 never certifies mixed cleanup. Legacy requests are
+refused; no fallback is allowed. Existing exact-token settlement remains
+independent of current dispatch. This intentional service-only cutover requires
+closed gates and positively drained old SQL transactions before activation; it
+is not an iOS wire change. All responses are no-store. Each media lane gets one
+bounded retirement attempt; a failure, malformed count or unknown
+acknowledgement is counted without retrying or assuming rollback. That lane's
+zero count is not proof of zero mutations. The independent other lanes and
+authoritative registry claim can still progress. Parent cancellation and the
+overall deadline stop subsequent work. One request then marks at most one
+independently claimed opaque object. A 90-second shared request deadline caps
+twelve-second RPCs and a 25-second PUT/HEAD stage. Storage starts only with at
+least 38 seconds left in the original 60-second claim and request, reserving
+twelve seconds plus scheduling margin for settlement. The claim is never
+renewed, and no new claim is acquired with less than50seconds left for its RPC
+and existing marker reserve. Zero claims is not an empty-backlog assertion.
+Retirement failures, `claimed=1, marked=0` even with `acknowledged=1`, or
+`marked=1, acknowledged=0` are unhealthy outcomes; HTTP200 alone does not prove
+successful cleanup. Failed or uncertain marker writes report failure when time
+allows; lost acknowledgements recover through the durable outbox without
+in-request retries. Parent cancellation reaches both storage calls. Configured
+source participates in future main deployment planning; no deployment, schedule
+or activation is implied. Public-copy cleanup cannot drain this separate private
+outbox.
 
 `get_observation_evidence_erasure_health()` is a service-only, read-only JSON
 aggregate (`schema_version=1`, `generated_at`, `queue`, `retirement`, `worker`).
-Queue counts include claimable, deferred and live-claim partitions of all
-pending obligations, overlapping expired claims, unknown original ages, and
-separate pending/due ages. Future obligations retain immutable
-`first_observed_at`; historical NULL values stay unknown. Retirement aggregates
-separate media discovery candidates/object counts, bound retained objects and
-expired unbound objects outside discovery. Discovery is not proof that locked
-retirement will succeed, particularly video source/descriptor revalidation. No
-identities, object keys, request IDs, headers or response bodies are exposed.
+The local mixed successor adds `retirement.composition` and
+`worker.last_receipt_schema_version`; unknown/legacy generation stays null/2.
+The response remains an additive aggregate schema1 with no user identities. The
+monitor accepts either the exact legacy shape or both new fields together;
+partial shapes and unknown fields reject without logging their bodies. For the
+mixed shape, a null/V2 receipt reports `composition_receipt_unverified` as
+critical even with no backlog. A recent V3 heartbeat is required in addition to
+the existing failure, age and capacity checks. Composition cohorts contribute
+through the existing aggregate object count, not a second per-cohort sum. Queue
+counts include claimable, deferred and live-claim partitions of all pending
+obligations, overlapping expired claims, unknown original ages, and separate
+pending/due ages. Future obligations retain immutable `first_observed_at`;
+historical NULL values stay unknown. Retirement aggregates separate media
+discovery candidates/object counts, bound retained objects and expired unbound
+objects outside discovery. Discovery is not proof that locked retirement will
+succeed, particularly video source/descriptor revalidation. No identities,
+object keys, request IDs, headers or response bodies are exposed.
 
 The private scheduler starts disabled and has no cron registration. Its durable
 pending request survives asynchronous transport. Only a bounded valid terminal
-v2 receipt correlated to the exact request ID and durable random dispatch UUID,
-with exactly one response and a finite nonfuture timestamp, releases the slot;
-gateway errors, missing/malformed/duplicate responses and timeouts remain
+V2 or V3 receipt correlated to the exact request ID and durable random dispatch
+UUID, with exactly one response and a finite nonfuture timestamp, releases the
+slot; gateway errors, missing/malformed/duplicate responses and timeouts remain
 unknown. In the local acquisition-fence successor, `X-Merian-Evidence-Dispatch`
 is required and must be a canonical lowercase UUIDv4; missing, invalid or empty
 values reject before worker operations. V2 adds exactly `schema_version: 2` and
-matching `dispatch_id` to the six counters. The dispatch is a private SQL
-admission fence and correlation value; it does not replace service authorization
-and is not health output. Legacy absent-header requests are refused by the
-successor. Legacy pending NULL-correlation slots cannot be automatically
-consumed or backfilled. A new scheduler talking to an old worker holds safely
-rather than retrying. pg_net's response `created` is transaction start, may
-precede dispatch and is not HTTP completion time. Delayed reconciliation keeps
-the old response time for success/marker age. Health reads never reconcile or
-clear this state. The monitor workflow also starts inactive behind an explicit
-repository variable and main-branch check. Proposed cadence/alert thresholds and
-the original-slot operator reconciliation procedure are documented in the
+matching `dispatch_id` to the six counters. V3 adds `composition_retired` and
+uses `schema_version: 3`; all seven counters and their bounds are mandatory. The
+dispatch is a private SQL admission fence and correlation value; it does not
+replace service authorization and is not health output. Legacy absent-header
+requests are refused by the successor. Legacy pending NULL-correlation slots
+cannot be automatically consumed or backfilled. A new scheduler talking to an
+old worker holds safely rather than retrying. pg_net's response `created` is
+transaction start, may precede dispatch and is not HTTP completion time. Delayed
+reconciliation keeps the old response time for success/marker age. Health reads
+never reconcile or clear this state. The monitor workflow also starts inactive
+behind an explicit repository variable and main-branch check. Proposed
+cadence/alert thresholds and the original-slot operator reconciliation procedure
+are documented in the
 [worker owner guide](../../services/supabase/functions/erase-observation-evidence/README.md#prepared-operations-and-unknown-outcomes).
 They do not authorize deployment, activation or promise measured throughput.
 
@@ -20110,3 +20661,37 @@ review system. Backend migration application must precede the frontend release.
 A missing visibility RPC fails closed to decorative previews/unavailable detail;
 there is no legacy visibility bypass. Prepare and validate locally; no
 production migration or deployment is authorized by this implementation.
+
+# Capture sealed completion recovery — November 21 candidate
+
+The current local `check-scan-status` source reserves
+`X-Merian-Initial-Recovery: capture-completion-v1` before ordinary
+status/repair. Its only input is the closed nested `initial_recovery` object
+with version 1, phase `capture-completion`, and `capture_plan` containing the
+exact original ordered plan. Auth supplies owner identity. The response is
+closed: `version`, `phase`, `owner_id`, `scan_id`, `generation`, `status`,
+`completion`. `completed` carries the existing verified initial-evidence
+envelope; `held` carries null. This is sealed-result retrieval only, not a new
+Identify contract. Absence or transport uncertainty cannot grant dispatch,
+funding, History enrollment or media authority. The independent private
+finalizer owns accepted unsealed results.
+
+The executable owner is `check-scan-status/captureCompletion.ts`, using the
+existing V9 plan and completion parsers. Limits are 1,048,576 request bytes,
+1,052,672 response bytes and five seconds after authentication, including body
+collection. Invalid headers, lengths, UTF-8, phase, identity or proof refuse
+with a fixed no-store 503. The route is local source preparation; native
+composition and full qualification remain open. See its
+[owning README](../../services/supabase/functions/check-scan-status/README.md).
+
+## V9 full-aspect photo selection acceptance
+
+The local `20261121192558` successor permits `nativeSelectedStillImageV2` with
+`crop_display_size: null` only when quarter turns, offsets and scale are
+identity, camera center is null, and source selection is a valid
+`user_selection`. Rendering preserves full aspect and maps the upright
+normalized selection directly to prepared focus. Downsampling and encoding do
+not imply source/prepared byte identity. V9 field order and fingerprint domains
+are unchanged; older manifests gain no inferred geometry. Swift, Deno and SQL
+must be qualified together before activation. This candidate changes no hosted
+state.

@@ -1,3 +1,7 @@
+import {
+  initialEvidenceCompletionVerifier,
+  parseInitialEvidenceEnvelopeV1,
+} from "./initialEvidenceEnvelopeV1.ts";
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   AUDIO_CONFIDENCE_DESCRIPTION,
@@ -472,5 +476,90 @@ Deno.test("wire provenance is optional, bounded, immutable and never a model fie
     ]
   ) {
     assert(!("identification_provenance" in contract.fields));
+  }
+});
+
+Deno.test("initial evidence proof is strict, identity bound, and optional only for legacy completions", () => {
+  const input = validEnvelope();
+  const proof = {
+    schema_version: 1,
+    owner_id: "00000000-0000-4000-8000-000000000124",
+    scan_id: "00000000-0000-4000-8000-000000000123",
+    generation: "00000000-0000-4000-8000-000000000125",
+    evidence_digest: "a".repeat(64),
+  };
+  assertEquals(
+    parseInitialEvidenceEnvelopeV1(input).initial_evidence,
+    undefined,
+  );
+  assertEquals(
+    parseInitialEvidenceEnvelopeV1({ ...input, initial_evidence: proof })
+      .initial_evidence,
+    proof,
+  );
+  for (
+    const changed of [
+      { ...proof, schema_version: 2 },
+      { ...proof, owner_id: proof.scan_id },
+      { ...proof, generation: proof.owner_id },
+      { ...proof, scan_id: proof.generation },
+      { ...proof, evidence_digest: "A".repeat(64) },
+      { ...proof, extra: true },
+      { ...proof, generation: undefined },
+    ]
+  ) {
+    assertThrows(
+      () =>
+        parseInitialEvidenceEnvelopeV1({ ...input, initial_evidence: changed }),
+      ContractValueError,
+    );
+  }
+});
+
+Deno.test("versioned proof wrapper preserves legacy data and requires the expected sealed identity", () => {
+  const legacy = validEnvelope();
+  const expected = {
+    ownerID: "00000000-0000-4000-8000-000000000124",
+    scanID: "00000000-0000-4000-8000-000000000123",
+    generation: "00000000-0000-4000-8000-000000000125",
+    evidenceDigest: "a".repeat(64),
+  };
+  const proof = {
+    schema_version: 1,
+    owner_id: expected.ownerID,
+    scan_id: expected.scanID,
+    generation: expected.generation,
+    evidence_digest: expected.evidenceDigest,
+  };
+  const verify = initialEvidenceCompletionVerifier(expected);
+  expected.evidenceDigest = "b".repeat(64); // caller mutation cannot retarget it
+  const envelope = { ...legacy, initial_evidence: proof };
+  assertEquals(verify(envelope), true);
+  assertEquals(
+    parseIdentifySuccessEnvelope(envelope),
+    parseIdentifySuccessEnvelope(legacy),
+  );
+  const versioned = parseInitialEvidenceEnvelopeV1(envelope);
+  assertEquals(versioned.data, parseIdentifySuccessEnvelope(legacy).data);
+  assert(Object.isFrozen(versioned));
+  assert(Object.isFrozen(versioned.initial_evidence));
+  for (
+    const changed of [
+      undefined,
+      null,
+      { ...proof, schema_version: 2 },
+      { ...proof, owner_id: "00000000-0000-4000-8000-000000000126" },
+      { ...proof, generation: "00000000-0000-4000-8000-000000000126" },
+      { ...proof, scan_id: "00000000-0000-4000-8000-000000000126" },
+      { ...proof, evidence_digest: "b".repeat(64) },
+    ]
+  ) {
+    assertThrows(() =>
+      verify(
+        changed === undefined
+          ? legacy
+          : { ...legacy, initial_evidence: changed },
+      )
+    );
   }
 });

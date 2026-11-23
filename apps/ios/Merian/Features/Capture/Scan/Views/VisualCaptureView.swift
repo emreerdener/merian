@@ -125,50 +125,65 @@ private struct CameraControlsLayer: View {
 }
 
 #if targetEnvironment(simulator)
-private struct SimulatorCameraSurfaceView: View {
+private struct SimulatorCameraSurfaceView: UIViewRepresentable {
     let onTap: (CGPoint, CGPoint) -> Void
     let onVerticalDragActiveChanged: ((Bool) -> Void)?
 
-    @State private var verticalDragActive = false
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    var body: some View {
-        GeometryReader { proxy in
-            Color.black
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .contentShape(Rectangle())
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                        .onChanged { value in
-                            let isTapCandidate = abs(value.translation.width) < 8 && abs(value.translation.height) < 8
-                            guard !isTapCandidate else { return }
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .black
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:)))
+        view.addGestureRecognizer(tap)
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pan(_:)))
+        pan.delegate = context.coordinator
+        pan.cancelsTouchesInView = false
+        view.addGestureRecognizer(pan)
+        return view
+    }
 
-                            let isVertical = abs(value.translation.height) > abs(value.translation.width)
-                            guard isVertical, !verticalDragActive else { return }
-                            verticalDragActive = true
-                            onVerticalDragActiveChanged?(true)
-                        }
-                        .onEnded { value in
-                            defer {
-                                if verticalDragActive {
-                                    verticalDragActive = false
-                                    onVerticalDragActiveChanged?(false)
-                                }
-                            }
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
 
-                            let isTap = abs(value.translation.width) < 8 && abs(value.translation.height) < 8
-                            guard isTap else { return }
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: SimulatorCameraSurfaceView
 
-                            let location = value.startLocation
-                            let devicePoint = CGPoint(
-                                x: min(max(location.x / max(proxy.size.width, 1), 0), 1),
-                                y: min(max(location.y / max(proxy.size.height, 1), 0), 1)
-                            )
-                            onTap(location, devicePoint)
-                        }
-                )
+        init(_ parent: SimulatorCameraSurfaceView) { self.parent = parent }
+
+        // Match the camera bridge's directional pan arbitration without starting
+        // camera hardware. A zero-distance SwiftUI drag consumed horizontal paging.
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.y) > abs(velocity.x)
         }
-        .ignoresSafeArea()
-        .background(Color.black.ignoresSafeArea())
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer is UIPanGestureRecognizer
+        }
+
+        @objc func tap(_ sender: UITapGestureRecognizer) {
+            guard let view = sender.view else { return }
+            let location = sender.location(in: view)
+            let devicePoint = CGPoint(
+                x: min(max(location.x / max(view.bounds.width, 1), 0), 1),
+                y: min(max(location.y / max(view.bounds.height, 1), 0), 1)
+            )
+            parent.onTap(location, devicePoint)
+        }
+
+        @objc func pan(_ sender: UIPanGestureRecognizer) {
+            switch sender.state {
+            case .began: parent.onVerticalDragActiveChanged?(true)
+            case .ended, .cancelled, .failed: parent.onVerticalDragActiveChanged?(false)
+            default: break
+            }
+        }
     }
 }
 #endif

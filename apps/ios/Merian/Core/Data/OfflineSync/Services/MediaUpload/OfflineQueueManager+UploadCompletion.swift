@@ -3,6 +3,69 @@ import Foundation
 // MARK: - Upload Completion
 
 extension OfflineQueueManager {
+    var uploadCompletionScanIds: Set<String> {
+        Set<String>(uploadCompletionTokens.compactMap { key, tokens -> String? in
+            tokens.isEmpty ? nil : key
+        })
+    }
+
+    func beginUploadCompletion(scanId: String) -> UUID {
+        let token = UUID()
+        uploadCompletionTokens[scanId, default: []].insert(token)
+        return token
+    }
+
+    @discardableResult
+    func finishUploadCompletion(
+        scanId: String,
+        token: UUID
+    ) -> Bool {
+        guard uploadCompletionTokens[scanId]?.remove(token) != nil else {
+            return false
+        }
+        if uploadCompletionTokens[scanId]?.isEmpty == true {
+            uploadCompletionTokens[scanId] = nil
+        }
+        return true
+    }
+
+    func recordSuccessfulUploadMember(
+        scanId: String,
+        generation: UUID?,
+        objectKey: String
+    ) {
+        var state = uploadCompletionStates[scanId]
+        if state == nil || state?.generation != generation {
+            state = MediaStagingUploadCompletionState(generation: generation)
+        }
+        guard var state else { return }
+        state.recordSuccess(objectKey: objectKey)
+        uploadCompletionStates[scanId] = state
+    }
+
+    func hasConfirmedSuccessfulUploadManifest(
+        scanId: String,
+        generation: UUID?,
+        expectedObjectKeys: [String]
+    ) -> Bool {
+        guard let state = uploadCompletionStates[scanId],
+              state.generation == generation else {
+            return false
+        }
+        return state.matchesExactly(expectedObjectKeys: expectedObjectKeys)
+    }
+
+    func clearUploadCompletionState(
+        scanId: String,
+        generation: UUID?
+    ) {
+        guard let state = uploadCompletionStates[scanId],
+              state.generation == generation else {
+            return
+        }
+        uploadCompletionStates[scanId] = nil
+    }
+
     /// Processes the result of a completed background upload, then kicks off inference
     /// for the scan once all expected media files have landed in R2 staging.
     func processUploadCompletion(

@@ -15,9 +15,9 @@ extension PreparedHistoryReanalysisComposition {
                                         client: MerianNetworkClient) -> CaptureVideoReanalysisAccess.Configuration {
         .init(resume: videoConfiguration(in: dependencies, cloud: cloud, client: client),
               files: .shared, temporaryDirectory: { FileManager.default.temporaryDirectory },
-              prepareLifetime: { try dependencies.prepareReanalysisHostLifetimeForFeature() },
-              startup: { try dependencies.reanalysisStartupForFeature(container: $0) },
-              borrowing: { try dependencies.reanalysisBorrowForFeature(container: $0) })
+              prepareLifetime: { try dependencies.nativeMediaLifecycle.prepareReanalysisHostLifetimeForFeature() },
+              startup: { try dependencies.nativeMediaLifecycle.reanalysisStartupForFeature(container: $0) },
+              borrowing: { try dependencies.nativeMediaLifecycle.reanalysisBorrowForFeature(container: $0) })
     }
 
     /// Explicit saved-child presentation only. Ordinary app routes remain uninstalled.

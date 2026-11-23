@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   copyR2Object,
   deleteR2Object,
@@ -26,6 +27,8 @@ interface PromoteSafeMediaInput {
   r2Config: PromotionR2Config;
   contentType?: string;
   fallbackExtension?: string;
+  /** Keep retry inputs until the ingestion owner durably binds its continuation. */
+  preserveStaging?: boolean;
 }
 
 function publicUrlForKey(key: string): string {
@@ -58,6 +61,7 @@ export async function promoteSafeMedia(
     r2Config,
     contentType = "image/webp",
     fallbackExtension = "webp",
+    preserveStaging = false,
   }: PromoteSafeMediaInput,
   {
     copyObject = copyR2Object,
@@ -123,11 +127,13 @@ export async function promoteSafeMedia(
         }
 
         promotedKeys.push(publicUploadKey);
-        await deletePromotedOrStagedObject(
-          r2Key,
-          r2Config,
-          deleteObject,
-        );
+        if (!preserveStaging) {
+          await deletePromotedOrStagedObject(
+            r2Key,
+            r2Config,
+            deleteObject,
+          );
+        }
       }
     }
 
@@ -170,6 +176,75 @@ export function isProviderSafetyRejected(
       safetyRatings.some((rating) =>
         rating.probability === "MEDIUM" || rating.probability === "HIGH"
       ));
+}
+
+async function recordSafetyRejection(
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<{ status: string }> {
+  const { data: userData, error: fetchError } = await supabase
+    .from("users")
+    .select("abuse_strikes")
+    .eq("id", userId)
+    .single();
+
+  if (fetchError && fetchError.code !== "PGRST116") {
+    logStructuredError("moderation/strike_fetch_failed", {
+      userId,
+      error: fetchError.message,
+    });
+    throw new Error(`Abuse strike fetch failed: ${fetchError.message}`);
+  }
+
+  const currentStrikes = userData?.abuse_strikes ?? 0;
+  const updatedStrikes = currentStrikes + 1;
+  const isShadowbanned = updatedStrikes >= 3;
+
+  const { error: updateError } = await supabase
+    .from("users")
+    .update({
+      abuse_strikes: updatedStrikes,
+      is_shadowbanned: isShadowbanned,
+    })
+    .eq("id", userId);
+
+  if (updateError) {
+    logStructuredError("moderation/strike_write_failed", {
+      userId,
+      error: updateError.message,
+    });
+    throw new Error(`Abuse strike write failed: ${updateError.message}`);
+  }
+
+  return {
+    status: isShadowbanned ? "SHADOWBANNED" : "DELETED_WARNING",
+  };
+}
+
+/** Same Gemini rating/strike policy without public promotion or unowned deletes.
+ * Private object retirement belongs to the retained-evidence lifecycle owner. */
+export async function evaluatePrivateRetainedMedia(
+  userId: string,
+  finishReason: string | undefined,
+  safetyRatings: readonly { readonly probability?: string }[] | undefined,
+  client?: SupabaseClient,
+): Promise<{ status: string; publicUrls?: string[] }> {
+  if (!isProviderSafetyRejected(finishReason, safetyRatings)) {
+    return { status: "PROMOTED", publicUrls: [] };
+  }
+  try {
+    return await recordSafetyRejection(
+      userId,
+      client ??
+        createServiceRoleClientFromEnvironment(Deno.env.get("SUPABASE_URL")!),
+    );
+  } catch (error) {
+    logStructuredError("moderation/private_pipeline_error", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { status: "ERROR" };
+  }
 }
 
 export async function evaluateAndProcessPayload(
@@ -220,43 +295,7 @@ export async function evaluateAndProcessPayload(
         }
       }
 
-      const { data: userData, error: fetchError } = await supabase
-        .from("users")
-        .select("abuse_strikes")
-        .eq("id", userId)
-        .single();
-
-      if (fetchError && fetchError.code !== "PGRST116") {
-        logStructuredError("moderation/strike_fetch_failed", {
-          userId,
-          error: fetchError.message,
-        });
-        throw new Error(`Abuse strike fetch failed: ${fetchError.message}`);
-      }
-
-      const currentStrikes = userData?.abuse_strikes ?? 0;
-      const updatedStrikes = currentStrikes + 1;
-      const isShadowbanned = updatedStrikes >= 3;
-
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          abuse_strikes: updatedStrikes,
-          is_shadowbanned: isShadowbanned,
-        })
-        .eq("id", userId);
-
-      if (updateError) {
-        logStructuredError("moderation/strike_write_failed", {
-          userId,
-          error: updateError.message,
-        });
-        throw new Error(`Abuse strike write failed: ${updateError.message}`);
-      }
-
-      return {
-        status: isShadowbanned ? "SHADOWBANNED" : "DELETED_WARNING",
-      };
+      return await recordSafetyRejection(userId, supabase);
     }
 
     // 3. Safe flow — promote image to public storage

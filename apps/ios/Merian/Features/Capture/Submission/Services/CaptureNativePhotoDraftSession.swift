@@ -57,7 +57,7 @@ final class CaptureNativePhotoDraftSession {
         .init(identity: .init(ownerID: ownerID, packageID: UUID(), draftGeneration: UUID()),
               preflight: CaptureNativePhotoSubmissionSession.appPreflight,
               allocationAccess: CaptureNativePhotoSubmissionSession.appAllocationAccess,
-              resolveOwner: { try await diContainer.nativeMediaOwnerForFeature() })
+              resolveOwner: { try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature() })
     }
 
     /// The caller retains the whole ordered picker selection; no prefix or
@@ -117,7 +117,6 @@ final class CaptureNativePhotoDraftSession {
             throw SharedMediaStorageFailure.closed
         }
         try recipe.validate()
-        guard recipe.cropDisplaySize != nil || recipe.format == .cameraStill else { throw SharedMediaStorageFailure.invalid }
         items[index].recipe = recipe
     }
 
@@ -145,7 +144,9 @@ final class CaptureNativePhotoDraftSession {
         for (index, entry) in zip(supporting.presentation, recipes).enumerated() {
             let (presentation, recipe) = entry
             guard presentation.referenceID == snapshot.references[index].referenceID, presentation.cropQuarterTurns == recipe.quarterTurns, presentation.cropScale == recipe.scale,
-                  presentation.cropOffsetX == recipe.offsetX, presentation.cropOffsetY == recipe.offsetY else {
+                  presentation.cropOffsetX == recipe.offsetX, presentation.cropOffsetY == recipe.offsetY,
+                  presentation.sourceSelection == recipe.sourceSelection,
+                  recipe.sourceSelection == nil || presentation.cropDisplaySize == recipe.cropDisplaySize else {
                 throw SharedMediaStorageFailure.stale
             }
         }

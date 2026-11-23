@@ -131,18 +131,31 @@ struct SharedMediaNativeFrozenEntry: Codable, Equatable, Sendable {
 }
 
 struct SharedMediaNativeFrozenCohort: Codable, Sendable {
-    enum Format: String, Codable, Sendable { case cohort = "nativeConsumerV2" }
+    enum Format: String, Codable, Sendable {
+        case cohort = "nativeConsumerV2"
+        case initialNotes = "nativeConsumerV3"
+    }
     let format: Format
     let packageID: UUID
     let ownerID: UUID
     let draftGeneration: UUID
     let supportingBytes: Data
     let entries: [SharedMediaNativeFrozenEntry]
+    let initialFieldNotes: String?
+
+    init(format: Format, packageID: UUID, ownerID: UUID, draftGeneration: UUID,
+         supportingBytes: Data, entries: [SharedMediaNativeFrozenEntry], initialFieldNotes: String? = nil) {
+        self.format = format; self.packageID = packageID; self.ownerID = ownerID
+        self.draftGeneration = draftGeneration; self.supportingBytes = supportingBytes
+        self.entries = entries; self.initialFieldNotes = initialFieldNotes
+    }
 
     func encoded() throws -> Data {
         guard (1...2).contains(entries.count), entries.map(\.position) == Array(0..<entries.count) else { throw SharedMediaStorageFailure.conflict }
         let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
         guard try supporting.encoded() == supportingBytes else { throw SharedMediaStorageFailure.conflict }
+        let expectedNotes = format == .initialNotes ? InitialFieldNotesSeed.make(contexts: supporting.contexts) : nil
+        guard initialFieldNotes == expectedNotes else { throw SharedMediaStorageFailure.conflict }
         var references = Set<UUID>(), slots = Set<Int64>(), pairs = Set<UUID>()
         for entry in entries {
             try entry.intent.validate()

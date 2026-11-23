@@ -4,6 +4,7 @@ import { evidenceWorkerReceipt } from "./receipt.ts";
 const counts = {
   retired: 0,
   video_retired: 0,
+  composition_retired: 0,
   retirement_failures: 0,
   claimed: 0,
   marked: 0,
@@ -27,7 +28,7 @@ Deno.test("current dispatch reaches SQL work and receives exact terminal correla
   assertEquals(response.status, 200);
   assertEquals(response.headers.get("Cache-Control"), "no-store");
   assertEquals(await response.json(), {
-    schema_version: 2,
+    schema_version: 4,
     dispatch_id: dispatch,
     ...counts,
   });

@@ -147,6 +147,17 @@ The live client combines owner history with the bounded private-detail RPC.
 Pending immutable detail intent wins over remote notes, tags and Favorites;
 accepted remote state supplies a completed baseline for later inventory checks.
 
+New private-detail operations allocate a strictly increasing persisted creation
+time per observation and account. The serial outbox therefore delivers an
+initial Field notes seed before a later edit or clear even when the wall clock
+ties or moves backwards. Operation payloads and identities remain immutable;
+this does not infer missing causal order for previously saved tied operations.
+New explicit note mutations also carry local notes authority, including null
+clears. Subsequent tag/favorite operations retain that authority, so a crash
+between the database save and legacy-preference cleanup cannot resurrect old
+text. Historical tag-only mutations without this marker still import legacy
+notes. This metadata does not change submitted identification evidence.
+
 `HistoricalDatabaseActor` preserves the IDs and memberships of legacy remote
 collections colliding with reserved Favorites under a restored name. Independent
 private-detail evidence is required before moving a membership into the private

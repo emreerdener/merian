@@ -3,13 +3,13 @@ import Foundation
 /// Shared numeric policy for the fast preflight and the selected architecture tests.
 /// Other domain and aggregate architecture rules remain in their owning tests.
 struct IOSSourceSizePolicy: Decodable {
+    enum Counter: String, Decodable {
+        case physical, segments
+    }
+
     struct Rule: Decodable {
         let counter: Counter
         let ceiling: Int
-
-        enum Counter: String, Decodable {
-            case physical, segments
-        }
 
         func count(_ source: String) -> Int {
             switch counter {
@@ -40,6 +40,15 @@ struct IOSSourceSizePolicy: Decodable {
             throw CocoaError(.fileReadCorruptFile)
         }
         return policy
+    }
+
+    /// Domain guards share the independently reviewed sealed-owner limits.
+    /// An unlisted owner never receives an oversized allowance.
+    func productionRule(for relativePath: String) -> Rule {
+        let ceiling = oversizedOwners.contains(relativePath)
+            ? sealedOwnerCeilings[relativePath] ?? globalCeiling
+            : globalCeiling
+        return Rule(counter: .physical, ceiling: ceiling)
     }
 
     static func newlineSegments(_ source: String) -> Int {

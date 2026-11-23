@@ -34,21 +34,13 @@ enum FieldNotesRepository {
                 return notes
             }
 
-            // A completed restored snapshot proves a remote clear. A tag-only
-            // client operation cannot prove an old bridge note was migrated.
-            if try localRecord(for: scanId, modelContext: modelContext) != nil {
-                let jobs = try modelContext.fetch(FetchDescriptor<OfflineJobRecord>(
-                    predicate: #Predicate { $0.subjectId == scanId }
-                ))
-                if jobs.contains(where: { job in
-                    guard job.id.hasPrefix("library-details:baseline:"), job.status == .complete,
-                          let json = job.metadataJSON,
-                          let mutation = try? JSONDecoder().decode(LibraryDetailsSyncService.Mutation.self, from: Data(json.utf8)) else { return false }
-                    return mutation.scanID == scanId && mutation.ownerID == dependencies.ownerID() && mutation.fieldNotes == nil
-                }) {
-                    FieldNotesStore.setFieldNotes(nil, for: scanId)
-                    return nil
-                }
+            // A saved clear remains authoritative if the app stopped before
+            // removing the legacy bridge. Tag-only legacy operations do not.
+            if try localRecord(for: scanId, modelContext: modelContext) != nil,
+               let ownerID = dependencies.ownerID(),
+               try LibraryDetailsSyncService.hasAuthoritativeNotes(nil, scanID: scanId, ownerID: ownerID, context: modelContext) {
+                FieldNotesStore.setFieldNotes(nil, for: scanId)
+                return nil
             }
 
             if let notes = nonEmptyText(
@@ -101,7 +93,7 @@ enum FieldNotesRepository {
                     modelContext.rollback()
                     return false
                 }
-                try LibraryDetailsSyncService.stage(record, ownerID: owner, context: modelContext)
+                try LibraryDetailsSyncService.stage(record, ownerID: owner, context: modelContext, fieldNotesAuthoritative: true)
                 return commitFieldNotesChange(
                     scanId: scanId,
                     persistedText: persistedText,

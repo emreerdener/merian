@@ -291,6 +291,16 @@ struct ScanRepositoryPurgeTests {
 
     private func sharedMediaPurgeBlockers() -> [any PersistentModel] {
         [
+            SharedMediaOrdinaryArtifactRecord(id: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), recipientScanID: UUID(), submissionGeneration: UUID(), mediaID: UUID(), itemIndex: 0,
+                roleRaw: "unknown", frameIndex: nil, allocationID: UUID(), referenceID: UUID(), leaseID: UUID(),
+                writerEpoch: UUID(), requestData: Data(), requestSHA256: "synthetic"),
+            SharedMediaOrdinaryTransferRecord(id: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), sourceAssetID: UUID(), sourceReferenceID: UUID(), recipientScanID: UUID(),
+                submissionGeneration: UUID(), writerEpoch: UUID(), requestData: Data(), requestSHA256: "synthetic"),
+            SharedMediaOrdinarySubmissionRecord(inventoryID: UUID(), inventoryGeneration: UUID(), ownerID: UUID(),
+                recipientScanID: UUID(), submissionGeneration: UUID(), jobID: "synthetic", eventID: UUID(), writerEpoch: UUID(),
+                formatRaw: "unknown", requestData: Data(), requestSHA256: "synthetic", observationSHA256: "synthetic"),
             SharedMediaReceivingIntentRecord(packageID: UUID(), inventoryID: UUID(),
                 inventoryGeneration: UUID(), ownerID: UUID(), draftGeneration: UUID(),
                 operationID: UUID(), preparedData: Data("synthetic-prepared".utf8),
@@ -305,6 +315,11 @@ struct ScanRepositoryPurgeTests {
                 cohortSHA256: String(repeating: "a", count: 64), executionKindRaw: "ordinaryV1", inferenceGeneration: UUID()),
             SharedMediaPendingMembershipRecord(packageID: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
                 ownerID: UUID(), draftGeneration: UUID(), membersData: Data()),
+            SharedMediaNativeErasurePageRecord(operationID: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), profileSHA256: "synthetic", kindRaw: "header", ordinal: 0,
+                bodyData: Data(), bodySHA256: "synthetic"),
+            SharedMediaCaptureDraftJournalRecord(generation: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                ownerID: UUID(), scanID: UUID(), rootBindingSHA256: "synthetic", bodyData: Data(), bodySHA256: "synthetic"),
             SharedMediaMembershipBootstrapRecord(inventoryID: UUID(), inventoryGeneration: UUID()),
             SharedMediaAssetReferenceCountRecord(assetID: UUID(), assetGeneration: UUID(), inventoryID: UUID(),
                 inventoryGeneration: UUID(), ownerID: UUID(), liveCount: 1),

@@ -75,16 +75,21 @@ archives. Test launches do not write acknowledgement.
 
 The current copy first introduces the main-navigation rename from Scans to Book
 with the matching `book.fill` icon. Saved scans and collections remain in the
-same destination. It also highlights map improvements including search, terrain
-view by default, zoom controls and a distance scale, descriptions available to
-everyone to help improve accuracy, marking AI identifications as incorrect,
-identification history to revisit earlier results after reanalysis, emoji
-reactions on Explore posts, and boosted previews for quiet recordings. This
-change adds presentation, not performance measurement or provider deployment
-evidence. Keep the release’s actual capabilities aligned with its curated copy.
-`WhatsNewLaunchTests` covers first-install suppression, upgrade acknowledgement,
-new highlight sets, recovery deferral, test isolation, and root consent
-priority.
+same destination. The capture callouts introduce **Simpler capture controls**,
+**Fine-tune before you identify**, and **Identification subject**. They describe
+Scan/Record modes, shared media review, and manual photo subject selection.
+These are upcoming-release copy for the
+[capture redesign](../product/capture-review-plan.md); the callouts do not
+establish that its gated implementation is ready for release. The copy also
+highlights map improvements including search, terrain view by default, zoom
+controls and a distance scale, descriptions available to everyone to help
+improve accuracy, marking AI identifications as incorrect, identification
+history to revisit earlier results after reanalysis, emoji reactions on Explore
+posts, and boosted previews for quiet recordings. This change adds presentation,
+not performance measurement or provider deployment evidence. Keep the release’s
+actual capabilities aligned with its curated copy. `WhatsNewLaunchTests` covers
+first-install suppression, upgrade acknowledgement, new highlight sets, recovery
+deferral, test isolation, and root consent priority.
 
 The **Scan status at a glance** activity-indicator callout is deferred to the
 next release. Its copy is preserved as a comment in `WhatsNewSheet`, and omitted

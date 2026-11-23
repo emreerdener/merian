@@ -106,6 +106,65 @@ export function parseAudioEvidenceReceipt(
     MEDIA_BUDGETS.maxAudioRawBytes,
   );
 }
+
+/** Completed immutable media only. The resolver must prove result-manifest
+ * membership before calling this; this parser supplies no read authority. */
+export function parseCompletedMediaReceipt(
+  value: unknown,
+  identity: EvidenceIdentity,
+  previous?: EvidenceReceipt,
+): EvidenceReceipt {
+  const keys = [
+    "owner_id",
+    "observation_id",
+    "analysis_id",
+    "media_id",
+    "content_type",
+    "byte_count",
+    "sha256",
+    "object_id",
+    "expires_at",
+    "ready_at",
+  ];
+  if (
+    !value || typeof value !== "object" || Array.isArray(value) ||
+    Object.keys(value).length !== keys.length ||
+    !keys.every((key) => Object.hasOwn(value, key))
+  ) {
+    throw new Error("invalid_history_evidence");
+  }
+  const receipt = parseReceipt(
+    value,
+    identity,
+    previous,
+    [
+      "image/jpeg",
+      "image/png",
+      "image/heic",
+      "image/webp",
+      "audio/wav",
+      "video/mp4",
+    ],
+    1,
+    12_582_912,
+  );
+  const cap = receipt.content_type === "audio/wav"
+    ? MEDIA_BUDGETS.maxAudioRawBytes
+    : receipt.content_type.startsWith("image/")
+    ? 5_242_880
+    : 12_582_912;
+  if (
+    receipt.byte_count > cap ||
+    (receipt.content_type === "audio/wav" && receipt.byte_count < 46) ||
+    receipt.ready_at === null ||
+    (previous && (receipt.object_id !== previous.object_id ||
+      receipt.expires_at !== previous.expires_at ||
+      receipt.ready_at !== previous.ready_at))
+  ) {
+    throw new Error("invalid_history_evidence");
+  }
+  return receipt;
+}
 function parseReceipt(
   value: unknown,
   identity: EvidenceIdentity,

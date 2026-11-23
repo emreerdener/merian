@@ -17,15 +17,15 @@ extension CaptureNativeRecoveryModel {
         }
         let transport = MerianNetworkClient.shared.nativeReceivedStatusTransport()
         let status = CaptureNativeRecoveryStatusAccess.app(isCurrent: current,
-            owner: { try await diContainer.nativeMediaOwnerForFeature() },
+            owner: { try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature() },
             send: { scan, account, validate in try await transport.perform(scanID: scan, ownerID: account, validate: validate) })
         return .init(ownerID: ownerID, isCurrent: current, statusAccess: status,
-            lifetime: { diContainer.nativeMediaLifetime }, initialRead: { candidate in
+            lifetime: { diContainer.nativeMediaLifecycle.nativeMediaLifetime }, initialRead: { candidate in
                 guard current() else { throw SharedMediaStorageFailure.stale }
                 if let recovery = try ObservationHistoryEnrollmentService.nativeRecoveryAdmission(candidate, container: container) {
                     return .init(prepared: recovery.prepared, phase: .enrollmentHeld, baseline: nil)
                 }
-                let owner = try await diContainer.nativeMediaOwnerForFeature()
+                let owner = try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature()
                 guard current() else { throw SharedMediaStorageFailure.stale }
                 let state = try await owner.discoverAppInitialContinuation(candidate)
                 guard current() else { throw SharedMediaStorageFailure.stale }
@@ -38,7 +38,7 @@ extension CaptureNativeRecoveryModel {
                 if kind == .enrollment {
                     return try ObservationHistoryEnrollmentService.nativeRecoveryPage(ownerID: ownerID, container: container, cursor: cursor)
                 }
-                let owner = try await diContainer.nativeMediaOwnerForFeature()
+                let owner = try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature()
                 guard current() else { throw SharedMediaStorageFailure.stale }
                 let page = try await owner.appReceivingQuery(SharedMediaNativeReceivingQuery.initialHandoffPage(cursor))
                 guard current() else { throw SharedMediaStorageFailure.stale }
@@ -50,7 +50,7 @@ extension CaptureNativeRecoveryModel {
             }, originalRead: { candidate, index, validate in
                 try validate()
                 guard current() else { throw SharedMediaStorageFailure.stale }
-                let owner = try await diContainer.nativeMediaOwnerForFeature()
+                let owner = try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature()
                 try validate()
                 guard current(), let saved = try await owner.discoverAppInitialContinuation(candidate),
                       saved.phase == .pending else { throw SharedMediaStorageFailure.stale }
@@ -69,7 +69,7 @@ extension CaptureNativeRecoveryModel {
                 return .init(image: preview.image, index: preview.index, count: preview.count, validate: check)
             }, discover: {
             guard current() else { throw SharedMediaStorageFailure.stale }
-            let owner = try await diContainer.nativeMediaOwnerForFeature()
+            let owner = try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature()
             guard current() else { throw SharedMediaStorageFailure.stale }
             return try await owner.discoverAppReceivedCandidates()
         })
@@ -104,7 +104,7 @@ extension CaptureNativeRecoveryModel {
             try Task.checkCancellation()
             guard current() else { throw SharedMediaStorageFailure.stale }
         }
-        let owner = try await diContainer.nativeMediaOwnerForFeature()
+        let owner = try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature()
         guard current() else { throw SharedMediaStorageFailure.stale }
         let transport = MerianNetworkClient.shared.nativeReceivedStatusTransport()
         return try await completeInitialHistory(candidate, owner: owner,

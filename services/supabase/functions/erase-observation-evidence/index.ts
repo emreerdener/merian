@@ -2,7 +2,7 @@ import { serveEdge } from "../_shared/edgeHandler.ts";
 import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
-import { PrivateHistoryEvidenceStorage } from "../_shared/analysisHistory/evidenceStorage.ts";
+import { PrivateEvidenceErasureStorage } from "./storage.ts";
 import { evidenceErasureRepository } from "./db.ts";
 import { eraseObservationEvidence } from "./handler.ts";
 import { evidenceWorkerReceipt } from "./receipt.ts";
@@ -29,11 +29,12 @@ serveEdge(async (req: Request) => {
         Deno.env.get("SUPABASE_URL") ?? "",
         auth.serverApiKey,
       );
-      const storage = new PrivateHistoryEvidenceStorage();
+      const storage = new PrivateEvidenceErasureStorage();
       // No caller body or key is consumed. Only the gated registry grants erasure.
       const counts = await eraseObservationEvidence({
         ...evidenceErasureRepository(client, dispatch),
-        erase: (object, signal) => storage.erase(object, signal),
+        erase: (object, signal, target) =>
+          storage.erase(object, signal, target),
       }, req.signal);
       return counts;
     });
@@ -42,7 +43,7 @@ serveEdge(async (req: Request) => {
       req,
       503,
       "private_evidence_erasure_unavailable",
-      "Photo cleanup is unavailable.",
+      "Private media cleanup is unavailable.",
       { extraHeaders: headers },
     );
   }

@@ -88,11 +88,20 @@ struct CaptureNativePhotoSubmissionSnapshot: Equatable {
         let presentation = try capture.images.map { image -> PhotoPreparationImagePresentation in
             guard let reference = image.photoOriginalReference else { throw SharedMediaStorageFailure.invalid }
             let presentationFocus: NormalizedImageFocusRegion?
+            let sourceSelection: NormalizedImageFocusRegion?
+            let cropDisplaySize: Double?
             if let savedSupporting {
                 let matches = savedSupporting.presentation.filter { $0.referenceID == reference.referenceID }
                 guard matches.count == 1 else { throw SharedMediaStorageFailure.stale }
                 presentationFocus = matches[0].focus
-            } else { presentationFocus = image.focusRegion }
+                sourceSelection = matches[0].sourceSelection
+                cropDisplaySize = matches[0].cropDisplaySize
+            } else {
+                presentationFocus = image.focusRegion
+                sourceSelection = image.original.manualSourceSelection
+                // Preserve legacy supporting bytes when there is no selection.
+                cropDisplaySize = sourceSelection == nil ? nil : image.original.lastCropDisplaySize.map(Double.init)
+            }
             let environment = image.original.environmentContext
             return .init(referenceID: reference.referenceID, addedAt: image.addedAt,
                 isFromGallery: image.original.isFromGallery, cropQuarterTurns: image.original.lastCropQuarterTurns,
@@ -100,7 +109,8 @@ struct CaptureNativePhotoSubmissionSnapshot: Equatable {
                 cropOffsetY: image.original.lastCropOffset.height, focus: presentationFocus,
                 latitude: environment?.location?.coordinate.latitude, longitude: environment?.location?.coordinate.longitude,
                 locationName: environment?.locationName, weatherCondition: environment?.weatherCondition,
-                weatherTemperature: environment?.weatherTemperature, captureDate: environment?.captureDate)
+                weatherTemperature: environment?.weatherTemperature, captureDate: environment?.captureDate,
+                cropDisplaySize: cropDisplaySize, sourceSelection: sourceSelection)
         }
         supportingBytes = try SharedMediaNativeFrozenSupporting(
             contexts: capture.observationContexts.map(\.context), presentation: presentation).encoded()

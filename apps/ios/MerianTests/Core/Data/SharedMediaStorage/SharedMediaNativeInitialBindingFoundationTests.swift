@@ -245,6 +245,41 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
+    @Test(arguments: ["lease", "descriptor", "writerEpoch"])
+    func erasureInitialAuditChecksAppliedDerivativeWork(change: String) async throws {
+        let (store, owner, prepared, allocation) = try await allocatedFixture()
+        let ack = try originalAcknowledgement(allocation)
+        let admission = try #require(await owner.recoverAppInitialAdmission(prepared) { _, _ in ack })
+        let acquisition = try completionAcquisition(admission)
+        _ = try await owner.recoverAppInitialCompletion(prepared) { _, _ in acquisition }
+        _ = try #require(await owner.applyAppInitialResult(prepared) { _, _ in acquisition })
+        #expect(await owner.invalidateAndAwaitForAccountTransition())
+        let context = store.context(), detached = try store.package(store.ordinaryID, in: context)
+        #expect(detached.supportingContextData == Data("ordinary-draft".utf8))
+        context.delete(detached); try context.save()
+        let profile = prepared.profile
+        let identity = SharedMediaNativeScopeIdentity(inventoryID: profile.inventoryID,
+            generation: profile.generation, ownerID: profile.ownerID,
+            storeIdentity: profile.storeIdentity, rootBinding: try profile.rootIdentity)
+        func audit() async throws {
+            _ = try await SharedMediaNativeScopedAudit.runAppErasureInitial(container: store.container,
+                profile: profile, files: nil, header: {
+                    try SharedMediaNativeAppEligibility.snapshot(context: ModelContext(store.container), scope: identity)
+                }, betweenPages: {})
+        }
+        try await audit()
+        let work = try #require(try context.fetch(FetchDescriptor<SharedMediaDerivativeWorkRecord>()).first)
+        switch change {
+        case "lease": work.leaseID = UUID()
+        case "descriptor": work.finalIdentity = "1:2:3:4:5:6:7"
+        default: work.writerEpoch = UUID()
+        }
+        try context.save()
+        let before = try SharedMediaNativeErasureGraph.snapshot(context, checkpoint: {})
+        await #expect(throws: (any Error).self) { try await audit() }
+        #expect(try SharedMediaNativeErasureGraph.snapshot(ModelContext(store.container), checkpoint: {}) == before)
+    }
+
     @Test func retainedDisplayCompositionUsesExactBindingAndRejectsStalePublication() async throws {
         let (store, owner, prepared, allocation) = try await allocatedFixture()
         let ack = try originalAcknowledgement(allocation)
@@ -303,8 +338,9 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test func atomicApplicationPreservesOriginalAndLaterSelectionAcrossReplay() async throws {
-        let (store, owner, prepared, allocation) = try await allocatedFixture()
+    @Test(arguments: [SharedMediaNativeFrozenCohort.Format.cohort, .initialNotes], [nil, "", "Later user notes"] as [String?])
+    func atomicApplicationPreservesOriginalAndLaterSelectionAcrossReplay(_ format: SharedMediaNativeFrozenCohort.Format, _ laterNotes: String?) async throws {
+        let (store, owner, prepared, allocation) = try await allocatedFixture(cohortFormat: format)
         let ack = try originalAcknowledgement(allocation)
         let admission = try #require(await owner.recoverAppInitialAdmission(prepared) { _, _ in ack })
         let acquisition = try completionAcquisition(admission)
@@ -348,7 +384,8 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let scan = try Fixture.one(context, FetchDescriptor<LocalScanRecord>())
         #expect(scan.id == prepared.observationID.uuidString.lowercased() && scan.speciesId.isEmpty)
         #expect(abs(scan.timestamp.timeIntervalSince1970 - 1_793_761_200.123456) < 0.0000005)
-        #expect(scan.sharedMediaConsumerID == prepared.bindingID && scan.fieldNotes == nil)
+        #expect(scan.sharedMediaConsumerID == prepared.bindingID)
+        #expect(scan.fieldNotes == (try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes).initialFieldNotes))
         #expect(scan.selectedAnalysisID == nil && scan.analysisOwnerAccountID == nil)
         let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
         let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(frozen.supportingBytes,
@@ -362,7 +399,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         #expect(scan.captureDate == captured)
         #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
         let laterSelection = UUID().uuidString.lowercased()
-        scan.fieldNotes = "Later user notes"; scan.selectedAnalysisID = laterSelection
+        scan.fieldNotes = laterNotes; scan.selectedAnalysisID = laterSelection
         scan.analysisOwnerAccountID = prepared.profile.ownerID.uuidString.lowercased(); scan.observationStateRevision = 7
         try context.save()
         try owner.setMetadataFault { if $0 == .beforeSave { Issue.record("Applied replay must not save") } }
@@ -371,7 +408,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(store)
         #expect(try await cold.applyAppInitialResult(prepared) { _, _ in Issue.record("Cold replay reacquired result"); return nil } == applied)
         let retained = try Fixture.one(store.context(), FetchDescriptor<LocalScanRecord>())
-        #expect(retained.fieldNotes == "Later user notes" && retained.selectedAnalysisID == laterSelection && retained.observationStateRevision == 7)
+        #expect(retained.fieldNotes == laterNotes && retained.selectedAnalysisID == laterSelection && retained.observationStateRevision == 7)
         #expect(try stored(store) == original && revision(store) == firstRevision + 1)
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
@@ -409,8 +446,9 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         else { #expect(await owner.invalidateAndAwaitForAccountTransition()) }
     }
 
-    @Test func nativeHistoryAcknowledgementPreservesMediaAndLaterSelection() async throws {
-        try await verifyHistoryAcknowledgement(advancedSelection: false)
+    @Test(arguments: [SharedMediaNativeFrozenCohort.Format.cohort, .initialNotes], [nil, "", "Later private notes"] as [String?])
+    func nativeHistoryAcknowledgementPreservesMediaAndLaterSelection(_ format: SharedMediaNativeFrozenCohort.Format, _ laterNotes: String?) async throws {
+        try await verifyHistoryAcknowledgement(advancedSelection: false, format: format, laterNotes: laterNotes)
     }
 
     @Test func advancedEnrollmentAcknowledgementPreservesOriginalAndLaterSelection() async throws {
@@ -440,6 +478,9 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let input = try #require(await loader.retained(source: source, container: store.container, isCurrent: { true }))
         #expect(input.photos.map { $0.bytes } == expected.photos.map(\.bytes))
         #expect(input.photos.map { $0.photo.pairID } == expected.photos.map(\.pairID))
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        let frozenFocus = try frozen.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes).focus }
+        #expect(input.photos.map { $0.photo.focusRegion } == frozenFocus)
         #expect(throws: (any Error).self) { try input.selection([UUID()]) }
         let context = store.context(), scan = try Fixture.one(context, FetchDescriptor<LocalScanRecord>())
         let selectedID = try #require(scan.selectedAnalysisID.flatMap(UUID.init(uuidString:)))
@@ -474,6 +515,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let capture = editor.capture
         for (image, value) in zip(capture.images, input.photos) {
             #expect(image.compressedData == value.bytes && image.photoOriginalReference == nil)
+            #expect(image.focusRegion == value.photo.focusRegion)
             #expect(image.reanalysisProvenance == .retained(value.photo, edited: false))
             #expect(image.replacing(compressedData: image.compressedData).reanalysisProvenance == .retained(value.photo, edited: true))
             #expect(throws: (any Error).self) {
@@ -830,13 +872,17 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         phase = "complete"
     }
 
-    private func verifyHistoryAcknowledgement(advancedSelection: Bool) async throws {
-        let (store, owner, prepared, allocation) = try await allocatedFixture()
+    private func verifyHistoryAcknowledgement(advancedSelection: Bool,
+        format: SharedMediaNativeFrozenCohort.Format = .cohort, laterNotes: String? = "Later private notes") async throws {
+        let (store, owner, prepared, allocation) = try await allocatedFixture(cohortFormat: format)
         let reply = try originalAcknowledgement(allocation)
         let admission = try #require(await owner.recoverAppInitialAdmission(prepared) { _, _ in reply })
         let acquisition = try completionAcquisition(admission)
         _ = try await owner.recoverAppInitialCompletion(prepared) { _, _ in acquisition }
         let applied = try #require(await owner.applyAppInitialResult(prepared) { _, _ in acquisition })
+        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+        #expect(try Fixture.one(store.context(), FetchDescriptor<LocalScanRecord>()).fieldNotes == frozen.initialFieldNotes)
+        if format == .initialNotes { #expect(frozen.initialFieldNotes?.isEmpty == false) }
         #expect(try await owner.acknowledgeAppInitialHistory(prepared) { _, _ in Issue.record("Missing baseline must hold"); return nil } == nil)
         let baselineID = try await enrollInitialFixture(store, prepared: prepared, acquisition: acquisition, advancedSelection: advancedSelection)
         if advancedSelection {
@@ -875,7 +921,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let scan = try Fixture.one(context, FetchDescriptor<LocalScanRecord>())
         let laterSelection = UUID().uuidString.lowercased()
         scan.selectedAnalysisID = laterSelection; scan.observationStateRevision = 9
-        scan.fieldNotes = "Later private notes"; scan.confidenceScore = 0.123
+        scan.fieldNotes = laterNotes; scan.confidenceScore = 0.123
         try context.save()
         // The exact completed association is permitted, not arbitrary jobs with
         // the same subject. No generic missing-quartet guard is relaxed.
@@ -922,7 +968,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let savedPackage = try Fixture.one(saved, FetchDescriptor<PhotoPreparationRecord>(predicate: #Predicate { $0.id == packageID }))
         #expect(SharedMediaNativeAppMetadataFacts.Package(savedPackage) == packageBefore)
         let retained = try Fixture.one(saved, FetchDescriptor<LocalScanRecord>())
-        #expect(retained.selectedAnalysisID == laterSelection && retained.fieldNotes == "Later private notes" && retained.confidenceScore == 0.123)
+        #expect(retained.selectedAnalysisID == laterSelection && retained.fieldNotes == laterNotes && retained.confidenceScore == 0.123)
         if advancedSelection {
             let historyAfter = Dictionary(uniqueKeysWithValues:
                 try saved.fetch(FetchDescriptor<LocalAnalysisRecord>()).map { ($0.id, $0.resultSnapshotData) })
@@ -938,6 +984,7 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         #expect(await owner.invalidateAndAwaitForAccountTransition())
         let cold = try await SharedMediaNativeReceivingStagingTests().reopen(store)
         #expect(try await cold.acknowledgeAppInitialHistory(prepared) { _, _ in Issue.record("Cold replay fetched original"); return nil } == acknowledged)
+        #expect(try Fixture.one(store.context(), FetchDescriptor<LocalScanRecord>()).fieldNotes == laterNotes)
         let metadata = store.context()
         let job = try #require(try metadata.fetchOfflineJob(id: ObservationHistoryEnrollmentIntent.baselineJobID(scan.id)))
         let originalMetadata = job.metadataJSON
@@ -1484,8 +1531,8 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         let before = try revision(store)
         var writes = 0, reads = 0
         try owner.setMetadataFault { if $0 == .beforeSave { writes += 1 } }
-        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { _, _, validate in
-            try validate(); reads += 1; return Data("{\"status\":\"found\"}".utf8)
+        let access = CaptureNativeRecoveryStatusAccess.app(isCurrent: { true }, owner: { owner }) { scan, account, validate in
+            try validate(); reads += 1; return try ScanObservationTestFixture.response(ownerID: account, scanID: scan, rowExists: true)
         }
         #expect(try await access.reserve(candidate) == nil)
         #expect(try await access.check(candidate))
@@ -1919,8 +1966,8 @@ struct SharedMediaNativeInitialBindingFoundationTests {
         }
     }
 
-    private func allocatedFixture() async throws -> (SharedMediaNativeAppMetadataTests.Store, SharedMediaNativeOriginalOwner, Intent.Prepared, SharedMediaNativePhotoAllocation) {
-        let (store, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture()
+    private func allocatedFixture(cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort) async throws -> (SharedMediaNativeAppMetadataTests.Store, SharedMediaNativeOriginalOwner, Intent.Prepared, SharedMediaNativePhotoAllocation) {
+        let (store, owner, p) = try await SharedMediaNativePhotoAllocationTests().fixture(cohortFormat: cohortFormat)
         return (store, owner, p, try await allocateFixture(owner: owner, prepared: p))
     }
     private func allocateFixture(owner: SharedMediaNativeOriginalOwner, prepared: Intent.Prepared) async throws -> SharedMediaNativePhotoAllocation {

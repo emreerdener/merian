@@ -27,6 +27,12 @@ final class SpeechManager {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var audioSessionLease: AudioSessionCoordinator.Lease?
+    private var sessionID: UUID?
+    private var isConfiguringEngine = false
+    private var hasInputTap = false
+    private var releaseTask: Task<Void, Never>?
+    private var finalization: CheckedContinuation<Bool, Never>?
+    private var finalizationTimeout: Task<Void, Never>?
 
     #if targetEnvironment(simulator)
     private static let preferredRecordSampleRate: Double? = 48_000
@@ -37,7 +43,15 @@ final class SpeechManager {
     func startDictation(onResult: @MainActor @escaping (String) -> Void) async throws {
         guard !isStarting, !isRecording else { return }
         isStarting = true
-        defer { isStarting = false }
+        let id = UUID()
+        sessionID = id
+        defer {
+            isStarting = false
+            if !isRecording, sessionID == id { stopDictation() }
+        }
+
+        if let releaseTask { await releaseTask.value }
+        try requireCurrentSession(id)
 
         // Ask first so the microphone prompt remains directly attached to the user's
         // dictation-button tap rather than appearing after speech-service startup delay.
@@ -46,7 +60,7 @@ final class SpeechManager {
             throw PermissionError()
         }
 
-        if Task.isCancelled { return }
+        try requireCurrentSession(id)
 
         let speechStatus = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -57,13 +71,13 @@ final class SpeechManager {
             throw PermissionError()
         }
         
-        if Task.isCancelled { return }
+        try requireCurrentSession(id)
 
         guard let recognizer = await availableSpeechRecognizer() else {
             throw DictationUnavailableError()
         }
         
-        if Task.isCancelled { return }
+        try requireCurrentSession(id)
         
         teardownAudioEngine()
         let engine = AVAudioEngine()
@@ -74,6 +88,7 @@ final class SpeechManager {
         request.shouldReportPartialResults = true
         recognitionRequest = request
         let manager = self
+        isConfiguringEngine = true
         
         do {
             try await Task.detached { [manager] in
@@ -111,19 +126,24 @@ final class SpeechManager {
                     let level = CGFloat(max(0.0, min(1.0, (db - minDb) / (0 - minDb))))
                     
                     Task { @MainActor in
+                        guard manager.sessionID == id else { return }
                         manager.audioLevel = level
                     }
                 }
                 
+                await MainActor.run { manager.hasInputTap = true }
                 engine.prepare()
                 try engine.start()
             }.value
+            isConfiguringEngine = false
         } catch {
+            // Configuration has joined before cancellation touches the engine.
+            isConfiguringEngine = false
             handleCancelledStartup()
             throw error
         }
         
-        if Task.isCancelled {
+        if Task.isCancelled || sessionID != id {
             handleCancelledStartup()
             return
         }
@@ -132,15 +152,13 @@ final class SpeechManager {
         
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                
-                if let result = result {
-                    onResult(result.bestTranscription.formattedString)
-                }
-                
-                if error != nil || result?.isFinal == true {
-                    self.stopDictation()
-                }
+                self?.receiveRecognition(
+                    session: id,
+                    text: result?.bestTranscription.formattedString,
+                    isFinal: result?.isFinal == true,
+                    failed: error != nil,
+                    onResult: onResult
+                )
             }
         }
         
@@ -161,34 +179,101 @@ final class SpeechManager {
     }
     
     func stopDictation() {
-        teardownAudioEngine()
+        sessionID = nil
+        resolveFinalization(false)
+        // Startup owns its engine until the detached configuration joins.
+        if !isConfiguringEngine { teardownAudioEngine() }
         audioLevel = 0.0
         isRecording = false
     }
-    
-    private func teardownAudioEngine() {
-        if let audioEngine {
-            audioEngine.stop()
-            audioEngine.inputNode.removeTap(onBus: 0)
-            self.audioEngine = nil
+
+    /// End input and await the terminal transcript before freezing a submission.
+    /// Ordinary stop remains cancellation; callers must retain editable text on false.
+    func finishDictation(timeout: Duration = .seconds(3)) async -> Bool {
+        guard !isStarting else {
+            stopDictation()
+            return false
         }
+        guard isRecording, let id = sessionID else { return !Task.isCancelled }
+        guard finalization == nil else { return false }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled, sessionID == id else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                finalization = continuation
+                finalizationTimeout = Task { [weak self] in
+                    do { try await Task.sleep(for: timeout) } catch { return }
+                    guard self?.sessionID == id else { return }
+                    self?.stopDictation()
+                }
+                stopAudioInput()
+                recognitionRequest?.endAudio()
+                recognitionTask?.finish()
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard self?.sessionID == id else { return }
+                self?.stopDictation()
+            }
+        }
+    }
+
+    private func requireCurrentSession(_ id: UUID) throws {
+        guard !Task.isCancelled, sessionID == id else { throw CancellationError() }
+    }
+
+    private func receiveRecognition(
+        session id: UUID, text: String?, isFinal: Bool, failed: Bool,
+        onResult: @MainActor (String) -> Void
+    ) {
+        guard sessionID == id else { return }
+        if let text { onResult(text) }
+        guard sessionID == id, isFinal || failed else { return }
+        sessionID = nil
+        teardownAudioEngine()
+        audioLevel = 0
+        isRecording = false
+        resolveFinalization(isFinal && !failed)
+    }
+
+    private func resolveFinalization(_ succeeded: Bool) {
+        let completion = finalization
+        finalization = nil
+        finalizationTimeout?.cancel()
+        finalizationTimeout = nil
+        completion?.resume(returning: succeeded)
+    }
+
+    private func stopAudioInput() {
+        guard let audioEngine else { return }
+        audioEngine.stop()
+        if hasInputTap {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            hasInputTap = false
+        }
+    }
+    private func teardownAudioEngine() {
+        stopAudioInput()
+        audioEngine = nil
 
         recognitionRequest?.endAudio()
-        recognitionTask?.finish()
+        recognitionTask?.cancel()
 
         recognitionRequest = nil
         recognitionTask = nil
         let lease = audioSessionLease
         audioSessionLease = nil
-        Task {
+        let priorRelease = releaseTask
+        releaseTask = Task {
+            await priorRelease?.value
             await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease)
         }
     }
 
     private func handleCancelledStartup() {
-        teardownAudioEngine()
-        audioLevel = 0.0
-        isRecording = false
+        stopDictation()
     }
 
 #if DEBUG
@@ -197,5 +282,23 @@ final class SpeechManager {
     }
 
     var debugHasAudioEngine: Bool { audioEngine != nil }
+
+    func debugBeginRecognition() -> UUID {
+        stopDictation()
+        let id = UUID()
+        sessionID = id
+        isRecording = true
+        return id
+    }
+
+    func debugReceiveRecognition(
+        session: UUID, text: String?, isFinal: Bool = false, failed: Bool = false,
+        onResult: @MainActor (String) -> Void
+    ) {
+        receiveRecognition(session: session, text: text, isFinal: isFinal,
+                           failed: failed, onResult: onResult)
+    }
+
+    var debugIsFinalizing: Bool { finalization != nil }
 #endif
 }

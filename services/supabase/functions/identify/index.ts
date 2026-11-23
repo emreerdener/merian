@@ -212,6 +212,17 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
         { retryAfterSeconds: 5 },
       );
     }
+    const existingCompletion = await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+    if (existingCompletion) {
+      return completedIdentifyResponse(req, existingCompletion);
+    }
+
+    // Saved outcomes survive staging retirement. Require fresh uploads only
+    // after exact-owner completion recovery found no saved result.
     if (
       strandedRecovery?.outcome === "media_restage_required" &&
       (r2ObjectKeys ?? []).some((key) => !key.startsWith(`staging/${user.id}/`))
@@ -223,15 +234,6 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
         "This observation’s uploads need to be refreshed for your account.",
         { retryAfterSeconds: 1 },
       );
-    }
-
-    const existingCompletion = await fetchCompletedIdentifyResponse(
-      generatedScanId,
-      user.id,
-      supabaseAdmin,
-    );
-    if (existingCompletion) {
-      return completedIdentifyResponse(req, existingCompletion);
     }
 
     const keyValidationError = validateImageR2ObjectKeys(

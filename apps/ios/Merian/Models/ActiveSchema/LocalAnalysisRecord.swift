@@ -40,7 +40,8 @@ public final class LocalAnalysisRecord {
         snapshotVersion: Int = supportedSnapshotVersion,
         resultSnapshotData: Data
     ) throws {
-        guard [1, 2, 3, 4, 5].contains(snapshotVersion) else {
+        // Snapshot codec admission only; stored properties/schema are unchanged.
+        guard (1...8).contains(snapshotVersion) else {
             throw StorageError.unsupportedVersion
         }
         guard !resultSnapshotData.isEmpty,

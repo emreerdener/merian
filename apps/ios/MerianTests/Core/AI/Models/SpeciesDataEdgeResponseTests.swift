@@ -3,15 +3,42 @@ import Foundation
 import Testing
 
 struct SpeciesDataEdgeResponseTests {
+    @Test func initialEvidenceAllowsOmissionButRejectsExplicitNull() throws {
+        let data: [String: Any] = ["is_biological_subject": true,
+            "common_name": "American Robin", "confidence_score": 0.9]
+        var envelope: [String: Any] = ["success": true, "data": data]
+        let legacy = try JSONSerialization.data(withJSONObject: envelope)
+        #expect(try JSONDecoder().decode(EdgeResponseWrapper.self, from: legacy).initialEvidence == nil)
+        envelope["initial_evidence"] = NSNull()
+        let explicitNull = try JSONSerialization.data(withJSONObject: envelope)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(EdgeResponseWrapper.self, from: explicitNull)
+        }
+        envelope["initial_evidence"] = ["schema_version": 1,
+            "owner_id": "00000000-0000-4000-8000-000000000201",
+            "scan_id": "00000000-0000-4000-8000-000000000101",
+            "generation": "00000000-0000-4000-8000-000000000301",
+            "evidence_digest": String(repeating: "a", count: 64)]
+        let sealed = try JSONSerialization.data(withJSONObject: envelope)
+        #expect(try JSONDecoder().decode(EdgeResponseWrapper.self, from: sealed).initialEvidence?.schemaVersion == 1)
+    }
+
     @Test(arguments: ["flash", "pro"])
     func audioConfidencePresentationUsesResolvedIdentity(tier: String) throws {
         let strong = try #require(InferenceConfidencePolicy.bands(forInferenceTier: tier)).strong
-        let cases: [(biological: Bool, common: String, scientific: String?, score: Double, style: ConfidenceBadgePresentation.Style)] = [
-            (true, "American Robin", "Turdus migratorius", strong, .strong),
-            (true, "American Robin", "Turdus migratorius", strong - 0.0001, .possible),
-            (true, "Unidentified Wildlife", nil, 1, .unknown),
-            (true, "Human", "Homo sapiens", 1, .strong),
-            (false, "No Wildlife Detected", nil, 1, .unknown)
+        struct Case {
+            let biological: Bool
+            let common: String
+            let scientific: String?
+            let score: Double
+            let style: ConfidenceBadgePresentation.Style
+        }
+        let cases: [Case] = [
+            .init(biological: true, common: "American Robin", scientific: "Turdus migratorius", score: strong, style: .strong),
+            .init(biological: true, common: "American Robin", scientific: "Turdus migratorius", score: strong - 0.0001, style: .possible),
+            .init(biological: true, common: "Unidentified Wildlife", scientific: nil, score: 1, style: .unknown),
+            .init(biological: true, common: "Human", scientific: "Homo sapiens", score: 1, style: .strong),
+            .init(biological: false, common: "No Wildlife Detected", scientific: nil, score: 1, style: .unknown)
         ]
         for item in cases {
             var data: [String: Any] = [

@@ -20,10 +20,10 @@ struct ObservationReanalysisPreparationPlan: Sendable {
     }
 
     init(source: ObservationReanalysisSource, choices: [Choice], analysisID: UUID = UUID(), makeMediaID: () -> UUID = UUID.init) throws {
-        guard source.audio == nil, (1...64).contains(choices.count), analysisID != source.observationID, analysisID != source.analysisID else {
+        guard (1...64).contains(choices.count), analysisID != source.observationID, analysisID != source.analysisID else {
             throw MerianError.invalidResponse
         }
-        var used = Set(source.photos.map(\.mediaID) + [source.observationID, source.analysisID, analysisID, source.ownerID])
+        var used = source.artifactIDs.union([source.observationID, source.analysisID, analysisID, source.ownerID])
         for choice in choices {
             if case let .photo(.retained(photo, _, _)) = choice { used.formUnion([photo.pairID, photo.roleID]) }
         }

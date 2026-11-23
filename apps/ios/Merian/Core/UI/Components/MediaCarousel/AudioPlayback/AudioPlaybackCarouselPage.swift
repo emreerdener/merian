@@ -10,6 +10,11 @@ struct AudioPlaybackCarouselPage: View {
     let onAudioBoostActionFinished: ((UUID) -> Void)?
     let onAudioBoostToggleRequested: (() -> Void)?
     let dependencies: MediaPlaybackDependencies
+    let lifetime: MediaPlaybackLifetime?
+
+    @State private var localLifetime = MediaPlaybackPresentationLifetime()
+    @State private var createdPlayers: [AudioPlaybackFilePlayer] = []
+    private var playbackLifetime: MediaPlaybackLifetime { lifetime ?? localLifetime.current }
 
     @State private var player: AudioPlaybackFilePlayer?
     @State private var activePlayerSource: AudioPlayerSource = .original
@@ -43,7 +48,8 @@ struct AudioPlaybackCarouselPage: View {
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
         onAudioBoostToggleRequested: (() -> Void)? = nil,
-        dependencies: MediaPlaybackDependencies? = nil
+        dependencies: MediaPlaybackDependencies? = nil,
+        lifetime: MediaPlaybackLifetime? = nil
     ) {
         self.filePath = filePath
         _isAudioBoostEnabled = isAudioBoostEnabled
@@ -51,6 +57,7 @@ struct AudioPlaybackCarouselPage: View {
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
         self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
         self.dependencies = dependencies ?? .live
+        self.lifetime = lifetime
     }
 
     private var presentation: AudioPlaybackPresentation {
@@ -108,18 +115,12 @@ struct AudioPlaybackCarouselPage: View {
             onToggleBoost: { onAudioBoostToggleRequested?() }
         )
         .onDisappear {
-            audioBoostRequestState.invalidate()
-            playbackControlVisibility.cancelPendingFade()
-            let stopping = player?.stop()
-            playerGeneration &+= 1
-            clearPendingPlayer()
-            isPlaying = false
-            let lease = originalAudioLease
-            originalAudioLease = nil
-            sessionController.deactivate(after: stopping)
-            let releaseBoost = dependencies.releaseAudioBoost
-            let source = filePath
-            Task { await stopping?.value; lease?.release(); await releaseBoost(source) }
+            if let lifetime {
+                lifetime.seal()
+                Task { await lifetime.close() }
+            } else {
+                localLifetime.retire()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
@@ -135,24 +136,56 @@ struct AudioPlaybackCarouselPage: View {
             }
         }
         .task {
-            await decodeAudio()
+            do {
+                let scope: MediaPlaybackLifetime
+                if let lifetime { scope = lifetime } else { scope = try await localLifetime.prepare() }
+                try scope.configure(stop: stopPlayback, finish: finishPlayback)
+            } catch { return }
+            isDecoding = true
+            isBoostedAudioReady = false
+            audioBoostPreparationFailed = false
+            await runPlaybackWork { await decodeAudio() }
         }
         .task(id: isAudioBoostEnabled) {
             guard !isDecoding else { return }
-            await updateAudioBoostMode()
+            await runPlaybackWork { await updateAudioBoostMode() }
         }
         .task(id: presentation.monitorID) {
             guard isPlaying, let monitoredPlayer = player else { return }
-            await AudioPlaybackMonitor.observe(
+            await runPlaybackWork { await AudioPlaybackMonitor.observe(
                 monitoredPlayer,
                 isCurrent: { monitoredPlayer === player },
                 isPlaybackActive: { isPlaying },
                 onProgress: { playbackProgress = $0 },
                 onFailure: {
-                    Task { await handlePlaybackFailure(monitoredPlayer, errorDescription: nil) }
+                    Task { await runPlaybackWork { await handlePlaybackFailure(monitoredPlayer, errorDescription: nil) } }
                 }
-            )
+            ) }
         }
+        .disabled(playbackLifetime.isClosed)
+    }
+
+    private func runPlaybackWork(_ work: @escaping @MainActor () async -> Void) async {
+        await playbackLifetime.run(work)
+    }
+
+    private func stopPlayback() {
+        audioBoostRequestState.invalidate()
+        playbackControlVisibility.cancelPendingFade()
+        playerGeneration &+= 1
+        isPlaying = false
+        sessionController.cancelPendingActivation()
+        for player in createdPlayers { player.stop() }
+    }
+
+    private func finishPlayback() async {
+        for player in createdPlayers { await player.retire().value }
+        createdPlayers.removeAll()
+        player = nil; pendingPlayer = nil; pendingPlayerSource = nil
+        isAudioSeeking = false; audioSeekWasPlaying = false
+        originalAudioLease?.release(); originalAudioLease = nil
+        sessionController.deactivate()
+        await dependencies.releaseAudioBoost(filePath)
     }
 
     private func togglePlayback() {
@@ -176,7 +209,7 @@ struct AudioPlaybackCarouselPage: View {
 
     private func startPlayback(_ expectedPlayer: AudioPlaybackFilePlayer, sendsFeedback: Bool) {
         let expectedPlayerGeneration = playerGeneration
-        Task { @MainActor in
+        Task { await runPlaybackWork {
             let activated = await sessionController.activate()
             guard expectedPlayerGeneration == playerGeneration,
                   self.player === expectedPlayer,
@@ -200,7 +233,7 @@ struct AudioPlaybackCarouselPage: View {
             if sendsFeedback {
                 dependencies.mediumPulseFeedback(feedback(.audioPlay))
             }
-        }
+        } }
     }
 
     private func seekAudio(to progress: Double) {
@@ -315,7 +348,10 @@ struct AudioPlaybackCarouselPage: View {
                 lease.release()
                 throw CocoaError(.fileReadCorruptFile)
             }
-            guard !Task.isCancelled else { lease.release(); return }
+            guard !Task.isCancelled else {
+                await originalPlayer.retire().value
+                lease.release(); return
+            }
             originalAudioLease = lease
             installPlayer(
                 originalPlayer,
@@ -436,13 +472,18 @@ struct AudioPlaybackCarouselPage: View {
         url: URL,
         resumeTime: TimeInterval
     ) async -> AudioPlaybackFilePlayer? {
+        guard !playbackLifetime.isClosed, !Task.isCancelled else { return nil }
         let preparedPlayer = AudioPlaybackFilePlayer(driver: AudioPlaybackFileDriver(url: url))
-        do { try await preparedPlayer.load() } catch { return nil }
+        createdPlayers.append(preparedPlayer)
+        do { try await preparedPlayer.load() } catch {
+            await preparedPlayer.retire().value
+            return nil
+        }
         preparedPlayer.onFinish = { finishedPlayerID, successfully in
             guard let player,
                   ObjectIdentifier(player) == finishedPlayerID else { return }
             guard successfully else {
-                Task { await handlePlaybackFailure(player, errorDescription: nil) }
+                Task { await runPlaybackWork { await handlePlaybackFailure(player, errorDescription: nil) } }
                 return
             }
             isPlaying = false
@@ -455,7 +496,7 @@ struct AudioPlaybackCarouselPage: View {
         preparedPlayer.onDecodeError = { failedPlayerID, errorDescription in
             guard let player,
                   ObjectIdentifier(player) == failedPlayerID else { return }
-            Task { await handlePlaybackFailure(player, errorDescription: errorDescription) }
+            Task { await runPlaybackWork { await handlePlaybackFailure(player, errorDescription: errorDescription) } }
         }
         preparedPlayer.currentTime = resumeTime
         return preparedPlayer
@@ -481,7 +522,7 @@ struct AudioPlaybackCarouselPage: View {
             "AudioPlaybackCarouselPage: playback stopped unexpectedly source=\(String(describing: activePlayerSource), privacy: .public) error=\(String(describing: errorDescription), privacy: .private)"
         )
 
-        let stopping = failedPlayer.stop()
+        let stopping = failedPlayer.retire()
         isPlaying = false
         clearPendingPlayer()
 
@@ -564,7 +605,7 @@ struct AudioPlaybackCarouselPage: View {
 
     @MainActor
     private func clearPendingPlayer() {
-        pendingPlayer?.stop()
+        pendingPlayer?.retire()
         pendingPlayer = nil
         pendingPlayerSource = nil
     }
@@ -575,7 +616,7 @@ struct AudioPlaybackCarouselPage: View {
         source: AudioPlayerSource,
         shouldPlay: Bool
     ) {
-        preparedPlayer.waitForRetirement(player?.stop())
+        preparedPlayer.waitForRetirement(player?.retire())
         player = preparedPlayer
         activePlayerSource = source
         playerGeneration &+= 1

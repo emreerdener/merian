@@ -328,51 +328,58 @@ export async function resolveImagePayloads(
       ),
     );
 
-    // Process images serially: consume one body at a time so each ArrayBuffer is GC-eligible
-    // before the next is loaded, preventing a peak spike of N × (raw + copy + base64) in heap.
-    //
-    // Per-image pre-check via Content-Length header: where R2 provides the header (non-chunked
-    // transfers), we can reject oversized images before allocating the V8 buffer entirely.
-    // Content-Length is intentionally not trusted as the ONLY guard (chunked transfers omit it),
-    // so the post-allocation cumulative check below remains the authoritative enforcement.
-    let totalBytes = 0;
-    while (r2Responses.length > 0) {
-      const result = r2Responses.shift()!;
-      if (result.status === "rejected") {
-        throw new Error(`Failed to execute concurrent R2 fetch request.`);
-      }
-      const r2Response = result.value as Response;
-      if (!r2Response.ok) {
-        await r2Response.body?.cancel().catch(() => undefined);
-        throw new Error(
-          `Failed to fetch an image from R2: ${r2Response.statusText}`,
+    // All requests have settled, so every unconsumed response is owned here.
+    // Cancel siblings on every early exit, including fetch/read exceptions.
+    try {
+      let totalBytes = 0;
+      for (const result of r2Responses) {
+        if (result.status === "rejected") {
+          throw new Error("Failed to execute concurrent R2 fetch request.");
+        }
+        const r2Response = result.value;
+        if (!r2Response.ok) {
+          throw new Error(
+            `Failed to fetch an image from R2: ${r2Response.statusText}`,
+          );
+        }
+        // Bound the next stream by remaining aggregate capacity, not a fresh
+        // per-image allocation. Content-Length alone is not byte evidence.
+        const remainingBytes = MEDIA_BUDGETS.maxImageRawBytes - totalBytes;
+        const readResult = await readResponseArrayBufferWithinBudget(
+          r2Response,
+          Math.max(1, remainingBytes),
+          totalBytes === 0
+            ? MEDIA_BUDGET_ERRORS.singleImageTooLarge
+            : MEDIA_BUDGET_ERRORS.combinedImagesTooLarge,
         );
+        if (readResult.error) {
+          return {
+            errorResponse: jsonResponse(
+              { error: readResult.error.message },
+              readResult.error.status,
+            ),
+          };
+        }
+        const arrayBuffer = readResult.buffer!;
+        // The shared reader requires a positive limit. At zero capacity, allow
+        // only an empty response; its one-byte probe cannot extend the budget.
+        if (arrayBuffer.byteLength > remainingBytes) {
+          return {
+            errorResponse: jsonResponse(
+              { error: MEDIA_BUDGET_ERRORS.combinedImagesTooLarge },
+              413,
+            ),
+          };
+        }
+        totalBytes += arrayBuffer.byteLength;
+        base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
       }
-      const readResult = await readResponseArrayBufferWithinBudget(
-        r2Response,
-        MEDIA_BUDGETS.maxImageRawBytes,
-        MEDIA_BUDGET_ERRORS.singleImageTooLarge,
-      );
-      if (readResult.error) {
-        return {
-          errorResponse: jsonResponse(
-            { error: readResult.error.message },
-            readResult.error.status,
-          ),
-        };
-      }
-      const arrayBuffer = readResult.buffer!;
-      // Post-allocation cumulative guard — authoritative check regardless of Content-Length.
-      totalBytes += arrayBuffer.byteLength;
-      if (totalBytes > MEDIA_BUDGETS.maxImageRawBytes) {
-        return {
-          errorResponse: jsonResponse(
-            { error: MEDIA_BUDGET_ERRORS.combinedImagesTooLarge },
-            413,
-          ),
-        };
-      }
-      base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
+    } finally {
+      await Promise.all(r2Responses.map(async (result) => {
+        if (result.status === "fulfilled") {
+          await result.value.body?.cancel().catch(() => undefined);
+        }
+      }));
     }
   }
 

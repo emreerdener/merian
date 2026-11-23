@@ -57,10 +57,22 @@ menu in this same trailing slot. The delete button and actions menu both set a
 circular button-border shape instead of inheriting a rounded-rectangle platter
 from the placeholder container.
 
-## Prepared history action
+## Identification menu composition
 
-`TopToolbar` renders **Identification history** only when Shell supplies its
-optional action after bounded multiple-result admission. Toolbars does not query
-history or restore a result. The action is absent in normal builds; the prepared
-sheet and its explicit preview/selection behavior belong to
-[History](../History/README.md).
+The completed Insight menu starts with **Identification** and **Field notes**.
+The former opens the same Identification sheet as the confidence badge; the
+latter keeps the existing editor. Collection membership and creation keep their
+existing callbacks. **Download media** occupies the existing export action,
+linked Explore post actions appear in their own section, and **Delete scan**
+remains separated at the bottom. Boost audio stays on the audio player.
+
+Identification review, community help, reanalysis and History belong inside the
+Identification sheet. Shell supplies their existing eligibility and prepared
+actions; the toolbar does not query history, persist reviews or submit analysis.
+History opens within Identification's navigation stack, with Back returning to
+Identification and closing returning to Insights.
+
+This first presentation slice does not implement the separate all-media source
+export/chooser, individual-version deletion, History card-stack redesign or
+Capture-toolbar reanalysis handoff. Their accepted requirements remain in the
+[redesign roadmap](../../../../../../docs/rfcs/identification-history-version-actions-and-redesign-2026-10-11.md).

@@ -9,22 +9,21 @@ import UIKit
 struct MediaModeToggleTests {
     @Test("Every capture mode has stable accessibility and symbol metadata")
     func captureModeMetadataIsStable() {
-        let titles = CaptureMode.allCases.map(\.title)
+        let titles = CaptureMode.availableModes.map(\.title)
 
-        #expect(titles == ["Scan", "Record", "Describe"])
-        #expect(Set(titles).count == CaptureMode.allCases.count)
-        #expect(CaptureMode.allCases.map(\.symbolName) == [
+        #expect(titles == ["Scan", "Record"])
+        #expect(Set(titles).count == CaptureMode.availableModes.count)
+        #expect(CaptureMode.availableModes.map(\.symbolName) == [
             "viewfinder",
-            "waveform",
-            "text.bubble"
+            "waveform"
         ])
     }
 
     @Test("Every capture mode symbol resolves and is unique")
     func captureModeSymbolsAreAvailable() {
-        let symbolNames = CaptureMode.allCases.map(\.symbolName)
+        let symbolNames = CaptureMode.availableModes.map(\.symbolName)
 
-        #expect(Set(symbolNames).count == CaptureMode.allCases.count)
+        #expect(Set(symbolNames).count == CaptureMode.availableModes.count)
         for symbolName in symbolNames {
             #expect(UIImage(systemName: symbolName) != nil)
         }
@@ -32,18 +31,18 @@ struct MediaModeToggleTests {
 
     @Test("Selector uses compact tab-style proportions and high-contrast symbols")
     func selectorStyleIsCompactAndContrasting() {
-        #expect(CaptureModeSelectorStyle.controlWidth == 200)
+        #expect(CaptureModeSelectorStyle.controlWidth == 144)
         #expect(CaptureModeSelectorStyle.controlHeight == 56)
         #expect(CaptureModeSelectorStyle.symbolPointSize == 24)
         #expect(CaptureModeSelectorStyle.describeContentClearance == 82)
         #expect(CaptureModeSelectorStyle.controlWidth <= 375 - 48)
         #expect(
             CaptureModeSelectorStyle.controlWidth
-                / CGFloat(CaptureMode.allCases.count) >= 44
+                / CGFloat(CaptureMode.availableModes.count) >= 44
         )
         let horizontalSymbolPadding = (
             CaptureModeSelectorStyle.controlWidth
-                / CGFloat(CaptureMode.allCases.count)
+                / CGFloat(CaptureMode.availableModes.count)
                 - CaptureModeSelectorStyle.symbolPointSize
         ) / 2
         #expect(horizontalSymbolPadding >= 21)
@@ -73,7 +72,7 @@ struct MediaModeToggleTests {
             ).isEqual(UIColor.black)
         )
 
-        for mode in CaptureMode.allCases {
+        for mode in CaptureMode.availableModes {
             let inactiveImage = CaptureModeSelectorStyle.symbolImage(
                 for: mode,
                 isSelected: false,
@@ -118,7 +117,7 @@ struct MediaModeToggleTests {
 
     @Test("Installed segment images follow the selected index contrast")
     func installedSegmentImagesFollowSelectedIndex() {
-        let modes = CaptureMode.allCases
+        let modes = CaptureMode.availableModes
         let control = UISegmentedControl(items: modes.map(\.title))
 
         CaptureModeSelectorStyle.applySymbolImages(
@@ -199,7 +198,7 @@ struct MediaModeToggleTests {
                 set: { selection.mode = $0 }
             ),
             isDragging: .constant(false),
-            orderedModes: CaptureMode.allCases,
+            orderedModes: CaptureMode.availableModes,
             onModeChange: onModeChange
         )
         let host = UIHostingController(rootView: subject)
@@ -234,17 +233,22 @@ struct MediaModeToggleTests {
 
         for permutation in permutations {
             let rawValue = permutation.map(\.rawValue).joined(separator: ",")
-            #expect(CaptureMode.userOrder(from: rawValue) == permutation)
+            #expect(CaptureMode.userOrder(from: rawValue) == permutation.filter { $0 != .describe })
         }
     }
 
     @Test("Unknown or missing capture modes heal to the canonical sequence")
     func storedModeOrderHealsMissingValues() {
         #expect(CaptureMode.userOrder(from: "describe,unknown") == [
-            .describe,
             .visual,
             .audio
         ])
+    }
+
+    @Test("Retired and duplicate preferences preserve the physical-mode ordering")
+    func duplicateAndRetiredPreferencesAreRemoved() {
+        #expect(CaptureMode.userOrder(from: "describe,audio,audio,visual,unknown") == [.audio, .visual])
+        #expect(CaptureMode(rawValue: "describe") == .describe)
     }
 
     private func expectWhiteColor(

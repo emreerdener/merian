@@ -720,12 +720,17 @@ or producing a synthetic censored carousel item.
 
 ## Generated Edge DTO Boundary
 
-The canonical response descriptor lives at
+The frozen canonical result descriptor lives at
 `services/supabase/functions/_shared/identify/contract.ts`. It generates the
-provider schema, executes server runtime validation, and generates the marked
-Identify DTO block in `InferenceEdgeDTOs.swift`. The generated client boundary
-includes nested DTOs, array and primitive types, wire `CodingKeys`, and explicit
-decoders. Domain types remain separate and are populated after decoding.
+provider schema and executes server result validation. The separate
+`identify/initialEvidenceEnvelopeV1.ts` composes its envelope with a versioned
+server-sealed completion proof and supplies the marked Identify DTO block in
+`InferenceEdgeDTOs.swift`. Legacy proof omission remains valid at decoding;
+explicit null or malformed proof is rejected. Strict completion additionally
+requires the exact accepted owner, scan, generation and evidence digest. The
+generated client boundary includes nested DTOs, array and primitive types, wire
+`CodingKeys`, and explicit decoders. Domain types remain separate and are
+populated after decoding.
 
 The durable historical-media union has a separate executable descriptor at
 `services/supabase/functions/_shared/capturedMediaContract.ts` and a generated
@@ -781,17 +786,26 @@ checked `EntitlementStateSnapshot` domain value across actor boundaries. The
 completion boundary rechecks that the settlement and prepared result carry the
 same scan ID before invoking any account mutation.
 
-Foreground completion applies the settlement only after local record persistence
-and, for queue-backed work, exact durable queue deletion; background completion
-does the same after its final main-context queue deletion. `OfflineQueueManager`
-owns the account-lease-protected entitlement, advisory-meter, and
-funding-reservation effects. `InferenceFundingReconciliationOwner` retains every
-accepted lease, coalesces trailing passes, and prevents a cancellation-ignoring
-pass from resuming queue work. Auth admission cancels and awaits that owner
-before replacing the source session. The client does not derive a trial or
-decrement a complimentary counter locally. Stored replay metadata remains
-version-checked and cannot establish current-launch complimentary access before
-`get_my_entitlement()` supplies the baseline.
+Legacy foreground completion applies the settlement only after local record
+persistence and, for queue-backed work, exact durable queue deletion; legacy
+background completion does the same after its final main-context queue deletion.
+The separate Capture candidate commits its library record, immutable original
+proof and funding receipt while retaining its queue and original-media custody.
+Its typed funding delivery runs after that commit, saves a separate
+acknowledgement, and can recover an undelivered original receipt without another
+provider response. Later review, notes and selected-analysis edits are
+preserved. Capture settlement does not grant queue deletion or media-release
+authority; runtime status and the remaining scheduler integration are tracked in
+the [Capture plan](../../../../../docs/product/capture-review-plan.md).
+`OfflineQueueManager` owns the account-lease-protected entitlement,
+advisory-meter, and funding-reservation effects.
+`InferenceFundingReconciliationOwner` retains every accepted lease, coalesces
+trailing passes, and prevents a cancellation-ignoring pass from resuming queue
+work. Auth admission cancels and awaits that owner before replacing the source
+session. The client does not derive a trial or decrement a complimentary counter
+locally. Stored replay metadata remains version-checked and cannot establish
+current-launch complimentary access before `get_my_entitlement()` supplies the
+baseline.
 
 Complimentary holds belong to the original `scanId`. Retry generations,
 enrichment, Field Chat, and provider subcalls reuse that analysis and cannot

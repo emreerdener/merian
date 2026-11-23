@@ -48,7 +48,7 @@ enum SharedMediaStorageLookup {
     static let ledgerTypes = Set([ObjectIdentifier(SharedMediaInventoryRecord.self),
         ObjectIdentifier(SharedMediaAllocationRecord.self), ObjectIdentifier(SharedMediaReferenceRecord.self),
         ObjectIdentifier(SharedMediaLeaseRecord.self), ObjectIdentifier(SharedMediaConsumerRecord.self),
-        ObjectIdentifier(SharedMediaAssetReferenceCountRecord.self), ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self), ObjectIdentifier(SharedMediaPendingMembershipRecord.self), ObjectIdentifier(SharedMediaAcquisitionReceiptRecord.self), ObjectIdentifier(SharedMediaReceivingIntentRecord.self)])
+        ObjectIdentifier(SharedMediaAssetReferenceCountRecord.self), ObjectIdentifier(SharedMediaMembershipBootstrapRecord.self), ObjectIdentifier(SharedMediaPendingMembershipRecord.self), ObjectIdentifier(SharedMediaAcquisitionReceiptRecord.self), ObjectIdentifier(SharedMediaReceivingIntentRecord.self), ObjectIdentifier(SharedMediaOrdinaryTransferRecord.self), ObjectIdentifier(SharedMediaOrdinarySubmissionRecord.self), ObjectIdentifier(SharedMediaOrdinaryArtifactRecord.self), ObjectIdentifier(SharedMediaCaptureDraftJournalRecord.self), ObjectIdentifier(SharedMediaNativeErasurePageRecord.self)])
 
     static func count<T: PersistentModel>(_ context: ModelContext, _ type: T.Type) throws -> Int {
         try context.fetchCount(FetchDescriptor<T>())
@@ -56,6 +56,7 @@ enum SharedMediaStorageLookup {
 
     static func requireNoNativeOwnership(_ context: ModelContext) throws {
         // Schema foundations do not grant intent/consumer-aware qualification or cleanup.
+        try requireNoUnqualifiedOrdinaryTransfers(context)
         guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0,
               try context.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()) == 0,
               try context.fetchCount(FetchDescriptor<SharedMediaConsumerRecord>()) == 0,
@@ -67,7 +68,12 @@ enum SharedMediaStorageLookup {
     }
 
     static func hasLiabilities(in context: ModelContext) throws -> Bool {
-        try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) > 0
+        try context.fetchCount(FetchDescriptor<SharedMediaNativeErasurePageRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaCaptureDraftJournalRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaOrdinaryArtifactRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaOrdinarySubmissionRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaOrdinaryTransferRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaAssetReferenceCountRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaMembershipBootstrapRecord>()) > 0
@@ -81,6 +87,26 @@ enum SharedMediaStorageLookup {
             || context.fetchCount(FetchDescriptor<SharedMediaInboxHandoffRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaDerivativePairRecord>()) > 0
             || context.fetchCount(FetchDescriptor<SharedMediaDerivativeWorkRecord>()) > 0
+    }
+
+    /// Storage support alone cannot grant transfer interpretation or deletion.
+    /// Includes foreign/unanchored rows: absence of a known inventory is not
+    /// evidence that a destination copy or its source hold is unowned.
+    static func requireNoUnqualifiedOrdinaryTransfers(_ context: ModelContext) throws {
+        try requireNoUnqualifiedCaptureArtifacts(context)
+        guard try context.fetchCount(FetchDescriptor<SharedMediaOrdinarySubmissionRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaOrdinaryTransferRecord>()) == 0 else {
+            throw SharedMediaStorageFailure.closed
+        }
+    }
+    /// Photo-only readers cannot infer completion or safe cleanup from an
+    /// unfamiliar artifact phase, including a seemingly terminal raw row.
+    static func requireNoUnqualifiedCaptureArtifacts(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<SharedMediaNativeErasurePageRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaCaptureDraftJournalRecord>()) == 0,
+              try context.fetchCount(FetchDescriptor<SharedMediaOrdinaryArtifactRecord>()) == 0 else {
+            throw SharedMediaStorageFailure.closed
+        }
     }
     static func visit<T: SharedMediaStorageRow>(_ context: ModelContext, _ type: T.Type, body: (T) throws -> Void) throws {
         var offset = 0
@@ -110,3 +136,10 @@ extension SharedMediaPendingMembershipRecord: SharedMediaStorageRow {}
 
 extension SharedMediaAcquisitionReceiptRecord: SharedMediaStorageRow {}
 extension SharedMediaReceivingIntentRecord: SharedMediaStorageRow {}
+extension SharedMediaOrdinaryTransferRecord: SharedMediaStorageRow {}
+extension SharedMediaOrdinarySubmissionRecord: SharedMediaStorageRow {}
+extension SharedMediaOrdinaryArtifactRecord: SharedMediaStorageRow {}
+
+extension SharedMediaCaptureDraftJournalRecord: SharedMediaStorageRow {}
+
+extension SharedMediaNativeErasurePageRecord: SharedMediaStorageRow {}

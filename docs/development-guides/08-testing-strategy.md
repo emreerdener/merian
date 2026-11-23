@@ -1,3 +1,124 @@
+## Private capture live-handler checks — November 20
+
+`privateCaptureRetentionDb.test.ts` combines actual-byte staging, audio DSP,
+retention and real SQL with the production Identify handler. Only external
+provider/quota transport is synthetic. It covers two photos, two recordings,
+photo/audio and video/audio; known pre-bind failure/retry; strict first
+completion; accepted-result recovery; exact sealed replay without redispatch;
+job/intent cleanup; changed-note/tombstone rejection; and preservation of later
+privacy edits. `initialEvidenceRepository_test.ts` verifies that binding
+uncertainty starts after local validation/cancellation. Six tests/four steps
+passed in `private-live-db15.log`. This does not qualify actual codecs, native
+original hold/release, hosted storage, paid providers or the full user journey.
+
+## Capture stage and private erasure checks — November 20
+
+`initial_capture_audio_stages.sql` covers durable complete-plan reservation,
+exclusive output binding, exact read/write authority and account/scan/merge
+retirement. `capture_stage_private_erasure.sql` covers V4 oldest-due
+acquisition, legacy-worker exclusion, namespace/backend/token settlement, pause
+and aggregate health. Run these through the complete clean disposable catalog
+gate; committed Edge race fixtures may retain synthetic outbox obligations and
+must run later.
+
+The focused Edge owners are `initialCaptureAudioStaging_test.ts`,
+`initialCaptureAudioStageRepository_test.ts`, private storage
+`evidence_test.ts`, and the `erase-observation-evidence`
+handler/db/receipt/storage suites. The monitor suite checks legacy health
+compatibility and strict schema2 stage health.
+`initialCaptureAudioAdoptionDb.test.ts` exercises the existing ordinary
+retention owner with mixed photo/audio and video/companion audio, exact manifest
+matching, partial versus complete readback, stage retirement and cold retained
+replay. `initialCaptureClientStageDb.test.ts` covers photo-only and both mixed
+shapes, exact client inventory, DSP role exclusion/claim, consumed writes and
+retirement. `capture_client_stage_security.sql` checks real role grants and
+denials. `initialCaptureClientStaging_test.ts` and
+`upload-capture-stage/route_test.ts` exercise immutable input, readback-only
+recovery, missing/corrupt bytes, auth before body consumption, framing and
+cancellation. Both candidate selectors include these stage/adoption and
+typed-worker tests. These checks do not prove live Identify, native original
+lifecycle, hosted storage policy, or end-to-end feature completion.
+
+## November 14 — composition execution and delivery verification
+
+`observationCompositionExecutionDb.test.ts` exercises actual disposable database
+admission, one invocation, retained outcome, accounting, completion/terminal
+settlement, source release and result-6 reads across nine media shapes. Expanded
+cases check atomic current-version selection, rollback with selection disabled,
+public operation preclaim isolation, stale selection refusal, later intentional
+selection, replay, confirmation and Undo. Test results and fixture failures are
+recorded in `.artifacts/reanalysis-shared-workspace-progress.md`; the presence
+of a test is not a passing result.
+
+`ObservationCompositionExecutionTests` and `CompositionExecutionServiceTests`
+are registered in the existing runtime acceptance manifest and cover native
+durable dispatch consumption, exact recovery, cancellation/account loss,
+completed-result delivery and selected-state refresh failure. Existing
+preparation/media tests remain applicable where sources are unchanged. The
+shared Capture submit/resume connection is implemented locally; these checks do
+not authorize or qualify a live submission or hosted rollout.
+
+## November 14 — composition HTTP/storage checks
+
+`compositionRepository_test.ts`, `compositionUpload_test.ts`, the source route's
+`composition_route_test.ts` and the dedicated upload handler/route suites run in
+both focused candidate selectors. They cover reader14 isolation, every artifact
+role, immutable replay, bounded actual transport, cancellation, unknown answers,
+conditional storage writes and permanent erasure markers. The shared verifier
+also runs through existing composition materialization tests. These synthetic
+checks make no hosted call and do not certify mixed AI execution or native
+submit/resume; see the execution/delivery checks above.
+
+## November 14 — composition source, storage and cleanup checks
+
+The candidate selections include `observationCompositionOwnershipContract`,
+`observationCompositionSourceDb`, `observationCompositionStorageDb` and
+`observationCompositionEvidenceDb`. The DB cases require the existing
+loopback-only disposable database fixture. They cover reader14/schema3 binding,
+all valid ordered media shapes, inherited gates, legacy-reader denial, actual
+source/deletion lock blocking, immutable complete allocation/readiness, retained
+expiry identities, correlated cleanup and permanent erasure records. The
+workflow grants its static owner test read access to only the exact new source
+migration. Source/API generation and no live submission are distinct.
+
+`erase-observation-evidence` tests cover all three retirement stages, malformed
+counts, unknown acknowledgements, cancellation and the unchanged original-claim
+budget. Catalogs cover both V2 and V3 terminal receipt validation/readback and
+aggregate mixed cleanup health. These do not qualify a hosted storage race or
+qualify the locally connected admission, settlement, source release or native
+delivery.
+
+`observation_composition_execution_evidence.sql` checks the private readiness
+and profile helpers' grants/configuration. `observationCompositionEvidenceDb`
+checks profile parity with Edge across every valid golden shape, missing and
+partial allocation, complete readiness, wrong owner/input, ready-but-expired
+cohorts and deletion. This is transaction-local evidence only, not a funded
+execution test. The cleanup monitor tests accept both closed health generations
+and require V3 evidence for mixed cleanup, including empty backlogs.
+
+## November 14 — prepared mixed-reanalysis worker checks
+
+The candidate workflow includes `compositionExecution_test.ts` and
+`compositionSourceReservation_test.ts` in both focused History selections. They
+verify ordered mixed evidence/profile agreement, exact source ownership,
+uncertain dispatch, known-outcome recovery without inference, cancellation and
+settlement ordering. `videoExecution_test.ts` retains coverage of the unchanged
+V4 wrapper over the shared claimed executor. These are local prepared-contract
+checks; they do not qualify the composition claim/settlement/native queue
+integration or a live provider submission. See the
+[composition contract](../backend-and-data/05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14).
+
+### Shared-toolbar composition preparation coverage
+
+`ObservationCompositionPreparation`, `ObservationCompositionPreparationStore`,
+`ObservationCompositionProducer`, `ObservationCompositionPayload` and the
+existing `ObservationVideoCohortPreparer` have explicit fast-preflight coverage
+at the existing 600-line ceiling. `ObservationCompositionPreparationTests`
+covers one held whole-cohort child, reopen/replay, uncertain promotion, missing
+media, sealed video payloads, malformed image rejection, held discard and
+source/metadata validation. This is preparation evidence, not mixed-media
+execution qualification.
+
 ### Local History diagnostic preflight coverage
 
 The History review model, selected-result review access, host and view bridge
@@ -122,6 +243,14 @@ failures now use the mode-neutral `existing_store_preserved` telemetry reason.
 
 ## Local coding checkpoints and validation milestones
 
+The prepared shared-toolbar composition codecs have explicit 600-physical-line
+preflight entries in `scripts/config/ios-source-size-policy.json`.
+`ObservationCompositionManifestTests` checks the Swift side of the shared
+`composition-request-v5.json` vectors. The candidate workflow includes
+`compositionManifest_test.ts` and `compositionMaterialization_test.ts` in both
+explicit History test lists. These tests cover prepared metadata, immutable
+receipts and media expansion, not a deployed route or all-media UI acceptance.
+
 A small internal commit is a coding checkpoint, not an automatic request for
 another full Release build and complete review cycle. During implementation, run
 cheap structural checks after editing batches, compile changed code where
@@ -226,9 +355,12 @@ and the ten existing Camera owners. Selected native architecture tests read it
 through `IOSSourceSizePolicy`; their ownership, imports, effects and other
 assertions remain in place. The approved oversized set is exact, not an
 unbounded permission for another file to grow. Sealed ceilings intersect the
-global rule. The 610-line original-owner seal does not exempt that owner from
-the global 600-line inventory rule. Each matching domain rule is also checked;
-physical-line and newline-segment counters are deliberately distinct.
+global rule. A sealed-owner ceiling does not exempt that owner from the global
+600-line inventory rule. The reviewed Capture integration residuals and their
+responsibilities are recorded in the
+[ownership guide](19-code-ownership-and-refactoring.md#november-21-2026-capture-integration-review).
+Each matching domain rule is also checked; physical-line and newline-segment
+counters are deliberately distinct.
 
 The exact `Configuration/TestExecutionCoordinator.swift` preflight rule mirrors
 `FeatureFlagsArchitectureTests.configurationSwiftFilesStayBounded`: 600 newline
@@ -981,7 +1113,7 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V53. Two released-V50 fixtures are required
+The current persisted schema is V72. Two released-V50 fixtures are required
 because builds emitted distinct model checksums under the same schema version.
 The original fixture creates `ScanCollection.isDeleted` and opens through
 `MerianRecentV50MigrationPlan`; the later processed-release fixture creates
@@ -1074,6 +1206,27 @@ parent acknowledgement, including Undo and a failed post-acknowledgement page.
 `IdentificationHistoryReviewLifecycleTests` covers automatic receipt refresh
 with and without a revision change. These local checks do not by themselves
 resolve the intermittent installed-simulator freeze recorded in completion412.
+
+## November 14 — Insights menu presentation checks
+
+The refined menu removes Review alternatives and Review decision from History
+cards.
+`IdentificationHistoryUITests/testHistoryPreviewRestoreAndUndoKeepBothEntries`
+captures the Insights, Identification, current-card and older-card menus while
+retaining the existing selection/Undo check. Alternatives are exercised after
+returning to Identification by
+`CandidateConfirmationUITests/testHistoryReturnToIdentificationConfirmsExactSavedCandidate`.
+The two confirmation-Undo selectors in `scripts/config/ios-runtime-audit.json`
+now target `testPrimaryConfirmationUndoFromCurrentHistoryCard` and
+`testNamedConfirmationUndoFromCurrentHistoryCard`. These replace the retired
+historical review-menu route; they do not claim noncurrent-card Undo coverage.
+Existing domain ownership checks remain unchanged.
+
+Fast preflight adds explicit coverage for the History card menu, Identification
+summary, top toolbar and its collection menu, confidence sheet and confidence
+action components at the existing 600-line ceiling. The banner presentation is
+render-only; guarded callbacks remain in the confidence sheet. No limit or
+release gate is relaxed.
 
 ## Local iOS Build Storage
 
@@ -5092,20 +5245,23 @@ import, and permission-denial UI require the physical-device checklist in
 - **Core Network integration architecture boundary**:
   `MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift`
   protects the cross-slice inventory after the focused endpoint extractions. It
-  requires exactly 18 endpoint owners, rejects duplicate endpoint entry points
+  requires exactly 28 endpoint owners, rejects duplicate endpoint entry points
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
-  `Recovery/`, and `Transport/` plus the client façade. It requires the exact
-  sixty-four Auth foundation paths and caps Auth, Purchase Identity,
-  `SupabaseManager.swift`, and their combined production surface at 7,887,
-  2,016, 3,792, and 13,695 lines, respectively. The November 9 approved
-  test-instrumentation allowance subtracts at most 66 Debug-only physical lines
-  from Auth (61 in `AuthSessionLifecycleLiveProvider.swift`, five in its `+Live`
-  factory). Each complete file must match its independently reviewed SHA-256
-  before subtraction; any edit requires renewed independent review and an
-  intentional hash update. All other Auth lines, purchase/facade counts and
-  individual 600-line ceilings remain physical and unchanged. It includes the
-  effect-free observable runtime owner for transition, generation,
+  `Recovery/`, and `Transport/`; the client façade consumes its independently
+  reviewed 604-line policy. It requires the exact sixty-five Auth foundation
+  paths and caps Auth, Purchase Identity, `SupabaseManager.swift`, and their
+  combined production surface at 7,945, 2,016, 3,792, and 13,748 lines,
+  respectively. The November 22 review accounts for 41 lines in existing
+  account-deletion/sign-out owners and the 17-line scoped token loader; exact
+  inventories and individual owner limits remain enforced. The November 9
+  approved test-instrumentation allowance subtracts at most 66 Debug-only
+  physical lines from Auth (61 in `AuthSessionLifecycleLiveProvider.swift`, five
+  in its `+Live` factory). Each complete file must match its independently
+  reviewed SHA-256 before subtraction; any edit requires renewed independent
+  review and an intentional hash update. All other Auth lines, purchase/facade
+  counts and individual 600-line ceilings remain physical and unchanged. It
+  includes the effect-free observable runtime owner for transition, generation,
   analytics-token, exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;
   the listener's generation/context/transition-observation order; the bootstrap

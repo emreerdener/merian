@@ -91,6 +91,32 @@ final class ReanalysisStatusViewModel {
         }
     }
 
+    var allowsCompositionContinuation: Bool { dependencies.continueComposition != nil }
+
+    func continueComposition(_ row: ObservationReanalysisOperationStatus.Summary) {
+        guard work == nil, !isBusy, validate(), rows.contains(row), row.isComposition,
+              row.canContinue || row.canCheckOutcome, let resume = dependencies.continueComposition else { return }
+        closePhoto()
+        let expected = generation
+        isWorking = true; message = nil
+        work = Task { [weak self] in
+            do {
+                let started = try await resume(row)
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isWorking = false
+                if started { start() } else {
+                    message = "This request is preserved but cannot continue yet. Refresh to check its status."
+                    refreshLibraryWhenIdle()
+                }
+            } catch {
+                guard let self, generation == expected, !Task.isCancelled, validate() else { return }
+                work = nil; isWorking = false
+                message = "This request could not be checked. Its saved content and original attempt are preserved."
+                refreshLibraryWhenIdle()
+            }
+        }
+    }
+
     func checkOutcome(_ row: ObservationReanalysisOperationStatus.Summary) {
         guard work == nil, !isBusy, validate(), rows.contains(row), row.canCheckOutcome,
               let open = dependencies.recovery else { return }

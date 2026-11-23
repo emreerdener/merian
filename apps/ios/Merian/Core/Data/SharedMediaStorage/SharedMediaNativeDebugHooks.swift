@@ -45,6 +45,15 @@ final class SharedMediaNativeDebugHooks {
     var shutdownFailure: (any Error)?
     private(set) var settlementTrace: [String] = []
     func recordSettlement(_ phase: String) { if settlementTrace.count < 64 { settlementTrace.append(phase) } }
+    var captureRootFault: ((SharedMediaCaptureRootBoundary) throws -> Void)?
+    var captureDraftJournalFault: ((SharedMediaCaptureDraftJournalBoundary) throws -> Void)?
+    var captureAcceptedReleaseFault: ((SharedMediaCaptureReleaseBoundary) throws -> Void)?
+    var captureSourceDiscardFault: ((SharedMediaCaptureSourceDiscardBoundary) throws -> Void)?
+    var captureArtifactWriteFault: ((SharedMediaCaptureArtifactWriteBoundary) throws -> Void)?
+    var captureSubmissionWriteFault: ((SharedMediaCaptureReservationBoundary) throws -> Void)?
+    var captureExecutionResponseReceived: (() throws -> Void)?
+    var captureSubmissionAvailableBytes: Int64?
+    var captureArtifactWritePause: (@Sendable (Int) async -> Void)?
     var bootstrapFault: ((SharedMediaNativeBootstrapBoundary) throws -> Void)?
     var bootstrapAvailableBytes: Int64?
     var scopedPagePause: (@Sendable () async -> Void)?

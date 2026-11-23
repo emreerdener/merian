@@ -131,28 +131,23 @@ import XCTest
     }
     @discardableResult
     private func tapEnabled(_ app: XCUIApplication, _ identifier: String) -> Date {
-        let button = app.buttons[identifier]
         if identifier.hasPrefix("HistoryRow_") {
-            revealHistoryRowForTap(app, identifier: identifier)
-        } else {
-            reveal(app, identifier: identifier, label: nil, button: true)
+            UITestAppLauncher.openHistoryActions(app, id: String(identifier.dropFirst("HistoryRow_".count)))
+            return Date()
         }
+        if identifier == "HistoryDone" { UITestAppLauncher.closeHistory(app); return Date() }
+        let button = app.buttons[identifier]
+        reveal(app, identifier: identifier, label: nil, button: true)
         XCTAssertTrue(button.waitForExistence(timeout: 90))
         expectation(for: NSPredicate(format: "exists == true AND enabled == true"), evaluatedWith: button)
         waitForExpectations(timeout: 90)
         XCTAssertTrue(button.isHittable)
-        if identifier.hasPrefix("HistoryRow_") {
-            guard let (_, viewport) = historyTapViewport(app), historyRowReady(button, viewport: viewport) else {
-                captureHistoryTapFailure(app, reason: "Exact History row lost safe geometry before tap: " + identifier)
-                return Date()
-            }
-        }
-        let tapStartedAt = Date()
-        button.tap()
-        if identifier.hasPrefix("HistoryRow_") && !app.buttons["HistoryBack"].waitForExistence(timeout: 90) {
-            captureHistoryTapFailure(app, reason: "One exact History row tap did not open a preview: " + identifier)
-        }
-        return tapStartedAt
+        let started = Date()
+        if identifier == "HistoryReject" {
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).press(forDuration: 0.1,
+                thenDragTo: button.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)))
+        } else { button.tap() }
+        return started
     }
     private func historyTapViewport(_ app: XCUIApplication) -> (XCUIElement, CGRect)? {
         let sheets = app.otherElements.matching(identifier: "IdentificationHistorySheet").allElementsBoundByIndex
@@ -263,17 +258,13 @@ import XCTest
         XCTFail("Recovery element was not revealed within its readiness deadline and scroll bound: " + identifier)
     }
     private func assertHistoryRows(_ app: XCUIApplication, child: String, selected: String) {
-        let row = app.buttons["HistoryRow_" + child]
-        reveal(app, identifier: "HistoryRow_" + child, label: nil, button: true)
+        let row = UITestAppLauncher.historyCard(app, id: child)
         XCTAssertTrue(row.waitForExistence(timeout: 90))
-        // List virtualizes offscreen rows; count the same loaded model used by
-        // the production sheet, then independently reveal the selected UI row.
         XCTAssertTrue(app.staticTexts["ReanalysisFixtureHistoryRowCount"].waitForExistence(timeout: 90))
         XCTAssertEqual(app.staticTexts["ReanalysisFixtureHistoryRowCount"].label, "3")
         XCTAssertEqual(app.staticTexts["ReanalysisFixtureHistoryNextPage"].label, "none")
-        reveal(app, identifier: "HistoryRow_" + selected, label: nil, button: true)
         expectation(for: NSPredicate(format: "exists == true AND label CONTAINS %@", "Current"),
-            evaluatedWith: app.buttons["HistoryRow_" + selected])
+            evaluatedWith: UITestAppLauncher.historyCard(app, id: selected))
         waitForExpectations(timeout: 90)
     }
     private func exerciseHistory(_ app: XCUIApplication, child: String, original: String) {
@@ -282,23 +273,19 @@ import XCTest
         tapEnabled(app, "HistoryRow_" + child)
         tapEnabled(app, "HistoryRestore")
         assertHistoryRows(app, child: child, selected: child)
-        tapEnabled(app, "HistoryRow_" + child)
         tapEnabled(app, "HistoryReject")
         // Reconciliation changes the parent revision and retires this preview.
         // Receipt delivery reloads fresh authority without a manual Refresh.
         waitForReviewRefresh(app, child: child, incorrect: true)
         assertHistoryRows(app, child: child, selected: child)
-        XCTAssertTrue(app.buttons["HistoryRow_" + child].label.contains("Marked incorrect"))
-        tapEnabled(app, "HistoryRow_" + child)
+        XCTAssertTrue(UITestAppLauncher.historyCard(app, id: child).label.contains("Marked incorrect"))
         tapEnabled(app, "HistoryUndoReview")
         waitForReviewRefresh(app, child: child, incorrect: false)
         assertHistoryRows(app, child: child, selected: child)
-        XCTAssertFalse(app.buttons["HistoryRow_" + child].label.contains("Marked incorrect"))
-        tapEnabled(app, "HistoryRow_" + child)
+        XCTAssertFalse(UITestAppLauncher.historyCard(app, id: child).label.contains("Marked incorrect"))
         reveal(app, identifier: "HistoryReject", label: nil, button: true)
         XCTAssertTrue(app.buttons["HistoryReject"].waitForExistence(timeout: 90))
         XCTAssertFalse(app.buttons["HistoryUndoReview"].exists)
-        tapEnabled(app, "HistoryBack")
         // Review invalidates the earlier selection Undo. Make a fresh explicit
         // return to the source before exercising that new selection's Undo.
         tapEnabled(app, "HistoryRow_" + original)
@@ -332,9 +319,13 @@ import XCTest
         }
         timing.append("acknowledgementWitnessObservedSeconds=\(Date().timeIntervalSince(restoreStartedAt))")
         timing.append("firstUndoQuerySeconds=\(Date().timeIntervalSince(restoreStartedAt))")
-        reveal(app, identifier: "HistoryUndo", label: "Undo identification change", button: true,
-            timeout: max(0, deadline.timeIntervalSinceNow))
+        let actions = app.buttons["HistorySheetActions"]
+        guard actions.exists, actions.isHittable, Date() < deadline else {
+            XCTFail("History options were not reachable within the Undo budget"); return
+        }
+        actions.tap()
         let undo = app.buttons["HistoryUndo"]
+        _ = undo.waitForExistence(timeout: max(0, deadline.timeIntervalSinceNow))
         guard undo.exists, undo.isEnabled, undo.isHittable, Date() < deadline else {
             XCTFail("Selection Undo was not safely actionable within the conservative pre-tap budget"); return
         }
@@ -342,14 +333,14 @@ import XCTest
         undo.tap()
     }
     private func waitForReviewRefresh(_ app: XCUIApplication, child: String, incorrect: Bool) {
-        let row = app.buttons["HistoryRow_" + child]
+        let row = UITestAppLauncher.historyCard(app, id: child)
         expectation(for: NSPredicate { _, _ in
             row.exists && row.isEnabled && row.label.contains("Marked incorrect") == incorrect
         }, evaluatedWith: row)
         waitForExpectations(timeout: 90)
         XCTAssertFalse(app.buttons["HistoryBack"].exists)
-        XCTAssertFalse(app.buttons["HistoryReject"].exists)
-        XCTAssertFalse(app.buttons["HistoryUndoReview"].exists)
+        // Current review controls now remain in the expanded card; the receipt
+        // changes their available actions rather than retiring a preview.
     }
     private func relaunch(_ app: XCUIApplication) {
         let process = app.staticTexts["ReanalysisFixtureProcess"].label

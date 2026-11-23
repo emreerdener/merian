@@ -4508,7 +4508,9 @@ Deno.test({
       await fixture(db);
       const f = await fundedVideo(db);
       await denied(db, () => recoverPublicVideo(db, f));
-      await denied(db, () => listPublicVideo(db));
+      // Disabled families contribute no candidates to shared recovery discovery.
+      // Claim and execution still enforce their own gates below.
+      assertEquals(await listPublicVideo(db), []);
       await denied(
         db,
         () =>
@@ -4705,6 +4707,79 @@ for (const recovery of [false, true]) {
         }
         await first.end();
         await second.end();
+      }
+    },
+  });
+}
+
+for (const variant of [0, 1]) {
+  Deno.test({
+    name:
+      `completed media resolver retains exact video graph variant=${variant}`,
+    ignore: !url,
+    async fn() {
+      const db = await connect();
+      await db.queryArray("BEGIN");
+      try {
+        await fixture(db);
+        const f = await fundedVideo(db, variant);
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET video_dispatch_enabled=true,reader_enabled=true,media_reader_enabled=true",
+        );
+        const read = (media: string, owner = f.owner, child = f.child) =>
+          db.queryObject<{ receipt: Record<string, unknown> }>(
+            "SELECT public.resolve_owned_observation_media($1,$2,$3,$4,1) receipt",
+            [owner, f.parent, child, media],
+          );
+        const graph = f.c.input.evidence_manifest.provenance;
+        const artifacts = [
+          graph.source,
+          ...graph.frames.map((frame) => frame.artifact),
+          ...(graph.audio ? [graph.audio.artifact] : []),
+        ];
+        await denied(db, () => read(graph.source.media_id));
+        const claim = (await claimVideo(db, f)).rows[0].value;
+        await dispatchVideo(db, f, claim.work_token);
+        const { draft, outcome } = await preparedDraft(db, f);
+        await saveVideoDraftOutcome(db, f, outcome);
+        await recordVideoDraft(db, f, draft);
+        await accountVideo(db, f);
+        await completeVideoResult(db, f);
+        for (const artifact of artifacts) {
+          const receipt = (await read(artifact.media_id)).rows[0].receipt;
+          for (
+            const key of [
+              "media_id",
+              "content_type",
+              "byte_count",
+              "sha256",
+            ] as const
+          ) assertEquals(receipt[key], artifact[key]);
+          assert(receipt.ready_at);
+        }
+        await denied(db, () => read(crypto.randomUUID()));
+        await denied(
+          db,
+          () => read(graph.source.media_id, crypto.randomUUID()),
+        );
+        await denied(
+          db,
+          () => read(graph.source.media_id, f.owner, crypto.randomUUID()),
+        );
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET media_reader_enabled=false",
+        );
+        await denied(db, () => read(graph.source.media_id));
+        await db.queryArray(
+          "UPDATE internal.observation_history_rollout SET media_reader_enabled=true",
+        );
+        await db.queryArray("SELECT public.apply_user_tombstone($1)", [
+          f.owner,
+        ]);
+        await denied(db, () => read(graph.source.media_id));
+      } finally {
+        await db.queryArray("ROLLBACK");
+        await db.end();
       }
     },
   });

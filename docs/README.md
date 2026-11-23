@@ -36,8 +36,8 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData source schema is `MerianSchemaV67`; the inactive NCO-1
-original-photo owner is undergoing local validation. The
+active SwiftData source schema is `MerianSchemaV73`; mixed-media original
+ownership and submission integration are undergoing local validation. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -708,9 +708,9 @@ production submission or public release.
 ### Features & Hardware
 
 - **[Capture tools and review plan](./product/capture-review-plan.md)** —
-  Proposed consolidated capture/review journey, supporting-details session,
-  shared draft toolbar, media editors, and implementation dependency handoff.
-  Not a shipped behavior or qualification claim.
+  Notion-aligned workspace and review scopes, autosaved Field notes, shared
+  draft toolbar, media editors, and dated interface/ownership handoff. Not a
+  shipped behavior or qualification claim.
 
 - **[Staged capture review and shared Describe](./features-and-hardware/29-staged-capture-review.md)**
   — Current capture lifecycle: default review, opt-in Auto-submit, separate

@@ -12,8 +12,10 @@ enum SharedMediaNativeConsumerGraph {
         try facts(consumer, context: context, format: nil)
     }
 
-    static func validateScoped(_ consumer: SharedMediaConsumerRecord, context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
-        try facts(consumer, context: context, format: format, checkpoint: checkpoint)
+    static func validateScoped(_ consumer: SharedMediaConsumerRecord, context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, ordinary: SharedMediaOrdinaryInspection? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+        try ordinary?.requireCurrent(context)
+        guard ordinary == nil || format == .appV2 else { throw SharedMediaStorageFailure.closed }
+        return try facts(consumer, context: context, format: format, ordinary: ordinary, checkpoint: checkpoint)
     }
 
     /// Explicit read-only sibling. Generic and dirty readers retain their
@@ -55,7 +57,7 @@ enum SharedMediaNativeConsumerGraph {
     }
 
     private static func facts(_ consumer: SharedMediaConsumerRecord, context: ModelContext,
-                              format: SharedMediaNativeScopedFormat?, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, allocation: SharedMediaNativePhotoAllocationSnapshot? = nil, applied: SharedMediaNativePhotoAllocationSnapshot.Applied? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
+                              format: SharedMediaNativeScopedFormat?, ordinary: SharedMediaOrdinaryInspection? = nil, intentProof: SharedMediaNativeAppIntentPoststate? = nil, stagedOrigin: SharedMediaNativeStagedReleaseOrigin? = nil, allocation: SharedMediaNativePhotoAllocationSnapshot? = nil, applied: SharedMediaNativePhotoAllocationSnapshot.Applied? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaNativeConsumerCohort {
         guard !context.hasChanges || intentProof != nil else { throw SharedMediaStorageFailure.conflict }
         let value = try applied?.cohort.original ?? SharedMediaNativeConsumerCohort.decode(consumer.cohortData)
         let contract = applied?.cohort.format.rawValue ?? value.format.rawValue
@@ -128,7 +130,7 @@ enum SharedMediaNativeConsumerGraph {
         let originalContext: ModelContext
         if intentProof != nil { originalContext = ModelContext(context.container); originalContext.autosaveEnabled = false } else { originalContext = context }
         try validateMembership(value.membership, cohort: cohort, package: package, inventory: inventory,
-            context: context, originalContext: originalContext, checkpoint: checkpoint)
+            context: context, originalContext: originalContext, ordinary: ordinary, checkpoint: checkpoint)
         try SharedMediaMembership.requireMetadataBudget(context: package.supportingContextData,
             membership: liveMembership, cohort: consumer.cohortData)
         guard try PhotoPreparationPolicy.add([package.allocatedByteCount, Int64(package.supportingContextData.count),
@@ -139,7 +141,7 @@ enum SharedMediaNativeConsumerGraph {
 
     private static func validateMembership(_ bytes: Data, cohort: SharedMediaNativeFrozenCohort,
                                            package: PhotoPreparationRecord, inventory: SharedMediaInventoryRecord,
-                                           context: ModelContext, originalContext: ModelContext, checkpoint: () throws -> Void) throws {
+                                           context: ModelContext, originalContext: ModelContext, ordinary: SharedMediaOrdinaryInspection?, checkpoint: () throws -> Void) throws {
         let member = try SharedMediaMembership.decode(bytes), id = package.id
         let intents = try cohort.entries.map { try SharedMediaNativeDerivativeIntent.decode($0.intent.bytes) }
         let originals = intents.map { $0.preparation.original }
@@ -161,7 +163,8 @@ enum SharedMediaNativeConsumerGraph {
         var leases = Set<UUID>()
         // Historical IDs never replace the current complete reverse-reference audit.
         for original in originals {
-            let current = try SharedMediaNativeOriginalAccounting.audit(assetID: original.reference.assetID,
+            let current = try ordinary?.original(original.reference.assetID, inventoryID: inventory.id,
+                context: originalContext, checkpoint: checkpoint) ?? SharedMediaNativeOriginalAccounting.audit(assetID: original.reference.assetID,
                 inventoryID: inventory.id, context: originalContext, checkpoint: checkpoint)
             guard current.assetGeneration == original.reference.assetGeneration, current.ownerID == package.ownerID,
                   current.liveCount > 0, current.retirement == nil, current.physicalIdentity == original.descriptor.file,

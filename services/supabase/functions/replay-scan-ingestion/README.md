@@ -26,6 +26,33 @@ reuses its complimentary hold; it never acquires another lifetime credit.
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
 
+Ordinary requests carrying `initialEvidence` use a separate immutable recovery
+contract. The legacy claim RPC excludes them from both dispatch candidates and
+retry-exhaustion terminalization, including identities retained in
+`internal.ordinary_initial_evidence` after ledger changes. The worker also
+refuses legacy payload reconstruction and existing-scan completion when that key
+is present, including null or malformed values. A stale claimant is counted in
+`heldForInitialRecovery` without dispatch, completion, failure mutation or
+funding settlement. A separate finalization-only branch now claims up to five
+accepted private-origin V9 observations using service-only
+`claim_private_capture_finalizations`. Its five-minute scheduling leases live
+outside the original job and provider state. It validates the immutable private
+admission witness, original intent, exact request, accepted-result digest and
+ready retained graph. Missing or malformed evidence remains held, without
+terminalization; expired leases permit the same work to retry.
+
+`privateFinalization.ts` first recovers an exact existing seal, then reads the
+accepted result and uses `finalizeInitialEvidence` and the existing entitlement
+finalizer. It has no inference, quota reservation, upload or terminal-failure
+dependency. Claim failure does not suppress the legacy dispatcher. Responses and
+logs expose aggregate completion/held counts only for this branch. Ordinary
+pruning preserves accepted unsealed job/intent rows; explicit retirement,
+tombstones and account deletion retain their existing erasure authority. The
+live initial-evidence route remains gated pending native ownership and full
+journey qualification. An accepted provider result must never become a new
+inference request merely because a continuation, lease or acknowledgement is
+missing.
+
 Current schema-v3 intents retain a validated `ownerMediaTimeline` when it was
 present on the accepted request and store observation contexts as text-only
 `{ "freeText": "..." }` objects. Schema-v2 intents remain readable during

@@ -1,3 +1,391 @@
+## Current Capture ownership — November 21, 2026
+
+The integrated Capture source supersedes the older candidate-status paragraphs
+below. `SharedMediaNativeOriginalOwner+AppCapture` composes fixed endpoints;
+`SharedMediaNativeStorageRepository` privately mints their account/store
+identity authority while holding the namespace. Endpoint execution lives in
+`SharedMediaNativeAppCaptureOperations`. Its escaped objects retain only a weak
+invocation borrow. Callback success or failure revokes authority immediately,
+rejects new/overlapping work, cancels the exact registered child operation and
+joins its termination before files and locks close. Caller cancellation targets
+the same child. Deep writer checks consume the revoked authority; known-answer
+settlement remains independently joined before cancellation is reported.
+
+Initial draft adapters, queue execution, result saving, automatic History
+continuation, original release and accepted whole-library cleanup are connected
+in source. Result identity, independent History selection, exact original
+custody and joined account shutdown remain separate invariants. Receiving and
+erasure reverse audits have focused owners with the same bounded paging and
+physical-header fences. The native qualification configuration remains
+unchanged. Exact validation results and outstanding device checks live in the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md); this
+ownership summary does not claim deployment or activation.
+
+## Accepted whole-library erasure integration — November 21, 2026
+
+`SharedMediaNativeLibraryErasure` now joins the accepted account operation,
+closed runtime, startup admission and descriptor-held store/parent fence.
+`NativeMediaLifetimeCoordinator` routes sign-out, account deletion and cold
+deletion recovery through it before the existing generic library purge. Its
+completion retains the native fence and revalidates physical absence and zero
+native rows across the generic purge's suspension points. Only then may the
+outer account operation acknowledge cleanup. The legacy composition keeps its
+existing purge path and native-liability rejection.
+
+`SharedMediaNativeErasureManifestBuilder` runs the full ownership audit before
+freezing a bounded, sorted, complete manifest. The manifest joins both slots of
+every photo original/derivative and Capture artifact to the frozen raw graph;
+directory identities and exact file descriptors bind the physical evidence.
+Interrupted original bytes and a reserved empty Capture partial can be recorded
+only for accepted whole-library erasure. This grants no normal read, promotion,
+per-original abandonment or submission capability. Unknown Inbox leaves,
+unreceipted directory prefixes, competing slots and changed descriptors block
+cleanup. Preparing recovery must reconstruct the exact saved header; retiring
+recovery accepts only exact remaining members or their qualified absence.
+
+`SharedMediaNativeErasureEmptyProbe` handles an absent native parent under the
+same store/startup/account fence and zero-row checks. An existing empty parent
+requires its independently validated creation receipt and, when present, a valid
+terminal receipt. A previous terminal receipt never authorizes a new account
+operation. Component results and the still-open cumulative validation are
+recorded in the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md). This
+source integration does not activate the successor or establish release.
+
+## Accepted Capture funding resolution candidate
+
+`SharedMediaCaptureFundingQualification` reads accepted native admissions under
+the retained account/root owner, including needs-attention work. Conservative
+legacy placeholders remain until native custody qualifies. The accepted
+immediate/deferred Flash reservation consumes the advisory local meter
+idempotently; a tentative pre-write claim does not. Resolution to Pro refunds
+that same local entry, while server settlement remains authoritative.
+
+`SharedMediaCaptureDeferredFunding` qualifies each Capture or legacy blocker
+before and after status/balance reads. The execution drain waits before claiming
+an attempt when funding remains unresolved.
+`SharedMediaCaptureFundingResolution` is a separate write-once operational
+receipt: the submitted context stays unchanged, and dispatch plus terminal
+funding receipts retain its digest. Resolution requires fresh custody at the
+mutation and save boundaries. Missing or unknown blocker state cannot release
+capacity. These successor changes await native validation; see the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## Accepted Capture original release candidate
+
+`SharedMediaCaptureReleaseQualification` joins the immutable completed result,
+delivered funding and acknowledged original V1 History baseline under the
+existing persistence transaction. `SharedMediaCaptureAcceptedReleaseWriter`
+saves a complete parent release intent before unlinking any member. Separate
+accepted-member receipts retain exact request, stage, remote acknowledgement and
+inode proofs; they do not reuse parentless discard or preparation-abort
+authority. New reads and uploads reject the parent intent. Every continuation
+rechecks account/root ownership, completion/funding digests and the deletion
+fence. Terminal file absence is checked before recording released accounting.
+
+The original History baseline may authorize cleanup while a later analysis
+remains selected. Neither release nor replay rewrites that selection. Exact
+replacement metadata limits are checked before saving parent intent or final
+state. `SharedMediaCaptureCompletedRecovery` discovers completed observations
+awaiting History or cleanup; discovery grants no provider, enrollment or
+deletion permission. Account erasure is a separate remaining integration
+requirement. See the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md) for
+current validation and activation status.
+
+## Capture preparation abort candidate
+
+Before a V71 parent exists, `SharedMediaCapturePreparationAbort` can abandon the
+entire retained derivative attempt under the existing scan/account/root fence.
+It first saves an aborting journal, then records a V2 retirement intent before
+unlinking each exact derivative inode. Source-discard V1 remains restricted to
+originals. The final journal transition preserves originals and review state,
+and retains compact attempt/member proofs for released outputs. Those proofs
+remain mandatory in later root audits. Retired metadata remains accounted for;
+paginated active-cohort queries do not treat it as current membership.
+
+`SharedMediaCaptureAbortRecovery` is a descriptive, abort-only route for an
+exact preparing attempt with an ambiguous empty partial. Generic draft readers
+remain strict. No read, preparation, queue, upload, or provider capability
+follows from an abort handle. The feature session can recover into an abort-only
+state and retry a lost final acknowledgement. Validation status is tracked in
+the [Capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## Capture artifact root registration candidate
+
+`SharedMediaCaptureRootJournal` binds a separate capture namespace to the
+immutable native app profile and control-parent identity. The filesystem helper
+uses the existing bounded control I/O and exclusive descriptor locks. It records
+intent before creation, never adopts a directory lacking its creation receipt,
+and preserves the base photo/inbox roots and markers. Capture control reads are
+limited to 4 KiB before allocation. The one-shot descriptor handoff rechecks
+both held and named root/child identities and its marker; a mismatch closes and
+burns the handoff.
+
+These helpers grant no permission to write artifacts or dispatch a submission.
+Discovery now retains provisional canonical capture-prefix evidence only after
+finding the existing base profile, with bounded reads and exact handoff
+rechecks. The base repository may retain this evidence in a recovery-only owner
+state. Normal inspection, mutation and dispatch stay blocked until an explicit
+operation supplies a fresh grant, qualifies the empty root and completes full
+inspection. Every later base check revalidates that empty root. Raw filesystem
+helpers remain file-private, co-located with both root owners. Cancellation and
+account drain retain the journal. Artifact inventory, mixed admission, upload
+and separately qualified incomplete-root cleanup remain pending. A cached
+discovery snapshot alone never authorizes continuation. Native test status and
+exact evidence are tracked in the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+`SharedMediaCaptureArtifactRequest` now describes one exact local role from the
+canonical initial evidence plan, including its owner/profile, plan digest, media
+facts and distinct reservation identities. It excludes server-prepared audio
+IDs. The request and storage adapter are value-only: live root, budget,
+allocation, lease and file qualification still belong to the consuming writer,
+which is not installed by these types.
+
+`SharedMediaCaptureArtifactLedger` adds an explicit read of V72 reserved,
+writing and ready states. Canonical stage receipts bind the request and partial
+inode to completion; allocation, lease and reference joins validate both
+directions and reject aliases. Current profile/root identity and clean-context
+checks remain mandatory. The reader is not a mutation or file capability and
+does not relax any ordinary/P1 guard. `SharedMediaCaptureArtifactStoreAudit`
+validates all artifact rows, allocation/reference/lease reverse joins and P1
+alias exclusions in bounded pages. It accounts for current metadata and future
+stage/descriptor headroom separately from file liabilities. Its snapshot is
+value-only and requires a verified root binding from the eventual file owner.
+`SharedMediaCaptureArtifactFiles` adds a read-only physical audit candidate. It
+consumes only a marked capture-root handoff, checks ledger-to-file and
+file-to-ledger membership, hashes exact bytes on a separate I/O actor, and
+rechecks the account/store checkpoint after suspension. An unrecorded empty
+partial is reported as ambiguous; it is not adopted or qualified for normal
+operation. No MIME/content-parser policy changes. The physical audit passed 22
+tests in four suites, including post-hash drift and cancellation.
+`SharedMediaCaptureArtifactInspection` now brackets an explicit app read audit
+with full physical/ledger verification, expires on exit, and charges capture
+metadata and byte reservations once through the ordinary liability reader.
+Interrupted partial bytes remain covered by the complete reservation. This is
+read-only accounting; it grants no later byte reopen or consumption authority.
+Repository read integration passed 39 tests in four suites, including cold
+reopen, root interruption, repeated inspection and account drain. The next
+`SharedMediaCaptureArtifactWriter` candidate implements reservation, saved
+partial-inode ownership and completion after bounded I/O, hashing and exclusive
+rename. Its owner entry remains DEBUG-test-only pending the canonical whole-plan
+receipt and producer integration. Current writer runtime validation is tracked
+in the Capture plan. Physical custody alone does not prove media validity or
+authorize queue admission, upload or final release. Default ordinary/P1 and
+mutation guards remain strict. Writer runtime03 passed 14 methods in three
+suites, including eight interruption boundaries and mid-write
+cancellation/drain.
+
+`SharedMediaCaptureSubmission` now describes a separately tagged whole-plan V71
+envelope. Its canonical body binds ordered local artifacts, Field Notes,
+selection/preparation geometry and the capture-root digest. The reserved reader
+permits missing, partial and ready children; acceptance requires every member
+ready with exact request/stage digests and a later inventory revision. The
+explicit capture-scoped ordinary audit counts parent and child liabilities
+separately and rejects unlisted artifacts. The photo V1 codec remains unchanged.
+The receipt/package regression run passed 29 methods across seven suites,
+including parents with no children. A separate reservation writer now freezes
+existing queue context and funding with the plan before child writes. Parent and
+child writers share the scoped budget, and children validate membership before
+insertion. Reservation runtime02 passed 20 methods in five suites; acceptance04
+passed 28 methods in six suites, including atomic local queue admission, old
+ordinary acceptance regressions and private request/preflight checks. The owner
+individual reserve/materialize/accept entries remain DEBUG-only. The composite
+`acceptAppCaptureDraft` entry derives all members from the saved reservation,
+keeps the scan/account/root fence through source reads and acceptance, and
+preserves the draft and funding after any uncertain result. Its production UI
+caller remains unwired. The upload worker stores a versioned remote
+acknowledgement in the V72 artifact's existing acceptance envelope while
+preserving its physical ready state. It reserves future receipt headroom, binds
+exact local request/file digests, and requires all ordered remote
+acknowledgements before Identify. Local queue acceptance precedes network
+staging. Remote readiness grants no original release or History completion
+authority. Upload runtime02 passed 23 methods in six suites; accepted
+cold-resume runtime01 passed 49 methods in four suites. A separate
+`capturePending` role now permits only exact-plan local recovery for reserved
+parents; it never publishes upload readiness. Pending/composite recovery and
+account-lifetime coordinator integration passed draft runtime01: 66 methods in
+seven suites, with 76 unchanged source pins. Missing pre-acceptance source bytes
+still require reattachment or remediation; the receipt does not invent them. The
+readers grant no file-write, queue-admission, upload or release capability. The
+shared plan model now lives in Core/Data/AnalysisHistory; its storage adapter
+lives here, preserving wire bytes and type names.
+
+The result candidate uses `SharedMediaCaptureResultWriter` to atomically insert
+the first library record, retain initial-evidence/result proof and complete the
+ingestion job. It revalidates account, attempt, accepted custody and remote
+readiness, checks additional database-copy headroom, and audits media
+liabilities after the save. Exact replay preserves later user edits and selected
+analysis. `SharedMediaCaptureCompletionReadback` supplies the separate History
+enrollment join; shared proof encoding alone grants no custody or mutation
+authority. The capture queue, ingestion job and originals remain retained.
+Result runtime02 passed 64 methods in eight suites, including sealed History
+enrollment while retaining queue custody. The subsequent funding candidate saves
+an immutable original settlement receipt with the result and a separate delivery
+acknowledgement. Only typed production delivery can acknowledge its effects;
+overrides require a Debug test process. Recovery reads the original receipt
+under fresh custody/account fences without fetching another result or restoring
+later user edits. Reconciliation is deferred until persistence fences exit.
+Pending History selections block both enrollment transactions; closed selection
+outcomes retain their existing semantics. These changes passed result runtime06:
+68 methods in nine suites, with 94 unchanged source pins. The following
+lifecycle candidate connects bounded local receipt recovery before the
+scheduler's network guard. Its worker closes and joins through the native
+account lifetime; separate network reconciliation remains gated and outside
+native fences. Exact completed settlement may coexist with reserved drafts, but
+provider/upload dispatch stays strict. Funding lifecycle runtime01 passed 49
+methods in eight suites with 104 unchanged source pins. Production source
+retention, cleanup and private History media hydration remain unfinished.
+
+The draft-source candidate uses `draftSourceV1` and row schema discriminator 2
+within existing V72 fields; no frozen model changes are required. Its request
+has no final plan digest, retains immutable media identity and source context,
+and uses the same physical reservation/inode ledger. The canonical reader
+rejects unknown or ambiguous formats. `SharedMediaCaptureDraftSourceBinding`
+requires the complete ready source cohort before a final parent can adopt its
+existing artifact IDs. Final plan order is independent of source ordinals.
+Budget admission replaces the logical source package and reserves only missing
+physical members and parent envelopes. Remote receipts bind those source
+requests through the saved parent plan. Source-only qualification is pending,
+never upload-ready. Source runtime04 passed 10 methods in three suites in
+242.742 seconds with 379 unchanged source pins. Producer and cleanup integration
+remain open. The subsequent target-dispatch candidate runs the canonical full
+native graph audit inside the held capture namespace before upload and again
+before response binding. It allows only the exact accepted target to stage
+alongside healthy pending sources; global dispatch stays closed and malformed
+liabilities still fail closed. Target runtime03 passed 11 methods in three
+suites in 749.076 seconds with 380 unchanged source hashes. Parentless-source
+discard is now a candidate: persist exact retirement intent, unlink only that
+inode, fsync and prove absence, then retain a permanent released tombstone.
+Operational readers reject retirement; accounting explicitly includes its
+metadata and remaining physical liability. Native discard tests and independent
+review are pending. Bound-original release, producer wiring and account purge
+remain open.
+
+## November 19 accepted-ordinary app inspection integration
+
+The existing `inspectApp` repository path now uses a dedicated accepted-ordinary
+read runner. When V70/V71 rows exist, it first validates the complete store and
+creates an invocation-local `SharedMediaOrdinaryInspection` bound to the exact
+container identity, app profile and header. The scope expires when inspection
+returns or throws. Original, acquisition, frozen-consumer and clean budget
+readers accept it explicitly; default readers and all mutation/poststate
+entrypoints remain strict.
+
+Ordinary envelope metadata is charged once globally. Pending originals retain
+their existing physical/receipt/identity accounting; held sources outside that
+graph add those charges once per source, without creating a pending package. The
+accepted lane currently supports plain P1 graphs and frozen received consumers.
+Advanced receiving allocation, initial application, release and terminal rows
+are explicitly rejected before their graph routes when ordinary liabilities
+exist. This is a cold-open/read integration, not admission, draft removal, final
+release or upload authority. Runtime evidence and remaining work are maintained
+in the [Capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## November 19 whole-store ordinary audit candidate
+
+`SharedMediaOrdinaryStoreAudit` adds a read-only reverse audit over every V71
+submission and V70 hold, without an inventory predicate that could hide foreign
+or corrupt rows. Each complete accepted cohort must match the exact app profile;
+every hold must join one parent and its complete cohort. Current per-original
+accounting validates materialized assets, completion seals, leases and live P1
+plus accepted-hold counts. Sorting holds by source asset allows each original to
+be audited once with constant retained traversal state and bounded fetch pages.
+Header, cancellation and clean-context checks bracket each page and row.
+
+This is an inspection prerequisite only. It is not wired into app mutation,
+queue admission or final release. The generic/P1 readers and legacy queue guard
+still reject ordinary liabilities. The accepted-ordinary inspection integration
+above subsequently supplied clean read/budget routing. Actual last-draft
+removal, mutation budget proofs, durable final release, atomic queue/job/event
+admission and restart integration remain required. Qualification evidence is
+recorded in the dated
+[Capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## November 19 ordinary accepted-hold accounting continuation
+
+`SharedMediaNativeOriginalAccounting.auditAcceptedOrdinary` explicitly counts
+live P1 reference/edge pairs plus accepted ordinary holds. Each hold must join
+the complete canonical V71 submission and V70 acceptance set, match the current
+original/acquisition/lease identity, and satisfy counter and inventory revision
+checks. A surviving hold does not require a surviving source draft reference.
+Unknown, partial or extra members fail closed. The default `audit` still rejects
+ordinary records; generic cleanup and admission guards are unchanged.
+
+This is a read-only, caller-fenced accounting prerequisite. It supplies no
+queue/job/event postcondition, physical file inspection, save, upload or release
+authority. Final zero-count ordinary retirement remains rejected until its
+separate irreversible retirement/recovery owner is implemented. The test helper
+seeds accepted rows and a no-P1 after-image into a real native graph; it does
+not exercise a real ordinary admission or last-draft removal transaction.
+Current validation status is recorded in the
+[capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## November 19 ordinary submission storage continuation
+
+`SharedMediaOrdinarySubmission` wraps the existing exact frozen photo body and
+ordered hold/request membership. It preserves media order and validates the
+complete per-source binding. `SharedMediaOrdinarySubmissionRecord` (V71) retains
+that body independently of queue cleanup, with unique account/scan and
+account/scan/generation identity. A different generation cannot authorize
+replacement; admission must reject unequal replay before insertion rather than
+rely on SwiftData upsert. Optional payload erasure requires a qualified terminal
+receipt and durable identity fence; no active/partial body may be reconstructed.
+
+`SharedMediaOrdinarySubmissionAcceptance` describes the complete ordered set of
+per-hold acceptance digests. `SharedMediaOrdinarySubmissionReceipt` reads the
+persisted parent and all matching V70 members, rechecks every scalar mirror,
+rejects partial/extra membership and unequal replay, and caps their combined
+serialized metadata at the existing limit. It requires the parent to belong to
+the same clean context. Unknown/erased phases remain closed. These are
+historical receipt checks, not proof of queue postconditions, current counters
+or file ownership; no writer or existing rejection barrier is enabled by this
+reader.
+
+V70 was frozen and compiled before the additive model change. Migration creates
+no inferred submissions. New rows participate in liability and inventory checks
+and remain rejected by existing owners, including when orphaned. These types are
+storage and validation foundations, not an atomic save participant, physical
+file inspection, qualified erasure, read/upload authority or mixed-media parity.
+See the [capture plan](../../../../../../docs/product/capture-review-plan.md).
+
+## November 19 — ordinary original-hold descriptions
+
+`SharedMediaOrdinaryHoldRequest`, `SharedMediaOrdinaryHoldAcceptance` and
+`SharedMediaOrdinaryHoldCohort` describe exact source/acquisition, recipient and
+counter identities for ordinary admission. `SharedMediaOrdinaryHoldReceipt`
+checks the V70 row against canonical bounded envelopes and measures their
+serialized metadata. `describeAppOrdinaryHold` obtains a description through the
+registered owner's existing audited operation; it creates no reference or queue
+row. A shared logical source may differ from its original physical acquisition.
+
+The cohort requires one whole-observation identity and derives the exact count
+delta per asset. Metadata measurement does not add original bytes or fabricate a
+pending package. These descriptions grant no save, upload, cleanup or graph
+qualification. The existing V70 rejection barriers remain closed pending the
+atomic queue participant, counted hold lifecycle, bounded inventory accounting,
+owner-mediated readers and terminal recovery.
+
+`SharedMediaOrdinaryPhotoHoldBinding` reuses the exact existing native frozen
+submission bytes. It checks complete source membership, each derivative intent
+digest and original reference/token/byte facts/physical descriptor. It returns
+requests in frozen media-entry order; sorted hold UUIDs serve only canonical
+accounting membership. Preparation digests are per source. The adapter retains
+the exact submission bytes, but does not persist them or generalize the photo
+format to audio/video. See the
+[capture integration checkpoint](../../../../../../docs/product/capture-review-plan.md#follow-up--november-19-2026-finalization-recovery-boundary).
+
+`describeAppOrdinaryPhotoHolds` prepares the complete batch under one registered
+owner operation. `SharedMediaNativeReadyPhotoCohort` shares receiving's current
+ready-graph joins and checks exact contexts/presentation, complete intents,
+derivative reference revisions and completed identities. The ordinary caller
+additionally requires a mutable `draftOwned` package; UI freezing does not
+persist a receiving intent or `preparedHeld` state. Neither this read-only
+description nor a matching caller-provided blob proves current physical bytes.
+The future atomic acceptance must repeat these checks, inspect/seal the actual
+files and retain the exact submission body in the same save as queue and holds.
+
 ## November 9 — observation-only status source
 
 The qualification status action now uses the strict `observe-v1` transport and

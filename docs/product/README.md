@@ -12,8 +12,9 @@ reference. Planning documents do not establish implementation or release status.
 - [Founder operating plan](05-founder-operating-plan-draft.md): pointer to the
   canonical Notion business plan and operating budget; edit those documents in
   Notion.
-- [Capture tools and review plan](capture-review-plan.md): consolidated proposal
-  for media review, shared toolbar, supporting details, and dependency handoff.
+- [Capture workspace and review plan](capture-review-plan.md): Notion-aligned
+  workspace/review scopes, shared toolbar, autosaved Field notes, media editors,
+  and dated engine-interface/ownership handoff requirements; planning only.
 - [Journal planning workspace](journal/README.md): brief, decision record, UX
   flows, open questions, and proposed delivery sequence.
 

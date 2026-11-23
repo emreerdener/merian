@@ -1,3 +1,4 @@
+import { assertCompositionExecutionSnapshot } from "./compositionExecutionPolicy.ts";
 import { parsePreparedVideoAdmission } from "./videoAdmission.ts";
 import { buildPreparedAudioDraft } from "./audioAdmission.ts";
 import type {
@@ -60,7 +61,9 @@ export function captureAnalysisOutcome(
   result: AIExecutionOutcome,
   work: AnalysisWork,
 ): SavedAnalysisOutcome | null {
-  if (work.input?.schema_version === 4) return invalidHistory();
+  if (work.input?.schema_version === 4 || work.input?.schema_version === 5) {
+    return invalidHistory();
+  }
   return captureOutcome(result, work, {
     hasVisualEvidence: work.input?.schema_version === 2,
     hasAudioEvidence: work.input?.schema_version === 3,
@@ -84,6 +87,23 @@ export function capturePreparedVideoOutcome(
   );
   return captureOutcome(result, { ...work, input }, {
     hasVisualEvidence: true,
+    hasAudioEvidence,
+  });
+}
+
+/** Prepared V5 outcome capture. Unknown execution remains unresolved; a saved
+ * outcome must match the exact composition quota and provider snapshot. */
+export function captureCompositionOutcome(
+  result: AIExecutionOutcome,
+  work: AnalysisWork,
+): SavedAnalysisOutcome | null {
+  if (
+    result.kind === "unknown_execution" || result.kind === "operational_failure"
+  ) return null;
+  const { input, hasVisualEvidence, hasAudioEvidence } =
+    assertCompositionExecutionSnapshot(work, result.execution);
+  return captureOutcome(result, { ...work, input }, {
+    hasVisualEvidence,
     hasAudioEvidence,
   });
 }
@@ -207,7 +227,9 @@ export async function executeObservationAnalysis(
   work: AnalysisWork,
   deps: AnalysisExecutionDependencies,
 ): Promise<AnalysisState> {
-  if (work.input?.schema_version === 4) return invalidHistory();
+  if (work.input?.schema_version === 4 || work.input?.schema_version === 5) {
+    return invalidHistory();
+  }
   if (!work.claimed) return work.state;
   historyUUID(work.work_token);
   if (!work.input || !work.quota) return invalidHistory();

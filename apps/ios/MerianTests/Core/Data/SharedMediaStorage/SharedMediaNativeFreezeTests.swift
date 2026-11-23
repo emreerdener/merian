@@ -11,6 +11,43 @@ struct SharedMediaNativeFreezeTests {
     private static let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
         cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
 
+    private struct LegacyFrozenCohort: Encodable {
+        let format: String
+        let packageID: UUID
+        let ownerID: UUID
+        let draftGeneration: UUID
+        let supportingBytes: Data
+        let entries: [SharedMediaNativeFrozenEntry]
+    }
+
+    @Test func initialNotesCodecPreservesOldBytesAndRejectsChangedSeed() async throws {
+        let fixture = try await SharedMediaNativeReceivingTestFixture.load(count: 1)
+        let source = try SharedMediaNativeFrozenCohort.decode(fixture.request.freeze.commit.cohort.bytes)
+        // Independent pre-successor shape retained from ac8f1737: this encoder
+        // has no initialFieldNotes key and cannot silently follow the new type.
+        let oldBytes = try SharedMediaNativeDraftEnvelope.bytes(LegacyFrozenCohort(
+            format: "nativeConsumerV2", packageID: source.packageID, ownerID: source.ownerID,
+            draftGeneration: source.draftGeneration, supportingBytes: source.supportingBytes, entries: source.entries))
+        let old = try SharedMediaNativeFrozenCohort.decode(oldBytes)
+        #expect(try old.encoded() == oldBytes)
+        #expect(!String(decoding: oldBytes, as: UTF8.self).contains("initialFieldNotes"))
+        let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(old.supportingBytes,
+            maximum: Int(PhotoPreparationPolicy.metadata))
+        let notes = InitialFieldNotesSeed.make(contexts: supporting.contexts)
+        let current = SharedMediaNativeFrozenCohort(format: .initialNotes, packageID: old.packageID, ownerID: old.ownerID,
+            draftGeneration: old.draftGeneration, supportingBytes: old.supportingBytes, entries: old.entries, initialFieldNotes: notes)
+        let encoded = try current.encoded()
+        #expect(try SharedMediaNativeFrozenCohort.decode(encoded).initialFieldNotes == notes)
+        #expect(current.supportingBytes == old.supportingBytes)
+        let bad = try SharedMediaNativeReceivingTestFixture.copy(current, changes: ["initialFieldNotes": "tampered"])
+        #expect(throws: (any Error).self) { _ = try bad.encoded() }
+        #expect(throws: (any Error).self) {
+            _ = try SharedMediaNativeFrozenCohort.decode(SharedMediaNativeDraftEnvelope.bytes(bad))
+        }
+        let oldWithSeed = try SharedMediaNativeReceivingTestFixture.copy(current, changes: ["format": "nativeConsumerV2"])
+        #expect(throws: (any Error).self) { _ = try oldWithSeed.encoded() }
+    }
+
     @Test func orderedTwoOriginalFreezePreservesSupportingBytesAndReplaysAfterReopen() async throws {
         let h = try Harness(), owner = try await h.open(), first = try await h.acquire(owner), second = try await h.acquire(owner, ordinal: 1)
         let contexts = [ObservationContext(freeText: "  exact submitted details\n ")]

@@ -5,7 +5,11 @@
 enum CaptureMode: String, CaseIterable {
     case visual
     case audio
+    // Retained to decode historical settings/routes. Supporting text is now
+    // edited in Field notes, never exposed as a primary capture mode.
     case describe
+
+    static let availableModes: [CaptureMode] = [.visual, .audio]
 
     var title: String {
         switch self {
@@ -24,12 +28,17 @@ enum CaptureMode: String, CaseIterable {
     }
 
     /// Parses a comma-separated string into a safe Capture-mode sequence and
-    /// appends any missing cases in canonical order.
+    /// removes the retired Describe mode and duplicates, and appends any
+    /// missing physical-media modes without changing their relative order.
     static func userOrder(from raw: String) -> [CaptureMode] {
-        var decoded = raw
+        let requested = raw
             .split(separator: ",")
             .compactMap { CaptureMode(rawValue: String($0)) }
-        let missing = CaptureMode.allCases.filter { !decoded.contains($0) }
+        var decoded: [CaptureMode] = []
+        for mode in requested where availableModes.contains(mode) && !decoded.contains(mode) {
+            decoded.append(mode)
+        }
+        let missing = availableModes.filter { !decoded.contains($0) }
         decoded.append(contentsOf: missing)
         return decoded
     }

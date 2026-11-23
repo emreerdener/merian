@@ -363,7 +363,7 @@ Deno.test("terminal ingestion settlement errors propagate instead of silently st
     new URL("./index.ts", import.meta.url),
   );
   const helperStart = source.indexOf("const updateIngestionJobBestEffort");
-  const helperEnd = source.indexOf("const safeGpsLat", helperStart);
+  const helperEnd = source.indexOf("let safeGpsLat", helperStart);
   assert(helperStart >= 0);
   assert(helperEnd > helperStart);
 
@@ -753,11 +753,11 @@ Deno.test("completed scan retries replay before staging or AI provider work", as
   );
   const generatedScanId = source.indexOf("const generatedScanId =");
   const earlyReplay = source.indexOf(
-    "const existingCompletion = await fetchCompletedIdentifyResponse(",
+    "const existingCompletion = hasPrivateCapturePlan",
     generatedScanId,
   );
   const imageResolution = source.indexOf(
-    "const { base64Payloads, errorResponse } = await resolveImagePayloads(",
+    "const { base64Payloads, errorResponse } = privateAIRequest",
     generatedScanId,
   );
   const quotaReservation = source.indexOf(
@@ -778,11 +778,11 @@ Deno.test("identity-merge recovery precedes staging access and never grants old-
   );
   const generatedScanId = source.indexOf("const generatedScanId =");
   const recovery = source.indexOf(
-    "strandedRecovery = await recoverStrandedScanIngestionAttempt(",
+    "strandedRecovery = hasPrivateCapturePlan",
     generatedScanId,
   );
   const replay = source.indexOf(
-    "const existingCompletion = await fetchCompletedIdentifyResponse(",
+    "const existingCompletion = hasPrivateCapturePlan",
     generatedScanId,
   );
   const keyValidation = source.indexOf(
@@ -811,7 +811,7 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
     "quotaLease = await reserveIdentificationProviderCall(",
   );
   const ingestionClaim = source.indexOf(
-    "const atomicIngestion = await beginScanIngestion(",
+    "const atomicIngestion = privateSubmission?.ingestion",
     quotaReservation,
   );
   const quotaCommit = source.indexOf(
@@ -824,7 +824,7 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
   );
   const secondProfileCheck = source.indexOf(
     "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
-    firstProfileCheck + 1,
+    durableIngestion,
   );
   const scanInsert = source.indexOf("await insertScan(", durableIngestion);
 
@@ -851,7 +851,7 @@ Deno.test("concurrent AI retries wait for the exact owner completion instead of 
     quotaReservation,
   );
   const ingestionClaim = source.indexOf(
-    "const atomicIngestion = await beginScanIngestion(",
+    "const atomicIngestion = privateSubmission?.ingestion",
   );
 
   assert(quotaReservation >= 0);

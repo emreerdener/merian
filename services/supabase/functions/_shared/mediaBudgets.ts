@@ -157,7 +157,10 @@ export async function readResponseArrayBufferWithinBudget(
     maxBytes,
     message,
   );
-  if (headerError) return { error: headerError };
+  if (headerError) {
+    await response.body?.cancel().catch(() => undefined);
+    return { error: headerError };
+  }
 
   return await readStreamArrayBufferWithinBudget(
     response.body,

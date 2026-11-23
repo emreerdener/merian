@@ -27,6 +27,7 @@ final class AudioReviewBoostController {
     private var sourceURL: URL?
     private var generation = UUID()
     private var preparationTask: Task<Void, Never>?
+    private var preparations: [UUID: Task<Void, Never>] = [:]
     private let dependencies: Dependencies
 
     init(dependencies: Dependencies = .live) {
@@ -58,6 +59,7 @@ final class AudioReviewBoostController {
         generation = request
         let dependencies = dependencies
         preparationTask = Task { @MainActor [weak self] in
+            defer { self?.preparations.removeValue(forKey: request) }
             do {
                 let result = try await dependencies.prepare(sourceURL)
                 guard let self, !Task.isCancelled, self.generation == request else {
@@ -78,7 +80,21 @@ final class AudioReviewBoostController {
                 onReady()
             }
         }
+        preparations[request] = preparationTask
         return true
+    }
+
+    /// Cancellation revokes delivery immediately, but custody cannot move
+    /// until every source reader has actually returned, including replaced work.
+    func drain() async {
+        await retireReaders().value
+    }
+
+    func retireReaders() -> Task<Void, Never> {
+        suspend()
+        let pending = Array(preparations.values) + Array(retirements.values)
+        for task in pending { task.cancel() }
+        return Task { for task in pending { await task.value } }
     }
 
     /// A stopped or unmounted review must not autoplay when preparation returns.
@@ -89,19 +105,34 @@ final class AudioReviewBoostController {
         state.isPreparing = false
     }
 
-    func rejectPreparedAudio() {
-        if let preparedURL { dependencies.remove(preparedURL) }
+    func rejectPreparedAudio(after playback: Task<Void, Never>? = nil) {
+        removePreparedAudio(after: playback)
         preparedURL = nil
         state.isReady = false
         state.isEnabled = false
         state.hasFailed = true
     }
 
-    func reset() {
+    func reset(after playback: Task<Void, Never>? = nil) {
         suspend()
-        if let preparedURL { dependencies.remove(preparedURL) }
+        removePreparedAudio(after: playback)
         preparedURL = nil
         sourceURL = nil
         state = AudioReviewBoostState()
     }
+
+    private func removePreparedAudio(after playback: Task<Void, Never>?) {
+        guard let preparedURL else { return }
+        let remove = dependencies.remove
+        if let playback {
+            let id = UUID()
+            retirements[id] = Task { [self] in
+                defer { retirements[id] = nil }
+                await playback.value
+                remove(preparedURL)
+            }
+        } else { remove(preparedURL) }
+    }
+
+    private var retirements: [UUID: Task<Void, Never>] = [:]
 }

@@ -138,6 +138,23 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV68QueueSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV68ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV69.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV69QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV69ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV69ReceivingSnapshot.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV70.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV70ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV70QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV70OrdinaryTransferSnapshot.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV71.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV72.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV73.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV74.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaCaptureDraftJournalRecord.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaNativeErasurePageRecord.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV71ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV71QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV71OrdinarySubmissionSnapshot.swift | \
+    apps/ios/Merian/Models/ActiveSchema/SharedMediaOrdinarySubmissionRecord.swift | \
     apps/ios/Merian/Models/Schema/SchemaV65ReceivingSnapshots.swift | \
     apps/ios/Merian/Models/ActiveSchema/SharedMediaReceivingIntentRecord.swift | \
     apps/ios/Merian/Models/Schema/SchemaV64ScanSnapshots.swift | \

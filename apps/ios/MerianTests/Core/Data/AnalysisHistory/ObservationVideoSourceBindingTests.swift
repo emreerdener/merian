@@ -34,7 +34,7 @@ struct ObservationVideoSourceBindingTests {
                          sourceAnalysisID: sourceID ?? source.analysisID, manifestBytes: bytes)
     }
 
-    @Test(arguments: [1, 2, 3, 4])
+    @Test(arguments: [1, 2, 3, 4, 5])
     func exactProofSurvivesSelectionAndReviewChanges(version: Int) throws {
         let seed = try fixture.seed(version: version)
         let source = try ObservationReanalysisSource.captureForVideo(observationID: seed.observationID,
@@ -54,7 +54,7 @@ struct ObservationVideoSourceBindingTests {
         #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
     }
 
-    @Test(arguments: ["owner", "parent", "source", "pending-delete", "enrollment", "snapshot"], [2, 4])
+    @Test(arguments: ["owner", "parent", "source", "pending-delete", "enrollment", "snapshot"], [2, 4, 5])
     func proofRevalidatesFreshPersistence(reason: String, version: Int) throws {
         let seed = try fixture.seed(version: version)
         let source = try ObservationReanalysisSource.captureForVideo(observationID: seed.observationID,
@@ -81,15 +81,17 @@ struct ObservationVideoSourceBindingTests {
         #expect(throws: (any Error).self) { try proof.validate(container: seed.container) }
     }
 
-    @Test(arguments: [2, 4])
+    @Test(arguments: [2, 4, 5])
     func everyNewMediaAndChildIdentityRejectsHistoricalMediaReuse(version: Int) throws {
         let seed = try fixture.seed(version: version)
         let source = try ObservationReanalysisSource.captureForVideo(observationID: seed.observationID,
             ownerID: fixture.fixture.owner, container: seed.container)
-        let media = try #require(source.photos.first?.mediaID ?? source.audio?.mediaID)
-        for index in -1..<7 {
-            let candidate = try request(source, collision: media, artifactIndex: index)
-            #expect(throws: (any Error).self) { try ObservationVideoPreparation(request: candidate, source: source) }
+        #expect(!source.artifactIDs.isEmpty)
+        for media in source.artifactIDs {
+            for index in -1..<7 {
+                let candidate = try request(source, collision: media, artifactIndex: index)
+                #expect(throws: (any Error).self) { try ObservationVideoPreparation(request: candidate, source: source) }
+            }
         }
     }
 

@@ -12,6 +12,8 @@ struct ObservationReanalysisOperationStatus {
         let id: UUID
         let sourceAnalysisID: UUID
         let phase: Phase
+        var isComposition = false
+        var canContinue = false
         var retirement: ObservationReanalysisRetirementAction.Affordance?
         var canCheckOutcome = false
     }
@@ -45,7 +47,9 @@ struct ObservationReanalysisOperationStatus {
             guard valid() else { throw ObservationHistoryError.accountChanged }
             guard case let .reanalysis(identity) = work, identity.ownerID == ownerID, identity.observationID == observationID else { continue }
             if let phase = try phase(identity, container: container, isCurrent: valid) {
-                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase.phase, retirement: phase.retirement, canCheckOutcome: phase.canCheckOutcome))
+                items.append(.init(id: identity.analysisID, sourceAnalysisID: identity.sourceAnalysisID, phase: phase.phase,
+                    isComposition: phase.isComposition, canContinue: phase.canContinue,
+                    retirement: phase.retirement, canCheckOutcome: phase.canCheckOutcome))
             }
         }
         try ConfirmedSpeciesReviewPersistence.transaction {
@@ -67,11 +71,17 @@ struct ObservationReanalysisOperationStatus {
 
     private struct Projection {
         let phase: Phase
+        var isComposition = false
+        var canContinue = false
         var retirement: ObservationReanalysisRetirementAction.Affordance?
         var canCheckOutcome = false
     }
 
     private func phase(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool) throws -> Projection? {
+        if let composition = try? ObservationCompositionResumeStore.status(identity, container: container, isCurrent: isCurrent) {
+            return .init(phase: composition.phase, isComposition: true, canContinue: composition.canContinue,
+                canCheckOutcome: composition.canCheckOutcome)
+        }
         // Completed results belong to history. A receipt alone can mean discard,
         // so neither receipts nor any result/transport collision imply completion here.
         let exists = try ConfirmedSpeciesReviewPersistence.transaction {

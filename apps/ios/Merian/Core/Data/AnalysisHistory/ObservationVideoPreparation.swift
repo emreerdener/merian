@@ -57,7 +57,7 @@ struct ObservationVideoPreparation: Equatable, Sendable {
         }
         try self.init(ownerID: source.ownerID, request: request,
                       sourceSnapshotSHA256: SHA256.hash(data: source.snapshot).map { String(format: "%02x", $0) }.joined())
-        let historicalMedia = Set(source.photos.map(\.mediaID) + (source.audio.map { [$0.mediaID] } ?? []))
+        let historicalMedia = source.artifactIDs
         guard !historicalMedia.contains(request.analysisID),
               files.allSatisfy({ !historicalMedia.contains($0.artifact.mediaID) }) else { throw MerianError.invalidResponse }
     }
@@ -96,7 +96,9 @@ struct ObservationVideoPreparation: Equatable, Sendable {
         guard data.count <= maximumStoredBytes else { throw MerianError.invalidResponse }
         if let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let kind = row["kind"] as? String,
-           ["video_preparation", ObservationVideoSourceReservationWork.kind, ObservationVideoUploadWork.kind, ObservationVideoExecutionWork.kind].contains(kind) {
+           ["video_preparation", ObservationVideoSourceReservationWork.kind, ObservationVideoUploadWork.kind, ObservationVideoExecutionWork.kind,
+            "composition_preparation", CompositionSourceReservationWork.kind,
+            ObservationCompositionUploadWork.kind, ObservationCompositionExecutionWork.kind].contains(kind) {
             throw MerianError.invalidResponse
         }
     }

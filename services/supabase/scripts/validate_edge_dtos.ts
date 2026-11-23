@@ -1,3 +1,4 @@
+import { initialEvidenceEnvelopeV1Contract as identifyWireEnvelopeContract } from "../functions/_shared/identify/initialEvidenceEnvelopeV1.ts";
 /**
  * Identify Edge wire-contract validator and Swift DTO generator.
  *
@@ -12,7 +13,6 @@ import { fileURLToPath } from "node:url";
 import {
   type ContractField,
   type ContractNode,
-  identifyWireEnvelopeContract,
   merianDescribeModelContract,
   merianModelContract,
   type ObjectContract,
@@ -607,7 +607,7 @@ export function renderGeneratedSwiftDTOBlock(): string {
     );
   return [
     GENERATED_SWIFT_BEGIN,
-    "// Generated from services/supabase/functions/_shared/identify/contract.ts.",
+    "// Generated from identify/contract.ts and identify/initialEvidenceEnvelopeV1.ts.",
     "// Do not edit this block by hand; run make generate-edge-dto-contract.",
     "",
     "private struct IdentifyWireCodingKey: CodingKey {",

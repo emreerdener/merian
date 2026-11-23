@@ -1,5 +1,4 @@
-import { identificationProvenance } from "../ai/provenance.ts";
-import { parseIdentifySuccessEnvelope } from "../identify/contract.ts";
+import { executeClaimedHistoryAnalysis } from "./claimedExecution.ts";
 import {
   exactObject,
   HISTORY_MAX_RESULT_BYTES,
@@ -113,97 +112,17 @@ export function parseVideoAnalysisWork(
   };
 }
 
-/** Exactly one claimed V4 operation. Dispatch uncertainty never authorizes a
- * second invoke, cancellation, refund or regenerated media. */
-export async function executeVideoObservationAnalysis(
+/** Exactly one claimed V4 operation. Existing saved bytes, quota validation and
+ * dispatch uncertainty protections remain owned by the V4 lane. */
+export function executeVideoObservationAnalysis(
   work: VideoAnalysisWork,
   deps: AnalysisExecutionDependencies,
   signal?: AbortSignal,
 ): Promise<AnalysisState> {
-  if (!work.claimed) return work.state;
-  const input = parsePreparedVideoAdmission(work.input);
-  historyUUID(work.work_token);
-  if (!work.quota) return invalidHistory();
-  let state = work.state;
-  try {
-    let saved = work.provider_outcome;
-    if (state === "admitted") {
-      signal?.throwIfAborted();
-      const dispatchWork: AnalysisWork = {
-        state: work.state,
-        claimed: true,
-        work_token: work.work_token,
-        input,
-        quota: work.quota,
-      };
-      const prepared = await deps.prepare(dispatchWork);
-      assertVideoExecutionSnapshot(dispatchWork, prepared.snapshot);
-      signal?.throwIfAborted();
-      const response = await deps.advance("dispatch", {
-        provenance: identificationProvenance(prepared.snapshot),
-      });
-      const dispatch = exactObject(response, ["invocation_id", "may_dispatch"]);
-      historyUUID(dispatch.invocation_id);
-      if (typeof dispatch.may_dispatch !== "boolean") return invalidHistory();
-      state = "dispatched";
-      if (!dispatch.may_dispatch) return state;
-      signal?.throwIfAborted();
-      const result = await prepared.invoke();
-      saved = capturePreparedVideoOutcome(result, dispatchWork);
-      if (!saved) return state;
-      await deps.advance("outcome", {
-        quota_token: historyUUID(work.quota.lease_token),
-        value: saved,
-      });
-    }
-    if (state === "dispatched") {
-      if (!saved) return state;
-      const received = exactObject(saved, [
-        "schema_version",
-        "provenance",
-        "outcome",
-        "usage",
-      ]);
-      if (received.schema_version !== 1) return invalidHistory();
-      const kind = received.outcome && typeof received.outcome === "object" &&
-          "kind" in received.outcome
-        ? received.outcome.kind
-        : null;
-      const outcome = exactObject(
-        received.outcome,
-        kind === "draft" ? ["kind", "result"] : ["kind"],
-      );
-      if (
-        kind === "refusal" ||
-        kind === "invalid_output"
-      ) {
-        await deps.advance("fail", {});
-        return "failed_terminal";
-      }
-      if (kind !== "draft") return invalidHistory();
-
-      const result = parseIdentifySuccessEnvelope({
-        success: true,
-        data: outcome.result,
-      }).data;
-      const species = await deps.resolveSpecies(result);
-      const draft = buildPreparedVideoDraft(
-        JSON.stringify(input),
-        result,
-        species,
-      );
-      await deps.advance("draft", { draft });
-      await deps.advance("account", {});
-      state = "draft";
-    }
-    if (state === "draft") {
-      await deps.advance("complete", {});
-      return "complete";
-    }
-    return state;
-  } finally {
-    // Await cleanup of this lease only. SQL refuses a replaced or expired token;
-    // release cannot erase evidence, settle credits or mask the original error.
-    await deps.advance("release", {}).catch(() => {});
-  }
+  return executeClaimedHistoryAnalysis(work, deps, {
+    parseInput: parsePreparedVideoAdmission,
+    assertSnapshot: assertVideoExecutionSnapshot,
+    captureOutcome: capturePreparedVideoOutcome,
+    buildDraft: buildPreparedVideoDraft,
+  }, signal);
 }

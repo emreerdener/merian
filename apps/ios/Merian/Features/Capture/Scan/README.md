@@ -108,11 +108,16 @@ worker's actual result even after cancellation and removes intermediate exports
 before returning. Synchronous ImageIO/AVFoundation work observes cancellation at
 explicit stage boundaries; cancellation alone does not prove worker exit.
 
-The companion-audio extractor leaves appended sample buffers valid for the
-asynchronous asset writer. If that writer emits WAVE_EXTENSIBLE, the shared
-`InferenceAudioPreparer` normalizes it to standard mono 44.1 kHz Int16 PCM WAV
-before staging. Both the intermediate export and canonical sidecar remain leased
-through conversion; only the validated canonical result transfers to staging.
+`CaptureScanVideoAudioTimeline` decodes asset-timed samples directly into
+standard mono 44.1 kHz Int16 PCM WAV. Companion sample zero corresponds to the
+original audio track's start; empty edits become silence and internal gaps
+retain their placement. The preview inserts that companion at the same track
+start, without applying the offset twice. PCM writes use a fixed 4,096-frame
+buffer; the byte budget includes silence and clips at the earlier track/video
+end. Unsupported sample representations and overlaps beyond one frame of
+timestamp rounding fail closed. The producer pins the destination immediately
+after creation, checks WAV finalization, and joins native handle disposal before
+publication or receipt-bound cleanup. Standalone audio conversion is unchanged.
 The existing inference byte limit and strict WAV checks remain in force.
 
 Debug simulator replay accepts fixed `Documents/IdentificationReplay/audio.wav`

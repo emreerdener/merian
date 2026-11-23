@@ -34,30 +34,9 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
         CaptureWorkspacePresentationBindings.offlineToast(for: viewModel)
     }
 
-    private var isStagedVideoReviewPresented: Binding<Bool> {
-        CaptureWorkspacePresentationBindings.isPresented(
-            by: $stagedVideoReviewIndex
-        )
-    }
-
-    private var isStagedAudioReviewPresented: Binding<Bool> {
-        CaptureWorkspacePresentationBindings.isPresented(
-            by: $stagedAudioReviewIndex
-        )
-    }
-
-    private var isCropSheetPresented: Binding<Bool> {
-        CaptureWorkspacePresentationBindings.isPresented(
-            by: Binding(
-                get: { viewModel.imageToCrop },
-                set: { viewModel.imageToCrop = $0 }
-            )
-        )
-    }
-
     func body(content: Content) -> some View {
         content
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .ignoresSafeArea(.keyboard, edges: viewModel.isFieldNotesOccupied ? [] : .bottom)
             .merianSystemFeedback(
                 toast: offlineToastMessageBinding,
                 toastAlignment: .top
@@ -123,36 +102,6 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
                     }
                 )
             }
-            .fullScreenCover(
-                isPresented: isStagedAudioReviewPresented,
-                onDismiss: onFeaturePresentationDismissed
-            ) {
-                if let selectedIndex = stagedAudioReviewIndex,
-                   viewModel.stagedCapture.audios.indices.contains(selectedIndex) {
-                    StagedAudioPreviewModal(
-                        audio: viewModel.stagedCapture.audios[selectedIndex],
-                        onRemove: {
-                            viewModel.removeStagedAudio(at: selectedIndex)
-                            stagedAudioReviewIndex = nil
-                        }
-                    )
-                }
-            }
-            .fullScreenCover(
-                isPresented: isStagedVideoReviewPresented,
-                onDismiss: onFeaturePresentationDismissed
-            ) {
-                if let selectedIndex = stagedVideoReviewIndex,
-                   viewModel.stagedCapture.videos.indices.contains(selectedIndex) {
-                    StagedVideoPreviewModal(
-                        video: viewModel.stagedCapture.videos[selectedIndex],
-                        onRemove: {
-                            viewModel.removeStagedVideo(at: selectedIndex)
-                            stagedVideoReviewIndex = nil
-                        }
-                    )
-                }
-            }
             .sheet(isPresented: $showFeedbackSurvey, onDismiss: {
                 onFeedbackSurveyDismissal()
                 onFeaturePresentationDismissed()
@@ -165,16 +114,16 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
                 onRootPresentationDismissed()
             }
             .modifier(CropSheetModifier(
-                isPresented: isCropSheetPresented,
                 viewModel: viewModel,
-                onRequiredCropReadyForSubmit: {
-                    Task { @MainActor in
+                onReviewSubmit: {
+                        CaptureWorkspaceKeyboardService.dismissKeyboard()
+                        var draft = viewModel.descriptionDraft
+                        guard viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft) else { return }
                         await viewModel.submitStagedCapture(
                             modelContext: modelContext,
                             preferredGoal: preferredFieldTripGoal
                         )
                         cameraManager.resetZoom()
-                    }
                 },
                 onDismiss: onFeaturePresentationDismissed
             ))

@@ -18,6 +18,8 @@ struct ConfidenceExplanationSheet: View {
     @State private var pendingCommunityConsent: CommunityConsentTicket?
     var prepareSavedReanalysis: SavedReanalysisPreparation?
     var confidenceReviewControls: ConfidenceReviewControls
+    var identification: IdentificationSheetActions?
+
     var onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)?
     var onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)?
     var onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)?
@@ -48,17 +50,17 @@ struct ConfidenceExplanationSheet: View {
         isFlagged: Bool = false,
         aiScientificName: String? = nil,
         onAskCommunity: (() -> Void)? = nil,
-        onRequestDismissalAction: @escaping (
-            ConfidenceExplanationDismissalAction
-        ) -> Void,
+        onRequestDismissalAction: @escaping (ConfidenceExplanationDismissalAction) -> Void,
         prepareCommunityConsent: CommunityConsentPreparation? = nil,
         prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
         confidenceReviewControls: ConfidenceReviewControls = .init(),
         onPreparedCandidateReview: ((ConfidenceExplanationActionContext, CandidateReviewTicket) -> Void)? = nil,
         onPreparedCommunityConsent: ((ConfidenceExplanationActionContext, CommunityConsentTicket) -> Void)? = nil,
         onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)? = nil,
+        identification: IdentificationSheetActions? = nil,
         dependencies: ConfidenceReviewDependencies = .live
     ) {
+        self.identification = identification
         self.scanId = scanId
         self.presentationGeneration = presentationGeneration
         self.confidenceScore = confidenceScore
@@ -76,11 +78,7 @@ struct ConfidenceExplanationSheet: View {
         self.onPreparedCandidateReview = onPreparedCandidateReview
         self.onPreparedCommunityConsent = onPreparedCommunityConsent
         self.onPreparedReanalysis = onPreparedReanalysis
-        self._viewModel = State(
-            initialValue: ConfidenceExplanationViewModel(
-                dependencies: dependencies
-            )
-        )
+        self._viewModel = State(initialValue: ConfidenceExplanationViewModel(dependencies: dependencies))
     }
 
     private var displayedCorrection: String? {
@@ -108,6 +106,7 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var refinementAction: (() -> Void)? {
+        guard identification?.onReanalysisStatus == nil else { return nil }
         if let prepareSavedReanalysis {
             return {
                 guard isSubjectPresentationCurrent else { return }
@@ -252,38 +251,62 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var actionContext: ConfidenceExplanationActionContext {
-        ConfidenceExplanationActionContext(
-            scanId: scanId,
-            presentationGeneration: presentationGeneration
-        )
+        ConfidenceExplanationActionContext(scanId: scanId, presentationGeneration: presentationGeneration)
     }
 
     private var subject: IdentificationReviewSubject {
-        IdentificationReviewSubject(
-            scanId: scanId,
-            presentationGeneration: presentationGeneration
-        )
+        IdentificationReviewSubject(scanId: scanId, presentationGeneration: presentationGeneration)
+    }
+
+    private var hasReviewBanner: Bool {
+        displayedConfirmation || inferenceEngine.speciesData?.aiReview.isUnresolved == true
+            || inferenceEngine.speciesData?.aiReview.needsAttention == true
+    }
+
+    private var reviewBanner: some View {
+        IdentificationReviewBanner(
+            review: inferenceEngine.speciesData?.aiReview,
+            isConfirmed: displayedConfirmation && displayedCorrection == nil,
+            onUndoIncorrect: undoIncorrectAction, onConfirmProposal: proposalConfirmationAction,
+            unavailableReason: confidenceReviewControls.unavailableReason,
+            confirmationUndoReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason,
+            onResetConfirmation: permitsLegacyReview ? {
+                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
+                viewModel.feedback.lightImpact()
+                Task { @MainActor in
+                    guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
+                    await viewModel.candidateReview.resetReview(
+                        subject: subject, inferenceEngine: inferenceEngine, modelContext: modelContext)
+                }
+            } : protectedConfirmationUndoAction,
+            communityTitle: identification?.onViewCommunityRequest == nil ? "Ask the community" : "View community request",
+            reanalysisTitle: identification?.onReanalysisStatus == nil ? "Reanalyze species" : "View reanalysis progress",
+            onCommunity: identification?.onViewCommunityRequest ?? communityRequestAction,
+            onReanalysis: identification?.onReanalysisStatus ?? refinementAction)
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 32) {
+            VStack(spacing: 20) {
                 ConfidenceHeader(
                     title: headerTitle,
                     showsExplanation: inferenceEngine.speciesData?.aiReview.isUnresolved != true
                         && !userConfirmedIdentification && userIdentificationOverride == nil
                 )
 
-                if let review = inferenceEngine.speciesData?.aiReview, review.isUnresolved || review.needsAttention {
-                    IncorrectIdentificationView(
-                        review: review,
-                        onUndo: undoIncorrectAction,
-                        onConfirm: proposalConfirmationAction,
-                        unavailableReason: undoIncorrectAction == nil
-                            ? confidenceReviewControls.unavailableReason ?? IdentificationReviewNotice.unavailableReason(review) : nil
-                    )
-                        .padding(.horizontal, 16)
-                }
+                IdentificationSummaryCard(
+                    presentation: .resolve(confidenceScore: confidenceScore, inferenceTier: inferenceTier,
+                        provenance: provenance, hasUserOverride: displayedCorrection != nil,
+                        isUserConfirmed: displayedConfirmation, analyzingPhrase: nil,
+                        review: inferenceEngine.speciesData?.aiReview ?? .init(),
+                        confirmationState: confidenceReviewControls.confirmationState),
+                    species: inferenceEngine.speciesData, summaryImagePath: identification?.summaryImagePath, summaryDate: identification?.summaryDate,
+                    feedback: viewModel.feedback, isCurrent: { isSubjectPresentationCurrent },
+                    onConfirmIdentification: hasReviewBanner ? nil : identification?.onConfirmIdentification,
+                    onMarkIdentificationIncorrect: hasReviewBanner ? nil : identification?.onMarkIdentificationIncorrect,
+                    onRetryReview: identification?.onRetryReview) {
+                        reviewBanner
+                    }
 
                 let candidates = visibleReviewCandidates
                 let storedCandidateCount = storedCandidates.count
@@ -338,28 +361,11 @@ struct ConfidenceExplanationSheet: View {
                         unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
                     )
                     .padding(.horizontal, 16)
-                } else if displayedConfirmation && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
-                    ConfirmedView(
-                        onReset: permitsLegacyReview ? {
-                            guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
-                            viewModel.feedback.lightImpact()
-                            Task { @MainActor in
-                                guard permitsLegacyReview, isSubjectPresentationCurrent else { return }
-                                await viewModel.candidateReview.resetReview(
-                                    subject: subject,
-                                    inferenceEngine: inferenceEngine,
-                                    modelContext: modelContext
-                                )
-                            }
-                        } : protectedConfirmationUndoAction,
-                        unavailableReason: permitsLegacyReview ? nil : confidenceReviewControls.confirmationUndoReason
-                    )
-                    .padding(.horizontal, 16)
-                } else if !permitsLegacyReview {
+                } else if !displayedConfirmation && !permitsLegacyReview {
                     if let reason = confidenceReviewControls.unavailableReason {
                         Text(reason).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 16)
                     }
-                } else if !candidates.isEmpty {
+                } else if !displayedConfirmation && !candidates.isEmpty {
 
                     CandidatesCard(
                         candidates: candidates,
@@ -388,17 +394,11 @@ struct ConfidenceExplanationSheet: View {
                         .padding(.horizontal, 16)
                 }
 
-                let onReanalyze = refinementAction
-                let onAskCommunity = communityRequestAction
-                if onReanalyze != nil || onAskCommunity != nil || incorrectAction != nil {
-                    ConfidenceSheetActionButtons(
-                        isReanalyzeLocked: prepareSavedReanalysis == nil && !revenueCatManager.canStartProScan,
-                        onReanalyze: onReanalyze,
-                        onAskCommunity: onAskCommunity,
-                        onMarkIncorrect: incorrectAction,
-                        feedback: viewModel.feedback
-                    )
-                    .padding(.horizontal, 16)
+                if identification == nil {
+                    ConfidenceSheetActionButtons(isReanalyzeLocked: prepareSavedReanalysis == nil && !revenueCatManager.canStartProScan,
+                        onReanalyze: refinementAction, onAskCommunity: communityRequestAction,
+                        onMarkIncorrect: incorrectAction, feedback: viewModel.feedback)
+                        .padding(.horizontal, 16)
                 }
 
                 if !userConfirmedIdentification && userIdentificationOverride == nil {
@@ -419,7 +419,7 @@ struct ConfidenceExplanationSheet: View {
                     onOpenSettings: viewModel.openSettings
                 )
             }
-            .padding(.top, 32)
+            .padding(.top, 16)
             .padding(.bottom, 48)
         }
         .alert("Identification confirmation", isPresented: Binding(
@@ -437,6 +437,14 @@ struct ConfidenceExplanationSheet: View {
             Text("Your scan, photos, and notes will be kept.")
         }
         .merianSystemFeedback(toast: $reviewToast, toastAction: $reviewToastAction, showsAchievementToasts: false)
+        .navigationTitle("Identification")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            IdentificationSheetToolbar(onClose: { dismiss() }, onHistory: identification?.onHistory,
+                onViewCommunityRequest: identification?.onViewCommunityRequest, communityRequestAction: communityRequestAction,
+                onReanalysisStatus: identification?.onReanalysisStatus, refinementAction: refinementAction)
+        }
+        .accessibilityIdentifier("IdentificationSheet")
         .transparentTopToolbar()
         .sheet(
             isPresented: swipeModalPresentedBinding,

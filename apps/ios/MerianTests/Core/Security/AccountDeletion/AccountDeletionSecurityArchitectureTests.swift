@@ -110,6 +110,7 @@ struct AccountDeletionSecurityArchitectureTests {
     }
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Models/AccountDeletionCleanupMarker.swift": ["import CoreFoundation", "import Foundation"],
         "Models/AccountDeletionLocalRecoveryState.swift": [],
         "Models/AccountDeletionRecoveryCapabilityModels.swift": [
             "import Foundation"
@@ -127,6 +128,9 @@ struct AccountDeletionSecurityArchitectureTests {
     ]
 
     private static let expectedDeclarationOwners: [String: String] = [
+        "struct AccountDeletionCleanupMarker":
+            "apps/ios/Merian/Core/Security/AccountDeletion/Models/" +
+            "AccountDeletionCleanupMarker.swift",
         "enum AccountDeletionLocalRecoveryState":
             "apps/ios/Merian/Core/Security/AccountDeletion/Models/" +
             "AccountDeletionLocalRecoveryState.swift",

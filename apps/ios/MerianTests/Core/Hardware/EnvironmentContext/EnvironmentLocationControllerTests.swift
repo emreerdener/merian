@@ -7,6 +7,44 @@ import Testing
 @MainActor
 struct EnvironmentLocationControllerTests {
     #if DEBUG
+    @Test("Capture review location fixture avoids constructing live hardware")
+    func captureReviewFixtureAvoidsLiveConstruction() {
+        var liveConstructionCount = 0
+        let probe = EnvironmentLocationHardwareProbe(authorizationStatus: .notDetermined)
+        let hardware = EnvironmentLocationHardware.debugHardware(
+            isRunningUnitTests: false,
+            environment: ["UITesting": "true"],
+            arguments: ["-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation"],
+            live: { liveConstructionCount += 1; return probe.hardware() }
+        )
+        #expect(liveConstructionCount == 0)
+        #expect(hardware.authorizationStatus() == .denied)
+        hardware.requestLocation()
+        hardware.startUpdatingLocation()
+        #expect(probe.locationRequestCount == 0)
+        #expect(probe.startUpdatingCount == 0)
+    }
+
+    @Test("Location fixtures require every explicit capture review opt-in")
+    func incompleteCaptureReviewFixtureRetainsLiveHardware() {
+        let cases: [([String: String], [String])] = [
+            ([:], ["-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation"]),
+            (["UITesting": "true"], ["-seedStagedAudioReviewFlow"]),
+            (["UITesting": "true"], ["-mockCaptureReviewLocation"]),
+            ([:], [])
+        ]
+        for (environment, arguments) in cases {
+            var liveConstructionCount = 0
+            let probe = EnvironmentLocationHardwareProbe(authorizationStatus: .notDetermined)
+            let hardware = EnvironmentLocationHardware.debugHardware(
+                isRunningUnitTests: false, environment: environment, arguments: arguments,
+                live: { liveConstructionCount += 1; return probe.hardware() }
+            )
+            #expect(liveConstructionCount == 1)
+            #expect(hardware.authorizationStatus() == .notDetermined)
+        }
+    }
+
     @Test("Unit-test host dependencies deny location without contacting system hardware")
     func unitTestHostDependenciesRemainInert() async {
         #expect(TestExecutionCoordinator.isRunningUnitTests)

@@ -16,11 +16,12 @@ export function parseHistoryPage(
   value: unknown,
   request: HistoryPageRequest,
   ownerID: string,
-  reader: 7 | 8 | 9 | 10 | 11 | 13 = 7,
+  reader: 7 | 8 | 9 | 10 | 11 | 13 | 14 | 15 | 16 | 17 | 18 = 7,
 ) {
   if (
     reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10 &&
-    reader !== 11 && reader !== 13
+    reader !== 11 && reader !== 13 && reader !== 14 && reader !== 15 &&
+    reader !== 16 && reader !== 17 && reader !== 18
   ) {
     return invalidHistory();
   }
@@ -54,6 +55,10 @@ export function parseHistoryPage(
       ordinal !== snapshot.ordinal || ordinal < 1 || ordinal >= previous ||
       snapshot.observation_id !== expected.observation_id ||
       seen.has(snapshot.analysis_id)
+    ) return invalidHistory();
+    if (
+      "initial_evidence" in snapshot &&
+      snapshot.initial_evidence?.owner_id !== ownerID
     ) return invalidHistory();
     seen.add(snapshot.analysis_id);
     previous = ordinal;

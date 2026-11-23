@@ -26,7 +26,6 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     @State private var hasStartedEnvironmentContext = false
     // Remain occupied through the animation, until the matching onDismiss callback.
     @State private var rootPresentationAwaitingDismissal = false
-    @State private var featurePresentationAwaitingDismissal = false
 
     let viewModel: CaptureWorkspaceViewModel
     let coordinator: CaptureActionCoordinator
@@ -57,7 +56,12 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 if presentation != nil { rootPresentationAwaitingDismissal = true }
             }
             .onChange(of: isFeaturePresentationOccupied, initial: true) { _, occupied in
-                if occupied { featurePresentationAwaitingDismissal = true }
+                if occupied { viewModel.isFeaturePresentationAwaitingDismissal = true }
+            }
+            .onChange(of: viewModel.fieldNotesSession?.id) { old, new in
+                if old != nil, new == nil, viewModel.mediaReviewPresentationID == nil {
+                    handleFeaturePresentationDismissed()
+                }
             }
     }
 
@@ -68,7 +72,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             && !rootPresentationAwaitingDismissal
             && !viewModel.isPhotoLibraryPresented
             && !isFeaturePresentationOccupied
-            && !featurePresentationAwaitingDismissal
+            && !viewModel.isFeaturePresentationAwaitingDismissal
             && appRouteCoordinator.inFlightRequest == nil
             && appRouteCoordinator.nextRequestID == nil
     }
@@ -88,11 +92,13 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
 
     private var isFeaturePresentationOccupied: Bool {
         stagedDescriptionEditIndex != nil
+            || viewModel.isFieldNotesOccupied
             || isDescribeQuestionsSheetPresented
             || stagedAudioReviewIndex != nil
             || stagedVideoReviewIndex != nil
             || showFeedbackSurvey
             || viewModel.imageToCrop != nil
+            || viewModel.mediaReviewPresentationID != nil
     }
 
     private func lifecycleContent(_ content: Content) -> some View {
@@ -127,14 +133,12 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             )
             #endif
             viewModel.updateNotificationSuppression()
-            if captureMode == .visual,
-               viewModel.activeSheet == nil,
-               viewModel.imageToCrop == nil,
-               scenePhase == .active {
+            if isCameraUncovered {
                 cameraManager.startSession()
             }
             photoLibraryManager.startObservingAndFetch()
             startEnvironmentContextIfPossible()
+            viewModel.restoreInitialDraftIfPossible()
             viewModel.importPendingExternalImageIfPossible()
             activeCaptureGoalStore.activate(accountId: currentAccountId)
             if FeatureFlags.isEnabled(.fieldTrips) {
@@ -203,9 +207,12 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 newPhase,
                 captureMode: captureMode,
                 cameraManager: cameraManager,
-                audioCaptureManager: audioCaptureManager
+                audioCaptureManager: audioCaptureManager,
+                isPresentationOccupied: isFeaturePresentationOccupied || viewModel.isFeaturePresentationAwaitingDismissal
+                    || rootPresentationAwaitingDismissal || viewModel.isRootPresentationDismissing
             )
             if newPhase == .active {
+                viewModel.restoreInitialDraftIfPossible()
                 viewModel.importPendingExternalImageIfPossible()
                 if FeatureFlags.isEnabled(.fieldTrips) {
                     Task {
@@ -226,7 +233,9 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 newMode,
                 scenePhase: scenePhase,
                 cameraManager: cameraManager,
-                audioCaptureManager: audioCaptureManager
+                audioCaptureManager: audioCaptureManager,
+                isPresentationOccupied: isFeaturePresentationOccupied || viewModel.isFeaturePresentationAwaitingDismissal
+                    || rootPresentationAwaitingDismissal || viewModel.isRootPresentationDismissing
             )
             if newMode == .visual, FeatureFlags.isEnabled(.fieldTrips) {
                 Task {
@@ -258,6 +267,15 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         .onChange(of: supabaseManager.authSessionGeneration) { _, _ in
             viewModel.handleDraftAccountChange()
         }
+        .onChange(of: supabaseManager.isAuthTransitionInProgress) { _, active in
+            if !active { viewModel.restoreInitialDraftIfPossible() }
+        }
+        .onChange(of: supabaseManager.libraryAccountRecoveryRequired) { _, blocked in
+            if !blocked { viewModel.restoreInitialDraftIfPossible() }
+        }
+        .onChange(of: supabaseManager.librarySignOutRecoveryPending) { _, blocked in
+            if !blocked { viewModel.restoreInitialDraftIfPossible() }
+        }
         .onChange(of: appSettings.showsCaptureGoalProgress) { _, isVisible in
             captureGoalIndicatorExpansionState =
                 captureGoalIndicatorExpansionState.preservingOnly(
@@ -271,10 +289,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             if newSheet != nil {
                 viewModel.handleVisualCaptureInterruption()
                 cameraManager.stopSession()
-            } else if captureMode == .visual,
-                      viewModel.imageToCrop == nil,
-                      !viewModel.isRootPresentationDismissing,
-                      scenePhase == .active {
+            } else if isCameraUncovered {
                 // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
                 // startSession() hardware call can never fire indiscriminately during
                 // backgrounding transitions when the UI naturally dismisses sheets.
@@ -334,12 +349,16 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         .onChange(of: viewModel.requestedCaptureMode) { _, requested in
             guard let requested else { return }
             coordinator.isDictationRequested = false
-            captureMode = requested
             viewModel.requestedCaptureMode = nil
             if let initial = viewModel.refinementInitialDescriptionDraft {
                 observationContext = ObservationContext(freeText: initial)
             }
             viewModel.refinementInitialDescriptionDraft = nil
+            if requested == .describe {
+                viewModel.requestFieldNotesWhenReady()
+            } else if !viewModel.isFieldNotesOccupied {
+                captureMode = requested
+            }
         }
         .onChange(of: audioCaptureManager.isRecording) { _, isRecording in
             viewModel.reconcileEndedAudioOperation(
@@ -357,8 +376,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         }
 
         .onPhysicalCameraShutter(
-            isEnabled: viewModel.activeSheet == nil &&
-                       viewModel.imageToCrop == nil &&
+            isEnabled: isCameraUncovered && !viewModel.areCaptureActionsBlocked &&
                        !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
@@ -374,7 +392,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     }
 
     private func handleFeaturePresentationDismissed() {
-        featurePresentationAwaitingDismissal = isFeaturePresentationOccupied
+        viewModel.isFeaturePresentationAwaitingDismissal = isFeaturePresentationOccupied
         viewModel.handleFeaturePresentationDismissed()
         presentPendingFeedbackSurveyIfReady()
         restoreCameraAfterPresentationIfPossible()
@@ -396,12 +414,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     }
 
     private func restoreCameraAfterPresentationIfPossible() {
-        guard captureMode == .visual,
-              viewModel.activeSheet == nil,
-              !isFeaturePresentationOccupied,
-              appRouteCoordinator.inFlightRequest == nil,
-              appRouteCoordinator.nextRequestID == nil,
-              scenePhase == .active else { return }
+        guard isCameraUncovered else { return }
         cameraManager.startSession()
     }
 

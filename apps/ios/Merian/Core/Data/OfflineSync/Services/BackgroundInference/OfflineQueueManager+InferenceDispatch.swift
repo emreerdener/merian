@@ -373,10 +373,7 @@ extension OfflineQueueManager {
             localAudioPaths: audioPaths,
             localVideoPaths: videoPaths
         )
-        let visualMediaItems = extracted.visualMediaItems
-        let validVisualMediaItems = visualMediaItems?.count == extracted.localImagePaths.count
-            ? visualMediaItems
-            : nil
+        let validVisualMediaItems = try extracted.validatedVisualMediaItems()
         let videoFrameCount = validVisualMediaItems?
             .filter { $0.kind == .videoFrame }
             .count ?? (videoPaths.isEmpty ? nil : extracted.localImagePaths.count)

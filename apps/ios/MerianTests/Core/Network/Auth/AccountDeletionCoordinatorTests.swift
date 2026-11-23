@@ -6,13 +6,14 @@ import XCTest
 final class AccountDeletionCoordinatorTests: XCTestCase {
     func testFreshIntakeStopsWhenPreparationOrCommitContextChanges() async throws {
         for duringPreparation in [true, false] {
-            for change in ["marker", "proof", "library"] {
+            for change in ["marker", "operation", "proof", "library"] {
                 let harness = AccountDeletionCoordinatorHarness()
                 let secure = AccountDeletionSecureStoreStub()
                 let store = secure.makeCapabilityStore()
                 let mutate: @MainActor () -> Void = {
                     if change == "library" { harness.libraryContextIsCurrent = false }
                     else if change == "marker" { harness.recoveryState = .capabilityLookupPending }
+                    else if change == "operation", let state = harness.recoveryState { harness.cleanupMarker = .init(phase: state, operationID: UUID()) }
                     else { secure.values[KeychainKeys.accountDeletionRecoveryCapability] = Data(repeating: 9, count: 32) }
                 }
                 do {
@@ -84,6 +85,7 @@ final class AccountDeletionCoordinatorTests: XCTestCase {
         let capabilityStore = secureStore.makeCapabilityStore()
         var recoveryCapability: String?
         var acknowledgementCapability: String?
+        var cleanupOperationID: UUID?
 
         let receipt = acceptedReceipt(protocolVersion: 2)
         let result = try await AccountDeletionCoordinator(
@@ -102,6 +104,8 @@ final class AccountDeletionCoordinatorTests: XCTestCase {
             },
             commitDeletionV2: { _, recovery in
                 harness.events.append("commit-v2")
+                cleanupOperationID = harness.cleanupMarker?.operationID
+                XCTAssertNotNil(cleanupOperationID)
                 XCTAssertEqual(recovery, recoveryCapability)
                 return receipt
             },
@@ -126,7 +130,10 @@ final class AccountDeletionCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 harness.events.append("record-manual-revocation")
             },
-            purgeLocalData: { _ in
+            purgeLocalData: { scope in
+                XCTAssertTrue(scope.isCurrent)
+                XCTAssertEqual(scope.cleanupOperationID, cleanupOperationID)
+                XCTAssertEqual(scope.expectedMarker?.phase, .capabilityCleanupPending)
                 harness.events.append("purge")
                 return true
             }

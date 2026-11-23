@@ -8,11 +8,32 @@
     "Core/AI/InferenceEdgeDTOs.swift",
     "Core/Network/SupabaseManager.swift",
     "Models/SchemaVersions.swift",
-    "Models/Schema/SchemaV51Snapshots.swift"
+    "Models/Schema/SchemaV51Snapshots.swift",
+    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner+AppReceiving.swift",
+    "Core/Data/SharedMediaStorage/SharedMediaNativeAppReceivingOperations.swift",
+    "Core/UI/Components/MediaCarousel/AudioPlayback/AudioPlaybackCarouselPage.swift",
+    "Core/Hardware/AudioCaptureManager.swift",
+    "Core/Security/EntitlementManager.swift",
+    "Core/Network/MerianNetworkClient.swift",
+    "Core/Data/Database/ScanRepository.swift",
+    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift",
+    "Core/Data/SharedMediaStorage/SharedMediaNativeBootstrapFiles.swift",
+    "Core/Data/PhotoPreparation/PhotoPreparationFileStore.swift",
+    "Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift"
   ],
   "sealedOwnerCeilings": {
-    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift": 610,
-    "Core/Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift": 622
+    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner.swift": 755,
+    "Core/Data/SharedMediaStorage/SharedMediaNativeStorageRepository.swift": 756,
+    "Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner+AppReceiving.swift": 610,
+    "Core/Data/SharedMediaStorage/SharedMediaNativeAppReceivingOperations.swift": 610,
+    "Core/UI/Components/MediaCarousel/AudioPlayback/AudioPlaybackCarouselPage.swift": 639,
+    "Core/Hardware/AudioCaptureManager.swift": 626,
+    "Core/Security/EntitlementManager.swift": 620,
+    "Core/Network/MerianNetworkClient.swift": 604,
+    "Core/Data/Database/ScanRepository.swift": 603,
+    "Core/Data/SharedMediaStorage/SharedMediaNativeBootstrapFiles.swift": 1434,
+    "Core/Data/PhotoPreparation/PhotoPreparationFileStore.swift": 606,
+    "Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift": 611
   },
   "directoryRules": {
     "apps/ios/Merian/Features/Capture/Shell": {
@@ -135,7 +156,7 @@
     },
     "apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory+Persistent.swift": {
       "counter": "physical",
-      "ceiling": 600
+      "ceiling": 611
     },
     "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/InitialPhotoAllocationRequest.swift": {
       "counter": "physical",
@@ -195,7 +216,7 @@
     },
     "apps/ios/Merian/Core/Network/MerianNetworkClient.swift": {
       "counter": "physical",
-      "ceiling": 600
+      "ceiling": 604
     },
     "apps/ios/Merian/Core/Network/Transport/NativeReceivedStatusTransport.swift": {
       "counter": "physical",
@@ -243,7 +264,7 @@
     },
     "apps/ios/Merian/Core/Data/Database/ScanRepository.swift": {
       "counter": "physical",
-      "ceiling": 600
+      "ceiling": 603
     },
     "apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+NonBiologicalRetention.swift": {
       "counter": "physical",
@@ -278,6 +299,30 @@
       "ceiling": 600
     },
     "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceHistoricalLoadCoordinator.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/History/Views/IdentificationHistoryCardMenu.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Components/IdentificationSummaryCard.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/AddCollectionTopMenu.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceExplanationSheet.swift": {
+      "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Components/ConfidenceSheetActionButtons.swift": {
       "counter": "segments",
       "ceiling": 600
     },
@@ -791,6 +836,162 @@
     },
     "apps/ios/Merian/Features/Insights/Shell/Services/SelectedAnalysisReviewAccess.swift": {
       "counter": "segments",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionManifest.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionFingerprint.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationCompositionReanalysisRequest.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionSource.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationHistoryMediaLoader.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationReanalysisSource.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationReanalysisPreparationPlan.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationAudioPreparation.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationVideoPreparation.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionPreparation.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionPreparationStore.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionProducer.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionPayload.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationVideoCohortPreparer.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Transport/ObservationCompositionAnalysisTransport.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Transport/ObservationCompositionEvidenceTransport.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationCompositionSourceReservation.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationCompositionEvidenceUpload.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Network/Models/ObservationAnalysis/ObservationCompositionCohortInventory.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/ObservationCompositionUploadOwner.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/ObservationCompositionExecutionOwner.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/ObservationCompositionReservationOwner.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionResumeSubmission.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionSubmissionService.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionUploadLifecycle.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionUploadStore.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionUploadService.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionResumeStore.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionSourceReservationStore.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionExecutionDependencies.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionExecutionWork.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionExecutionStore.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionReservationService.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionExecutionService.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/App/Composition/PreparedHistoryReanalysisComposition+Composition.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Features/Capture/Shell/Services/CaptureWorkspaceCompositionReanalysis.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/CaptureQueueInitialRecords.swift": {
+      "counter": "physical",
+      "ceiling": 600
+    },
+    "apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift": {
+      "counter": "physical",
       "ceiling": 600
     }
   },

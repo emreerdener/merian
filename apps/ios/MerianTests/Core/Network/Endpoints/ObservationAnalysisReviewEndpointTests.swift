@@ -129,7 +129,7 @@ struct ObservationAnalysisReviewEndpointTests {
                 #expect(try NetworkEndpointTestSupport.canonicalRequestJSON(body) == original)
             } else {
                 let row = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-                #expect(Set(row.keys) == ["p_request", "p_reader"]); #expect(row["p_reader"] as? Int == 11)
+                #expect(Set(row.keys) == ["p_request", "p_reader"]); #expect(row["p_reader"] as? Int == 18)
                 #expect(try Self.data(#require(row["p_request"] as? [String: Any])) == original)
             }
             return try NetworkEndpointTestSupport.response(to: wire, json: response)
@@ -164,7 +164,9 @@ struct ObservationAnalysisReviewEndpointTests {
                 headerFields: ["SB-Error-Code": "NOT_FOUND"]))
             return (response, Data("{\"code\":\"NOT_FOUND\"}".utf8))
         }
-        await #expect(throws: MerianError.edgeFunctionUnavailable) {
+        let expected: MerianError = confirmation ? .edgeFunctionUnavailable
+            : .httpError(statusCode: 404, message: "{\"code\":\"NOT_FOUND\"}")
+        await #expect(throws: expected) {
             try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {})
         }
         #expect(calls.withLock { $0 } == 1)

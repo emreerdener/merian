@@ -231,7 +231,7 @@ final class NativeInitialApplicationOperations {
         let original = try SharedMediaNativeDerivativeIntent.decode(first.intent.bytes).preparation.original.reference.referenceID
         let presentation = supporting.presentation.first { $0.referenceID == original }
         let captured = presentation?.captureDate ?? Date(timeIntervalSinceReferenceDate: Double(bitPattern: prepared.timestampBits))
-        return .init(speciesID: speciesID, timestamp: timestamp, captureDate: captured, fieldNotes: nil, contexts: supporting.contexts)
+        return .init(speciesID: speciesID, timestamp: timestamp, captureDate: captured, fieldNotes: frozen.initialFieldNotes, contexts: supporting.contexts)
     }
 
     private func validate() throws {

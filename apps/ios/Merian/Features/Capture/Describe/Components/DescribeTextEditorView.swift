@@ -4,6 +4,7 @@ struct DescribeTextEditorView: View {
     let placeholder: String
     @Binding var text: String
     let focus: FocusState<Bool>.Binding
+    var showsKeyboardDone = true
     var onDone: () -> Void = {}
 
     var body: some View {
@@ -32,12 +33,14 @@ struct DescribeTextEditorView: View {
                     .submitLabel(.return)
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") {
-                                focus.wrappedValue = false
-                                onDone()
+                            if showsKeyboardDone {
+                                Spacer()
+                                Button("Done") {
+                                    focus.wrappedValue = false
+                                    onDone()
+                                }
+                                .accessibilityIdentifier("DescribeKeyboardDone")
                             }
-                            .accessibilityIdentifier("DescribeKeyboardDone")
                         }
                     }
                     .padding(.horizontal, 16)

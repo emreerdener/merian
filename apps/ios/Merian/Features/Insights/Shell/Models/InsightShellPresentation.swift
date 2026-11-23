@@ -27,6 +27,7 @@ enum InsightShellPresentation: Identifiable, Equatable {
     case reviewCandidates(formID: UUID, scanId: String, generation: UInt64)
     case reviewName(formID: UUID, scanId: String, generation: UInt64)
     case publicationConsent(scanId: String, generation: UInt64)
+    case identification(scanId: String, generation: UInt64)
     case identificationHistory(scanId: String, generation: UInt64)
     case reanalysisStatus(scanId: String, generation: UInt64)
     case fieldTripAuthor(ExploreAuthorProfileRoute)
@@ -44,6 +45,8 @@ enum InsightShellPresentation: Identifiable, Equatable {
             "publication-consent-\(scanId)-\(generation)"
         case .reanalysisStatus(let scanId, let generation):
             "reanalysis-status-\(scanId)-\(generation)"
+        case .identification(let scanId, let generation):
+            "identification-\(scanId)-\(generation)"
         case .identificationHistory(let scanId, let generation):
             "identification-history-\(scanId)-\(generation)"
         case .protectedChat(let token, let scanId, let generation):

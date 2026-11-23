@@ -642,3 +642,101 @@ Deno.test("completed replay preserves saved provenance and refuses damaged metad
     )
   );
 });
+
+Deno.test("strict initial recovery uses the sealed response after job TTL and never reconstructs a scan", async () => {
+  const proof = {
+    schema_version: 1,
+    owner_id: scan.user_id,
+    scan_id: scan.id,
+    generation: "00000000-0000-4000-8000-000000000777",
+    evidence_digest: "a".repeat(64),
+  };
+  const envelope = {
+    ...buildCompletedIdentifyEnvelope(scan, species),
+    initial_evidence: proof,
+  };
+  for (
+    const job of [null, {
+      status: "complete",
+      initial_evidence_generation: proof.generation,
+    }]
+  ) {
+    for (
+      const reply of [
+        { data: envelope, error: null },
+        { data: buildCompletedIdentifyEnvelope(scan, species), error: null },
+        { data: { ...envelope, initial_evidence: null }, error: null },
+        ...[0, 2].map((schema_version) => ({
+          data: { ...envelope, initial_evidence: { ...proof, schema_version } },
+          error: null,
+        })),
+        ...(job
+          ? [{
+            data: {
+              ...envelope,
+              initial_evidence: {
+                ...proof,
+                generation: "00000000-0000-4000-8000-000000000778",
+              },
+            },
+            error: null,
+          }]
+          : []),
+        {
+          data: {
+            ...envelope,
+            initial_evidence: { ...proof, owner_id: proof.generation },
+          },
+          error: null,
+        },
+        {
+          data: null,
+          error: { message: "analysis_history_evidence_unavailable" },
+        },
+      ]
+    ) {
+      const tables: string[] = [], routines: string[] = [];
+      const client = {
+        from(table: string) {
+          tables.push(table);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            abortSignal() {
+              return this;
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: job, error: null });
+            },
+          };
+        },
+        rpc(name: string, args: unknown) {
+          routines.push(name);
+          assertEquals(args, { p_owner: scan.user_id, p_scan: scan.id });
+          return {
+            abortSignal() {
+              return Promise.resolve(reply);
+            },
+          };
+        },
+      } as unknown as SupabaseClient;
+      if (reply.data === envelope) {
+        assertEquals(
+          (await fetchCompletedIdentifyResponse(scan.id, scan.user_id, client))
+            ?.envelope,
+          envelope,
+        );
+      } else {
+        await assertRejects(() =>
+          fetchCompletedIdentifyResponse(scan.id, scan.user_id, client)
+        );
+      }
+      assertEquals(tables, ["scan_ingestion_jobs"]);
+      assertEquals(routines, ["recover_owned_initial_completion"]);
+    }
+  }
+});

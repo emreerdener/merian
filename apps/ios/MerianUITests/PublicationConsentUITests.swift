@@ -5,8 +5,54 @@ import XCTest
     func testNamedConfirmationUndoFromMenu() { exerciseConfirmationUndo(named: true, surface: .menu) }
     func testPrimaryConfirmationUndoFromConfidence() { exerciseConfirmationUndo(named: false, surface: .confidence) }
     func testNamedConfirmationUndoFromConfidence() { exerciseConfirmationUndo(named: true, surface: .confidence) }
-    func testPrimaryConfirmationUndoFromHistoricalPreview() { exerciseConfirmationUndo(named: false, surface: .history) }
-    func testNamedConfirmationUndoFromHistoricalPreview() { exerciseConfirmationUndo(named: true, surface: .history) }
+    func testPrimaryConfirmationUndoFromCurrentHistoryCard() { exerciseConfirmationUndo(named: false, surface: .history) }
+    func testNamedConfirmationUndoFromCurrentHistoryCard() { exerciseConfirmationUndo(named: true, surface: .history) }
+
+    func testConfirmedBannerInsideIdentificationCard() { exerciseReviewBanner(rejected: false, history: false) }
+    func testConfirmedBannerInsideHistoryCard() { exerciseReviewBanner(rejected: false, history: true) }
+    func testIncorrectBannerInsideIdentificationCard() { exerciseReviewBanner(rejected: true, history: false) }
+    func testIncorrectBannerInsideHistoryCard() { exerciseReviewBanner(rejected: true, history: true) }
+
+    private func exerciseReviewBanner(rejected: Bool, history: Bool) {
+        continueAfterFailure = false
+        var arguments = ["-seedPublicationConsentChooser", "-seedConfirmationUndo"]
+        if rejected { arguments.append("-seedRejectionUndo") }
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: arguments)
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let library = app.buttons["MainTabBar_Naturebook"]
+            XCTAssertTrue(library.waitForExistence(timeout: 10)); library.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        XCTAssertTrue(app.buttons["InsightTopMenu"].waitForExistence(timeout: 10))
+        UITestAppLauncher.openIdentification(app, history: history)
+        let undoID = history ? (rejected ? "HistoryUndoReview" : "HistoryUndoConfirmation")
+            : (rejected ? "IncorrectIdentificationUndoButton" : "ConfidenceUndoConfirmation")
+        let undo = app.buttons[undoID]
+        XCTAssertTrue(undo.waitForExistence(timeout: 20))
+        if !undo.isHittable { app.swipeUp() }
+        XCTAssertTrue(undo.isHittable)
+        XCTAssertFalse(app.buttons[history ? "HistoryConfirmPrimary" : "IdentificationConfirm"].exists)
+        XCTAssertFalse(app.buttons[history ? "HistoryReject" : "IdentificationIncorrect"].exists)
+        if rejected && history {
+            XCTAssertTrue(app.buttons["IdentificationCommunityAction"].exists)
+            XCTAssertTrue(app.buttons["IdentificationReanalysisAction"].exists)
+        }
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "\(history ? "History" : "Identification") \(rejected ? "incorrect" : "confirmed") banner inside card"
+        shot.lifetime = .keepAlways; add(shot)
+        undo.tap()
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 20))
+        if !history { app.buttons["IdentificationClose"].tap(); UITestAppLauncher.openIdentification(app, history: true) }
+        let row = UITestAppLauncher.historyCard(app, id: "00000000-0000-4000-8000-000000000004")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Not confirmed"), object: row)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 15), .completed)
+        XCTAssertTrue(row.label.contains("Current"))
+    }
 
     private enum UndoSurface { case menu, confidence, history }
     private func exerciseConfirmationUndo(named: Bool, surface: UndoSurface) {
@@ -17,7 +63,7 @@ import XCTest
         defer { app.terminate() }
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
@@ -25,19 +71,19 @@ import XCTest
         XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
         let menu = app.buttons["InsightTopMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
-        let target = surface == .history ? "00000000-0000-4000-8000-000000000002" : "00000000-0000-4000-8000-000000000004"
+        let target = "00000000-0000-4000-8000-000000000004"
         let action: XCUIElement
         switch surface {
         case .menu:
-            menu.tap(); action = app.buttons["Undo confirmation"]
+            UITestAppLauncher.openIdentification(app); action = app.buttons["ConfidenceUndoConfirmation"]
         case .confidence:
             let badge = app.buttons["Confirmed"]
             XCTAssertTrue(badge.waitForExistence(timeout: 10)); badge.tap()
             action = app.buttons["ConfidenceUndoConfirmation"]
         case .history:
-            menu.tap(); app.buttons["Identification history"].tap()
-            let row = app.buttons["HistoryRow_\(target)"]
-            XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
+            UITestAppLauncher.openIdentification(app, history: true)
+            let row = UITestAppLauncher.historyCard(app, id: target)
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
             action = app.buttons["HistoryUndoConfirmation"]
         }
         XCTAssertTrue(action.waitForExistence(timeout: 10))
@@ -50,37 +96,29 @@ import XCTest
             XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label == %@", explanation)).firstMatch.exists)
             alert.buttons["Cancel"].tap()
             // Cancellation leaves the same exact target eligible for the final decision.
-            if surface == .menu { menu.tap() }
             XCTAssertTrue(action.waitForExistence(timeout: 5)); XCTAssertTrue(action.isEnabled); action.tap()
             XCTAssertTrue(alert.waitForExistence(timeout: 5)); alert.buttons["Undo confirmation"].tap()
         } else { XCTAssertFalse(alert.exists) }
         // The synthetic boundary runs real claim/receipt/paired reconciliation and verifies
         // exactly one completed outbox operation, unchanged selection and immutable snapshots.
         if surface == .history {
-            let finished = app.staticTexts["Review updated. Open the identification again to see its current review."]
-            // A changed-context refresh can instead invalidate the old preview; reopening below
-            // checks actual authority, not this optional transient message.
-            _ = finished.waitForExistence(timeout: 3)
-            app.buttons["HistoryDone"].tap()
-        } else if surface == .confidence {
+            XCTAssertTrue(action.waitForNonExistence(timeout: 10))
+            UITestAppLauncher.closeHistory(app)
+        } else {
             XCTAssertTrue(action.waitForNonExistence(timeout: 10))
             // Dismiss through the sheet chrome, independent of content scroll position.
-            app.swipeDown()
+            app.buttons["IdentificationClose"].tap()
         }
         let menuReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: menu)
         XCTAssertEqual(XCTWaiter.wait(for: [menuReady], timeout: 10), .completed)
-        menu.tap()
-        let history = app.buttons["Identification history"]
+        UITestAppLauncher.openIdentification(app, actions: true)
+        let history = app.buttons["IdentificationHistoryMenu"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
-        let row = app.buttons["HistoryRow_\(target)"]
-        XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Not confirmed")).firstMatch.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["HistoryUndoConfirmation"].exists)
-        if surface == .history {
-            XCTAssertTrue(app.buttons["HistoryRestore"].exists, "Undoing a historical review must not select it")
-        } else {
-            XCTAssertTrue(app.staticTexts["This is your current identification."].exists)
-        }
+        let row = UITestAppLauncher.historyCard(app, id: target)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.label.contains("Not confirmed"))
+        if surface != .history { XCTAssertFalse(app.buttons["HistoryUndoConfirmation"].exists) }
+        XCTAssertTrue(row.label.contains("Current"), "Review Undo must preserve the selected identification")
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Confirmation Undo preserves original result"; shot.lifetime = .keepAlways; add(shot)
     }
 
@@ -90,7 +128,7 @@ import XCTest
         defer { app.terminate() }
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
@@ -98,26 +136,26 @@ import XCTest
         XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
         XCTAssertTrue(app.staticTexts["Consent Butterfly"].waitForExistence(timeout: 10))
         let menu = app.buttons["InsightTopMenu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
-        let action = app.buttons["Confirm species name"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); UITestAppLauncher.openIdentification(app)
+        let action = app.buttons["IdentificationConfirm"]
         let initialMenu = XCTAttachment(screenshot: app.screenshot())
         initialMenu.name = "Broader identification review menu"; initialMenu.lifetime = .keepAlways; add(initialMenu)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["ReanalyzeSpeciesMenu"].exists, "An enrolled result without protected access must not offer legacy refinement")
-        action.tap()
+        UITestAppLauncher.slideIdentificationConfirmation(app)
         let confirm = app.buttons["SelectedReviewConfirmName"], name = app.textFields["SelectedReviewSpeciesName"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertFalse(confirm.isEnabled)
         XCTAssertTrue(name.exists)
         // Closing an untouched form leaves the retained host available.
-        app.buttons["Done"].tap(); menu.tap()
-        XCTAssertTrue(action.waitForExistence(timeout: 5)); action.tap()
+        app.buttons["Done"].tap(); UITestAppLauncher.openIdentification(app)
+        XCTAssertTrue(action.waitForExistence(timeout: 5)); UITestAppLauncher.slideIdentificationConfirmation(app)
         XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Danaus plexippus")
         XCTAssertTrue(confirm.isEnabled); confirm.tap()
         let status = app.staticTexts["SelectedReviewNameStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5)); XCTAssertTrue(status.label.contains("Review pending"))
         XCTAssertFalse(confirm.isEnabled)
         // The fixture wake verifies the real outbox's exact target, name and revisions.
-        app.buttons["Done"].tap(); menu.tap()
+        app.buttons["Done"].tap(); UITestAppLauncher.openIdentification(app)
         XCTAssertFalse(action.exists)
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "Selected broader identification retains pending named review"
@@ -130,7 +168,7 @@ import XCTest
         defer { app.terminate() }
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
@@ -138,7 +176,7 @@ import XCTest
         XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
         XCTAssertTrue(app.staticTexts["Consent Butterfly"].waitForExistence(timeout: 10))
         let menu = app.buttons["InsightTopMenu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); UITestAppLauncher.openIdentification(app, actions: true)
         let ask = app.buttons["Ask the community"]
         XCTAssertTrue(ask.waitForExistence(timeout: 5)); ask.tap()
         let choose = app.buttons["CommunityChoosePhotos"]
@@ -158,17 +196,17 @@ import XCTest
         // one request with [second, first], no notes, and unchanged selection.
         XCTAssertTrue(app.staticTexts["Waiting to send"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
-        XCTAssertTrue(menu.waitForExistence(timeout: 5)); menu.tap(); ask.tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5)); UITestAppLauncher.openIdentification(app, actions: true); ask.tap()
         let occupied = app.staticTexts["Request on this device: Waiting to send"]
         XCTAssertTrue(occupied.waitForExistence(timeout: 10))
         XCTAssertFalse(choose.exists); XCTAssertFalse(confirm.exists)
-        app.buttons["Done"].tap(); menu.tap()
-        let history = app.buttons["Identification history"]
+        app.buttons["Done"].tap(); UITestAppLauncher.openIdentification(app, actions: true)
+        let history = app.buttons["IdentificationHistoryMenu"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
-        let current = app.buttons["HistoryRow_00000000-0000-4000-8000-000000000004"]
+        let current = UITestAppLauncher.historyCard(app, id: "00000000-0000-4000-8000-000000000004")
         XCTAssertTrue(current.waitForExistence(timeout: 10)); XCTAssertTrue(current.label.contains("Current"))
-        let historical = app.buttons["HistoryRow_00000000-0000-4000-8000-000000000002"]
-        XCTAssertTrue(historical.exists); historical.tap()
+        let historical = UITestAppLauncher.historyCard(app, id: "00000000-0000-4000-8000-000000000002")
+        XCTAssertTrue(historical.exists); UITestAppLauncher.openHistoryActions(app, id: "00000000-0000-4000-8000-000000000002")
         let historyAsk = app.buttons["Ask the community"]
         XCTAssertTrue(historyAsk.waitForExistence(timeout: 5)); historyAsk.tap()
         XCTAssertTrue(occupied.waitForExistence(timeout: 10))

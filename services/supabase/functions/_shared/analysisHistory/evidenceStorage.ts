@@ -1,5 +1,7 @@
 import { getS3Client, type R2Config, r2RequestWithDeadline } from "../aws.ts";
 import { readResponseArrayBufferWithinBudget } from "../mediaBudgets.ts";
+import { createHash } from "node:crypto";
+import { publicationAbortable } from "./publicationDeadline.ts";
 import {
   evidenceDigest,
   evidenceObjectKey,
@@ -54,14 +56,25 @@ export function getHistoryEvidenceConfig(
 }
 
 type Transport = (request: Request, config: R2Config) => Promise<Response>;
-export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
+// Closed namespaces prevent a stage erasure marker from touching retained
+// History evidence, even if two durable owners happen to allocate the same UUID.
+// Storage primitives are not authorization; each owner must check its exact
+// reservation and current lifecycle before calling them.
+class PrivateEvidenceObjectStorage implements EvidenceStorage {
   constructor(
     private readonly writeConfig: () => R2Config = () =>
       getHistoryEvidenceConfig("write"),
     private readonly readConfig: () => R2Config = () =>
       getHistoryEvidenceConfig("read"),
-    private readonly transport?: Transport,
+    private readonly transport: Transport | undefined,
+    private readonly purpose: "history" | "capture_stage",
   ) {}
+  private objectKey(objectId: string): string {
+    const historyKey = evidenceObjectKey(objectId);
+    return this.purpose === "history"
+      ? historyKey
+      : `capture-stage/v1/${objectId}`;
+  }
   private async request(
     config: R2Config,
     objectId: string,
@@ -71,7 +84,7 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     signal?: AbortSignal,
   ): Promise<Response> {
     const url = `${config.endpoint}/${config.bucketName}/${
-      evidenceObjectKey(objectId)
+      this.objectKey(objectId)
     }`;
     signal?.throwIfAborted();
     const init: RequestInit = { method, headers, body: body?.slice(), signal };
@@ -85,7 +98,10 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
   }
 
   async writeOnce(
-    receipt: EvidenceReceipt,
+    receipt: Pick<
+      EvidenceReceipt,
+      "object_id" | "content_type" | "byte_count" | "sha256"
+    >,
     bytes: Uint8Array,
     signal?: AbortSignal,
   ): Promise<void> {
@@ -137,6 +153,81 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     }
   }
   /** Trusted worker read. No storage URL is passed to an inference provider. */
+  async verifyStored(
+    value: Pick<
+      EvidenceReceipt,
+      "object_id" | "content_type" | "byte_count" | "sha256"
+    >,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const receipt = { ...value };
+    signal.throwIfAborted();
+    if (
+      !Number.isSafeInteger(receipt.byte_count) || receipt.byte_count < 1 ||
+      receipt.byte_count > 33_554_432
+    ) throw new Error("invalid_history_evidence");
+    const response = await this.request(
+      this.readConfig(),
+      receipt.object_id,
+      "GET",
+      { "Cache-Control": "no-cache, no-store", Pragma: "no-cache" },
+      undefined,
+      signal,
+    );
+    if (
+      response.status !== 200 ||
+      response.headers.get("Content-Type") !== receipt.content_type ||
+      response.headers.get("Content-Length") !== String(receipt.byte_count) ||
+      response.headers.get("x-amz-meta-sha256") !== receipt.sha256 ||
+      response.headers.has("x-amz-meta-erased") ||
+      response.headers.has("Content-Encoding") ||
+      response.headers.has("Content-Range") ||
+      !response.body
+    ) {
+      void response.body?.cancel().catch(() => {});
+      throw new Error("history_evidence_verification_failed");
+    }
+    // Verification consumes each chunk synchronously; no complete readback
+    // buffer is retained alongside the upload. Transport/runtime memory still
+    // needs qualification separately from this application buffer bound.
+    const reader = response.body.getReader(), hash = createHash("sha256");
+    let count = 0, chunks = 0, empty = 0, complete = false;
+    try {
+      for (;;) {
+        const next = await publicationAbortable(signal, () => reader.read());
+        if (next.done) break;
+        if (
+          !(next.value instanceof Uint8Array) ||
+          !(next.value.buffer instanceof ArrayBuffer) || ++chunks > 4096 ||
+          next.value.byteLength > receipt.byte_count - count
+        ) {
+          throw new Error("history_evidence_verification_failed");
+        }
+        if (next.value.byteLength === 0) {
+          if (++empty > 32) {
+            throw new Error("history_evidence_verification_failed");
+          }
+          continue;
+        }
+        empty = 0;
+        hash.update(next.value);
+        count += next.value.byteLength;
+        signal.throwIfAborted();
+      }
+      signal.throwIfAborted();
+      if (
+        count !== receipt.byte_count || hash.digest("hex") !== receipt.sha256
+      ) {
+        throw new Error("history_evidence_verification_failed");
+      }
+      complete = true;
+    } finally {
+      hash.destroy();
+      if (!complete) void reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  }
+
   async readVerified(
     receipt: Pick<
       EvidenceReceipt,
@@ -181,7 +272,52 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     signal?.throwIfAborted();
     return bytes;
   }
-  async signedRead(receipt: EvidenceReceipt): Promise<string> {
+  /** Opens only an exact bound object. The owning consumer MUST bound and hash
+   * the actual stream; matching headers alone never establish readiness. */
+  async openBoundStream(
+    value: Pick<
+      EvidenceReceipt,
+      "object_id" | "content_type" | "byte_count" | "sha256"
+    >,
+    signal: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const receipt = { ...value };
+    signal.throwIfAborted();
+    if (
+      !Number.isSafeInteger(receipt.byte_count) || receipt.byte_count < 1 ||
+      receipt.byte_count > 33_554_432 || !/^[0-9a-f]{64}$/.test(receipt.sha256)
+    ) {
+      throw new Error("invalid_history_evidence");
+    }
+    const response = await this.request(
+      this.readConfig(),
+      receipt.object_id,
+      "GET",
+      { "Cache-Control": "no-cache, no-store", Pragma: "no-cache" },
+      undefined,
+      signal,
+    );
+    if (
+      signal.aborted || response.status !== 200 ||
+      response.headers.get("Content-Type") !== receipt.content_type ||
+      response.headers.get("Content-Length") !== String(receipt.byte_count) ||
+      response.headers.get("x-amz-meta-sha256") !== receipt.sha256 ||
+      response.headers.has("x-amz-meta-erased") ||
+      response.headers.has("Content-Encoding") ||
+      response.headers.has("Content-Range") || !response.body
+    ) {
+      void response.body?.cancel().catch(() => {});
+      throw new Error("history_evidence_verification_failed");
+    }
+    return response.body;
+  }
+
+  async signedRead(
+    receipt: Pick<EvidenceReceipt, "object_id" | "content_type">,
+  ): Promise<string> {
+    if (this.purpose !== "history") {
+      throw new Error("capture_stage_signed_read_forbidden");
+    }
     const config = this.readConfig();
     const url = new URL(
       `${config.endpoint}/${config.bucketName}/${
@@ -235,5 +371,31 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     ) {
       throw new Error("history_evidence_erasure_failed");
     }
+  }
+}
+
+/** Existing retained History namespace; constructor compatibility is preserved. */
+export class PrivateHistoryEvidenceStorage
+  extends PrivateEvidenceObjectStorage {
+  constructor(
+    writeConfig: () => R2Config = () => getHistoryEvidenceConfig("write"),
+    readConfig: () => R2Config = () => getHistoryEvidenceConfig("read"),
+    transport?: Transport,
+  ) {
+    super(writeConfig, readConfig, transport, "history");
+  }
+}
+
+/** Server-only staging namespace in the same audited private bucket. No signed
+ * read or public/client upload is provided. A separate durable stage owner must
+ * reserve, authorize, adopt/retire and reconcile these objects. */
+export class PrivateCaptureStageObjectStorage
+  extends PrivateEvidenceObjectStorage {
+  constructor(
+    writeConfig: () => R2Config = () => getHistoryEvidenceConfig("write"),
+    readConfig: () => R2Config = () => getHistoryEvidenceConfig("read"),
+    transport?: Transport,
+  ) {
+    super(writeConfig, readConfig, transport, "capture_stage");
   }
 }

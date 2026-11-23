@@ -16,6 +16,8 @@ import {
 import { sourceReservationRepository } from "../_shared/analysisHistory/sourceReservationRepository.ts";
 import { parseVideoSourceReservationRequest } from "../_shared/analysisHistory/videoSourceReservation.ts";
 import { videoSourceReservationRepository } from "../_shared/analysisHistory/videoSourceReservationRepository.ts";
+import { parseCompositionSourceReservationRequest } from "../_shared/analysisHistory/compositionSourceReservation.ts";
+import { compositionSourceReservationRepository } from "../_shared/analysisHistory/compositionSourceReservationRepository.ts";
 import { createServiceRoleClientFromEnvironmentWithOptions } from "../_shared/serviceRoleClient.ts";
 
 /** Reserves original source occupancy only; never admits or dispatches inference. */
@@ -36,14 +38,20 @@ export function sourceReservationRoute(
       // Validate before constructing the privileged client. No payload owner is accepted.
       const video = body !== null && typeof body === "object" &&
         "schema_version" in body && body.schema_version === 2;
-      const candidate = video
+      const composition = body !== null && typeof body === "object" &&
+        "schema_version" in body && body.schema_version === 3;
+      const candidate = composition
+        ? await parseCompositionSourceReservationRequest(body)
+        : video
         ? await parseVideoSourceReservationRequest(body)
         : await parseSourceReservationRequest(body);
       const client = createServiceRoleClientFromEnvironmentWithOptions({
         requestTimeoutMs: 5_000,
         maximumResponseBytes: SOURCE_RESERVATION_MAX_RECEIPT_BYTES,
       });
-      const repository = video
+      const repository = composition
+        ? compositionSourceReservationRepository(client)
+        : video
         ? videoSourceReservationRepository(client)
         : sourceReservationRepository(client);
       const receipt = await repository.reserve(

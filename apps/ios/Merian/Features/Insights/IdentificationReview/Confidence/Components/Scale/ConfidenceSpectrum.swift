@@ -17,8 +17,8 @@ struct ConfidenceSpectrum: View {
                     .padding(.bottom, 24)
 
                 SpectrumNode(
-                    color: .green,
-                    nextColor: .orange,
+                    color: ConfidenceBadgePresentation.Style.strong.color,
+                    nextColor: ConfidenceBadgePresentation.Style.possible.color,
                     percentage: "\(strongPct)% – 100%",
                     title: "Strong match",
                     description: isOpenAIPhoto
@@ -27,8 +27,8 @@ struct ConfidenceSpectrum: View {
                 )
 
                 SpectrumNode(
-                    color: .orange,
-                    nextColor: .gray,
+                    color: ConfidenceBadgePresentation.Style.possible.color,
+                    nextColor: ConfidenceBadgePresentation.Style.weak.color,
                     percentage: "\(possiblePct)% – \(strongPct - 1)%",
                     title: "Possible match",
                     description: isOpenAIPhoto
@@ -37,7 +37,7 @@ struct ConfidenceSpectrum: View {
                 )
 
                 SpectrumNode(
-                    color: .gray,
+                    color: ConfidenceBadgePresentation.Style.weak.color,
                     nextColor: nil,
                     percentage: "Below \(possiblePct)%",
                     title: "Weak match",

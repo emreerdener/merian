@@ -3,6 +3,23 @@
 **Status:** Repository review complete. Exact-SHA application CI, production
 route, and authenticated customer smoke evidence remain release-blocking.
 
+**2026-11-20 ordinary initial-evidence source addendum:**
+`upload-initial-evidence` adds owner-authenticated, bounded binary upload for an
+artifact of an already admitted ordinary initial-evidence generation. It does
+not admit a job, claim funding, dispatch inference, or grant client access to
+storage keys. This extends the configured source inventory only; live native
+submission integration and end-to-end validation remain unfinished. See the
+[endpoint contract](../../services/supabase/functions/upload-initial-evidence/README.md).
+
+**2026-11-14 prepared media source addendum:** `resolve-history-media` and
+`upload-observation-composition` extend the local configured inventory with
+owner-authenticated original-media resolution and exact composition-item upload.
+Their source/SQL gates, bounds and scope are documented in the
+[composition contract](05-api-contracts.md#prepared-composition-item-upload).
+They are not deployed or hosted-qualified; this does not extend the historical
+fleet's production evidence. Mixed inference and native submission remain
+unfinished.
+
 **DwC-A launch addendum:** `request-export-dwca`, `export-dwca`, and
 `download-dwca` remain deployed so old callers receive stable responses, but all
 read the canonical private default-off database state for the initial launch.
@@ -268,6 +285,7 @@ check-scan-status
 community-taxonomy-status
 confirm-observation-analysis
 confirm-scan-species
+resolve-history-media
 resolve-history-photo
 analyze-observation
 analyze-observation-video
@@ -344,6 +362,9 @@ get-observation-publication-target
 initial-photo-allocation
 prepare-observation-publication-consent
 upload-observation-audio
+upload-capture-stage
+upload-initial-evidence
+upload-observation-composition
 upload-observation-video
 upload-observation-evidence
 moderate-publication-photos

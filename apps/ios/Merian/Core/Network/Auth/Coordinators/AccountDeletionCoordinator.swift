@@ -63,6 +63,12 @@ struct AccountDeletionCoordinator {
             throw SupabaseAuthTransitionError
                 .accountDeletionRecoveryPersistenceFailed
         }
+        guard let operationID = dependencies.localState.cleanupMarker()?.operationID else {
+            throw SupabaseAuthTransitionError.accountDeletionRecoveryPersistenceFailed
+        }
+        func markerMatches(_ phase: AccountDeletionLocalRecoveryState) -> Bool {
+            dependencies.localState.cleanupMarker() == .init(phase: phase, operationID: operationID)
+        }
         let preparedCapability = try recoveryCapabilityStore.prepare()
 
         let receipt: AccountDeletionReceipt
@@ -81,10 +87,14 @@ struct AccountDeletionCoordinator {
                         },
                         verifyPreparationContext: {
                             dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition) &&
-                                dependencies.localState.state() == .capabilityPreparationPending && recoveryCapabilityStore.matchesExisting(preparedCapability)
+                                dependencies.localState.state() == .capabilityPreparationPending && markerMatches(.capabilityPreparationPending) && recoveryCapabilityStore.matchesExisting(preparedCapability)
                         },
-                        recordCapabilityPreparedPending: dependencies.localState.recordCapabilityPreparedPending,
-                        recordIntakePending: dependencies.localState.recordIntakePending,
+                        recordCapabilityPreparedPending: {
+                            markerMatches(.capabilityPreparationPending) && dependencies.localState.recordCapabilityPreparedPending() && markerMatches(.capabilityPreparedPending)
+                        },
+                        recordIntakePending: {
+                            markerMatches(.capabilityPreparedPending) && dependencies.localState.recordIntakePending() && markerMatches(.capabilityIntakePending)
+                        },
                         commitDeletion: {
                             try await commitDeletionV2(
                                 transition,
@@ -93,13 +103,15 @@ struct AccountDeletionCoordinator {
                         },
                         verifyCommitContext: {
                             dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition) &&
-                                dependencies.localState.state() == .capabilityIntakePending && recoveryCapabilityStore.matchesExisting(preparedCapability)
+                                dependencies.localState.state() == .capabilityIntakePending && markerMatches(.capabilityIntakePending) && recoveryCapabilityStore.matchesExisting(preparedCapability)
                         }
                     )
             } else {
                 receipt = try await AccountDeletionWorkflow
                     .performDurableIntake(
-                        recordIntakePending: dependencies.localState.recordIntakePending,
+                        recordIntakePending: {
+                            markerMatches(.capabilityPreparationPending) && dependencies.localState.recordIntakePending() && markerMatches(.capabilityIntakePending)
+                        },
                         requestDeletion: {
                             try await requestDeletion(
                                 transition,
@@ -107,7 +119,7 @@ struct AccountDeletionCoordinator {
                             )
                         },
                         verifyResultContext: {
-                            guard dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition), dependencies.localState.state() == .capabilityIntakePending,
+                            guard dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition), dependencies.localState.state() == .capabilityIntakePending, markerMatches(.capabilityIntakePending),
                                   recoveryCapabilityStore.matchesExisting(preparedCapability) else {
                                 throw SupabaseAuthTransitionError
                                     .signOutSessionChanged
@@ -125,14 +137,15 @@ struct AccountDeletionCoordinator {
             }
         } catch {
             let failedState = dependencies.localState.state()
-            if preparedCapability.protocolVersion == 2,
+            let failedMarker = dependencies.localState.cleanupMarker()
+            if preparedCapability.protocolVersion == 2, failedMarker?.operationID == operationID,
                dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition), recoveryCapabilityStore.matchesExisting(preparedCapability),
                failedState == .capabilityPreparationPending || failedState == .capabilityIntakePending,
                AccountDeletionTransitionPolicy
                 .isDefinitiveIntakeRejection(error),
                let cancellation = try? await recoverDeletionV2(
                    preparedCapability.recoveryValue
-               ), dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition), dependencies.localState.state() == failedState, recoveryCapabilityStore.matchesExisting(preparedCapability),
+               ), dependencies.validateLibrary(nil) && dependencies.session.currentSessionMatchesTransition(transition), dependencies.localState.state() == failedState, dependencies.localState.cleanupMarker() == failedMarker, recoveryCapabilityStore.matchesExisting(preparedCapability),
                cancellation.status == .notCommitted {
                 _ = AccountDeletionWorkflow
                     .performDefinitiveIntakeRejectionRetirement(
@@ -149,14 +162,16 @@ struct AccountDeletionCoordinator {
         }
 
         dependencies.session.updateTransition(transition, .finalizing)
-        let scope = dependencies.scope(transition, state: .capabilityCleanupPending, proof: preparedCapability, store: recoveryCapabilityStore)
+        guard let scope = dependencies.acceptedCleanupScope(transition, receipt: receipt,
+            expectedState: .capabilityIntakePending, expectedMarker: .init(phase: .capabilityIntakePending, operationID: operationID), proof: preparedCapability, store: recoveryCapabilityStore) else {
+            dependencies.diagnostics.reportAcceptedCleanupPending()
+            return receipt
+        }
         let didPurge = await AccountDeletionWorkflow.performAcceptedCleanup(
             validateContext: { scope.isCurrent },
             receipt: receipt,
-            recordCleanupPending: {
-                dependencies.localState.state() == .capabilityIntakePending && recoveryCapabilityStore.matchesExisting(preparedCapability) &&
-                    dependencies.localState.recordCleanupPending()
-            },
+            // Already committed before constructing the exact cleanup scope.
+            recordCleanupPending: { scope.isCurrent },
             recordManualProviderRevocation: recordManualProviderRevocation,
             performLocalSignOut: {
                 await dependencies.session

@@ -38,6 +38,44 @@ actor ObservationReanalysisFileStore {
             retainAfterCommitError: true, validateBeforeWrite: validateBeforeWrite, commit: commit)
     }
 
+    /// The composition owner must persist its held metadata before entering.
+    /// All files form one exact cohort; a throwing promotion preserves the bytes.
+    func persistComposition<T: Sendable>(preparation: ObservationCompositionPreparation, payload: ObservationCompositionPayload,
+                                         validateBeforeWrite: @MainActor @Sendable () throws -> Void,
+                                         commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        guard payload.request == preparation.request, payload.bytes.count == preparation.files.count else { throw Failure.conflict }
+        return try await persist(child: preparation.identity.analysisID, references: compositionReferences(preparation), bytes: payload.bytes,
+            retainAfterCommitError: true, validateBeforeWrite: validateBeforeWrite, commit: commit)
+    }
+
+    /// Recovery never regenerates a missing part or silently drops a toolbar item.
+    func recoverComposition<T: Sendable>(preparation: ObservationCompositionPreparation,
+                                         validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                                         commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        let standalone = Set(preparation.request.manifest.items.compactMap { node -> UUID? in
+            switch node {
+            case let .image(artifact), let .audio(artifact): return artifact.mediaID
+            default: return nil
+            }
+        })
+        return try await withVerifiedFiles(child: preparation.identity.analysisID, references: compositionReferences(preparation),
+            validateBeforeRead: validateBeforeRead, verifyContainer: { index, bytes in
+                let artifact = preparation.files[index].artifact
+                if standalone.contains(artifact.mediaID) {
+                    try ObservationCompositionPayload.validateStandalone(bytes, artifact: artifact)
+                } else if artifact.contentType == "audio/wav", !ObservationAudioContainer.isValid(bytes) {
+                    throw Failure.conflict
+                }
+                // Video provenance comes from the sealed retained cohort, exactly
+                // as in V4 recovery. Every artifact still requires its saved hash.
+            }) { _ in try commit() }
+    }
+
+    private func compositionReferences(_ preparation: ObservationCompositionPreparation) -> [FileReference] {
+        preparation.files.map { .init(name: URL(fileURLWithPath: $0.path).lastPathComponent,
+            byteCount: $0.artifact.byteCount, sha256: $0.artifact.sha256) }
+    }
+
     /// Only the private complete-cohort owner can construct this payload. Exact bytes,
     /// never regenerated frames/audio, survive an uncertain metadata promotion save.
     func persistVideo<T: Sendable>(preparation: ObservationVideoPreparation, payload: ObservationVideoCohort.Payload,
@@ -69,6 +107,22 @@ actor ObservationReanalysisFileStore {
                    validateBeforeReturn: @MainActor @Sendable () throws -> Void) async throws -> [VideoItem] {
         let files = preparation.files
         let result = try await withVerifiedFiles(child: preparation.identity.analysisID, references: videoReferences(preparation),
+            validateBeforeRead: validateBeforeRead, verifyContainer: { _, _ in }) { buffers in
+                try Task.checkCancellation()
+                try validateBeforeReturn()
+                try Task.checkCancellation()
+                guard buffers.count == files.count else { throw Failure.incomplete }
+                return zip(files, buffers).map { VideoItem(artifact: $0.0.artifact, bytes: $0.1) }
+            }
+        try Task.checkCancellation()
+        return result
+    }
+
+    func readComposition(preparation: ObservationCompositionPreparation,
+                         validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                         validateBeforeReturn: @MainActor @Sendable () throws -> Void) async throws -> [VideoItem] {
+        let files = preparation.files
+        let result = try await withVerifiedFiles(child: preparation.identity.analysisID, references: compositionReferences(preparation),
             validateBeforeRead: validateBeforeRead, verifyContainer: { _, _ in }) { buffers in
                 try Task.checkCancellation()
                 try validateBeforeReturn()

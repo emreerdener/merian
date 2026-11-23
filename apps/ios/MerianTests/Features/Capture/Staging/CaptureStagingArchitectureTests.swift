@@ -62,15 +62,20 @@ final class CaptureStagingArchitectureTests: XCTestCase {
         }
     }
 
-    func testOnlyTheStagedImageValueImportsUIKit() throws {
+    func testOnlyImageAndEditorValuesImportUIKit() throws {
         let models = try stagingSourceRoot().appendingPathComponent("Models")
+        // These values retain UIImage previews and crop geometry; platform
+        // effects remain in the existing Services boundary.
+        let imageOwners: Set<String> = [
+            "StagedImage.swift", "CapturePhotoEditorState.swift", "CaptureVideoEditorState.swift"
+        ]
 
         for file in try swiftFiles(in: models) {
             let contents = try String(contentsOf: file, encoding: .utf8)
             let importsUIKit = contents.contains("import UIKit")
             XCTAssertEqual(
                 importsUIKit,
-                file.lastPathComponent == "StagedImage.swift",
+                imageOwners.contains(file.lastPathComponent),
                 "\(file.lastPathComponent) has unexpected UIKit ownership"
             )
         }

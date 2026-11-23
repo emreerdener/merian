@@ -11,7 +11,8 @@ struct CaptureNativePhotoPickerInput {
 
 extension CaptureWorkspaceViewModel {
     var usesNativePhotoComposition: Bool {
-        dependencies.submission.nativePhotoDraftFactory != nil
+        guard reanalysisEditor == nil else { return false }
+        return dependencies.submission.nativePhotoDraftFactory != nil
             || dependencies.submission.nativePhotoSubmission != nil
             || nativePhotoDraftSession != nil || stagedCapture.nativePhotoDraft != nil
     }
@@ -46,7 +47,6 @@ extension CaptureWorkspaceViewModel {
             defer {
                 nativePhotoImportTask = nil
                 completeDraftOperation(operation, succeeded: succeeded)
-                if succeeded { presentNextRequiredGalleryCrop() }
             }
             do {
                 for input in inputs {
@@ -62,12 +62,14 @@ extension CaptureWorkspaceViewModel {
                     guard !Task.isCancelled, draftSession.contains(operation), isDraftAccountCurrent,
                           dependencies.submission.admission.accountID() == account,
                           !dependencies.submission.admission.isLibraryAccessBlocked() else { throw SharedMediaStorageFailure.stale }
+                    // A stable normalized basis makes unvisited imports submission-ready.
+                    try session.setRecipe(.init(format: .stillImage, isPro: dependencies.scan.canStartProScan(),
+                        cropDisplaySize: 1, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0), for: reference)
                     let original = IdentifiableImage(image: preview, environmentContext: context?.makeEnvironmentContext(), isFromGallery: true)
                     // Empty evidence is provisional, protected by the independent
                     // native marker. Only owner readback may populate these bytes.
                     stagedCapture.images.append(.init(compressedData: Data(), displayData: Data(),
                         uiImage: preview, original: original, photoOriginalReference: reference))
-                    operationState.appendRequiredGalleryCrop(imageID: original.id)
                 }
                 selectedPhotoItems.removeAll()
                 succeeded = true
@@ -86,33 +88,41 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
+    @discardableResult
     func confirmNativePhotoCrop(imageID: UUID, thumbnailData: Data, scale: CGFloat, offset: CGSize,
-                                displaySize: CGFloat, quarterTurns: Int) {
+                                displaySize: CGFloat, quarterTurns: Int, completesReview: Bool = true,
+                                sourceSelection: NormalizedImageFocusRegion? = nil) -> Bool {
         guard !isDraftMutationLocked, isDraftAccountCurrent, let session = nativePhotoDraftSession,
               dependencies.submission.admission.accountID() == session.identity.ownerID,
               !dependencies.submission.admission.isLibraryAccessBlocked(),
               let index = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }),
-              let reference = stagedCapture.images[index].photoOriginalReference else { return }
+              let reference = stagedCapture.images[index].photoOriginalReference else { return false }
         do {
-            let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: dependencies.scan.canStartProScan(),
+            let recipe = SharedMediaNativePreparationRecipe(format: sourceSelection == nil ? .stillImage : .selectedStillImage,
+                isPro: dependencies.scan.canStartProScan(),
                 cropDisplaySize: Double(displaySize), quarterTurns: quarterTurns, scale: Double(scale),
-                offsetX: Double(offset.width), offsetY: Double(offset.height))
+                offsetX: Double(offset.width), offsetY: Double(offset.height), sourceSelection: sourceSelection)
             try session.setRecipe(recipe, for: reference)
             let existing = stagedCapture.images[index]
             var original = existing.original
             original.initialCameraVerticalCenter = nil // only explicit confirmation replaces shutter framing
             original.lastCropScale = scale; original.lastCropOffset = offset; original.lastCropQuarterTurns = quarterTurns
+            original.lastCropDisplaySize = displaySize
+            original.manualSourceSelection = sourceSelection
             let thumbnail = ImageDownsampler.downsampledUIImage(data: thumbnailData, maxSize: 512) ?? existing.uiImage
             stagedCapture.images[index] = existing.replacing(uiImage: thumbnail, original: original)
-            editingCropIndex = nil; imageToCrop = nil
-            if isRequiredGalleryCrop(imageID) { _ = completeRequiredGalleryCrop(for: imageID) }
+            if completesReview {
+                editingCropIndex = nil; imageToCrop = nil
+            }
+            return true
         } catch {
             offlineToastMessage = .error("The crop couldn’t be confirmed. Your original photo is retained.")
+            return false
         }
     }
 
     func removeNativePhoto(imageID: UUID) {
-        guard !isDraftMutationLocked, !draftSession.hasUnresolvedWork, isDraftAccountCurrent,
+        guard !areCaptureActionsBlocked, !draftSession.hasUnresolvedWork, isDraftAccountCurrent,
               let session = nativePhotoDraftSession,
               dependencies.submission.admission.accountID() == session.identity.ownerID,
               !dependencies.submission.admission.isLibraryAccessBlocked(),
@@ -126,16 +136,16 @@ extension CaptureWorkspaceViewModel {
                 guard draftSession.generation == generation, isDraftAccountCurrent,
                       dependencies.submission.admission.accountID() == session.identity.ownerID else { return }
                 stagedCapture.images.removeAll { $0.original.id == imageID }
-                operationState.removeRequiredGalleryCrop(imageID: imageID)
+                clearFieldNotesAfterFinalMediaRemoval()
                 editingCropIndex = nil; imageToCrop = nil
                 resetReviewIfEmpty()
-                // Leave the next crop to presentation after releasing the lock.
+                // Reconcile the selected item after releasing the mutation lock.
             } catch {
                 guard draftSession.generation == generation, isDraftAccountCurrent else { return }
                 offlineToastMessage = .error("Photo removal needs recovery. Your local draft remains retained.")
             }
             nativePhotoDispositionTask = nil
-            presentNextRequiredGalleryCrop()
+            reconcileMediaReviewSelection()
         }
     }
 
@@ -166,9 +176,11 @@ extension CaptureWorkspaceViewModel {
 
     /// UI privacy only. This deliberately retains the native identity/session.
     func clearNativePhotoPresentation() {
+        retireMediaReview()
         cancelActiveCropTask()
-        operationState.removeAllRequiredGalleryCrops()
+        photoReviewCommit = nil
         stagedCapture.clearAll()
+        clearFieldNotesAfterFinalMediaRemoval()
         nativePhotoPickerInputs.removeAll(); selectedPhotoItems.removeAll()
         descriptionDraft = ObservationContext(); descriptionFocusRequest = nil
         imageToCrop = nil; editingCropIndex = nil; isReviewActive = false

@@ -3,7 +3,7 @@ import Foundation
 /// Inert lifecycle values only. The registered owner keeps its state properties
 /// private; constructing these values cannot install state or mint any grant.
 enum SharedMediaNativeOriginalOpenKind { case qualification, scopedInspection, appInitialization, appDispatch }
-enum SharedMediaNativeOriginalPhase { case unopened, opening, ready, failed, suspended }
+enum SharedMediaNativeOriginalPhase { case unopened, opening, captureRootRecovery, capturePending, captureReady, ready, failed, suspended }
 // The full domain name distinguishes this state or capability from adjacent storage boundaries.
 // swiftlint:disable:next type_name
 struct SharedMediaNativeOriginalPendingSettlement {
@@ -21,4 +21,7 @@ enum SharedMediaNativeAppOpenResult: Sendable {
     #endif
     case initialization(SharedMediaStorageSnapshot)
     case dispatch(SharedMediaNativeScopedSnapshot)
+    case captureDispatch(SharedMediaNativeScopedSnapshot)
+    case capturePending(SharedMediaNativeScopedSnapshot)
+    case captureRootRecovery
 }

@@ -42,7 +42,7 @@ export interface ReconcileScanMediaAssetsOptions {
   dryRun?: boolean;
 }
 
-export interface ReconcileScanMediaAssetsResult {
+interface ReconciliationProjection {
   scanned: number;
   promoted: number;
   repairedVideoScans: number;
@@ -55,6 +55,14 @@ export interface ReconcileScanMediaAssetsResult {
     storageKey?: string | null;
     reason: string;
   }>;
+}
+
+export interface ReconcileScanMediaAssetsResult
+  extends ReconciliationProjection {
+  executionMode: "quarantined";
+  holdReason: "durable_object_authority_required";
+  /** Snapshot classification only; never authority to perform these effects. */
+  preview: ReconciliationProjection;
 }
 
 interface ReconcileDependencies {
@@ -365,7 +373,7 @@ async function objectExists(
   throw new Error(`R2 HEAD failed for ${storageKey}: ${response.status}`);
 }
 
-function emptyResult(): ReconcileScanMediaAssetsResult {
+function emptyResult(): ReconciliationProjection {
   return {
     scanned: 0,
     promoted: 0,
@@ -385,7 +393,7 @@ function scanMapById(
 }
 
 async function maybeRecordRun(
-  result: ReconcileScanMediaAssetsResult,
+  result: ReconciliationProjection,
   startedAt: Date,
   finishedAt: Date,
   dryRun: boolean,
@@ -425,7 +433,7 @@ async function maybeRecordRun(
 async function reconcileExistingScanAsset(
   asset: ReconciliationAssetRow,
   scan: ReconciliationScanRow,
-  result: ReconcileScanMediaAssetsResult,
+  result: ReconciliationProjection,
   supabaseAdmin: SupabaseClient,
   options: {
     dryRun: boolean;
@@ -636,7 +644,7 @@ async function reconcileExistingScanAsset(
 
 async function reconcileAbandonedAsset(
   asset: ReconciliationAssetRow,
-  result: ReconcileScanMediaAssetsResult,
+  result: ReconciliationProjection,
   supabaseAdmin: SupabaseClient,
   options: {
     dryRun: boolean;
@@ -685,11 +693,11 @@ async function reconcileAbandonedAsset(
   result.failedAssets++;
 }
 
-export async function reconcileScanMediaAssets(
+async function previewScanMediaAssets(
   supabaseAdmin: SupabaseClient,
-  options: ReconcileScanMediaAssetsOptions = {},
+  options: ReconcileScanMediaAssetsOptions & { dryRun: true },
   dependencies: ReconcileDependencies = {},
-): Promise<ReconcileScanMediaAssetsResult> {
+): Promise<ReconciliationProjection> {
   const startedAt = options.now ?? new Date();
   const repairAfterMinutes = Math.max(
     options.repairAfterMinutes ?? DEFAULT_REPAIR_AFTER_MINUTES,
@@ -719,7 +727,6 @@ export async function reconcileScanMediaAssets(
     markReconciliationJobComplete;
   const markJobFailed = dependencies.markJobFailed ??
     markReconciliationJobFailed;
-  const recordRun = dependencies.recordRun ?? recordScanMediaReconciliationRun;
   const r2Config = dependencies.r2Config ?? getR2Config();
 
   const result = emptyResult();
@@ -820,22 +827,52 @@ export async function reconcileScanMediaAssets(
     }
   }
 
+  return result;
+}
+
+/**
+ * Snapshot reads cannot authorize cleanup or repair. Keep this worker passive
+ * until exact object retirement and late-write recovery are implemented. Caller
+ * dryRun=false deliberately cannot bypass this source-level quarantine.
+ */
+export async function reconcileScanMediaAssets(
+  supabaseAdmin: SupabaseClient,
+  options: ReconcileScanMediaAssetsOptions = {},
+  dependencies: ReconcileDependencies = {},
+): Promise<ReconcileScanMediaAssetsResult> {
+  const startedAt = options.now ?? new Date();
+  const preview = await previewScanMediaAssets(
+    supabaseAdmin,
+    { ...options, now: startedAt, dryRun: true },
+    dependencies,
+  );
+  const result: ReconcileScanMediaAssetsResult = {
+    ...emptyResult(),
+    scanned: preview.scanned,
+    stillPending: preview.scanned,
+    missingObjects: preview.missingObjects,
+    errors: preview.errors,
+    executionMode: "quarantined",
+    holdReason: "durable_object_authority_required",
+    preview,
+  };
+  // Audit telemetry is the sole write. It records actual zero effects, never
+  // preview totals, and uses dry_run rather than a successful-cleanup status.
   await maybeRecordRun(
     result,
     startedAt,
     new Date(),
-    dryRun,
+    true,
     supabaseAdmin,
-    recordRun,
+    dependencies.recordRun ?? recordScanMediaReconciliationRun,
   );
-
   console.log(JSON.stringify({
-    event: "scan_media_reconciliation_complete",
-    ...result,
+    event: "scan_media_reconciliation_quarantined",
+    scanned: result.scanned,
+    still_pending: result.stillPending,
     errors: result.errors.length,
-    dry_run: dryRun,
-    ts: new Date().toISOString(),
+    execution_mode: result.executionMode,
+    hold_reason: result.holdReason,
   }));
-
   return result;
 }

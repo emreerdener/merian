@@ -9,6 +9,7 @@ extension SharedMediaNativeReceivingIntent {
         enum Format: String, Codable, Sendable {
             case v1 = "nativeReceivingAbandonedV1"
             case v2 = "nativeReceivingAbandonedV2"
+            case initialNotes = "nativeReceivingAbandonedV3"
         }
         let format: Format
         let version: Int
@@ -22,12 +23,20 @@ extension SharedMediaNativeReceivingIntent {
         let preHeader: SharedMediaNativeAppEligibility.Header
         let package: PackageFence
         let member: MemberFence
+        let initialFieldNotesSHA256: String?
+
+        var frozenCohortFormat: SharedMediaNativeFrozenCohort.Format {
+            format == .initialNotes ? .initialNotes : .cohort
+        }
 
         init(prepared: Prepared, header: SharedMediaNativeAppEligibility.Header) throws {
             // Reuse complete prepared/profile/header validation before deriving
             // a terminal value. This does not create an executable request.
             _ = try prepared.descriptorForTransaction(header: header)
-            format = prepared.version == 1 ? .v1 : .v2
+            let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
+            format = frozen.format == .initialNotes ? .initialNotes : (prepared.version == 1 ? .v1 : .v2)
+            initialFieldNotesSHA256 = frozen.format == .initialNotes
+                ? try SharedMediaAcquisitionEncoding.digest(SharedMediaNativeDraftEnvelope.bytes(frozen.initialFieldNotes)) : nil
             version = prepared.version; sourceFormat = prepared.format
             profile = prepared.profile
             preparedRevision = prepared.intentRevision ?? 0
@@ -67,8 +76,14 @@ extension SharedMediaNativeReceivingIntent {
             switch (format, version, sourceFormat, preparedRevision) {
             case (.v1, 1, .prepared, 0): break
             case (.v2, 2, .preparedV2, let value) where value >= 0 && value < Int64.max: break
+            case (.initialNotes, 2, .preparedV2, let value) where value >= 0 && value < Int64.max: break
             default: throw SharedMediaStorageFailure.conflict
             }
+            if format == .initialNotes {
+                guard let initialFieldNotesSHA256, SharedMediaAcquisitionEncoding.isHash(initialFieldNotesSHA256) else {
+                    throw SharedMediaStorageFailure.conflict
+                }
+            } else if initialFieldNotesSHA256 != nil { throw SharedMediaStorageFailure.conflict }
             guard revision == (try SharedMediaStoragePolicy.add(preparedRevision, 1)),
                   SharedMediaAcquisitionEncoding.isHash(preparedSHA256),
                   Set([operationID, queueID, observationID, bindingID, generation, eventID]).count == 6,

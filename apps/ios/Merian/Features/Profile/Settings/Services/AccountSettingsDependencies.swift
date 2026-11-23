@@ -11,10 +11,10 @@ struct AccountLocalDataDependencies {
     static var live: Self {
         Self(
             purgeAllData: { modelContext, resetDerivedState, scope in
-                await ScanRepository.shared.purgeAllData(
+                await AppDIContainer.shared.nativeMediaLifecycle.libraryCleanup.purgeLibraryForAccountDeletion(
                     modelContext: modelContext,
-                    resetDerivedState: resetDerivedState,
-                    validateAuthorization: { scope.permitsLibraryPurge(in: modelContext.container) }
+                    scope: scope,
+                    resetDerivedState: resetDerivedState
                 )
             }
         )

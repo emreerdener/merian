@@ -602,7 +602,7 @@ struct BackgroundDatabaseActorTests {
         #expect(records.count == 1, "Collision replacement must leave exactly one LocalScanRecord for the scan ID")
         #expect(record.speciesId == "stable-species-id", "Shared species lookup must preserve the existing species UUID")
         #expect(record.commonName == "Northern Cardinal")
-        #expect(record.fieldNotes == "feeder call notes", "Collision replacement must preserve trimmed user field notes")
+        #expect(record.fieldNotes == "  feeder call notes  ", "Collision replacement must preserve exact user field notes")
         #expect(record.coverImagePath == "new_capture.webp")
     }
 

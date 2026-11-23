@@ -20,7 +20,7 @@ final class RuntimePerformanceTests: XCTestCase {
             app.terminate()
             startMeasuring()
             app.launch()
-            XCTAssertTrue(app.buttons["MainTabBar_Scans"].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.buttons["MainTabBar_Naturebook"].waitForExistence(timeout: 8))
             stopMeasuring()
         }
     }
@@ -33,7 +33,7 @@ final class RuntimePerformanceTests: XCTestCase {
             XCTAssertTrue(app.wait(for: .runningBackground, timeout: 8))
             startMeasuring()
             app.activate()
-            XCTAssertTrue(app.buttons["MainTabBar_Scans"].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.buttons["MainTabBar_Naturebook"].waitForExistence(timeout: 8))
             stopMeasuring()
         }
     }
@@ -71,7 +71,7 @@ final class RuntimePerformanceTests: XCTestCase {
     private func openSeededProtectedChat(_ app: XCUIApplication) {
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
@@ -91,7 +91,7 @@ final class RuntimePerformanceTests: XCTestCase {
     func testRepeatedAudioInsightPresentation() {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
         defer { app.terminate() }
-        let scans = app.buttons["MainTabBar_Scans"]
+        let scans = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scans.waitForExistence(timeout: 8))
         scans.tap()
         let tile = app.buttons["QueuedScanTile_ui_test_queued_audio_handoff"]

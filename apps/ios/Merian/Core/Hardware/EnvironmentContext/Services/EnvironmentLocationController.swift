@@ -1,56 +1,6 @@
 import CoreLocation
 import Foundation
 
-@MainActor
-struct EnvironmentLocationHardware {
-    let authorizationStatus: @MainActor () -> CLAuthorizationStatus
-    let configure:
-        @MainActor (_ delegate: any CLLocationManagerDelegate) -> Void
-    let requestWhenInUseAuthorization: @MainActor () -> Void
-    let requestLocation: @MainActor () -> Void
-    let startUpdatingLocation: @MainActor () -> Void
-    let stopUpdatingLocation: @MainActor () -> Void
-    let applyProfile:
-        @MainActor (
-            _ desiredAccuracy: CLLocationAccuracy,
-            _ distanceFilter: CLLocationDistance
-        ) -> Void
-
-    #if DEBUG
-    fileprivate static let unitTesting = Self(
-        authorizationStatus: { .denied }, configure: { _ in },
-        requestWhenInUseAuthorization: {}, requestLocation: {},
-        startUpdatingLocation: {}, stopUpdatingLocation: {},
-        applyProfile: { _, _ in }
-    )
-    #endif
-
-    static var live: Self {
-        let manager = CLLocationManager()
-        return Self(
-            authorizationStatus: { manager.authorizationStatus },
-            configure: { delegate in
-                manager.delegate = delegate
-                manager.desiredAccuracy =
-                    EnvironmentLocationPolicy.composingAccuracy
-                manager.distanceFilter =
-                    EnvironmentLocationPolicy.composingDistanceFilter
-                manager.pausesLocationUpdatesAutomatically = true
-            },
-            requestWhenInUseAuthorization: {
-                manager.requestWhenInUseAuthorization()
-            },
-            requestLocation: { manager.requestLocation() },
-            startUpdatingLocation: { manager.startUpdatingLocation() },
-            stopUpdatingLocation: { manager.stopUpdatingLocation() },
-            applyProfile: { desiredAccuracy, distanceFilter in
-                manager.desiredAccuracy = desiredAccuracy
-                manager.distanceFilter = distanceFilter
-            }
-        )
-    }
-}
-
 /// Owns Core Location delegate, authorization, one-shot request, and tracking
 /// lifecycle. Every timeout carries an exact generation so a cancelled wait
 /// that completes non-cooperatively cannot resolve a replacement request.
@@ -63,7 +13,12 @@ final class EnvironmentLocationController: NSObject,
 
         @MainActor static var live: Self {
             #if DEBUG
-            let hardware: EnvironmentLocationHardware = TestExecutionCoordinator.isRunningUnitTests ? .unitTesting : .live
+            let hardware = EnvironmentLocationHardware.debugHardware(
+                isRunningUnitTests: TestExecutionCoordinator.isRunningUnitTests,
+                environment: ProcessInfo.processInfo.environment,
+                arguments: ProcessInfo.processInfo.arguments,
+                live: { .live }
+            )
             #else
             let hardware: EnvironmentLocationHardware = .live
             #endif

@@ -128,8 +128,24 @@ final class SharedMediaStorageFileOwner {
     func bootstrapProfile() throws -> SharedMediaNativeAppProfile {
         guard let value = nativeBootstrap?.profile else { throw SharedMediaStorageFailure.closed }; return value
     }
+    var captureRootNeedsRecovery: Bool { nativeBootstrap?.captureRootNeedsRecovery ?? false }
+    func recoverCaptureRoot(authority: SharedMediaNativeBootstrapAuthority) throws {
+        guard let nativeBootstrap else { throw SharedMediaStorageFailure.closed }
+        try checkFileIdentity()
+        try nativeBootstrap.recoverCaptureRoot(authority: authority)
+        try check()
+    }
     func bootstrapRoot(_ name: String) throws -> SharedMediaNativeLockedRoot {
         guard let nativeBootstrap else { throw SharedMediaStorageFailure.closed }; return try nativeBootstrap.take(name)
+    }
+
+    func withCaptureArtifactFiles<T>(authority: SharedMediaNativeBootstrapAuthority,
+                                     body: (SharedMediaCaptureArtifactFiles) async throws -> T) async throws -> T {
+        guard let nativeBootstrap else { throw SharedMediaStorageFailure.closed }
+        try checkFileIdentity()
+        let result = try await nativeBootstrap.withCaptureArtifactFiles(authority: authority, body: body)
+        try check()
+        return result
     }
 
     func requireEmpty() throws {

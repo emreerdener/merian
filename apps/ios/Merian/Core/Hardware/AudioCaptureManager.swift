@@ -74,6 +74,9 @@ final class AudioCaptureManager {
     private let reviewBoostController: AudioReviewBoostController
     private(set) var boostRecordingPreview = false
     private(set) var recordingID: UUID?
+    private(set) var recordingStartedAt: Date?
+    private let originalCustody: AudioCaptureDraftOriginalCustody
+    var isTransferringOriginal: Bool { originalCustody.isTransferringOriginal }
 
     var reviewBoostState: AudioReviewBoostState { reviewBoostController.state }
 
@@ -90,6 +93,10 @@ final class AudioCaptureManager {
         self.playbackController = AudioReviewPlaybackController(
             dependencies: dependencies.playback
         )
+        let boost = reviewBoostController, playback = playbackController
+        originalCustody = .init(retireReaders: { [boost, playback] in
+            [boost.retireReaders(), playback.retireReaders()]
+        })
     }
 
     // MARK: - Recording
@@ -106,7 +113,8 @@ final class AudioCaptureManager {
         recordingID: UUID = UUID(),
         boostRecordingPreview: Bool = false
     ) async throws {
-        guard !isRecording, !isStartingRecording, audioFilePath == nil, pendingPlaybackPath == nil else {
+        guard !isRecording, !isStartingRecording, !isTransferringOriginal,
+              audioFilePath == nil, pendingPlaybackPath == nil else {
             throw AudioCaptureError.recordingBusy
         }
         self.recordingID = recordingID
@@ -127,6 +135,7 @@ final class AudioCaptureManager {
         )
         cleanupPendingFile()
         let transition = transitionState.begin()
+        recordingStartedAt = Date()
 
         do {
             pendingFileName = try await recordingController.start(
@@ -268,7 +277,7 @@ final class AudioCaptureManager {
         let startupWasInProgress = isStartingRecording
         invalidateRecordingTransitions()
         stopPlayback()
-        reviewBoostController.reset()
+        reviewBoostController.reset(after: playbackController.retireReaders())
         recordingTask?.cancel()
         recordingTask = nil
         if !startupWasInProgress {
@@ -295,6 +304,7 @@ final class AudioCaptureManager {
 
     /// Plays the selected review copy; the submission source remains original.
     func playPendingRecording() {
+        guard !isTransferringOriginal else { return }
         guard pendingPlaybackPath != nil, !isPlaying else { return }
         isPlaying = true
         if !reviewBoostController.prepareIfNeeded(onReady: { [weak self] in
@@ -303,6 +313,7 @@ final class AudioCaptureManager {
     }
 
     func toggleReviewAudioBoost() {
+        guard !isTransferringOriginal else { return }
         guard pendingPlaybackPath != nil else { return }
         reviewBoostController.toggle()
         if !reviewBoostController.prepareIfNeeded(onReady: { [weak self] in
@@ -328,7 +339,7 @@ final class AudioCaptureManager {
             onStartFailure: { [weak self] in
                 guard let self else { return }
                 if url != originalURL {
-                    reviewBoostController.rejectPreparedAudio()
+                    reviewBoostController.rejectPreparedAudio(after: playbackController.retireReaders())
                     startReviewPlayback()
                 } else {
                     isPlaying = false
@@ -337,7 +348,7 @@ final class AudioCaptureManager {
             }
         )
         if !started, url != originalURL {
-            reviewBoostController.rejectPreparedAudio()
+            reviewBoostController.rejectPreparedAudio(after: playbackController.retireReaders())
             startReviewPlayback()
         } else {
             if !started { playbackController.stop() }
@@ -361,16 +372,45 @@ final class AudioCaptureManager {
 
     /// Retries a recording retained only because draft handoff failed.
     func retryStaging() {
+        guard !isTransferringOriginal else { return }
         stopPlayback()
         audioFilePath = pendingPlaybackPath
         pendingPlaybackPath = nil
-        reviewBoostController.reset()
+        reviewBoostController.reset(after: playbackController.retireReaders())
+    }
+
+    func holdOriginalForDraft(recordingID: UUID) { originalCustody.holdOriginalForDraft(recordingID: recordingID) }
+    func copyHeldDraftOriginal(recordingID: UUID) async throws -> (bytes: Data, capturedAt: Date)? {
+        try await originalCustody.copyHeldDraftOriginal(recordingID: recordingID, beforeRead: stopPlayback)
+    }
+    func releaseOriginalForDraft(recordingID: UUID) { originalCustody.releaseOriginalForDraft(recordingID: recordingID) }
+
+    func withSubmittedOriginal<Value: Sendable>(
+        recordingID expectedID: UUID, path: String,
+        operation: @MainActor (URL) async throws -> Value
+    ) async throws -> Value {
+        guard !isRecording, !isStartingRecording else { throw AudioCaptureError.recordingBusy }
+        return try await originalCustody.withSubmittedOriginal(path: path,
+            isCurrent: { self.recordingID == expectedID && self.audioFilePath == path },
+            beforeRead: stopPlayback, operation: operation)
+    }
+
+    /// Native custody owns a separate verified copy; retire the recorder copy
+    /// only after that acknowledgement, without touching a newer recording.
+    func acknowledgeRetainedOriginal(recordingID expectedID: UUID, path: String) {
+        guard recordingID == expectedID, audioFilePath == path, !isTransferringOriginal else { return }
+        originalCustody.prepareRetirement(path: path)
+        releaseOriginalForDraft(recordingID: expectedID)
+        acknowledgeStagedRecording()
+        deleteTemporaryFile(named: path)
     }
 
     /// Releases file ownership only after the draft has accepted the original.
     func acknowledgeStagedRecording() {
+        let transferredPath = audioFilePath
         audioFilePath = nil
         reset()
+        if let transferredPath { originalCustody.forgetTransferred(path: transferredPath) }
     }
 
     /// Restores a failed draft handoff without deleting its recording.
@@ -385,7 +425,7 @@ final class AudioCaptureManager {
     /// Discards the pending review recording and returns to idle state.
     func discardPending() {
         stopPlayback()
-        reviewBoostController.reset()
+        reviewBoostController.reset(after: playbackController.retireReaders())
         if let name = pendingPlaybackPath {
             deleteTemporaryFile(named: name)
             pendingPlaybackPath = nil
@@ -464,6 +504,9 @@ final class AudioCaptureManager {
         invalidateRecordingTransitions()
         recordingTask?.cancel()
         audioFilePath = recordingController.finishRecording()
+        if let path = audioFilePath {
+            originalCustody.recordCompleted(path: path, recordingID: recordingID, capturedAt: recordingStartedAt)
+        }
         if audioFilePath == nil { cleanupPendingFile() }
         pendingFileName = nil
         isRecording = false
@@ -496,11 +539,8 @@ final class AudioCaptureManager {
         pendingFileName = nil
     }
 
-    private func deleteTemporaryFile(named fileName: String) {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(fileName)
-        try? FileManager.default.removeItem(at: url)
-    }
+    private func deleteTemporaryFile(named fileName: String) { originalCustody.deleteTemporaryFile(named: fileName) }
+    func drainOriginalRetirements() async -> Bool { await originalCustody.drainOriginalRetirements() }
 
     private func handleCancelledOrFailedStartup() {
         invalidateRecordingTransitions()
@@ -565,6 +605,7 @@ final class AudioCaptureManager {
     ) {
         self.boostRecordingPreview = boostRecordingPreview
         self.recordingID = recordingID
+        recordingStartedAt = Date()
         if hasRetainedRecording {
             recordingController.debugStageStartup(
                 fileURL: FileManager.default.temporaryDirectory.appendingPathComponent(fileName), dspTask: nil

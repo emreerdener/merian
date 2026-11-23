@@ -39,8 +39,19 @@ struct ObservationHistoryEnrollmentService {
         try ConfirmedSpeciesReviewPersistence.transaction {
             let context = ModelContext(container)
             let scan = try eligibleScan(observation, context: context)
-            return try OrdinaryInferenceCompletion.retained(for: scan, owner: owner, context: context)
+            return try originalCompletion(for: scan, owner: owner, context: context)
         }
+    }
+
+    /// Capture and legacy results share immutable evidence encoding, but retain
+    /// distinct custody checks. Capture never enters the native photo receiver.
+    private static func originalCompletion(for scan: LocalScanRecord, owner: UUID,
+                                           context: ModelContext) throws -> OrdinaryInferenceCompletion.Proof? {
+        if try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw,
+            consumerID: scan.sharedMediaConsumerID, record: .scan) == .captureInitial {
+            return try SharedMediaCaptureCompletionReadback.retained(for: scan, ownerID: owner, context: context)
+        }
+        return try OrdinaryInferenceCompletion.retained(for: scan, owner: owner, context: context)
     }
 
     static func nativeRecoveryAdmission(_ candidate: SharedMediaNativeReceivedCandidate,
@@ -88,7 +99,7 @@ struct ObservationHistoryEnrollmentService {
                     FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper }))
                 let authority = try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw, consumerID: scan.sharedMediaConsumerID, record: .scan)
                 guard case .nativeInitial(let binding) = authority else {
-                    guard authority == .legacy || authority == .historyProjection else { throw SharedMediaStorageFailure.conflict }
+                    guard authority == .legacy || authority == .historyProjection || authority == .captureInitial else { throw SharedMediaStorageFailure.conflict }
                     continue
                 }
                 guard let consumer = try SharedMediaConsumerLookup.one(context, id: binding),
@@ -147,7 +158,7 @@ struct ObservationHistoryEnrollmentService {
         let lease = try cloud.begin(expectedOwnerID)
         defer { cloud.finish(lease) }
         try check(lease, owner: expectedOwnerID)
-        let (baseline, intent, native, ordinary) = try ConfirmedSpeciesReviewPersistence.transaction {
+        let (baseline, intent, native, ordinary, initialEvidence) = try ConfirmedSpeciesReviewPersistence.transaction {
             let context = ModelContext(container)
             context.autosaveEnabled = false
             do {
@@ -155,16 +166,17 @@ struct ObservationHistoryEnrollmentService {
                 let scan = try Self.eligibleScan(observation, context: context)
                 let baseline = ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation)
                 guard expectedBaseline == nil || expectedBaseline == baseline else { throw AdmissionError.localStateChanged }
-                let ordinary = try OrdinaryInferenceCompletion.retained(for: scan, owner: expectedOwnerID, context: context)
+                let ordinary = try Self.originalCompletion(for: scan, owner: expectedOwnerID, context: context)
                 let intent = try recovery?.intent ?? ObservationHistoryEnrollmentIntent.stage(observationID: observation, ownerID: expectedOwnerID, context: context)
                 try check(lease, owner: expectedOwnerID)
                 try save(context)
-                return (baseline, intent, try Self.nativeFirstImport(scan, intent: intent, context: context), ordinary)
+                return (baseline, intent, try Self.nativeFirstImport(scan, intent: intent, context: context), ordinary,
+                    try OrdinaryInferenceCompletion.retainedInitial(for: scan, owner: expectedOwnerID, context: context))
             } catch { context.rollback(); throw error }
         }
         // The durable hold survives every ambiguous outcome after this point.
         try check(lease, owner: expectedOwnerID)
-        let data = try await cloud.enroll(observation)
+        let data = try await (initialEvidence == nil ? cloud.enroll(observation) : cloud.enrollInitial(observation))
         try check(lease, owner: expectedOwnerID)
         let receipt = try ObservationHistoryEnrollment.decode(data, observationID: observation, ownerID: expectedOwnerID)
         let request = ObservationHistoryStateRequest(observation_id: observation.uuidString.lowercased(), analysis_id: nil)
@@ -175,12 +187,16 @@ struct ObservationHistoryEnrollmentService {
         if state.selectedAnalysisID != receipt.baselineAnalysisID {
             // Never join separate network snapshots or reselect A over B. The
             // additional read returns both states under one server observation fence.
-            let pairData = try await cloud.reconcileEnrollment(observation)
+            let pairData = try await (initialEvidence == nil
+                ? cloud.reconcileEnrollment(observation) : cloud.reconcileInitialEnrollment(observation))
             try check(lease, owner: expectedOwnerID)
             let pair = try ObservationHistoryEnrollmentSelection.decode(pairData, observation: observation, owner: expectedOwnerID, receipt: receipt)
             original = pair.baseline; state = pair.selected
         }
-        guard original.result.analysisID == receipt.baselineAnalysisID, original.result.version == 3 else { throw AdmissionError.reconciliationRequired }
+        guard original.result.analysisID == receipt.baselineAnalysisID,
+              initialEvidence.map({ $0.matches(original.result) }) ?? (original.result.version == 3) else {
+            throw AdmissionError.reconciliationRequired
+        }
         return try ConfirmedSpeciesReviewPersistence.transaction {
             let context = ModelContext(container)
             context.autosaveEnabled = false
@@ -190,19 +206,34 @@ struct ObservationHistoryEnrollmentService {
                 let scan = try Self.eligibleScan(observation, context: context)
                 guard ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation) == baseline,
                       try Self.nativeFirstImport(scan, intent: intent, context: context) == native,
-                      try OrdinaryInferenceCompletion.retained(for: scan, owner: expectedOwnerID, context: context) == ordinary else {
+                      try Self.originalCompletion(for: scan, owner: expectedOwnerID, context: context) == ordinary,
+                      try OrdinaryInferenceCompletion.retainedInitial(for: scan, owner: expectedOwnerID, context: context) == initialEvidence else {
                     throw AdmissionError.localStateChanged
                 }
                 try ObservationHistoryStateSyncService.validateAuthority(original.review, against: scan)
                 guard ObservationHistoryStateSyncService.matches(original.review, scan: scan) else {
                     throw AdmissionError.reconciliationRequired
                 }
-                let projection = AnalysisDisplaySnapshot(analysisID: receipt.baselineAnalysisID, record: scan)
-                let strictDisplay = try SavedIdentificationDisplayBaseline.capture(projection, matching: original.result)
-                let originalDisplay = try strictDisplay == nil ? ordinary.flatMap {
-                    try SavedIdentificationDisplayBaseline.captureOrdinary(projection, matching: original.result, proof: $0, owner: expectedOwnerID)
-                } : nil
-                guard let display = strictDisplay ?? originalDisplay else { throw AdmissionError.reconciliationRequired }
+                let display: Data?
+                if initialEvidence != nil {
+                    // Full original results derive their display from sealed
+                    // server evidence, never the mutable observation projection.
+                    guard ordinary != nil,
+                          try OrdinaryInferenceCompletion.matchesInitialResult(original.result, record: scan,
+                              owner: expectedOwnerID, context: context),
+                          try ObservationHistoryDisplayProjection.snapshot(original.result) != nil else {
+                        throw AdmissionError.reconciliationRequired
+                    }
+                    display = nil
+                } else {
+                    let projection = AnalysisDisplaySnapshot(analysisID: receipt.baselineAnalysisID, record: scan)
+                    let strictDisplay = try SavedIdentificationDisplayBaseline.capture(projection, matching: original.result)
+                    let originalDisplay = try strictDisplay == nil ? ordinary.flatMap {
+                        try SavedIdentificationDisplayBaseline.captureOrdinary(projection, matching: original.result, proof: $0, owner: expectedOwnerID)
+                    } : nil
+                    guard let saved = strictDisplay ?? originalDisplay else { throw AdmissionError.reconciliationRequired }
+                    display = saved
+                }
                 let changesSelection = state.selectedAnalysisID != receipt.baselineAnalysisID
                 let results = changesSelection ? [original.result, state.result] : [original.result]
                 _ = try ObservationHistorySyncService.insert(results, into: scan, ownerID: expectedOwnerID, context: context)
@@ -329,6 +360,7 @@ struct ObservationHistoryEnrollmentService {
 
     private static func eligibleScan(_ observation: UUID, context: ModelContext) throws -> LocalScanRecord {
         let lower = observation.uuidString.lowercased(), upper = observation.uuidString
+        try ObservationHistorySelectionIntent.requireIdle(lower, context: context)
         var deletions = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == lower || $0.scanId == upper })
         deletions.fetchLimit = 1
         guard try context.fetch(deletions).isEmpty else { throw ObservationHistoryError.deleted }
@@ -352,7 +384,21 @@ struct ObservationHistoryEnrollmentService {
                 $0.statusRaw != complete && $0.statusRaw != cancelled
         })
         jobs.fetchLimit = 1
-        guard try context.fetch(queued).isEmpty, try context.fetch(jobs).isEmpty else { throw AdmissionError.pendingWork }
+        guard try context.fetch(jobs).isEmpty else { throw AdmissionError.pendingWork }
+        if try !context.fetch(queued).isEmpty {
+            // Completed Capture retains its queue as original-media custody.
+            // Only its exact accepted cohort and immutable completed result can
+            // distinguish that retained ownership from unfinished queue work.
+            guard scan.mediaAuthorityRaw == SharedMediaCaptureAcceptance.mediaAuthority,
+                  scan.sharedMediaConsumerID == nil else { throw AdmissionError.pendingWork }
+            var parents = FetchDescriptor<SharedMediaOrdinarySubmissionRecord>(predicate: #Predicate { $0.recipientScanID == observation })
+            parents.fetchLimit = 2
+            let rows = try context.fetch(parents)
+            guard rows.count == 1, let parent = rows.first else { throw AdmissionError.pendingWork }
+            let saved = try SharedMediaCaptureSubmissionReceipt.read(parent, in: context)
+            _ = try SharedMediaCaptureCompletionReadback.retained(for: scan,
+                ownerID: saved.submission.profile.ownerID, context: context)
+        }
         try ObservationHistoryStateSyncService.requireSettledReview(scan, context: context)
         return scan
     }

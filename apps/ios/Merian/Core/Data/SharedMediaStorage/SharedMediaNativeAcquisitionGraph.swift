@@ -79,13 +79,15 @@ enum SharedMediaNativeAcquisitionGraph {
     }
 
     static func scopedReceipt(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
-                              context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
+                              context: ModelContext, format: SharedMediaNativeScopedFormat = .existingV1, ordinary: SharedMediaOrdinaryInspection? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
         try format.requireProfile(inventory)
-        return try receiptFacts(row, inventory: inventory, context: context, checkpoint: checkpoint)
+        try ordinary?.requireCurrent(context)
+        guard ordinary == nil || format == .appV2 else { throw SharedMediaStorageFailure.closed }
+        return try receiptFacts(row, inventory: inventory, context: context, ordinary: ordinary, checkpoint: checkpoint)
     }
 
     private static func receiptFacts(_ row: SharedMediaAcquisitionReceiptRecord, inventory: SharedMediaInventoryRecord,
-                                     context: ModelContext, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
+                                     context: ModelContext, ordinary: SharedMediaOrdinaryInspection? = nil, checkpoint: () throws -> Void = {}) throws -> SharedMediaAcquisitionReceipt {
         guard !context.hasChanges, row.inventoryID == inventory.id,
               row.inventoryGeneration == inventory.generation else { throw SharedMediaStorageFailure.conflict }
         let value = try SharedMediaAcquisitionReceipt.read(row)
@@ -99,7 +101,8 @@ enum SharedMediaNativeAcquisitionGraph {
         case .reserved(let request): try pending(request, held: false, inventory: inventory, context: context)
         case .held(let request): try pending(request, held: true, inventory: inventory, context: context)
         case .completed(let request, let result):
-            let snapshot = try SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID, inventoryID: inventory.id, context: context, checkpoint: checkpoint)
+            let snapshot = try ordinary?.original(request.assetID, inventoryID: inventory.id, context: context, checkpoint: checkpoint)
+                ?? SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID, inventoryID: inventory.id, context: context, checkpoint: checkpoint)
             let assetID = request.assetID, operationID = request.operationID
             let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
             let allocation = try one(context, FetchDescriptor<SharedMediaAllocationRecord>(predicate: #Predicate { $0.id == assetID }))

@@ -7,6 +7,28 @@ import Testing
 
 @MainActor
 struct InsightShellPresentationTests {
+    @Test func identificationHandoffTransfersOwnershipWithoutCancellingStartedWork() {
+        var resumed = 0
+        var cancelled = 0
+        let handoff = IdentificationSheetContinuation(scanID: "saved", generation: 7,
+            isCurrent: { true }, resume: { resumed += 1 }, cancel: { cancelled += 1 })
+        handoff.consume(scanID: "saved", generation: 7)
+        #expect(resumed == 1)
+        #expect(cancelled == 0)
+    }
+
+    @Test func identificationHandoffCancelsStaleAccountOrPresentation() {
+        for scenario in 0..<3 {
+            var resumed = false
+            var cancelled = false
+            let handoff = IdentificationSheetContinuation(scanID: "saved", generation: 7,
+                isCurrent: { scenario != 0 }, resume: { resumed = true }, cancel: { cancelled = true })
+            handoff.consume(scanID: scenario == 1 ? "other" : "saved", generation: scenario == 2 ? 8 : 7)
+            #expect(!resumed)
+            #expect(cancelled)
+        }
+    }
+
     @Test func testEvaluateScrollOffset() {
         let viewModel = InsightSheetViewModel()
         #expect(viewModel.state.isCommonNameScrolledPast == false)

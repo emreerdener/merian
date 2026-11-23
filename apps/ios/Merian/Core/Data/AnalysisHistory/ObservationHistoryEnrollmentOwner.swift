@@ -30,7 +30,13 @@ final class ObservationHistoryEnrollmentOwner {
     func continueInitialHistory(observation: UUID, owner: UUID, generation: UInt64, container: ModelContainer,
                                 cloud: ObservationHistoryCloudClient, isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
         try Task.checkCancellation()
+        guard drains == 0 else { throw Failure.draining }
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        if let acknowledged = try ObservationHistoryEnrollmentService.acknowledgedInitialBaseline(
+            observation: observation, owner: owner, container: container) {
+            guard entries[observation] == nil else { throw Failure.busy }
+            return acknowledged
+        }
         if try ObservationHistoryEnrollmentService.requiresBaselineRecovery(observation: observation, owner: owner, container: container) {
             return try await recoverBaseline(observation: observation, owner: owner, generation: generation,
                 container: container, cloud: cloud, isCurrent: isCurrent)

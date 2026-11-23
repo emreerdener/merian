@@ -6,8 +6,15 @@ import {
 } from "../_shared/http.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
-import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
+import {
+  createServiceRoleClient,
+  createServiceRoleClientWithOptions,
+} from "../_shared/serviceRoleClient.ts";
 import { replayScanIngestion } from "./worker.ts";
+import {
+  continuePrivateCaptureFinalizations,
+  privateFinalizationDependencies,
+} from "./privateFinalization.ts";
 
 function positiveNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0
@@ -58,6 +65,16 @@ serveEdge(async (req: Request) => {
       supabaseUrl,
       auth.serverApiKey,
     );
+    // This separate branch can only finish already accepted private results.
+    // Keep it independent of legacy provider replay and its retry exhaustion.
+    const privateFinalization = await continuePrivateCaptureFinalizations(
+      privateFinalizationDependencies(createServiceRoleClientWithOptions(
+        supabaseUrl,
+        auth.serverApiKey,
+        { requestTimeoutMs: 10_000, maximumResponseBytes: 8_388_608 },
+      )),
+      req.signal,
+    ).catch(() => ({ unavailable: true as const }));
     const result = await replayScanIngestion(
       supabaseAdmin,
       {
@@ -73,10 +90,11 @@ serveEdge(async (req: Request) => {
       event: "replay_scan_ingestion_complete",
       ...result,
       errors: result.errors.length,
+      privateFinalization,
       ts: new Date().toISOString(),
     }));
 
-    return jsonResponse({ success: true, ...result }, 200);
+    return jsonResponse({ success: true, ...result, privateFinalization }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logStructuredError("replay_scan_ingestion_failed", {

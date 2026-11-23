@@ -26,11 +26,20 @@ struct PreparedCaptureScanStill: Sendable {
     }
 }
 
+/// Draft-local geometry in viewport units; baked into all submitted artifacts.
+struct CaptureVideoFraming: Equatable, Sendable {
+    let scale: CGFloat
+    let offset: CGSize
+    let displaySize: CGFloat
+    let quarterTurns: Int
+}
+
 struct CaptureScanVideoPreparationRequest: Sendable {
     let videoURL: URL
     let duration: TimeInterval
     let composingCenter: CGFloat
     let isProActive: Bool
+    var framing: CaptureVideoFraming?
 }
 
 enum CaptureScanVideoFrameSamplingPolicy {

@@ -87,21 +87,6 @@ struct CaptureWorkspaceStagingTests {
         }
     }
 
-    @Test func requiredCropStateFencesCaptureChromeBeforePresentation() {
-        #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-            hasPendingRequiredGalleryCrop: true,
-            isCropPresented: false
-        ))
-        #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-            hasPendingRequiredGalleryCrop: false,
-            isCropPresented: true
-        ))
-        #expect(!CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-            hasPendingRequiredGalleryCrop: false,
-            isCropPresented: false
-        ))
-    }
-
     @Test func removingStagedAudioOnlyRemovesTheSelectedRecording() async {
         await MainActor.run {
             let firstPath = "staged_audio_remove_\(UUID().uuidString).wav"

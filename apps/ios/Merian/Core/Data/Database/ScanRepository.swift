@@ -587,12 +587,15 @@ final class ScanRepository {
         erasePhotoPreparation: (@MainActor () async throws -> Void)? = nil,
         sharedMedia: SharedMediaLibraryPurgeRequest? = nil,
         resetRuntimeState: @MainActor () -> Void = { AccountScopedRuntimeState.reset() },
-        validateAuthorization: @MainActor () -> Bool = { true }
+        validateAuthorization: @MainActor () -> Bool = { true },
+        eraseReanalysis: @MainActor () async throws -> Void = {
+            try ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
+        }
     ) async -> Bool {
         let succeeded = await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
             resetRuntimeState: resetRuntimeState, sharedMedia: sharedMedia, erasePhotoPreparation: erasePhotoPreparation,
-            validateAuthorization: validateAuthorization
+            validateAuthorization: validateAuthorization, eraseReanalysis: eraseReanalysis
         )
         if succeeded && validateAuthorization() { resetDerivedState(); libraryRestoration.reset(); return true }
         return false

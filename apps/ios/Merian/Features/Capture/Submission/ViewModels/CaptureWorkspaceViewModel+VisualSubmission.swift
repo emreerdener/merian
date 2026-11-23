@@ -34,6 +34,14 @@ extension CaptureWorkspaceViewModel {
             }
         }
 
+        if reanalysisEditor != nil {
+            await submitHistoryWorkspace()
+            return
+        }
+        if usesInitialDraftComposition {
+            await submitInitialDraft(preferredGoal: preferredGoal)
+            return
+        }
         if usesNativePhotoComposition {
             await submitNativePhotoDraft()
             return

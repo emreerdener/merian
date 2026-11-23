@@ -749,6 +749,9 @@ verify_jwt = false
 [functions.resolve-history-photo]
 verify_jwt = false
 
+[functions.resolve-history-media]
+verify_jwt = false
+
 [functions.analyze-observation]
 verify_jwt = false
 
@@ -821,4 +824,16 @@ verify_jwt = false
 
 # Service-authenticated, frozen synthetic cases only. Ordinary routing is unchanged.
 [functions.gemini-release-smoke]
+verify_jwt = false
+
+# Owner-authenticated mixed History upload; SQL composition gates default closed.
+[functions.upload-observation-composition]
+verify_jwt = false
+
+# Owner-authenticated ordinary artifacts; existing admitted-job/rollout fences apply.
+[functions.upload-initial-evidence]
+verify_jwt = false
+
+# Authenticated private pre-admission client artifacts; no provider/ingestion authority.
+[functions.upload-capture-stage]
 verify_jwt = false

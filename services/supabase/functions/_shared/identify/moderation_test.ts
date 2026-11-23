@@ -181,3 +181,64 @@ Deno.test("promoteSafeMedia fails and rolls back when staging deletion is not co
     "public_uploads/pro/user-delete-proof/audio.wav",
   ]);
 });
+
+Deno.test("durable promotion preserves every staging input until the continuation is bound", async () => {
+  const copied: string[] = [];
+  const deleted: string[] = [];
+  const keys = ["staging/user-123/first.webp", "staging/user-123/second.webp"];
+  const urls = await promoteSafeMedia({
+    userId: "user-123",
+    r2ObjectKeys: keys,
+    imageBase64s: undefined,
+    userTier: "pro",
+    r2Config: makeR2Config(),
+    preserveStaging: true,
+  }, {
+    copyObject: (key) => {
+      copied.push(key);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+    deleteObject: (key) => {
+      deleted.push(key);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  });
+  assertEquals(copied, keys);
+  assertEquals(deleted, []);
+  assertEquals(urls, [
+    "https://media.merian.app/public_uploads/pro/user-123/first.webp",
+    "https://media.merian.app/public_uploads/pro/user-123/second.webp",
+  ]);
+});
+
+Deno.test("failed durable promotion rolls back targets without destroying any retry input", async () => {
+  const deleted: string[] = [];
+  await assertRejects(
+    () =>
+      promoteSafeMedia({
+        userId: "user-123",
+        r2ObjectKeys: [
+          "staging/user-123/first.webp",
+          "staging/user-123/second.webp",
+        ],
+        imageBase64s: undefined,
+        userTier: "free",
+        r2Config: makeR2Config(),
+        preserveStaging: true,
+      }, {
+        copyObject: (key) =>
+          Promise.resolve(
+            new Response(null, {
+              status: key.endsWith("first.webp") ? 200 : 500,
+            }),
+          ),
+        deleteObject: (key) => {
+          deleted.push(key);
+          return Promise.resolve(new Response(null, { status: 204 }));
+        },
+      }),
+    Error,
+    "Failed to promote staging image",
+  );
+  assertEquals(deleted, ["public_uploads/free/user-123/first.webp"]);
+});

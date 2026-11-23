@@ -33,6 +33,7 @@ struct InferenceResponsePreparationService: Sendable {
         let planUsed: String?
         let fundingSettlement: InferenceResponseSettlement?
         let responseMatchesExpectedScanId: Bool
+        var initialEvidence: OrdinaryInitialEvidenceProof?
     }
 
     static let live = InferenceResponsePreparationService()
@@ -99,7 +100,8 @@ struct InferenceResponsePreparationService: Sendable {
                     )
                 }
                 : nil,
-            responseMatchesExpectedScanId: responseMatchesExpectedScanId
+            responseMatchesExpectedScanId: responseMatchesExpectedScanId,
+            initialEvidence: try parsedWrapper.initialEvidence.map(OrdinaryInitialEvidenceProof.init)
         )
     }
 }

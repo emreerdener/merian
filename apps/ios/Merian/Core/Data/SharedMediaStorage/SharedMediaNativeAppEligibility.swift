@@ -37,15 +37,34 @@ enum SharedMediaNativeAppEligibility {
 
     static func snapshot(context: ModelContext, scope: SharedMediaNativeScopeIdentity) throws -> Header {
         let (row, bootstrap) = try validatedHeader(context: context, scope: scope)
+        return snapshot(row, bootstrap)
+    }
+
+    /// Cleanup inspection only. Normal eligibility continues requiring ready.
+    static func erasureSnapshot(context: ModelContext, scope: SharedMediaNativeScopeIdentity,
+                                expected: SharedMediaNativeLibraryErasureState) throws -> Header {
+        guard expected.stage == .preparing else { throw SharedMediaStorageFailure.closed }
+        let (row, bootstrap) = try validatedHeader(context: context, scope: scope, erasure: expected)
+        return snapshot(row, bootstrap)
+    }
+
+    private static func snapshot(_ row: SharedMediaInventoryRecord, _ bootstrap: SharedMediaMembershipBootstrapRecord) -> Header {
         return .init(inventory: .init(generation: row.generation, revision: row.revision, phase: row.phaseRaw, cursor: row.cursor),
             bootstrapID: bootstrap.id, bootstrapGeneration: bootstrap.inventoryGeneration,
             bootstrapContract: bootstrap.contractVersion, bootstrapRevision: bootstrap.revision)
     }
 
     static func profile(_ inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeAppProfile {
+        guard inventory.phaseRaw == SharedMediaNativeAppProfile.phase,
+              inventory.cursor.isEmpty else { throw SharedMediaStorageFailure.conflict }
+        return try profileAssertion(inventory)
+    }
+
+    /// Parses immutable identity only, including during authorized erasure.
+    /// This does not assert a ready inventory or grant normal operation access.
+    static func profileAssertion(_ inventory: SharedMediaInventoryRecord) throws -> SharedMediaNativeAppProfile {
         guard inventory.modeRaw == SharedMediaNativeAppProfile.mode,
-              inventory.phaseRaw == SharedMediaNativeAppProfile.phase,
-              inventory.revision >= 0, inventory.cursor.isEmpty else { throw SharedMediaStorageFailure.conflict }
+              inventory.revision >= 0 else { throw SharedMediaStorageFailure.conflict }
         let bytes = Data(inventory.rootIdentity.utf8)
         let fields = try SharedMediaNativeBootstrapCodec.decode([String].self, bytes)
         let format = try SharedMediaNativeAppProfile.PhysicalBindingFormat(bindingFields: fields)
@@ -84,12 +103,17 @@ enum SharedMediaNativeAppEligibility {
 
     // Both projections use the same validated pair within this synchronous call.
     // No model or authority is retained between invocations or across suspension.
-    private static func validatedHeader(context: ModelContext, scope: SharedMediaNativeScopeIdentity) throws
+    private static func validatedHeader(context: ModelContext, scope: SharedMediaNativeScopeIdentity,
+                                        erasure: SharedMediaNativeLibraryErasureState? = nil) throws
         -> (inventory: SharedMediaInventoryRecord, bootstrap: SharedMediaMembershipBootstrapRecord) {
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let id = scope.inventoryID
         let row = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == id }))
-        let profile = try profile(row)
+        let profile: SharedMediaNativeAppProfile
+        if let erasure {
+            guard try SharedMediaNativeLibraryErasureState.read(row) == erasure else { throw SharedMediaStorageFailure.stale }
+            profile = try profileAssertion(row)
+        } else { profile = try Self.profile(row) }
         let bootstrap = try SharedMediaNativePairPlanGraph.one(context, FetchDescriptor<SharedMediaMembershipBootstrapRecord>(predicate: #Predicate { $0.id == id }))
         guard profile.ownerID == scope.ownerID, row.generation == scope.generation,
               row.storeIdentity == scope.storeIdentity, row.rootIdentity == scope.rootBinding,

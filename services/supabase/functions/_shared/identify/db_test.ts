@@ -1,11 +1,14 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  insertPreparedScan,
   insertScan,
   mergeSpeciesCommonNames,
   normalizeScanEcologyType,
   omitNullishSpeciesUpsertValues,
+  prepareScanInsert,
   resolveScanGeoprivacy,
+  type ScanInsertRow,
   speciesReferenceImageRowsFromCache,
   upsertGhostUserIfMissing,
 } from "./db.ts";
@@ -464,4 +467,71 @@ Deno.test("insertScan preserves media when owner-row verification remains unavai
     "insertScan verification: read unavailable",
   );
   assertEquals(isScanPersistenceOutcomeUnknown(error), true);
+});
+
+Deno.test("prepared scan continuation freezes account policy and nested context before retry", async () => {
+  const source: ScanInsertRow = {
+    id: "scan-1",
+    user_id: "user-1",
+    species_id: null,
+    is_biological_subject: true,
+    extracted_visual_traits: ["original"],
+    colors: [],
+    image_storage_urls: [],
+    ecological_interactions: [],
+    inference_tier: "pro",
+    public_location_label: "Synthetic location",
+    user_observation_context: { description: "Original submitted detail" },
+  };
+  const policy = makeSupabaseMock("private");
+  const pending = prepareScanInsert(source, policy.client);
+  source.extracted_visual_traits[0] = "later edit";
+  source.user_observation_context!.description = "later draft";
+  source.public_location_label = "changed";
+  const prepared = await pending;
+  assertEquals(prepared.geoprivacy, "private");
+  assertEquals(prepared.ecology_type, "unknown");
+  assertEquals(prepared.public_location_label, null);
+  assertEquals(prepared.extracted_visual_traits, ["original"]);
+  assertEquals(prepared.user_observation_context, {
+    description: "Original submitted detail",
+  });
+  const persisted: Record<string, unknown>[] = [];
+  // The mock rejects any users query. Both original insertion and manual retry
+  // must use the frozen policy, even if preferences have changed meanwhile.
+  const client = insertScanMock({
+    onUpsert(row) {
+      persisted.push(structuredClone(row));
+    },
+  });
+  await insertPreparedScan(prepared, client);
+  await insertPreparedScan(prepared, client);
+  assertEquals(persisted, [{ ...prepared }, { ...prepared }]);
+});
+
+Deno.test("prepared scan insertion rejects noncanonical private location without writing", async () => {
+  const client = insertScanMock({
+    onUpsert() {
+      throw new Error("unexpected write");
+    },
+  });
+  await assertRejects(
+    () =>
+      insertPreparedScan({
+        id: "scan-1",
+        user_id: "user-1",
+        species_id: null,
+        geoprivacy: "private",
+        ecology_type: "wild",
+        public_location_label: "must not persist",
+        is_biological_subject: true,
+        extracted_visual_traits: [],
+        colors: [],
+        image_storage_urls: [],
+        ecological_interactions: [],
+        inference_tier: "pro",
+      }, client),
+    Error,
+    "invalid_prepared_scan_insert",
+  );
 });

@@ -10,7 +10,7 @@ struct VideoAudioFixture: Sendable {
     init(
         channels: Int?, amplitude: Double = 0.2,
         width: Int = 64, height: Int = 64, frameCount: Int = 30,
-        transform: CGAffineTransform = .identity
+        transform: CGAffineTransform = .identity, coordinatePattern: Bool = false
     ) async throws {
         try #require((2...2048).contains(width) && width.isMultiple(of: 2))
         try #require((2...2048).contains(height) && height.isMultiple(of: 2))
@@ -28,7 +28,7 @@ struct VideoAudioFixture: Sendable {
             try Task.checkCancellation()
             try await prepare(
                 channels: channels, amplitude: amplitude, width: width, height: height,
-                frameCount: frameCount, transform: transform
+                frameCount: frameCount, transform: transform, coordinatePattern: coordinatePattern
             )
             await Self.writerGate.release()
         } catch {
@@ -41,11 +41,11 @@ struct VideoAudioFixture: Sendable {
     /// Keep the fixture's encoder permit through AAC creation and composition export.
     private func prepare(
         channels: Int?, amplitude: Double, width: Int, height: Int,
-        frameCount: Int, transform: CGAffineTransform
+        frameCount: Int, transform: CGAffineTransform, coordinatePattern: Bool
     ) async throws {
         let silentURL = root.appendingPathComponent("silent.mp4")
         try await Self.writeSilentVideo(
-            to: silentURL, width: width, height: height, frameCount: frameCount, transform: transform
+            to: silentURL, width: width, height: height, frameCount: frameCount, transform: transform, coordinatePattern: coordinatePattern
         )
         guard let channels else {
             try FileManager.default.copyItem(at: silentURL, to: videoURL)
@@ -113,7 +113,7 @@ struct VideoAudioFixture: Sendable {
     private static let writerGate = VideoFixtureWriterGate()
 
     private static func writeSilentVideo(
-        to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform
+        to url: URL, width: Int, height: Int, frameCount: Int, transform: CGAffineTransform, coordinatePattern: Bool
     ) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -147,6 +147,19 @@ struct VideoAudioFixture: Sendable {
         CVPixelBufferLockBaseAddress(pixels, [])
         if let base = CVPixelBufferGetBaseAddress(pixels) {
             memset(base, 0, CVPixelBufferGetDataSize(pixels))
+            if coordinatePattern {
+                let bytes = base.assumingMemoryBound(to: UInt8.self)
+                let stride = CVPixelBufferGetBytesPerRow(pixels)
+                for y in 0..<height {
+                    for x in 0..<width {
+                        let index = y * stride + x * 4
+                        bytes[index] = 255
+                        bytes[index + 1] = UInt8(x * 255 / max(1, width - 1))
+                        bytes[index + 2] = UInt8(y * 255 / max(1, height - 1))
+                        bytes[index + 3] = 64
+                    }
+                }
+            }
         }
         CVPixelBufferUnlockBaseAddress(pixels, [])
         for frame in 0..<frameCount {

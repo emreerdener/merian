@@ -160,18 +160,12 @@ struct ObservationVideoHistoryJourneyTests {
             let ticket = try ObservationAnalysisReviewTicket(entry: entry, context: context, observationID: saved.source.observationID)
             _ = try await publication.prepare(ticket: ticket, container: reopened, isCurrent: { true })
         }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.capture(observationID: saved.source.observationID,
-                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened)
-        }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.captureForAudio(observationID: saved.source.observationID,
-                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened)
-        }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.captureForVideo(observationID: saved.source.observationID,
-                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened)
-        }
+        #expect(try ObservationReanalysisSource.capture(observationID: saved.source.observationID,
+                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened).video != nil)
+        #expect(try ObservationReanalysisSource.captureForAudio(observationID: saved.source.observationID,
+                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened).video != nil)
+        #expect(try ObservationReanalysisSource.captureForVideo(observationID: saved.source.observationID,
+                analysisID: saved.request.analysisID, ownerID: saved.source.ownerID, container: reopened).video != nil)
         #expect(reads.pages == 2 && reads.states.count == 2 && reads.began == reads.finished)
         #expect(reads.states.allSatisfy { $0.analysis_id == saved.request.analysisID.uuidString.lowercased()
             && $0.observation_id == saved.source.observationID.uuidString.lowercased() })

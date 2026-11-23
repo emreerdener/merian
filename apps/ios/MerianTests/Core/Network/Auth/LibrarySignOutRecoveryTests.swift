@@ -62,7 +62,7 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         XCTAssertEqual(try harness.store.load()?.phase, .sourceCleared)
     }
 
-    func testLostLocalGuestJournalWriteReusesSDKDestination() async throws {
+    func testLostLocalGuestJournalWritePreservesUnprovenDestinationForRecovery() async throws {
         let harness = Harness()
         try harness.commit()
         harness.rejectDestinationWrite = true
@@ -73,8 +73,27 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         XCTAssertEqual(try harness.store.load()?.phase, .libraryCleared)
         harness.rejectDestinationWrite = false
         let retried = await harness.coordinator.resume()
-        XCTAssertTrue(retried)
+        XCTAssertFalse(retried)
         XCTAssertEqual(harness.createCount, 1)
+        XCTAssertEqual(harness.purchaseCount, 0)
+        XCTAssertEqual(try harness.store.load()?.phase, .libraryCleared)
+        XCTAssertEqual(harness.session?.userID, harness.destination)
+    }
+
+    func testUnrelatedAnonymousSessionCannotCompleteLibraryClearedJournal() async throws {
+        let harness = Harness()
+        var journal = LibrarySignOutJournal(sourceUserID: harness.source)
+        journal.phase = .libraryCleared
+        try harness.store.save(journal)
+        let replacement = AuthTransitionSession(userID: UUID(), isAnonymous: true)
+        harness.session = replacement
+        let completed = await harness.coordinator.resume()
+        XCTAssertFalse(completed)
+        XCTAssertEqual(harness.session, replacement)
+        XCTAssertEqual(try harness.store.load(), journal)
+        XCTAssertEqual(harness.createCount, 0)
+        XCTAssertEqual(harness.purchaseCount, 0)
+        XCTAssertEqual(harness.signOutCount, 0)
     }
 
     func testPurchaseFailureReusesExactDestination() async throws {
@@ -173,6 +192,28 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         XCTAssertFalse(purge.isCurrent)
     }
 
+    func testLegacyUpgradePreservesPhaseAndOperationAcrossColdRetry() throws {
+        var bytes: Data? = try JSONSerialization.data(withJSONObject: ["version": 1,
+            "sourceUserID": UUID().uuidString, "phase": "sourceCleared"])
+        var loseAcknowledgement = true
+        let store = LibrarySignOutJournalStore(dependencies: .init(read: { bytes }, write: {
+            bytes = $0; return !loseAcknowledgement
+        }, remove: { bytes = nil }))
+        let legacy = try XCTUnwrap(store.load())
+        XCTAssertNil(legacy.cleanupOperationID)
+        XCTAssertThrowsError(try store.upgradeForCleanup(legacy))
+        let persisted = try XCTUnwrap(store.load())
+        XCTAssertNotNil(persisted.cleanupOperationID)
+        XCTAssertEqual(persisted.sourceUserID, legacy.sourceUserID)
+        XCTAssertEqual(persisted.phase, legacy.phase)
+        loseAcknowledgement = false
+        XCTAssertEqual(try store.upgradeForCleanup(persisted), persisted)
+        var advanced = persisted; advanced.phase = .libraryCleared
+        try store.save(advanced)
+        XCTAssertEqual(try store.load()?.cleanupOperationID, persisted.cleanupOperationID)
+        XCTAssertNotEqual(LibrarySignOutJournal(sourceUserID: legacy.sourceUserID).cleanupOperationID, persisted.cleanupOperationID)
+    }
+
     @MainActor private final class Harness {
         let source = UUID()
         let destination = UUID()
@@ -192,6 +233,7 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
         var signOutCount = 0
         var cleanupCount = 0
         var createCount = 0
+        var purchaseCount = 0
 
         init() { session = AuthTransitionSession(userID: source, isAnonymous: false) }
 
@@ -257,6 +299,7 @@ final class LibrarySignOutRecoveryTests: XCTestCase {
                     return self.session
                 },
                 completePurchases: { _ in
+                    self.purchaseCount += 1
                     await self.changeJournal(at: "purchases")
                     return self.purchasesSucceed
                 }

@@ -2,48 +2,48 @@
 export const GEMINI_DEPLOYMENT_IDENTITIES = Object.freeze(
   {
     "analyze-observation":
-      "f5b733d9546e2c8da95f942c0c8df159fd9fc18f017a2e502f68da41eb733679",
+      "c3c3e1aee6d7d577e688299bc58a15f143c79ebc66a5c0e669020beaa7cc80c1",
     "analyze-observation-video":
-      "ddea155b2eb357741974c7cf939b078bd31b2e6f82cc48cfd589ba7cc171cc9f",
+      "f37fb755ae8b8c6903d3218b586c0db7bc4a1b7e758551074564700f83bd8d20",
     "audio-spec":
-      "31b864d65826dffe5c0e5197f403924b044ada1ff76e1f28064150798efcb0df",
+      "76bad6dfb6d1cba101fd7b5ce2184a255ed9508150e29d3779d24c807970dfa1",
     "backfill-explore-audio-spectrograms":
-      "a59a47a87992628a74c5cade82c57be79c253f9b9b006fa9afb88f8c16e1ef83",
+      "f351a0c8cb58bf33fe962d1fdc6e227afd774c15a22866c26cb8486f5d63b65f",
     "copy-publication-photos":
-      "025400b08830fa048332435fa293d47b32b6237cab4d2f4436625f385c0d7ee5",
+      "2beb40718d3e6f9a3d13a656e8edb0476a5cb334a5ccee85082d751abfd7ea62",
     "enrich-scan":
-      "7e545cf28a40c4be70c07b98f85cdd6644b5f86ac52d2dd5eb0270397f396f4b",
+      "f570015b70b93803d215d3380d00f8c2203d9e03518901a23ceb11bf5b4e6267",
     "erase-publication-photos":
-      "9c72966d8946c2688762e9736f900a0370af2a6046c3010d63ce3a3fc122c8c0",
+      "d6ce936b10a742ad0f7bdbf50187ce4b16ea31bf9a155da73837456219f07658",
     "explore-post-chat":
       "5e5e6aff08d60afa402c1e5016059d550eed7399dfe369dc1e302b437c7586e5",
     "gemini-release-smoke":
-      "fb6efa08278857f97f86450033c79dc57aa6914c6b8f41d2f3d4d075d6eeab38",
+      "332fa52f4a01acad133e2963a30b5a440fffcb848978e65988a962fb7b735407",
     "identify":
-      "c4a7a9be535d95c4590d77f4bc4e3c35e013577cec4857abdc18df9db9be6d00",
+      "4539515396409884d315166aeadcba59b44d67f45831805584984bc899dee353",
     "identify-describe":
-      "dd908c70a3dd1da76f9e2fbc337f0e3f1356f058a4e460732d40d27fb7cb05a4",
+      "7fe3d2dd95be82f83443f02edceb68125642e5e3443500ad80b4cdd26d7bdd33",
     "identify-multimodal":
-      "fcee9eb0d60830317d27030e8e94a37625e46df47ea496a8e030d2f494a5d187",
+      "5ce4063c0dd6de1da07bacd1a3c1247fb597403d61d733083a5461807d989286",
     "insight-chat":
       "be124f93f6c6fb695574cf5563a9d9534fe793b6e57d58a39f201442737bf36c",
     "moderate-publication-photos":
-      "3a4b6fda91350d7b4c3837959765e3677649cdbd397bd4b4b1d9ce7d6c5e2db9",
+      "16ea9d6ebfe6270b837f9a69c5e1f76785bad28183f79d0723c150aefed0e1cf",
     "recover-observation-analyses":
-      "00b2b05980af500636beef686094822dccf68fb6fcf8bc48a493470d3c6e819d",
+      "007e63937b20a104d9e90a4b86294111249f4f9cf49333c31a699d80d336c18b",
     "recover-observation-video-analyses":
-      "519a65cb684188dc67f8beb48745d398d26ec77fc79a6d1712f1c617f27a9c70",
+      "744c2794e65a2833843227bee27c4b850ab41da9ba0c8e53b7cc5291d2598fbf",
     "refresh-species-model-content":
-      "3ea9d294a4b3349868589818693b3b9aac441d8d661b82219c75be87949aa358",
+      "29b324904096e9634d1770b8f35d45cdef7822617dd7722280a0be2dcbb81a85",
     "request-community-identification":
-      "0d69af06dd640a1921c5404d9196f66a0518d2faa1076a1dac2e799e81aecb43",
+      "a015656a3da9e0305d04d304a678f15e99cab5877137a3860558640959250f65",
     "share-scan-to-explore":
-      "3b3a612cf7911d40bc11dc3573652f5c5ebe80805c51c96f922e7b9bdb157e16",
+      "7865d58f34105cbbe12330d301c6b40b7d8f2c6fa0079e33a2bad3d8c70167d0",
     "species-dictionary-chat":
       "e9965a4a2bb570ece13c272f0070635ed4d665a74ecb9e4317d60a32e914abd6",
     "species-discovery-search":
       "f2774ed240e28514e486817ee01df402394d94309825b53e9720d4361a8d1f3a",
     "update-explore-field-notes":
-      "0edf0ab4e9f9e659c4da344376a098150e84f13e7d6217a7ad4bbdcdd30ec397",
+      "0cdf608aa9795cd2d037bc007e4c6dbba6e3b1cde56c67f1b4ecf86b12586c03",
   } as const,
 );

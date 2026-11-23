@@ -1,3 +1,168 @@
+## November 21 — preview readers and captured context successor
+
+`MediaPlaybackLifetime` seals synchronously, cancels its owned tasks, and joins
+their actual exit before releasing source leases or boosted copies. Audio
+players expose terminal, awaitable retirement; player deinitialization is not
+cleanup acknowledgement. The review view joins playback before confirmed
+removal, video edits and submission. Cancelling a removal dialog preserves the
+mounted preview. Disposable presentation resources also register video-editor
+frame decoding, so account cleanup cannot retire its source during an async
+read. These are successor changes under focused native validation, not a full
+feature completion claim.
+
+`SharedMediaCaptureSourceFacts` records private shutter/import context in the
+source journal. Restored presentation and submission use those immutable facts;
+unknown imported capture dates and locations remain absent. The live workspace
+adapter is being connected to the initial draft session and the existing
+whole-observation submission owner. Native25b stopped at a Swift capture error;
+native26 stopped at formatting. Both were corrected. Native27 passed 35 tests
+across five suites; native29 passed 117 workspace/review tests plus seven
+staging and reader-lifetime tests. Their source and fixture pins were verified
+after exit. See the Capture plan for the retained evidence.
+
+The successor adds recorder source borrowing across durable retention. Playback
+retirement joins replaced seeks and in-flight progress reads; boost retirement
+joins all active and replaced preparations. Reset/discard may clear presentation
+immediately but cannot unlink a borrowed original. Source MIME values are
+derived from validated image identifiers.
+`CaptureInitialDraftSession.retainSources` saves all requested membership before
+the first materialization, so a video and its companion cannot become an
+incomplete ready observation after interruption. Native30 stopped at a test
+macro compilation error; native31 ran 45 tests with one old immediate-deletion
+expectation failure. Retention, interrupted-batch recovery, playback-drain and
+source-reader checks passed, but the aggregate run did not. Native32 and
+native33 also failed the frozen recovery fixture. Native35 compiled the
+connected adapters and passed 124 XCTest checks and 79 of 80 Swift Testing
+checks. The remaining failure was a read-only phase omission: retained-original
+reads rejected preparing journals. The successor adds that phase while retaining
+exact source, profile, root and file checks. Frozen display cannot mutate the
+journal or regenerate missing evidence; Identify retries the saved request
+without an editor commit. Native36 passed nine tests in three suites, with all
+3,453 source and 32 fixture pins matching after exit. Frozen V73 then compiled
+successfully in freeze37 before V74 added same-store erasure carrier storage.
+Native38 passed full/recent V73 disk migrations, graph and purge suites; one
+stale architecture file list failed and was corrected in native39. Native39
+exposed deletion scope sequencing; native40 passed the correction. Native42
+passed 37 XCTest methods and 18 Swift Testing tests covering exact
+server-response operation fencing and the header/page interruption journal.
+These checks do not qualify physical aggregate erasure or the full app journey.
+
+The qualified composition connects initial camera, picker, shared-photo inbox,
+video, audio and submission routes. Producer cleanup retains complete retry
+inputs before deleting temporary originals, and restored memory inputs are
+retained under fresh authority before presentation. Same-account refresh
+preserves autosaved notes with exact observation identity. Shared inbox
+retirement verifies source bytes and synchronizes unlink before removing its
+manifest entry. Cold restoration completion also wakes a deferred import. Full
+journey validation remains outstanding. Ordinary-build qualification is
+unchanged.
+
+Native aggregate erasure now has raw graph fingerprints, a cleanup cursor,
+canonical same-store header/pages and accepted outer operation identity. These
+values grant no file authority. Physical retirement, terminal row cleanup,
+root-bound completion proof and complete interruption testing remain required.
+See the Capture plan for exact source pins and retained run evidence.
+
+## November 21 — automatic completed-History continuation candidate
+
+The approved whole-observation Identify action has no separate “Finish saving”
+step. Internal initial enrollment/retry is the implementation interpretation
+confirmed with History and Hardening; it adds no provider, funding or
+publication authority. The existing enrollment owner retains the original
+baseline and write-once intent. A completed result stays successful when History
+or cleanup must retry.
+
+`CaptureCompletedHistoryDrain` is registered as a separate native
+account-lifetime consumer. It bounds each wake to eight pages, uses its own
+capped retry delay, releases each account scope before sleeping, and joins
+active work on close. Startup/network sweeps run before the scheduler's online
+guard; only release intents already backed by History proof may finish offline.
+Execution/funding completion nudges cannot be dropped during an active
+coordinator sweep. Every candidate is requalified by
+`CaptureCompletedHistoryContinuation`; release still requires the native owner's
+independent completion, funding and History proof. Native24b passed 39 actual
+tests across completed-History continuation, native account lifetime, erasure
+graph and offline scheduler, with all 3,435 source pins and 32 runtime fixtures
+verified afterward. See the Capture plan for retained exact-input evidence. This
+component pass does not establish live producer integration or end-to-end
+completion.
+
+## November 21 — idle review lifetime and native erasure boundary
+
+The successor `CaptureInitialDraftWorkHost.runRetained` registers its cleanup
+collector before preparation and retains it through idle review. Its lease
+requires the same current account/container fence for delivery and access.
+Starting release invalidates access before suspension; failure keeps cleanup
+registered without making the presentation usable again. Account shutdown joins
+active work and retained cleanup. `CaptureDraftPresentationResources` holds
+deletion-only flat-file receipts; `FileIOActor` refuses changed roots, inodes or
+file metadata and permits absent-file retry only under the same synced root.
+These receipts cannot address private original-store descendants. The
+coordinator supplies this lifetime to `editingPresentation`; workspace callers
+still need to stop their media consumers and release the old lease on
+replacement/clear. Native22 passed 37 tests in its populated host, projection,
+retirement and FileIO suites after a corrected native21 compilation failure. Its
+account-lifetime method selectors produced an empty suite and provide no
+execution evidence. Native23 selects that whole suite, plus accepted-release,
+app-profile and erasure-state suites; results remain pending.
+
+Native20 passed the preceding whole-journal preparation and snapshot-reader
+candidate (31 tests/four suites). Its exact archived evidence is in the
+[Capture plan](../product/capture-review-plan.md). No live producer or complete
+submission-to-History journey is implied by that pass.
+
+Account erasure cannot compose appV2 Capture cleanup with the P1-only
+`SharedMediaInboxOwner` purge. The missing native full-library erasure owner
+must cover all native photo, inbox, Capture and ownership/receipt liabilities
+under the accepted outer cleanup scope, then supply a distinct typed completion
+to `ScanLibraryPurgeService`. Required order is: close admission and join native
+and History borrowers; prove native cleanup; commit generic library/queue row
+deletion; erase `ReanalysisQueue` and `ReanalysisInputs`; clear preferences and
+runtime state; acknowledge library ownership cleanup. Failure retains the outer
+journal, including after child queue/job rows are gone. Inventory-mode changes,
+normal dispatch grants and Capture-only absence are not aggregate erase proof.
+The existing refusal when no qualified owner is supplied remains in force.
+
+## November 21 — retained Capture editor integration candidate
+
+`CaptureInitialDraftSession` owns the V73 ordered draft journal and its original
+source holds. Editable cold projection holds the session's edit lock, verifies
+ready sources through the current native owner, and recreates disposable review
+pixels/files with the saved item identities, order and selection recipes. Photo
+source previews stay upright and bounded to 2,048 pixels. Projection does not
+allocate evidence identities or modify frozen outputs; preparing/submitting
+observations must use their existing recovery owner.
+
+`CaptureInitialDraftWorkHost` is the app lifetime's separate `captureDraftWork`
+consumer. It rejects overlap, cancels active work on shutdown, and joins the
+caller's actual exit, including cleanup of a successful result returned after
+cancellation. It cannot share History's `preparedInputs` registration. The
+coordinator checks account generation, exact container and borrowed startup
+fence around the whole operation. Producer and presentation callers still need
+to be connected to this host; source presence does not establish that handoff.
+
+Native acceptance meters only owner-qualified nonterminal reservations. A
+deferred funding resolution preserves the immutable original context, saves its
+effective reservation separately, and binds dispatch/completion to that proof.
+Cold restoration reconciles the local advisory meter, including an acknowledged
+Pro resolution whose caller lost the save reply. It changes no server balance,
+provider refund or purchased-token policy. Unknown blockers remain held and
+funding waits consume no execution attempt.
+
+Attempt 19b passed 36 focused tests, but its accepted-release and
+account-lifetime suite headers contained no executed methods. Any earlier
+closure claim for those checks is withdrawn; earlier failed candidates remain
+retained. The successor `prepareReview()` maps the saved journal into one
+ordered preparation and returns an existing frozen plan unchanged. Video
+preparation renders from its verified source, skips new companion extraction,
+and reads playback through a bounded descriptor-checked disposable snapshot.
+These new submission bridges still require validation. Cold video projection now
+uses only the journal-owned companion bytes; fresh audio extraction is discarded
+and cannot add or replace companion membership. See the
+[Capture plan](../product/capture-review-plan.md) for candidate-specific
+evidence. Live producer wiring, account erasure, automatic History continuation
+validation and complete end-to-end acceptance remain open.
+
 ## November 12 — normal OAuth testing entry point
 
 Use the `HistoryTesting` configuration for the primary 1.1.0 app with normal

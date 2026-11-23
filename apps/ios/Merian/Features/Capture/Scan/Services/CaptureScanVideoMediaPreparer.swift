@@ -79,13 +79,13 @@ enum CaptureScanVideoMediaPreparer {
     struct Dependencies: Sendable {
         var frames: @Sendable (CaptureScanVideoPreparationRequest) async throws -> [PreparedCaptureScanStill]
         var audio: @Sendable (URL) async -> CaptureScanTemporaryFileLease?
-        var playback: @Sendable (URL) async throws -> PlaybackArtifact
+        var playback: @Sendable (CaptureScanVideoPreparationRequest) async throws -> PlaybackArtifact
 
         nonisolated static var live: Self {
             Self(
                 frames: { try await prepareFrames($0) },
                 audio: { await CaptureScanVideoAudioExtractor.extract(videoURL: $0) },
-                playback: { try await preparePlaybackClip(videoURL: $0) }
+                playback: { try await preparePlaybackClip($0) }
             )
         }
     }
@@ -94,26 +94,24 @@ enum CaptureScanVideoMediaPreparer {
         _ request: CaptureScanVideoPreparationRequest,
         dependencies: Dependencies = .live
     ) async throws -> PreparedCaptureScanVideo {
+        guard await FileIOActor.shared.retryProducerCleanup() else { throw SharedMediaStorageFailure.unavailable }
         let preparationStart = CFAbsoluteTimeGetCurrent()
         let artifacts = try await prepareArtifacts(request, dependencies: dependencies)
         let audioLease = artifacts.audio, playbackArtifact = artifacts.playback
         var acceptedAudioURL: URL?
-        var acceptedPlaybackURL: URL?
         do {
             try Task.checkCancellation()
             if let audioLease {
                 acceptedAudioURL = try await audioLease.relinquishOwnership()
             }
             if let lease = playbackArtifact.lease {
-                acceptedPlaybackURL = try await lease.relinquishOwnership()
+                _ = try await lease.relinquishOwnership()
             }
             try Task.checkCancellation()
         } catch {
-            for url in [acceptedAudioURL, acceptedPlaybackURL].compactMap({ $0 }) {
-                do { try FileManager.default.removeItem(at: url) } catch { MerianLog.hardware.error("Accepted capture rollback cleanup failed: \(error, privacy: .private)") }
+            for lease in [audioLease, playbackArtifact.lease].compactMap({ $0 }) {
+                _ = await FileIOActor.shared.settleProducerCleanup(owner: lease) { try await lease.rollbackUnpublishedTransfer() }
             }
-            await audioLease?.discardReportingFailure()
-            await playbackArtifact.lease?.discardReportingFailure()
             throw error
         }
         MerianLog.hardware.debug(
@@ -163,7 +161,7 @@ enum CaptureScanVideoMediaPreparer {
                 return .frames(frames)
             }
             group.addTask { .audio(await optionalAudio(videoURL: request.videoURL, dependencies: dependencies)) }
-            group.addTask { .playback(try await dependencies.playback(request.videoURL)) }
+            group.addTask { .playback(try await dependencies.playback(request)) }
             var results: [Stage] = []
             do {
                 while let result = try await group.next() { results.append(result) }
@@ -264,7 +262,7 @@ enum CaptureScanVideoMediaPreparer {
         ) {
             let asset = AVURLAsset(url: request.videoURL)
             let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
+            generator.videoComposition = try await canonicalSquareComposition(asset: asset, composingCenter: request.composingCenter, framing: request.framing)
             generator.maximumSize = CGSize(
                 width: ImagePreparationPolicy.displayMaxDimension,
                 height: ImagePreparationPolicy.displayMaxDimension
@@ -297,10 +295,9 @@ enum CaptureScanVideoMediaPreparer {
                         )
                         return
                     }
-                    let displayFrame = ImageCropProcessor.squareCrop(
-                        frame,
-                        verticalCenterFraction: request.composingCenter
-                    ) ?? frame
+                    // The same canonical composition renders playback and all
+                    // sampled frames. Never crop the already-framed output again.
+                    let displayFrame = frame
                     guard let displayData = ImageCropProcessor.encode(
                         displayFrame
                     ), !displayData.isEmpty else {
@@ -314,10 +311,7 @@ enum CaptureScanVideoMediaPreparer {
                         data: displayData,
                         maxSize: inferenceMaxSize
                     ) ?? displayFrame
-                    let inferenceCropped = ImageCropProcessor.squareCrop(
-                        inferenceFrame,
-                        verticalCenterFraction: request.composingCenter
-                    ) ?? inferenceFrame
+                    let inferenceCropped = inferenceFrame
                     guard let inferenceData = ImageCropProcessor.encode(
                         inferenceCropped
                     ), !inferenceData.isEmpty else {
@@ -346,136 +340,83 @@ enum CaptureScanVideoMediaPreparer {
     }
 
     nonisolated private static func preparePlaybackClip(
-        videoURL: URL
+        _ request: CaptureScanVideoPreparationRequest
     ) async throws -> PlaybackArtifact {
-        let originalSize = try fileSize(at: videoURL)
+        let originalSize = try fileSize(at: request.videoURL)
         let exportStart = CFAbsoluteTimeGetCurrent()
-        var generatedLease: CaptureScanTemporaryFileLease?
-
+        let lease = try await withTimeout(
+            seconds: playbackPreparationTimeout,
+            message: "Preparing video playback timed out.",
+            operation: { try await compressVideoForPlayback(request) },
+            discard: { await $0.discardReportingFailure() }
+        )
         do {
-            let compressedLease = try await withTimeout(
-                seconds: playbackPreparationTimeout,
-                message: "Preparing video playback timed out.",
-                operation: { try await compressVideoForPlayback(videoURL: videoURL) },
-                discard: { await $0.discardReportingFailure() }
-            )
-            generatedLease = compressedLease
-            let compressedURL = compressedLease.fileURL
-            let compressedSize = try fileSize(at: compressedURL)
-            guard compressedSize > 0,
-                  compressedSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
-                try await compressedLease.discard()
-                let sizeError = NSError(
-                    domain: "CaptureWorkspaceViewModel",
-                    code: -26,
-                    userInfo: [
-                        NSLocalizedDescriptionKey:
-                            "Compressed video exceeds the upload budget."
-                    ]
-                )
-                guard originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
-                    throw sizeError
-                }
-                MerianLog.hardware.warning(
-                    """
-                    Video compression produced unusable output; staging original upload-safe clip. \
-                    originalBytes=\(originalSize, privacy: .public), \
-                    compressedBytes=\(compressedSize, privacy: .public)
-                    """
-                )
-                return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
-                    fileURL: videoURL,
-                    isCompressed: false,
-                    originalBytes: originalSize,
-                    playbackBytes: originalSize,
-                    preparationDuration:
-                        CFAbsoluteTimeGetCurrent() - exportStart
-                ))
-            }
-            MerianLog.hardware.debug(
-                """
-                Video compression completed. \
-                duration=\(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - exportStart), privacy: .public)s, \
-                originalBytes=\(originalSize, privacy: .public), \
-                compressedBytes=\(compressedSize, privacy: .public), \
-                compressionRatio=\(String(format: "%.3f", Double(compressedSize) / Double(max(originalSize, 1))), privacy: .public), \
-                source=compressed, \
-                fallback=false
-                """
-            )
-            if compressedSize >= originalSize,
-               originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes {
-                try await compressedLease.discard()
-                MerianLog.hardware.warning(
-                    """
-                    Video compression was not smaller; staging original upload-safe clip. \
-                    originalBytes=\(originalSize, privacy: .public), \
-                    compressedBytes=\(compressedSize, privacy: .public), \
-                    compressionRatio=\(String(format: "%.3f", Double(compressedSize) / Double(max(originalSize, 1))), privacy: .public), \
-                    source=original, \
-                    fallback=true
-                    """
-                )
-                return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
-                    fileURL: videoURL,
-                    isCompressed: false,
-                    originalBytes: originalSize,
-                    playbackBytes: originalSize,
-                    preparationDuration:
-                        CFAbsoluteTimeGetCurrent() - exportStart
-                ))
-            }
             try Task.checkCancellation()
-            return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
-                fileURL: compressedURL,
-                isCompressed: true,
-                originalBytes: originalSize,
-                playbackBytes: compressedSize,
-                preparationDuration:
-                    CFAbsoluteTimeGetCurrent() - exportStart
-            ), lease: compressedLease)
-        } catch is CancellationError {
-            await generatedLease?.discardReportingFailure()
-            throw CancellationError()
-        } catch {
-            await generatedLease?.discardReportingFailure()
-            MerianLog.hardware.error(
-                "Video compression failed: \(error, privacy: .private)"
-            )
-            guard originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
-                MerianLog.hardware.error(
-                    """
-                    Video staging failed because neither compression nor the original clip fit the upload budget. \
-                    originalBytes=\(originalSize, privacy: .public), \
-                    maxBytes=\(ScanMediaPayloadPolicy.maxSavedVideoBytes, privacy: .public)
-                    """
-                )
-                throw error
+            let size = try fileSize(at: lease.fileURL)
+            guard size > 0, size <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
+                throw NSError(domain: "CaptureWorkspaceViewModel", code: -26,
+                    userInfo: [NSLocalizedDescriptionKey: "Prepared video exceeds the upload budget."])
             }
-            MerianLog.hardware.warning(
-                """
-                Video compression unavailable; staging original upload-safe clip. \
-                originalBytes=\(originalSize, privacy: .public), \
-                maxBytes=\(ScanMediaPayloadPolicy.maxSavedVideoBytes, privacy: .public), \
-                source=original, \
-                fallback=true
-                """
-            )
-            return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
-                fileURL: videoURL,
-                isCompressed: false,
-                originalBytes: originalSize,
-                playbackBytes: originalSize,
-                preparationDuration:
-                    CFAbsoluteTimeGetCurrent() - exportStart
-            ))
+            return PlaybackArtifact(playback: .init(fileURL: lease.fileURL, isCompressed: true,
+                originalBytes: originalSize, playbackBytes: size,
+                preparationDuration: CFAbsoluteTimeGetCurrent() - exportStart), lease: lease)
+        } catch {
+            await lease.discardReportingFailure()
+            // The unframed original cannot substitute for a failed square export.
+            throw error
         }
     }
 
+    /// One transform, including the source orientation, defines both playback
+    /// and inference. Pixel alignment is resolved before either renderer runs.
+    nonisolated static func canonicalSquareComposition(
+        asset: AVAsset, composingCenter: CGFloat, framing: CaptureVideoFraming? = nil
+    ) async throws -> AVVideoComposition {
+        guard composingCenter.isFinite, (0...1).contains(composingCenter),
+              let track = try await asset.loadTracks(withMediaType: .video).first else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let naturalSize = try await track.load(.naturalSize)
+        var preferred = try await track.load(.preferredTransform)
+        if let framing {
+            guard framing.scale.isFinite, framing.scale >= 1,
+                  framing.displaySize.isFinite, framing.displaySize > 0,
+                  framing.offset.width.isFinite, framing.offset.height.isFinite,
+                  (0...3).contains(framing.quarterTurns) else { throw CocoaError(.fileReadCorruptFile) }
+            let rotations: [CGAffineTransform] = [.identity,
+                .init(a: 0, b: 1, c: -1, d: 0, tx: 0, ty: 0),
+                .init(a: -1, b: 0, c: 0, d: -1, tx: 0, ty: 0),
+                .init(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 0)]
+            preferred = preferred.concatenating(rotations[framing.quarterTurns])
+        }
+        let bounds = CGRect(origin: .zero, size: naturalSize).applying(preferred).standardized
+        let side = floor(min(bounds.width, bounds.height) / (framing?.scale ?? 1))
+        guard side >= 2, side.isFinite else { throw CocoaError(.fileReadCorruptFile) }
+        let cropX = floor(max(0, min((bounds.width - side) / 2 - (framing.map { $0.offset.width / $0.displaySize * side } ?? 0), bounds.width - side)))
+        let proposedY = framing.map { (bounds.height - side) / 2 - $0.offset.height / $0.displaySize * side }
+            ?? (bounds.height * composingCenter - side / 2)
+        let cropY = floor(max(0, min(proposedY, bounds.height - side)))
+        let outputSide = floor(min(side, CGFloat(ScanMediaPayloadPolicy.videoPlaybackLongEdgeMaxPixels)) / 2) * 2
+        let factor = outputSide / side
+        let transform = preferred
+            .concatenating(CGAffineTransform(translationX: -bounds.minX - cropX, y: -bounds.minY - cropY))
+            .concatenating(CGAffineTransform(scaleX: factor, y: factor))
+        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        layer.setTransform(transform, at: .zero)
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: try await asset.load(.duration))
+        instruction.layerInstructions = [layer]
+        let composition = AVMutableVideoComposition()
+        composition.renderSize = CGSize(width: outputSide, height: outputSide)
+        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        composition.instructions = [instruction]
+        return composition
+    }
+
     nonisolated private static func compressVideoForPlayback(
-        videoURL: URL
+        _ request: CaptureScanVideoPreparationRequest
     ) async throws -> CaptureScanTemporaryFileLease {
-        let asset = AVURLAsset(url: videoURL)
+        let asset = AVURLAsset(url: request.videoURL)
         guard try await !asset.loadTracks(withMediaType: .video).isEmpty else {
             throw NSError(
                 domain: "CaptureWorkspaceViewModel",
@@ -487,9 +428,7 @@ enum CaptureScanVideoMediaPreparer {
             )
         }
 
-        let presetName = ScanMediaPayloadPolicy.videoPlaybackLongEdgeMaxPixels <= 1280
-            ? AVAssetExportPreset1280x720
-            : AVAssetExportPresetHighestQuality
+        let presetName = AVAssetExportPresetHighestQuality
         guard let exportSession = AVAssetExportSession(
             asset: asset,
             presetName: presetName
@@ -504,13 +443,9 @@ enum CaptureScanVideoMediaPreparer {
             )
         }
 
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "\(UUID().uuidString.lowercased())_video_playback.mp4"
-            )
-        let outputLease = CaptureScanTemporaryFileLease(fileURL: outputURL)
-        try? FileManager.default.removeItem(at: outputURL)
-
+        exportSession.videoComposition = try await canonicalSquareComposition(asset: asset, composingCenter: request.composingCenter, framing: request.framing)
+        let producer = try MediaProducerOutput(fileExtension: "mp4")
+        let outputURL = producer.outputURL
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
         exportSession.shouldOptimizeForNetworkUse = true
@@ -521,9 +456,11 @@ enum CaptureScanVideoMediaPreparer {
         do {
             try await CaptureScanAssetExportSessionFinisher(exportSession).export(to: outputURL)
             try Task.checkCancellation()
-            return outputLease
+            let (url, receipt) = try await producer.publish(to: FileManager.default.temporaryDirectory,
+                suffix: "video-playback.mp4", maximumBytes: ScanMediaPayloadPolicy.maxSavedVideoBytes)
+            return CaptureScanTemporaryFileLease(fileURL: url, retirement: receipt)
         } catch {
-            await outputLease.discardReportingFailure()
+            _ = await FileIOActor.shared.settleProducerCleanup(owner: producer) { try await producer.discardAfterExit() }
             throw error
         }
     }

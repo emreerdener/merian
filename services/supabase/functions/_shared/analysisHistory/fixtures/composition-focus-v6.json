@@ -1,0 +1,155 @@
+[
+  {
+    "name": "manual",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": true
+  },
+  {
+    "name": "saliency",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "vision_objectness"
+    },
+    "valid": true
+  },
+  {
+    "name": "whole-image",
+    "focus_region": {
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "source": "user_selection"
+    },
+    "valid": true
+  },
+  {
+    "name": "null",
+    "focus_region": null,
+    "valid": false
+  },
+  {
+    "name": "array",
+    "focus_region": [],
+    "valid": false
+  },
+  {
+    "name": "unknown-source",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "unknown"
+    },
+    "valid": false
+  },
+  {
+    "name": "extra-field",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection",
+      "confidence": 0.9
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-width",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "boolean-x",
+    "focus_region": {
+      "x": true,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "string-x",
+    "focus_region": {
+      "x": "0.125",
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "negative-x",
+    "focus_region": {
+      "x": -0.01,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "zero-width",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "overflow-x",
+    "focus_region": {
+      "x": 0.75,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.375,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "overflow-y",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": 0.9,
+      "source": "user_selection"
+    },
+    "valid": false
+  },
+  {
+    "name": "negative-height",
+    "focus_region": {
+      "x": 0.125,
+      "y": 0.25,
+      "width": 0.5,
+      "height": -0.1,
+      "source": "user_selection"
+    },
+    "valid": false
+  }
+]

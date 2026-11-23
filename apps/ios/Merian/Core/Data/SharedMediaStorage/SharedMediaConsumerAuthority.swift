@@ -7,6 +7,7 @@ enum SharedMediaConsumerAuthority: Equatable, Sendable {
     case direct(UUID)
     case nativeDirect(UUID)
     case nativeInitial(UUID)
+    case captureInitial
     case historyProjection
 
     enum RecordKind: Equatable, Sendable { case queue, scan, analysis }
@@ -23,6 +24,7 @@ enum SharedMediaConsumerAuthority: Equatable, Sendable {
     static func classify(raw: String, consumerID: UUID?, record: RecordKind) throws -> Self {
         switch (raw, consumerID) {
         case ("legacy", nil): return .legacy
+        case ("sharedCaptureInitialV1", nil) where record == .queue || record == .scan: return .captureInitial
         case let ("sharedDirectV1", .some(id)): return .direct(id)
         case let ("sharedDirectNativeReceivingV1", .some(id)): return .nativeDirect(id)
         case let ("sharedDirectNativeInitialV1", .some(id)) where record == .scan: return .nativeInitial(id)

@@ -18,6 +18,10 @@ extension CaptureWorkspaceViewModel {
               imageToCrop == nil else { return }
         guard dependencies.scan.canStartProScan() else { return }
 
+        if usesInitialDraftComposition {
+            captureInitialVideo()
+            return
+        }
         guard let draftOperation = beginDraftOperation() else { return }
         isCapturing = true
         videoRecordingProgress = 0
@@ -86,6 +90,9 @@ extension CaptureWorkspaceViewModel {
                         isProActive:
                             self.dependencies.scan.canStartProScan()
                     ))
+                // Do not publish draft ownership of the source while the
+                // camera-roll saver still borrows it: draft removal may delete it.
+                await cameraRollSaveTask?.value
                 guard !Task.isCancelled,
                       self.scanOperationState.isCurrent(generation),
                       self.isDraftAccountCurrent,
@@ -102,9 +109,10 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 self.preFetchTask = contextTask
-                let stagedVideo = Self.makeStagedVideo(preparedVideo)
+                let stagedVideo = Self.makeStagedVideo(preparedVideo, originalFilePath: recording.fileURL.path,
+                    composingCenter: composingCenter)
                 self.stagedCapture.videos.append(stagedVideo)
-                self.draftOwnedFiles.formUnion([stagedVideo.filePath, stagedVideo.audioFilePath].compactMap { $0 })
+                self.draftOwnedFiles.formUnion([stagedVideo.filePath, stagedVideo.audioFilePath, stagedVideo.originalFilePath].compactMap { $0 })
                 succeeded = true
                 MerianLog.hardware.debug(
                     """
@@ -124,12 +132,8 @@ extension CaptureWorkspaceViewModel {
                     resetProgress: true
                 )
 
-                await cameraRollSaveTask?.value
-                if preparedVideo.playback.isCompressed {
-                    try? FileManager.default.removeItem(
-                        at: recording.fileURL
-                    )
-                }
+                // The draft owns the immutable recording until removal/admission;
+                // optional recrops must never use a previously cropped derivative.
             } catch is CancellationError {
                 await cameraRollSaveTask?.value
                 if let recordedFileURL {
@@ -198,7 +202,9 @@ extension CaptureWorkspaceViewModel {
 
     static func makeStagedVideo(
         _ prepared: PreparedCaptureScanVideo,
-        isFromGallery: Bool = false
+        isFromGallery: Bool = false,
+        id: UUID = UUID(), addedAt: Date = Date(), originalFilePath: String? = nil,
+        composingCenter: CGFloat = 0.5, framing: CaptureVideoFraming? = nil
     ) -> StagedVideo {
         let frames = prepared.sampledFrames.map { frame in
             let image = UIImage(cgImage: frame.previewCGImage.image, scale: 1, orientation: .up)
@@ -212,11 +218,13 @@ extension CaptureWorkspaceViewModel {
         return StagedVideo(
             filePath: prepared.playback.fileURL.path,
             sampledImages: frames,
-            audioFilePath: prepared.audioFilePath
+            audioFilePath: prepared.audioFilePath,
+            addedAt: addedAt, id: id, originalFilePath: originalFilePath,
+            composingCenter: composingCenter, framing: framing
         )
     }
 
-    private func startVideoRecordingProgressTimer(
+    func startVideoRecordingProgressTimer(
         for generation: CaptureScanVideoGeneration
     ) {
         let progressTask = Task { @MainActor [weak self] in
@@ -249,7 +257,7 @@ extension CaptureWorkspaceViewModel {
         )
     }
 
-    private func finishVideoCaptureUI(
+    func finishVideoCaptureUI(
         for generation: CaptureScanVideoGeneration,
         resetProgress: Bool
     ) {

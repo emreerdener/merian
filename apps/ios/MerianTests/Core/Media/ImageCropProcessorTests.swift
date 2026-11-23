@@ -6,6 +6,48 @@ import UIKit
 @MainActor
 @Suite("Image crop rotation")
 struct ImageCropProcessorTests {
+    @Test func sourceSelectionMatchesIntegralCropAcrossOrientations() async throws {
+        let source = try #require(makeImage(size: CGSize(width: 241, height: 163)).cgImage)
+        let orientations: [UIImage.Orientation] = [.up, .down, .left, .right,
+            .upMirrored, .downMirrored, .leftMirrored, .rightMirrored]
+        for orientation in orientations {
+            let image = UIImage(cgImage: source, scale: 1, orientation: orientation)
+            for turns in 0..<4 {
+                let mapping = try #require(ImageCropProcessor.cropMapping(image: image, displaySize: 97,
+                    scale: 1.73, offset: CGSize(width: 10.25, height: -7.75), quarterTurns: turns))
+                #expect(mapping.cropPixels == mapping.cropPixels.integral)
+                let expected = NormalizedImageFocusRegion(x: 0.17, y: 0.23, width: 0.31, height: 0.29, source: .userSelection)
+                let selected = try #require(mapping.sourceSelection(fromFocus: expected))
+                let actual = try #require(mapping.focus(fromSourceSelection: selected))
+                for (lhs, rhs) in zip([actual.x, actual.y, actual.width, actual.height],
+                                      [expected.x, expected.y, expected.width, expected.height]) {
+                    #expect(abs(lhs - rhs) < 1e-12)
+                }
+                let bytes = await ImageCropProcessor.generateCrop(image: image, displaySize: 97,
+                    scale: 1.73, currentScale: 1, offset: CGSize(width: 10.25, height: -7.75),
+                    currentOffset: .zero, quarterTurns: turns, maxPixelSize: nil, encoding: .jpeg)
+                let decoded = try #require(ImageDownsampler.downsample(data: bytes, maxSize: 1024))
+                let swapped = [.left, .right, .leftMirrored, .rightMirrored].contains(mapping.targetOrientation)
+                #expect(decoded.width == Int(swapped ? mapping.cropPixels.height : mapping.cropPixels.width))
+                #expect(decoded.height == Int(swapped ? mapping.cropPixels.width : mapping.cropPixels.height))
+                #expect(mapping.focus(fromSourceSelection: CGRect(x: 0, y: 0, width: 1, height: 1)) == nil)
+                #expect(LocalVisualAnalysisImageBuilder.pixelCropRect(focusRegion: actual,
+                    pixelWidth: decoded.width, pixelHeight: decoded.height)
+                    == LocalVisualAnalysisImageBuilder.pixelCropRect(focusRegion: expected,
+                        pixelWidth: decoded.width, pixelHeight: decoded.height))
+            }
+        }
+    }
+
+    @Test(arguments: [0, 1, 2, 3])
+    func invalidCropNeverFallsBackToFullSource(turns: Int) async throws {
+        let image = makeImage(size: CGSize(width: 240, height: 160))
+        let result = await ImageCropProcessor.generateCrop(image: image, displaySize: 96,
+            scale: 1, currentScale: 1, offset: CGSize(width: -100_000, height: -100_000),
+            currentOffset: .zero, quarterTurns: turns, maxPixelSize: 96)
+        #expect(result.isEmpty)
+    }
+
     @Test func explicitJPEGPreservesCropGeometryAndSource() async throws {
         let image = makeImage(size: CGSize(width: 240, height: 160))
         let original = try #require(image.cgImage)

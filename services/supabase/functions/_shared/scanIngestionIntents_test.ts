@@ -269,3 +269,70 @@ Deno.test("buildScanIngestionIntent strips malformed focus metadata", async () =
     sourceIndex: 0,
   }]);
 });
+
+Deno.test("ordinary durable intent preserves exact manual focus and sealed-evidence candidate", async () => {
+  const { assertRejects, assertNotEquals } = await import("@std/assert");
+  const { initialRetentionRequest } = await import(
+    "./analysisHistory/initialEvidenceRetention.ts"
+  );
+  const page = JSON.parse(
+    await Deno.readTextFile(
+      new URL("./analysisHistory/fixtures/page-v8.json", import.meta.url),
+    ),
+  );
+  const snapshot = JSON.parse(page.items[0].snapshot);
+  const request = await initialRetentionRequest({
+    schema_version: 1,
+    scan_id: page.observation_id,
+    generation: snapshot.initial_evidence.generation,
+    evidence_digest: snapshot.request_digest,
+    evidence_manifest: snapshot.evidence_manifest,
+  });
+  const focus = snapshot.evidence_manifest.items[0].focus_region;
+  const input = {
+    scanId: page.observation_id,
+    payload: { user_id: page.owner_id },
+    mediaCounts: {
+      image_count: 1,
+      audio_count: 0,
+      video_count: 0,
+      required_video_count: 0,
+      video_frame_count: 0,
+    },
+    mediaObjectKeys: {
+      image: ["staging/fixture/photo.jpg"],
+      audio: [],
+      video: [],
+    },
+    visualMediaItems: [{
+      kind: "image" as const,
+      sourceIndex: 0,
+      focusRegion: focus,
+    }],
+    initialEvidence: request,
+  };
+  const intent = await buildScanIngestionIntent(input);
+  assertEquals(intent.payload.initialEvidence, request);
+  assertEquals(
+    (intent.payload.media as { visualMediaItems: unknown }).visualMediaItems,
+    [{ kind: "image", sourceIndex: 0, focusRegion: focus }],
+  );
+  const legacy = await buildScanIngestionIntent({
+    ...input,
+    initialEvidence: undefined,
+  });
+  assertNotEquals(intent.payloadChecksum, legacy.payloadChecksum);
+  await assertRejects(() =>
+    buildScanIngestionIntent({ ...input, scanId: snapshot.analysis_id })
+  );
+  await assertRejects(() =>
+    buildScanIngestionIntent({
+      ...input,
+      visualMediaItems: [{
+        kind: "image",
+        sourceIndex: 0,
+        focusRegion: { ...focus, x: 2 },
+      }],
+    })
+  );
+});

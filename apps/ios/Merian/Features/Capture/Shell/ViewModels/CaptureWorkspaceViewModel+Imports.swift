@@ -14,8 +14,12 @@ extension CaptureWorkspaceViewModel {
     // MARK: - User Intents
 
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
-        guard !newItems.isEmpty, !isDraftMutationLocked else { return }
+        guard !newItems.isEmpty, !areCaptureActionsBlocked else { return }
 
+        if usesInitialDraftComposition {
+            importInitialPhotoItems(newItems)
+            return
+        }
         if usesNativePhotoComposition {
             importNativePhotoItems(newItems.map { item in
                 CaptureNativePhotoPickerInput(localIdentifier: item.itemIdentifier) {
@@ -27,7 +31,7 @@ extension CaptureWorkspaceViewModel {
             })
             return
         }
-        if let access = dependencies.photoOriginalPreparation {
+        if let access = activePhotoOriginalPreparation {
             importPhotoPreparationItems(newItems, access: access)
             return
         }
@@ -114,7 +118,10 @@ extension CaptureWorkspaceViewModel {
             return .noPendingImport
         }
 
-        if let access = dependencies.photoOriginalPreparation {
+        if usesInitialDraftComposition {
+            return await importInitialExternalImage(pendingImport)
+        }
+        if let access = activePhotoOriginalPreparation {
             return await importPhotoPreparationInbox(pendingImport, access: access)
         }
         let isPro = diContainer.revenueCatManager.canStartProScan
@@ -174,7 +181,7 @@ extension CaptureWorkspaceViewModel {
             }
 
             guard draftSession.contains(draftOperation) else { return .temporarilyBlocked }
-            let committedCount = commitPreparedStagedImages([preparedImport], requiresCrop: true)
+            let committedCount = commitPreparedStagedImages([preparedImport], presentsReview: true)
             guard committedCount == 1 else {
                 presentExternalImportSlotBlock(for: pendingImport)
                 return .temporarilyBlocked
@@ -200,7 +207,7 @@ extension CaptureWorkspaceViewModel {
 
     private func finishPreparedImports(_ imports: [PreparedStagedImage], operation: CaptureDraftSession.Operation) {
         guard draftSession.contains(operation) else { return }
-        let count = commitPreparedStagedImages(imports, requiresCrop: true)
+        let count = commitPreparedStagedImages(imports, presentsReview: true)
         completeDraftOperation(operation, succeeded: count > 0)
     }
 
@@ -251,7 +258,7 @@ extension CaptureWorkspaceViewModel {
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {
         GalleryImportBudget(
             availableSlots: availableStagedCaptureSlots,
-            canPerformScan: dependencies.submission.admission.canStartLocally(isProspectiveFreeMediaEligible(images: 1))
+            canPerformScan: canEditHistoryWorkspace || dependencies.submission.admission.canStartLocally(isProspectiveFreeMediaEligible(images: 1))
         )
     }
 
@@ -300,7 +307,7 @@ extension CaptureWorkspaceViewModel {
     @discardableResult
     func commitPreparedStagedImages(
         _ preparedImports: [PreparedStagedImage],
-        requiresCrop: Bool = false
+        presentsReview: Bool = false
     ) -> Int {
         let availableSlots = availableStagedCaptureSlots
         guard availableSlots > 0 else { return 0 }
@@ -315,23 +322,21 @@ extension CaptureWorkspaceViewModel {
                 environmentContext: preparedImport.historicalContext?.makeEnvironmentContext(),
                 isFromGallery: true
             )
-            if requiresCrop {
-                operationState.appendRequiredGalleryCrop(
-                    imageID: identifiable.id
-                )
-            }
             stagedCapture.images.append(StagedImage(
                 compressedData: preparedImport.compressedData,
                 displayData: preparedImport.displayData,
                 uiImage: rawImage,
                 original: identifiable,
-                focusRegion: preparedImport.focusRegion
+                focusRegion: preparedImport.focusRegion,
+                reviewBasis: .squareCropSource
             ))
             committedCount += 1
         }
 
-        if requiresCrop, committedCount > 0 {
-            presentNextRequiredGalleryCrop()
+        if presentsReview, committedCount > 0 {
+            // Imported observations always require a manual submission action.
+            revokeAutomaticSubmission()
+            presentCrop(for: stagedCapture.images.count - committedCount)
         }
         return committedCount
     }

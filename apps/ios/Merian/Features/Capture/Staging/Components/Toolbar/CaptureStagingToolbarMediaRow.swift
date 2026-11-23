@@ -2,6 +2,10 @@ import SwiftUI
 
 struct CaptureStagingToolbarMediaRow: View {
     let presentation: CaptureStagingToolbarPresentation
+    var selectedNodeID: String?
+    var addAccessibilityLabel = "Add photo"
+    var isReview = false
+    var isAddingMedia = false
     let isCheckingPhotoImportAdmission: Bool
     let onRequestPhotoPickerPresentation: (Int) -> Void
     let onUpgradeTap: () -> Void
@@ -14,6 +18,10 @@ struct CaptureStagingToolbarMediaRow: View {
         Group {
             ForEach(presentation.visibleNodes) { node in
                 mediaButton(for: node)
+                    .overlay {
+                        if selectedNodeID == node.id { Circle().stroke(.tint, lineWidth: 2) }
+                    }
+                    .accessibilityAddTraits(selectedNodeID == node.id ? .isSelected : [])
             }
 
             ForEach(0..<presentation.emptyMediaSlotCount, id: \.self) { slot in
@@ -34,12 +42,14 @@ struct CaptureStagingToolbarMediaRow: View {
                     .accessibilityHidden(true)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .overlay { if isAddingMedia { Circle().stroke(.tint, lineWidth: 2) } }
+                .accessibilityAddTraits(isAddingMedia ? .isSelected : [])
                 .accessibilityIdentifier("StagedMediaPlaceholder_\(slot)")
                 .disabled(isCheckingPhotoImportAdmission)
                 .accessibilityLabel(
                     isCheckingPhotoImportAdmission
                         ? "Checking scan availability"
-                        : "Add photo"
+                        : addAccessibilityLabel
                 )
 
             }
@@ -52,7 +62,7 @@ struct CaptureStagingToolbarMediaRow: View {
                         .frame(width: 48, height: 48)
                         .modifier(CaptureStagingNodeSurface(isEmpty: true))
                         .overlay(alignment: .bottom) {
-                            MerianProBadge()
+                            if !isReview { MerianProBadge() }
                         }
                         .contentShape(Rectangle())
                         .accessibilityHidden(true)
@@ -60,8 +70,8 @@ struct CaptureStagingToolbarMediaRow: View {
                 .buttonStyle(.plain)
                 .disabled(isCheckingPhotoImportAdmission)
                 .accessibilityIdentifier("StagedMediaProPlaceholder")
-                .accessibilityLabel("Add another media item with Pro")
-                .accessibilityHint("Opens upgrade options")
+                .accessibilityLabel(isReview ? "Add media" : "Add another media item with Pro")
+                .accessibilityHint(isReview ? "Returns to capture" : "Opens upgrade options")
             }
         }
     }

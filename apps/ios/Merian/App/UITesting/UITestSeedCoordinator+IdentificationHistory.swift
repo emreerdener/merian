@@ -41,7 +41,7 @@ extension UITestSeedCoordinator {
     }
     var rows: [IdentificationHistoryRow] {
         [a, b].map { .init(id: $0, title: $0 == a ? "First identification" : "Second identification", scientificName: nil,
-            completedAt: Date(timeIntervalSince1970: 1_700_000_000), confidence: "Possible match", review: "Not confirmed", isImported: false) }
+            completedAt: Date(timeIntervalSince1970: 1_700_000_000), confidence: "Possible match", review: "Not confirmed", isImported: false, confidenceStyle: .possible) }
     }
     var dependencies: IdentificationHistoryDependencies {
         .init(context: { [self] in context }, page: { [self] _ in .init(rows: rows, nextBeforeOrdinal: nil, context: context) },

@@ -5,7 +5,7 @@ import Testing
 struct AppRootArchitectureTests {
     @Test func originalInputRecoveryIsConfiguredBeforeQueueStartup() throws {
         let app = try readSource(at: "MerianApp.swift")
-        let admission = try #require(app.range(of: "dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
+        let admission = try #require(app.range(of: "dependencies.nativeMediaLifecycle.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
         let queue = try #require(app.range(of: "dependencies.scanRepository.configure(with: mainContext)"))
         #expect(admission.lowerBound < queue.lowerBound)
         let repository = try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Core/Data/Database/ScanRepository.swift")

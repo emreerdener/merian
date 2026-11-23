@@ -50,7 +50,7 @@ final class CaptureNativePhotoSubmissionSession {
 
     static func app(selection: CaptureNativePhotoSubmissionSelection, diContainer: AppDIContainer) -> CaptureNativePhotoSubmissionSession {
         .init(selection: selection, preflight: appPreflight, allocationAccess: appAllocationAccess,
-              resolveOwner: { try await diContainer.nativeMediaOwnerForFeature() })
+              resolveOwner: { try await diContainer.nativeMediaLifecycle.nativeMediaOwnerForFeature() })
     }
 
     static var appAllocationAccess: SharedMediaNativePhotoAllocationAccess {
@@ -167,11 +167,12 @@ final class CaptureNativePhotoSubmissionSession {
         guard let preflight else {
             return try await owner.stageAppReceiving(packageID: selection.identity.packageID,
                 draftGeneration: selection.identity.draftGeneration, pairIDs: selection.pairIDs,
-                expectedMetadata: selection.metadata)
+                expectedMetadata: selection.metadata, cohortFormat: .initialNotes)
         }
         let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
             selection.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))
-        return try await owner.stageAppReceivingWithAdmission(metadata: selection.metadata, pairIDs: selection.pairIDs) { [self] observationID in
+        return try await owner.stageAppReceivingWithAdmission(metadata: selection.metadata, pairIDs: selection.pairIDs,
+            cohortFormat: .initialNotes) { [self] observationID in
             try selection.validate(snapshot)
             let input = try IdentificationPreflightInput(nativePhotoObservationID: observationID,
                 photoCount: selection.pairIDs.count, contexts: supporting.contexts)

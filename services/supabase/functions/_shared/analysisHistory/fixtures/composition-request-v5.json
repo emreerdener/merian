@@ -1,0 +1,1044 @@
+[
+  {
+    "name": "photo",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "8746b79924348dfa012a934dcd20626a949bf3e094ca00c9dadffc142b270e7f",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "f958603c849d217b5a91fbbd510c12eb0404b45dba30419efbde3d4c8a6371fb"
+  },
+  {
+    "name": "audio",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "d5e8fa89b6fb37b58a91ad02c0fe6f6582a182a220a74eafdcd3d30feab8a902",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "37a44381c84ce711b916d95da77dd06dcab9e1bb2e8dc6a7f4d65c0cc56f1e1f"
+  },
+  {
+    "name": "video",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "2229a8570d9a3c1b6f59af72edbc67a7debf83910586d44e1fdf600cdf9fe5b9",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "video",
+            "provenance": {
+              "schema_version": 1,
+              "preprocessing_version": "retained_clip_v1",
+              "source": {
+                "media_id": "00000000-0000-4000-8000-000000000100",
+                "content_type": "video/mp4",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "parameters": {
+                "timescale": 600,
+                "frame_pipeline": "direct_inference_v1",
+                "decode_long_edge": 2048,
+                "duration_ticks": 3000,
+                "sampling": "five_interior_v1",
+                "preferred_track_transform": true,
+                "crop": "square_v1",
+                "crop_center_basis_points": 5000,
+                "inference_long_edge": 1024,
+                "encoding_quality_percent": 85
+              },
+              "frames": [
+                {
+                  "index": 0,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 300,
+                  "actual_time_ticks": 300,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000101",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 1,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 900,
+                  "actual_time_ticks": 900,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000102",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 2,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 1500,
+                  "actual_time_ticks": 1500,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000103",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 3,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2100,
+                  "actual_time_ticks": 2100,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000104",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 4,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2700,
+                  "actual_time_ticks": 2700,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000105",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                }
+              ],
+              "audio": {
+                "source_media_id": "00000000-0000-4000-8000-000000000100",
+                "track": "first_audio_track",
+                "start_ticks": 600,
+                "end_ticks": 1800,
+                "sample_rate": 44100,
+                "sample_count": 88200,
+                "channels": 1,
+                "bits_per_sample": 16,
+                "encoding": "pcm_s16le",
+                "artifact": {
+                  "media_id": "00000000-0000-4000-8000-000000000106",
+                  "content_type": "audio/wav",
+                  "byte_count": 176444,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "b2a65b4dc4ae19e5136f69c3c9483de17395456908077d9e81f5fcd5bcf6578d"
+  },
+  {
+    "name": "photo-audio",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "71aff9a784316432bc8b7c397c1090656cb2f44a0b6fb2a6471223076531fd6d",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "62475dde0b828682a422816da20bd1cc0d116a34c8e0dfca619564c932af3417"
+  },
+  {
+    "name": "audio-photo",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "5a84a18b2d0d0703ec2d1bb7918a10f2b1c04f8ae1f7594f9e88ba6f5aea183b",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "66da02cf987bb55e1a45fc2dcfa1facf4938608f89597a8355e509e9eff5d538"
+  },
+  {
+    "name": "photo-video",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "2fb1c7223b078ffe78ab0b95882b2fab1b081cacb0a519f6166b3f952e096e6e",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          },
+          {
+            "kind": "video",
+            "provenance": {
+              "schema_version": 1,
+              "preprocessing_version": "retained_clip_v1",
+              "source": {
+                "media_id": "00000000-0000-4000-8000-000000000100",
+                "content_type": "video/mp4",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "parameters": {
+                "timescale": 600,
+                "frame_pipeline": "direct_inference_v1",
+                "decode_long_edge": 2048,
+                "duration_ticks": 3000,
+                "sampling": "five_interior_v1",
+                "preferred_track_transform": true,
+                "crop": "square_v1",
+                "crop_center_basis_points": 5000,
+                "inference_long_edge": 1024,
+                "encoding_quality_percent": 85
+              },
+              "frames": [
+                {
+                  "index": 0,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 300,
+                  "actual_time_ticks": 300,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000101",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 1,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 900,
+                  "actual_time_ticks": 900,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000102",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 2,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 1500,
+                  "actual_time_ticks": 1500,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000103",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 3,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2100,
+                  "actual_time_ticks": 2100,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000104",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 4,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2700,
+                  "actual_time_ticks": 2700,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000105",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                }
+              ],
+              "audio": {
+                "source_media_id": "00000000-0000-4000-8000-000000000100",
+                "track": "first_audio_track",
+                "start_ticks": 600,
+                "end_ticks": 1800,
+                "sample_rate": 44100,
+                "sample_count": 88200,
+                "channels": 1,
+                "bits_per_sample": 16,
+                "encoding": "pcm_s16le",
+                "artifact": {
+                  "media_id": "00000000-0000-4000-8000-000000000106",
+                  "content_type": "audio/wav",
+                  "byte_count": 176444,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "9ca0318bc310147cea0ab4d527c05fad25668e33ffa87a299369e6d55d217657"
+  },
+  {
+    "name": "video-audio",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "0ae61fd0dd00cbd4f551440fce8c7d3c8de880c84b2ed8901a895f9e82846a5d",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "video",
+            "provenance": {
+              "schema_version": 1,
+              "preprocessing_version": "retained_clip_v1",
+              "source": {
+                "media_id": "00000000-0000-4000-8000-000000000100",
+                "content_type": "video/mp4",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "parameters": {
+                "timescale": 600,
+                "frame_pipeline": "direct_inference_v1",
+                "decode_long_edge": 2048,
+                "duration_ticks": 3000,
+                "sampling": "five_interior_v1",
+                "preferred_track_transform": true,
+                "crop": "square_v1",
+                "crop_center_basis_points": 5000,
+                "inference_long_edge": 1024,
+                "encoding_quality_percent": 85
+              },
+              "frames": [
+                {
+                  "index": 0,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 300,
+                  "actual_time_ticks": 300,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000101",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 1,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 900,
+                  "actual_time_ticks": 900,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000102",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 2,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 1500,
+                  "actual_time_ticks": 1500,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000103",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 3,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2100,
+                  "actual_time_ticks": 2100,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000104",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 4,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2700,
+                  "actual_time_ticks": 2700,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000105",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                }
+              ],
+              "audio": {
+                "source_media_id": "00000000-0000-4000-8000-000000000100",
+                "track": "first_audio_track",
+                "start_ticks": 600,
+                "end_ticks": 1800,
+                "sample_rate": 44100,
+                "sample_count": 88200,
+                "channels": 1,
+                "bits_per_sample": 16,
+                "encoding": "pcm_s16le",
+                "artifact": {
+                  "media_id": "00000000-0000-4000-8000-000000000106",
+                  "content_type": "audio/wav",
+                  "byte_count": 176444,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "6a10c15e7e6ed0edd634128dc2667a40d9cce34978b444e18a84894959f09d2b"
+  },
+  {
+    "name": "two-audio",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "c8d13b32f46469bc38ff861ba8a254ab476bc489d713fba5a2a036ec8eba8936",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000021",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "bad34636234988705afd7c1942736de28bd16e27b9b5c6049420aa0510af5751"
+  },
+  {
+    "name": "five-photos",
+    "valid": true,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "e84584252155f41d0a487323be6f34973c33bfa33fd152b7876536ed39ba61fe",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000011",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000012",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000013",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000014",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "fingerprint": "cb882f81e82fad5f6a08859fc8a4aa12ce440285bf3664a6955dff5e3ad43a8a"
+  },
+  {
+    "name": "no-media",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "ad5bdc30789bfdadc6005ecc2e411a235d9677a47f0bf11fa344fd7a9c3a7b03",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "description",
+            "text": "  submitted 🦋 é  "
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "duplicate",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "3f979d308968113d1df5843923355f4ed3cb29f9192dc8d6ba1d5e5854c98109",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "parent-alias",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "ddb6d6a0cb5b238ae9afc5e5aa6f00926157e475164b4cdeb0efd72a09f5e992",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000001",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "source-alias",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "52a505568a84be4c5ed31103ddc5fc7fcceeafb9b780238e76ea0eb1bfb68ece",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000003",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "too-many-mixed",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "409368b503b8efa3939d8a74c89db6df2788f2e01f09ea86b48e6b521ec0a73a",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "video",
+            "provenance": {
+              "schema_version": 1,
+              "preprocessing_version": "retained_clip_v1",
+              "source": {
+                "media_id": "00000000-0000-4000-8000-000000000100",
+                "content_type": "video/mp4",
+                "byte_count": 100,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "parameters": {
+                "timescale": 600,
+                "frame_pipeline": "direct_inference_v1",
+                "decode_long_edge": 2048,
+                "duration_ticks": 3000,
+                "sampling": "five_interior_v1",
+                "preferred_track_transform": true,
+                "crop": "square_v1",
+                "crop_center_basis_points": 5000,
+                "inference_long_edge": 1024,
+                "encoding_quality_percent": 85
+              },
+              "frames": [
+                {
+                  "index": 0,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 300,
+                  "actual_time_ticks": 300,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000101",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 1,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 900,
+                  "actual_time_ticks": 900,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000102",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 2,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 1500,
+                  "actual_time_ticks": 1500,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000103",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 3,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2100,
+                  "actual_time_ticks": 2100,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000104",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                {
+                  "index": 4,
+                  "source_media_id": "00000000-0000-4000-8000-000000000100",
+                  "requested_time_ticks": 2700,
+                  "actual_time_ticks": 2700,
+                  "artifact": {
+                    "media_id": "00000000-0000-4000-8000-000000000105",
+                    "content_type": "image/jpeg",
+                    "byte_count": 100,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                }
+              ],
+              "audio": {
+                "source_media_id": "00000000-0000-4000-8000-000000000100",
+                "track": "first_audio_track",
+                "start_ticks": 600,
+                "end_ticks": 1800,
+                "sample_rate": 44100,
+                "sample_count": 88200,
+                "channels": 1,
+                "bits_per_sample": 16,
+                "encoding": "pcm_s16le",
+                "artifact": {
+                  "media_id": "00000000-0000-4000-8000-000000000106",
+                  "content_type": "audio/wav",
+                  "byte_count": 176444,
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "empty-note",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "99639cb5d684916159f51d338bdfba203b039f282b77dd3e43b5d666b7ff0197",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": " "
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "nul-note",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "863d817af65224f89f89b87ff4a96b808b0450fff9e7d8c6ee673a26698bd04e",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "a\u0000b"
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "wrong-capability",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "14fe9f9fd717d2e476ae526a521b819dddbca7a44b7eb0dc005f4b4e70e7171b",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 9,
+      "expected_processor_permission": "google_gemini"
+    }
+  },
+  {
+    "name": "wrong-permission",
+    "valid": false,
+    "input": {
+      "schema_version": 5,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "f95b41ae864c111850c2f82eed796a9457ec1efdfcef4ab765445abcf51be3f1",
+      "evidence_manifest": {
+        "schema_version": 5,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "openai"
+    }
+  }
+]

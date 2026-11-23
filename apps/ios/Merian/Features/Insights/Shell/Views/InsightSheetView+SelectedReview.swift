@@ -79,7 +79,10 @@ extension InsightSheetView {
               let token = selectedReviewHost.token else { return nil }
         let engineGeneration = inferenceEngine.scanPresentationGeneration
         return {
-            guard selectedCandidateReview == nil, activeShellPresentation == nil,
+            // Identification prepares the exact ticket before dismissing. Its
+            // resume still requires an empty presentation slot below.
+            guard selectedCandidateReview == nil,
+                  activeShellPresentation == nil || activeShellPresentation == .identification(scanId: scanID, generation: generation),
                   pendingShellPresentation == nil, dismissedShellPresentation == nil else { return nil }
             let current = {
                 viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation)

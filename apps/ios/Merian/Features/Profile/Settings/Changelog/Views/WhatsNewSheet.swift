@@ -26,6 +26,24 @@ struct WhatsNewSheet: View {
                         // )
 
                         highlight(
+                            symbol: "camera.on.rectangle",
+                            title: "Simpler capture controls",
+                            detail: "Switch between Scan for photos and videos and Record for audio, with Field notes alongside your media."
+                        )
+
+                        highlight(
+                            symbol: "crop.rotate",
+                            title: "Fine-tune before you identify",
+                            detail: "Review your captures in one place. Adjust photo and video framing, rotate your view, and listen back to recordings before identifying."
+                        )
+
+                        highlight(
+                            symbol: "viewfinder",
+                            title: "Identification subject",
+                            detail: "Tap the subject in your photo to guide identification. Adjust your selection to show exactly what caught your eye."
+                        )
+
+                        highlight(
                             symbol: "map",
                             title: "Improved maps",
                             detail: "Explore maps with terrain view by default, location search, improved zoom controls, and a distance scale."

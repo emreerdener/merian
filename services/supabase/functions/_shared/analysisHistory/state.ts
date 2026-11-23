@@ -98,9 +98,11 @@ export function parseHistoryState(
   value: unknown,
   request: HistoryStateRequest,
   ownerID: string,
-  reader: 9 | 10 | 11 = 9,
+  reader: 9 | 10 | 11 | 13 | 14 | 15 | 16 | 17 | 18 = 9,
 ) {
-  if (reader !== 9 && reader !== 10 && reader !== 11) return invalidHistory();
+  if (![9, 10, 11, 13, 14, 15, 16, 17, 18].includes(reader)) {
+    return invalidHistory();
+  }
   const expected = parseHistoryStateRequest(request);
   const row = exactObject(value, [
     "schema_version",
@@ -131,7 +133,9 @@ export function parseHistoryState(
   const result = decodeAnalysisResultSnapshot(item.snapshot, reader);
   if (
     result.observation_id !== expected.observation_id ||
-    result.analysis_id !== (expected.analysis_id ?? selected)
+    result.analysis_id !== (expected.analysis_id ?? selected) ||
+    ("initial_evidence" in result &&
+      result.initial_evidence?.owner_id !== ownerID)
   ) return invalidHistory();
   return {
     schema_version: 1 as const,

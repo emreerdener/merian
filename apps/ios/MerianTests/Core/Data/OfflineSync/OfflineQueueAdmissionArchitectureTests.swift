@@ -183,11 +183,18 @@ struct OfflineQueueAdmissionArchitectureTests {
         ))
         #expect(!replay.contains("FileManager.default.moveItem"))
 
-        #expect(capture.contains("private func claimFundingAdmission("))
-        #expect(capture.contains("private func rollbackFundingAdmission("))
-        #expect(capture.contains("private func isFlashFallbackEligible("))
+        let fundingAdmission = try source("Services/CaptureAdmission/CaptureFundingAdmission.swift", below: root)
+        #expect(fundingAdmission.contains("static func claimFundingAdmission("))
+        #expect(fundingAdmission.contains("static func rollbackFundingAdmission("))
+        #expect(fundingAdmission.contains("private static func isFlashFallbackEligible("))
         #expect(capture.contains("private func cleanupPersistedCaptureFiles("))
         #expect(capture.contains("private func insertAndPersistRecord("))
+        let records = try source("Services/CaptureAdmission/CaptureQueueInitialRecords.swift", below: root)
+        for forbidden in ["ModelContext", ".insert(", ".save(", ".rollback(",
+                          "ensureOfflineJobRecord", "EntitlementManager", "UsageManager", "FileIOActor",
+                          "syncPendingScans", "replayInferenceForUploadedScans"] {
+            #expect(!records.contains(forbidden))
+        }
         #expect(capture.components(
             separatedBy: "OfflineCaptureFileStore.persistFiles("
         ).count == 5)
@@ -234,7 +241,7 @@ struct OfflineQueueAdmissionArchitectureTests {
         ))
 
         let fundingClaim = try #require(capture.range(
-            of: "guard let funding = claimFundingAdmission("
+            of: "guard let funding = CaptureFundingAdmission.claimFundingAdmission("
         ))
         let storageAdmission = try #require(capture.range(
             of: "guard OfflineQueueStoragePolicy.canAdmitNewPayload(",
@@ -299,7 +306,7 @@ struct OfflineQueueAdmissionArchitectureTests {
             "InferenceFundingReconciliationOwner("
         ))
         let drain = try #require(auth.range(
-            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition() async"
+            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition("
         ))
         let drainSource = auth[drain.lowerBound...]
         let settlement = try #require(drainSource.range(
@@ -339,6 +346,7 @@ struct OfflineQueueAdmissionArchitectureTests {
     ]
 
     private static let declarationOwners: [String: String] = [
+        "struct CaptureQueueInitialRecords": "Services/CaptureAdmission/CaptureQueueInitialRecords.swift",
         "final class InferenceFundingReconciliationOwner":
             "Services/Funding/InferenceFundingReconciliationOwner.swift",
         "func commitInferenceResponseSettlement":
@@ -378,11 +386,11 @@ struct OfflineQueueAdmissionArchitectureTests {
         "func enqueueCapture":
             "Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift",
         "func claimFundingAdmission":
-            "Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift",
+            "Services/CaptureAdmission/CaptureFundingAdmission.swift",
         "func rollbackFundingAdmission":
-            "Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift",
+            "Services/CaptureAdmission/CaptureFundingAdmission.swift",
         "func isFlashFallbackEligible":
-            "Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift",
+            "Services/CaptureAdmission/CaptureFundingAdmission.swift",
         "func cleanupPersistedCaptureFiles":
             "Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift",
         "func enqueueNonVisualCapture":
@@ -414,6 +422,9 @@ struct OfflineQueueAdmissionArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/CaptureAdmission/CaptureFundingAdmission.swift": ["import Foundation"],
+        "Services/CaptureAdmission/OfflineQueueManager+NativeCaptureAdmission.swift": ["import Foundation"],
+        "Services/CaptureAdmission/CaptureQueueInitialRecords.swift": ["import Foundation"],
         "Services/CaptureAdmission/DebugAudioComparisonAdmission.swift": [
             "import SwiftData"
         ],

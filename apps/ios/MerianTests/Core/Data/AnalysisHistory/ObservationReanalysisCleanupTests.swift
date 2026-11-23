@@ -205,8 +205,8 @@ struct ObservationReanalysisCleanupTests {
     private func coldOwner(_ seed: ObservationReanalysisLocalVideoInputTests.Seed,
                            isCurrent: @escaping @MainActor () -> Bool = { true }) throws -> (AppDIContainer, ObservationReanalysisErasureOwner) {
         let di = AppDIContainer.preview, owner = ObservationReanalysisErasureOwner(files: .init(documents: seed.documents))
-        try di.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
-        try di.configureInputRecoveryForTesting(owner: owner, isCurrent: isCurrent, install: { _ in })
+        try di.nativeMediaLifecycle.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
+        try di.nativeMediaLifecycle.configureInputRecoveryForTesting(owner: owner, isCurrent: isCurrent, install: { _ in })
         return (di, owner)
     }
 
@@ -224,29 +224,29 @@ struct ObservationReanalysisCleanupTests {
         defaults.removeObject(forKey: key)
         if deletionPending { defaults.set(AccountDeletionLocalRecoveryState.intakePending.rawValue, forKey: key) }
         di.offlineQueueManager.modelContext = context
-        try di.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
+        try di.nativeMediaLifecycle.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
         // No injected predicate/install closure: this is the same local barrier
         // and exact manager hook used by initial setup and lifetime renewal.
-        try di.configureInputRecoveryForTesting(owner: owner)
-        #expect(di.nativeMediaLifetime == nil)
+        try di.nativeMediaLifecycle.configureInputRecoveryForTesting(owner: owner)
+        #expect(di.nativeMediaLifecycle.nativeMediaLifetime == nil)
         await owner.drain(container: seed.container, isCurrent: { true })
         do {
             let state = try ObservationReanalysisInputPersistence.read(child: receipt.childID, container: seed.container)
             #expect(state?.phase == (deletionPending ? receipt.phase : .complete))
-            #expect(di.nativeMediaOwner == nil && manager.currentUser == nil)
-            #expect((di.nativeMediaLifetime == nil) == deletionPending)
+            #expect(di.nativeMediaLifecycle.nativeMediaOwner == nil && manager.currentUser == nil)
+            #expect((di.nativeMediaLifecycle.nativeMediaLifetime == nil) == deletionPending)
             if deletionPending {
                 defaults.removeObject(forKey: key)
                 await owner.drain(container: seed.container, isCurrent: { true })
                 #expect(try ObservationReanalysisInputPersistence.read(child: receipt.childID, container: seed.container)?.phase == .complete)
             }
         } catch {
-            if let lifetime = di.nativeMediaLifetime {
+            if let lifetime = di.nativeMediaLifecycle.nativeMediaLifetime {
                 _ = await lifetime.shutdown(); try? manager.retireNativeMediaAccountTransitionDrain(lifetime)
             }
             throw error
         }
-        if let lifetime = di.nativeMediaLifetime {
+        if let lifetime = di.nativeMediaLifecycle.nativeMediaLifetime {
             #expect(await lifetime.shutdown()); try manager.retireNativeMediaAccountTransitionDrain(lifetime)
         }
         _ = try seed.startup.acquireFence(container: seed.container)
@@ -262,15 +262,15 @@ struct ObservationReanalysisCleanupTests {
         try context.delete(model: LocalScanRecord.self)
         try context.save()
         let (di, owner) = try coldOwner(seed)
-        #expect(di.nativeMediaLifetime == nil) // Configuration never opens a fence.
+        #expect(di.nativeMediaLifecycle.nativeMediaLifetime == nil) // Configuration never opens a fence.
         await owner.drain(container: seed.container, isCurrent: { true })
-        #expect(di.nativeMediaOwner == nil) // No native discovery or account/profile adoption.
+        #expect(di.nativeMediaLifecycle.nativeMediaOwner == nil) // No native discovery or account/profile adoption.
         #expect(try ObservationReanalysisInputPersistence.read(child: receipt.childID, container: seed.container)?.phase == .complete)
         let path = seed.documents.appendingPathComponent("ReanalysisInputs/\(receipt.slot)/input.mp4")
         #expect(!FileManager.default.fileExists(atPath: path.path))
         await owner.drain(container: seed.container, isCurrent: { true })
         #expect(try ObservationReanalysisInputPersistence.inspect(container: seed.container).ledger.slots.allSatisfy { $0.state != .active })
-        #expect(await di.nativeMediaLifetime?.shutdown() == true)
+        #expect(await di.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
         _ = try seed.startup.acquireFence(container: seed.container)
     }
 
@@ -294,9 +294,9 @@ struct ObservationReanalysisCleanupTests {
             // A populated foreign ledger reaches the original-container admission check.
             #expect(try ObservationReanalysisInputPersistence.read(child: foreignReceipt.childID, container: foreign.container) == foreignReceipt)
             #expect(try Data(contentsOf: foreign.documents.appendingPathComponent("ReanalysisInputs/\(foreignReceipt.slot)/input.mp4")).count == 150_001)
-            #expect(di.nativeMediaLifetime == nil)
+            #expect(di.nativeMediaLifecycle.nativeMediaLifetime == nil)
         }
-        if let lifetime = di.nativeMediaLifetime { #expect(await lifetime.shutdown()) }
+        if let lifetime = di.nativeMediaLifecycle.nativeMediaLifetime { #expect(await lifetime.shutdown()) }
         _ = try seed.startup.acquireFence(container: seed.container)
     }
 
@@ -314,7 +314,7 @@ struct ObservationReanalysisCleanupTests {
         #expect(await live.releaseInputLease(token))
         await owner.drain(container: seed.container, isCurrent: { true })
         #expect(try ObservationReanalysisInputPersistence.read(child: receipt.childID, container: seed.container)?.phase == .complete)
-        #expect(await di.nativeMediaLifetime?.shutdown() == true)
+        #expect(await di.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
     }
 
     @Test func retirementJoinsActualInputExitAndNeverReopensOldOwner() async throws {
@@ -338,7 +338,7 @@ struct ObservationReanalysisCleanupTests {
         #expect(throws: SharedMediaStorageFailure.closed) {
             try owner.configureInputRecovery(admission: { _ in throw SharedMediaStorageFailure.closed }, isCurrent: { true })
         }
-        #expect(await di.nativeMediaLifetime?.shutdown() == true)
+        #expect(await di.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
     }
 
     @Test func purgeSuspensionCannotBeRetiredIntoFreshCleanup() async throws {
@@ -359,7 +359,7 @@ struct ObservationReanalysisCleanupTests {
         owner.inputErasureCheckpoint = { await entered.open(); await release.wait() }
         let cleaning = Task { await owner.drain(container: seed.container, isCurrent: { true }) }
         await entered.wait()
-        let lifetime = try #require(di.nativeMediaLifetime)
+        let lifetime = try #require(di.nativeMediaLifecycle.nativeMediaLifetime)
         var joined = false
         let closing = Task {
             if fullPurge { await owner.suspendForLibraryPurge() } else { #expect(await lifetime.shutdown()) }

@@ -108,6 +108,7 @@ struct TopToolbar: ToolbarContent {
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let hasCollectionScanId: Bool
+    var onIdentification: (() -> Void)?
     var onIdentificationHistory: (() -> Void)?
     var onReanalysisStatus: (() -> Void)?
     var onReanalyze: (() -> Void)?
@@ -153,6 +154,7 @@ struct TopToolbar: ToolbarContent {
         toggleScanInCollection: @escaping (ScanCollection) -> Void,
         showNewCollectionAlert: Binding<Bool>,
         hasCollectionScanId: Bool,
+        onIdentification: (() -> Void)? = nil,
         onIdentificationHistory: (() -> Void)? = nil,
         onReanalysisStatus: (() -> Void)? = nil,
         onReanalyze: (() -> Void)? = nil,
@@ -197,6 +199,7 @@ struct TopToolbar: ToolbarContent {
         self.toggleScanInCollection = toggleScanInCollection
         self._showNewCollectionAlert = showNewCollectionAlert
         self.hasCollectionScanId = hasCollectionScanId
+        self.onIdentification = onIdentification
         self.onIdentificationHistory = onIdentificationHistory
         self.onReanalysisStatus = onReanalysisStatus
         self.onReanalyze = onReanalyze
@@ -365,37 +368,33 @@ struct TopToolbar: ToolbarContent {
         )
     }
 
+    private var identificationMenuSymbol: String {
+        if #available(iOS 26.0, *) { return "sparkle.text.clipboard" }
+        return "list.clipboard"
+    }
+
+    private var fieldNotesMenuSymbol: String {
+        if #available(iOS 18.4, *) { return "long.text.page.and.pencil" }
+        return "square.and.pencil"
+    }
+
     @ViewBuilder
     private var actionMenuContent: some View {
-        if let audioBoostEnabled {
-            Button {
-                let wasEnabled = audioBoostEnabled.wrappedValue
-                if !wasEnabled {
-                    onAudioBoostEnableRequested?()
+        ControlGroup {
+            if let onIdentification {
+                Button(action: onIdentification) {
+                    Label("Identification", systemImage: identificationMenuSymbol)
                 }
-                audioBoostEnabled.wrappedValue.toggle()
-                let isEnabled = audioBoostEnabled.wrappedValue
-                guard isEnabled != wasEnabled else { return }
-                onAudioBoostChanged?(isEnabled)
-            } label: {
-                Label(
-                    audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",
-                    systemImage: audioBoostEnabled.wrappedValue ? "speaker.wave.2" : "speaker.wave.3"
-                )
+                .accessibilityIdentifier("IdentificationMenu")
+            }
+            if allowsFieldNotes {
+                Button(action: onFieldNotes) {
+                    Label("Field notes", systemImage: fieldNotesMenuSymbol)
+                }
             }
         }
-
-        if hasUserMedia {
-            Button(action: { onSaveMedia() }) {
-                Label("Download scan", systemImage: "arrow.down.circle")
-            }
-        }
-
-        if allowsFieldNotes {
-            Button(action: onFieldNotes) {
-                Label(hasFieldNotes ? "Edit field notes" : "Add field notes", systemImage: "square.and.pencil")
-            }
-        }
+        .labelStyle(.titleAndIcon)
+        Divider()
 
         if allowsCollectionActions {
             AddCollectionTopMenu(
@@ -407,8 +406,11 @@ struct TopToolbar: ToolbarContent {
             )
         }
 
-        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-            Label("Delete scan", systemImage: "trash")
+        if hasUserMedia {
+            Button(action: onSaveMedia) {
+                Label("Download media", systemImage: "square.and.arrow.down")
+            }
+            .disabled(isSavingMedia)
         }
 
         if menuState.showsExplorePostSection {
@@ -427,76 +429,9 @@ struct TopToolbar: ToolbarContent {
             }
         }
 
-        Section("Identification") {
-            if let onReanalysisStatus {
-                Button(action: onReanalysisStatus) { Label("Reanalysis status", systemImage: "clock") }
-                    .accessibilityIdentifier("ReanalysisStatusMenu")
-            }
-            if let onIdentificationHistory {
-                Button(action: onIdentificationHistory) { Label("Identification history", systemImage: "clock.arrow.circlepath") }
-                    .accessibilityIdentifier("IdentificationHistoryMenu")
-            }
-            if let onConfirmIdentification = onConfirmIdentification {
-                Button(action: onConfirmIdentification) {
-                    Label(confirmationTitle, systemImage: "checkmark.circle")
-                }
-            }
-            if let onRetryReviewSave {
-                Button("Retry saving review", action: onRetryReviewSave)
-                    .accessibilityIdentifier("SelectedReviewRetrySave")
-            }
-            if let onReviewAlternatives = onReviewAlternatives {
-                Button(action: onReviewAlternatives) {
-                    Label("Review alternatives", systemImage: "person.fill.checkmark.and.xmark")
-                }
-            }
-            if let onReanalyze = onReanalyze {
-                Button(action: onReanalyze) {
-                    if !reanalysisRequiresPro {
-                        Label("Reanalyze species", systemImage: "arrow.2.circlepath")
-                    } else {
-                        Label("Reanalyze species", systemImage: "lock.fill")
-                    }
-                }
-                .accessibilityIdentifier("ReanalyzeSpeciesMenu")
-            }
-            if let communityAction = menuState.communityAction {
-                Button(action: {
-                    switch communityAction {
-                    case .askCommunity:
-                        onAskCommunity?()
-                    case .viewCommunityRequest:
-                        onViewCommunityRequest?()
-                    }
-                }) {
-                    Label(communityAction.title, systemImage: communityAction.systemImage)
-                }
-            }
-            if let onUndoConfirmation {
-                Button {
-                    if undoConfirmationRequiresPrompt { pendingConfirmationUndo = onUndoConfirmation } else { onUndoConfirmation() }
-                } label: {
-                    Label("Undo confirmation", systemImage: "arrow.uturn.backward")
-                }
-                .accessibilityIdentifier("UndoConfirmationMenu")
-            } else if let confirmationUndoReason {
-                Label(confirmationUndoReason, systemImage: "info.circle")
-            }
-            if let onUndoIncorrect {
-                Button(action: onUndoIncorrect) {
-                    Label("Undo incorrect", systemImage: "arrow.uturn.backward")
-                }
-            } else if let reviewUnavailableReason {
-                Label(reviewUnavailableReason, systemImage: "info.circle")
-            } else if let onMarkIncorrect {
-                Button(role: .destructive) {
-                    pendingIncorrectAction = onMarkIncorrect
-                    showsIncorrectConfirmation = true
-                } label: {
-                    Label("Mark as incorrect", systemImage: "xmark.circle")
-                }
-            }
+        Divider()
+        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+            Label("Delete scan", systemImage: "trash")
         }
-
     }
 }

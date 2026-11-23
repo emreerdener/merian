@@ -376,8 +376,7 @@ The top general-preferences section begins with Theme. **Open Explore on
 launch** follows Theme and sits directly above Notifications. The toggle uses
 `safari.fill` and the user-facing description:
 
-> Show Explore when you launch Naturebook. Close it to return to Scan, Record,
-> or Describe.
+> Show Explore when you launch Naturebook. Close it to return to Scan or Record.
 
 The setting is opt-in. `opensExploreOnLaunch` registers a `false` default in
 `UserDefaults`, persists through `AppSettings`, and participates in
@@ -385,7 +384,7 @@ The setting is opt-in. `opensExploreOnLaunch` registers a `false` default in
 running settings model.
 
 **Workspace** owns Camera, Audio, **Reorder modes**, Field trip goals,
-**Expedition mode**, and **Auto-submit scans**. The separate Pro settings
+**Expedition mode**, and **Identify automatically**. The separate Pro settings
 section and multi-capture toggle are removed. Auto-submit uses the independent
 `autoSubmitScans` key, defaulting to false for new and existing installations;
 legacy confirmation/multi-capture values do not opt users in. Explicit later

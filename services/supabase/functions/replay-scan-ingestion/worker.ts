@@ -43,6 +43,7 @@ export interface ReplayScanIngestionResult {
   dispatched: number;
   completedExisting: number;
   skippedExistingIncomplete: number;
+  heldForInitialRecovery: number;
   failedDispatches: number;
   errors: Array<{
     scanId?: string;
@@ -143,6 +144,11 @@ export function buildReplayIdentifyPayload(
   row: ReplayableScanIngestionRow,
 ): Record<string, unknown> {
   const requestPayload = row.request_payload ?? {};
+  if (Object.hasOwn(requestPayload, "initialEvidence")) {
+    throw new Error(
+      "Initial evidence requires dedicated finalization recovery.",
+    );
+  }
   const media = mediaPayload(requestPayload);
   const telemetry = telemetryPayload(requestPayload);
   const observationContexts = cleanObjectArray(
@@ -364,6 +370,7 @@ export async function replayScanIngestion(
     dispatched: 0,
     completedExisting: 0,
     skippedExistingIncomplete: 0,
+    heldForInitialRecovery: 0,
     failedDispatches: 0,
     errors: [],
   };
@@ -382,6 +389,20 @@ export async function replayScanIngestion(
   const dispatchPromises: Promise<void>[] = [];
 
   for (const row of rows) {
+    // The database excludes these from both claims and retry exhaustion. Keep
+    // this boundary for a stale claimant or mismatched worker/database version.
+    // Presence, including malformed/null values, must not fall through to the
+    // legacy inference or proof-free completion path. Do not settle funding or
+    // consume another retry while dedicated continuation recovery is unwired.
+    if (Object.hasOwn(row.request_payload ?? {}, "initialEvidence")) {
+      result.heldForInitialRecovery++;
+      result.errors.push({
+        scanId: row.scan_id,
+        userId: row.user_id,
+        reason: "Initial evidence requires dedicated finalization recovery.",
+      });
+      continue;
+    }
     const existingScan = scansById.get(row.scan_id);
     if (existingScan) {
       if (existingScan.user_id === null) {

@@ -8,7 +8,7 @@ import UIKit
 @MainActor
 struct CaptureNativePhotoDraftTests {
     @Test(arguments: [1, 2], [false, true])
-    func actualPickerCropDetailsAndExplicitLocalReceipt(_ count: Int, text: Bool) async throws {
+    func pickerDefaultsSubmitAllPhotosWithoutIndividualReview(_ count: Int, text: Bool) async throws {
         var preflights = 0
         let f = try await fixture(preflight: { input, _, validate in
             try validate(); preflights += 1
@@ -18,9 +18,13 @@ struct CaptureNativePhotoDraftTests {
         await importPhotos(f, count: count)
         #expect(f.session.references.count == count && f.vm.stagedCapture.images.count == count)
         #expect(f.session.metadataRequest == nil && f.session.prepared == nil)
-        #expect(!f.vm.isAutomaticSubmissionArmed && f.vm.hasPendingRequiredGalleryCrop)
+        #expect(!f.vm.isAutomaticSubmissionArmed)
+        #expect(f.session.items.allSatisfy { $0.recipe?.cropDisplaySize == 1 && $0.recipe?.scale == 1 })
         #expect(f.vm.stagedCapture.images.allSatisfy { $0.compressedData.isEmpty && $0.displayData.isEmpty && $0.focusRegion == nil })
-        confirmCrops(f)
+        let current = try #require(f.vm.imageToCrop?.id)
+        let commit = try #require(f.vm.beginPhotoReviewCommit(imageID: current))
+        #expect(f.vm.canPreservePhotoReviewArtifacts(imageID: current))
+        #expect(f.vm.finishPhotoReviewCommit(commit, succeeded: true))
         if text { f.vm.updateDescriptionDraft(.init(freeText: "  Exact optional text\nsecond line.  ")) }
         let before = try CaptureNativePhotoSubmissionSnapshot(f.vm.stagedCapture)
         await f.vm.submitStagedCapture(modelContext: f.store.context())
@@ -28,7 +32,10 @@ struct CaptureNativePhotoDraftTests {
         #expect(prepared.submission.selection.supportingBytes == before.supportingBytes)
         #expect(preflights == 1 && prepared.submission.prepared?.photoAdmission?.expectedProcessorPermission == .gemini)
         #expect(f.session.isFrozen && !f.session.canEdit && f.vm.isDraftMutationLocked)
-        #expect(f.vm.stagedCapture.images.allSatisfy { !$0.compressedData.isEmpty && !$0.displayData.isEmpty })
+        #expect(f.vm.stagedCapture.images.allSatisfy { image in
+            guard let ai = UIImage(data: image.compressedData), let display = UIImage(data: image.displayData) else { return false }
+            return ai.size.width == ai.size.height && display.size.width == display.size.height
+        })
         #expect(try f.store.context().fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.queueNeedsAttention) == [true])
         let snapshot = try CaptureNativePhotoSubmissionSnapshot(f.vm.stagedCapture, selection: prepared.submission.selection)
         f.vm.updateDescriptionDraft(.init(freeText: "Forbidden edit"))
@@ -46,7 +53,7 @@ struct CaptureNativePhotoDraftTests {
         #expect(await f.owner.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: ["requiredCancel", "remove", "discard"])
+    @Test(arguments: ["reviewRemove", "remove", "discard"])
     func everyDispositionEntryAcknowledgesOriginals(_ route: String) async throws {
         let f = try await fixture()
         await importPhotos(f, count: 2)
@@ -56,7 +63,10 @@ struct CaptureNativePhotoDraftTests {
             #expect(f.vm.confirmDraftDiscard(generation: f.vm.draftSession.generation))
         } else {
             let id = f.vm.stagedCapture.images[0].original.id
-            if route == "requiredCancel" { f.vm.cancelRequiredGalleryCrop(for: id) }
+            if route == "reviewRemove" {
+                f.vm.presentCrop(for: 0)
+                f.vm.removeReviewedMedia(session: try #require(f.vm.mediaReviewSession))
+            }
             else { confirmCrops(f); f.vm.removeNativePhoto(imageID: id) }
         }
         await f.vm.nativePhotoDispositionTask?.value
@@ -237,7 +247,9 @@ struct CaptureNativePhotoDraftTests {
         return .init(store: store, owner: owner, session: session, vm: viewModel(session: session, account: { store.ownerID }))
     }
     private func importPhotos(_ f: Fixture, count: Int) async {
-        let bytes = PhotoPreparationTestHarness.image()
+        let bytes = UIGraphicsImageRenderer(size: CGSize(width: 12, height: 4)).pngData { context in
+            UIColor.green.setFill(); context.fill(CGRect(x: 0, y: 0, width: 12, height: 4))
+        }
         f.vm.importNativePhotoItems((0..<count).map { _ in .init(localIdentifier: nil, load: { bytes }) })
         await f.vm.nativePhotoImportTask?.value
     }

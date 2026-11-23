@@ -19,7 +19,7 @@ enum NativeInitialInsightMedia {
                 && (manager.libraryTransferResult == .completed || manager.isGuestUser)
         }
         _ = try await read(scanID: scanID, bindingID: bindingID, container: container,
-            owner: { try await di.nativeMediaOwnerForFeature() }, isCurrent: current, publish: publish)
+            owner: { try await di.nativeMediaLifecycle.nativeMediaOwnerForFeature() }, isCurrent: current, publish: publish)
     }
 
     static func read(scanID: String, bindingID: UUID, container: ModelContainer,

@@ -230,6 +230,56 @@ paths; and the 600-line production-file ceiling. Core repository reconciliation
 and Share-cache refresh assertions live with their Core and Sharing owners
 rather than in the Field Notes state suite.
 
+## Identification sheet and Insights menu
+
+The November 13 native presentation slice renames the confidence destination to
+**Identification**. The confidence badge and the menu's Identification shortcut
+share the Shell presentation. The sheet retains the existing confidence bands,
+model/provenance explanation, alternatives, confirmed/corrected/incorrect
+states, plan information and tips. The confidence heading and explanatory copy
+lead the content stack, above the identification summary card. Its summary uses
+the existing confirmation and incorrect-review sliders and review owners.
+Identification and History use light tinted confidence capsules from the same
+palette as the Insight badge and confidence scale: Strong/Confirmed green,
+Possible/Awaiting review orange, Weak/Unknown gray, Incorrect red, and Analyzing
+blue. The Current capsule is solid black in light mode and white in dark mode,
+with contrasting text. These styles do not change confidence thresholds. The
+confirmed and incorrect-review banners, including eligible Undo actions, are
+embedded inside the Identification summary and current History card. They
+replace the unreviewed sliders while a review is displayed. Incorrect cards
+offer community and reanalysis actions below the banner through the existing
+prepared routes; History resolves those actions against that exact version. Undo
+availability, pending-save messages and named-confirmation prompts retain their
+existing owners. Undo review is distinct from Undo identification change in the
+top-level History menu.
+
+An unreviewed species-level primary result offers confirmation independently of
+confidence or the availability of alternative candidates. Existing eligibility
+guards still exclude unresolved, human/non-biological, already confirmed or
+corrected results and pending/blocked review states. History-enrolled results
+continue to use their exact-version review capabilities.
+
+The overflow contains Identification history, community help (or View community
+request for an existing request), and the existing reanalysis/status actions.
+History is separated from the other actions, using the clipboard symbol;
+community actions use the people symbol. History card menus omit Review
+alternatives and Review decision. Alternatives remain in Identification, and
+review Undo is in the expanded current card. Older cards retain green Correct
+and red Incorrect actions with filled status icons; current cards omit those
+duplicate menu actions. History is pushed within the same sheet; Back returns to
+Identification and closing returns to Insights. Prepared actions leaving
+Identification wait for actual sheet dismissal and retain their scan, generation
+and account fences.
+
+The main menu keeps Field notes and Add to collection behavior, names the
+existing export action Download media, groups linked View post/Edit post actions
+under Explore post, and separates Delete scan at the bottom. The all-media
+source chooser, version deletion and shared Capture staging remain separate
+implementation slices in the
+[approved redesign roadmap](../rfcs/identification-history-version-actions-and-redesign-2026-10-11.md).
+This presentation change does not qualify those unfinished capabilities or
+change saved scan data, backend admission or selection semantics.
+
 ## Progressive Analyzing Pill
 
 For foreground visual scans, `AnalyzingContentView` continues to read only
@@ -1231,22 +1281,23 @@ incomplete backend scan by manufacturing sampled-frame pages; the one retained
 degraded fallback above is availability handling for a completed historical
 scan, not canonical backend media completion.
 
-Persisted, completed scans with standalone audio add **Boost audio** to the top
-ellipsis menu and directly on the spectrogram. The compact bottom-left control
-shares the carousel attribution-tag inset and transitions to **Boosted audio**
-when the processed source is ready; a matching bottom-right badge shows elapsed
-and total playback time. The preference is device-local and per scan, applies to
-every standalone audio page in a mixed-media carousel, and remains independent
-from any public Explore-post preference. Restoration is silent; explicit
-activation shows progress, and successful playback displays **Boosted audio**
-without modifying the original recording. An idle first play remains disabled
-while a restored boosted source is being prepared. If a boost or revert finishes
-during active playback, the prepared source is staged without interrupting the
-active player. The source handoff occurs at the next pause, marker drag, or clip
-end and aligns the replacement to the live player position immediately before
-the swap. If a marker drag resumes playback, playhead observation restarts for
-the replacement player. Completion callbacks from replaced players are ignored
-so they cannot reset the active playhead.
+Persisted, completed scans with standalone audio offer **Boost audio** directly
+on the spectrogram. The Insights menu no longer duplicates this player action.
+The compact bottom-left control shares the carousel attribution-tag inset and
+transitions to **Boosted audio** when the processed source is ready; a matching
+bottom-right badge shows elapsed and total playback time. The preference is
+device-local and per scan, applies to every standalone audio page in a
+mixed-media carousel, and remains independent from any public Explore-post
+preference. Restoration is silent; explicit activation shows progress, and
+successful playback displays **Boosted audio** without modifying the original
+recording. An idle first play remains disabled while a restored boosted source
+is being prepared. If a boost or revert finishes during active playback, the
+prepared source is staged without interrupting the active player. The source
+handoff occurs at the next pause, marker drag, or clip end and aligns the
+replacement to the live player position immediately before the swap. If a marker
+drag resumes playback, playhead observation restarts for the replacement player.
+Completion callbacks from replaced players are ignored so they cannot reset the
+active playhead.
 
 The direct spectrogram control is also available during foreground and queued
 analysis. The audio page uses a containing accessibility group with separately
@@ -2504,15 +2555,29 @@ does not load the cascade relationship. The menu opens a large native sheet in
 the existing `InsightShellPresentation` slot, bound to the scan and its
 presentation generation.
 
-- The list displays at most 20 entries in the server's ordinal order. Earlier
-  identifications replaces the window; Newest returns to its beginning. A
-  partial cache is never presented as complete history.
-- Tapping an entry only opens its preview. The preview shows its own result,
-  review, reasoning, alternatives and available evidence. Current selection has
-  an explicit marker. An imported result with unknown completion says the
-  original date is unavailable; import time is not relabeled as completion.
-  Older candidate JSON that cannot decode as current alternatives is omitted; it
-  does not prevent previewing or restoring an otherwise valid saved result.
+- History renders cards with the current identification expanded first and the
+  remaining page in newest-first server ordinal order. Earlier identifications
+  replaces the 20-entry window; Newest returns to its beginning. A current
+  version outside that window is fetched and context-checked separately, adding
+  at most one pinned row without changing the paging cursor. A partial cache is
+  never presented as complete history.
+- Older cards stay compact and expose actions in their menus. Opening a menu
+  does not select or review anything. Choosing an action obtains that exact
+  version's existing detail/review capability before invoking the existing
+  owner. Current review controls use slides and are not duplicated as
+  Correct/Incorrect menu actions. Older cards expose those menu actions, which
+  affect only that version. Card actions use an anchored popover with green
+  Correct text/icons and red Incorrect text/icons. Existing name/candidate and
+  community-consent forms remain auxiliary forms, not a full
+  identification-preview destination. Unknown completion dates are omitted
+  rather than replaced by import time.
+- Visible cards request their exact version's first immutable photo through the
+  existing account/deletion-fenced private-photo resolver. Reads and off-main
+  decoding are serialized; the cache retains at most 21 images downsampled to
+  160 pixels. Each row is attempted once per page generation, and page/revision
+  changes or dismissal cancel and clear the cache. Missing media uses neutral
+  placeholders, never another identification's cover or a species reference
+  image. Download and per-version deletion remain separate roadmap work.
 - When a prepared assembler explicitly injects the historical reanalysis route,
   a source-qualified preview exposes **Reanalyze from this identification**.
   This preserves the exact historical source even when another result is
@@ -2529,10 +2594,11 @@ presentation generation.
   and the operation outcome are admitted together. Choosing a result does not
   confirm it, clear rejection, publish it or issue Field Trip credit.
 - A successful current receipt exposes **Undo identification change** for 15
-  seconds. Undo is another conditional selection, tied to that receipt and its
-  revision. A newer choice or authority revision invalidates it. Durable
-  conflicts refresh current state and require a fresh preview; they never
-  silently rebase the choice.
+  seconds in History's top-level options menu. Card and sheet ellipsis icons use
+  the adaptive primary foreground color. Undo is another conditional selection,
+  tied to that receipt and its revision. A newer choice or authority revision
+  invalidates it. Durable conflicts refresh current state and require a fresh
+  preview; they never silently rebase the choice.
 - An ambiguous failure keeps the exact pending operation and shows Retry.
   Dismissing the sheet clears private presentation values but preserves that
   operation. Opening the sheet again can retry it. Ordinary scheduling remains
@@ -2571,10 +2637,11 @@ Opening or paging requires a server-ordered page. This slice does not provide a
 complete offline history index. An already-loaded entry may fall back to its
 validated cached preview during a transport outage, and an eligible selection
 can be staged pending reconnection. Missing or stale authority/display cannot be
-restored. The sheet retains one page, one detail and one downsampled private
-photo (maximum 1,280 pixels on its longest side). Photo requests use the
-existing account/deletion-fenced, hash-verified resolver, never persisted URLs.
-Late or superseded image results cannot replace the requested preview.
+restored. The sheet retains one page, at most one extra current row, one detail
+and one downsampled private photo (maximum 1,280 pixels on its longest side).
+Photo requests use the existing account/deletion-fenced, hash-verified resolver,
+never persisted URLs. Late or superseded image results cannot replace the
+requested preview.
 
 The sheet retains only identity and the read-only Auth session generation, never
 a long-lived account-work lease. An idle/background sheet cannot block sign-out

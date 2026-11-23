@@ -25,8 +25,9 @@ enum SharedMediaNativeOriginalLiability {
         var reservedBytes: Int64 { get throws { try PhotoPreparationPolicy.add(entries.values.map(\.reservedBytes)) } }
     }
 
-    static func read(context: ModelContext, inventoryID: UUID, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+    static func read(context: ModelContext, inventoryID: UUID, ordinary: SharedMediaOrdinaryInspection? = nil, checkpoint: () throws -> Void = {}) throws -> Snapshot {
         try Task.checkCancellation(); try checkpoint()
+        try ordinary?.requireCurrent(context)
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let profile = try SharedMediaNativeAppEligibility.profile(inventory), revision = inventory.revision
@@ -49,10 +50,10 @@ enum SharedMediaNativeOriginalLiability {
             }
             let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == id }))
             let value = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt, inventory: inventory,
-                context: context, format: .appV2, checkpoint: checkpoint)
+                context: context, format: .appV2, ordinary: ordinary, checkpoint: checkpoint)
             switch value {
             case .completed(let request, _):
-                let entry = try completed(request, inventory: inventory, context: context, checkpoint: checkpoint)
+                let entry = try completed(request, inventory: inventory, context: context, ordinary: ordinary, checkpoint: checkpoint)
                 guard entry.assetID == id, entries.updateValue(entry, forKey: id) == nil else { throw SharedMediaStorageFailure.conflict }
             case .reserved, .held:
                 guard !required.contains(id) else { throw SharedMediaStorageFailure.conflict }
@@ -99,8 +100,9 @@ enum SharedMediaNativeOriginalLiability {
     }
 
     private static func completed(_ request: SharedMediaAcquisitionIntent, inventory: SharedMediaInventoryRecord,
-                                  context: ModelContext, checkpoint: () throws -> Void) throws -> Entry {
-        let original = try SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID,
+                                  context: ModelContext, ordinary: SharedMediaOrdinaryInspection?, checkpoint: () throws -> Void) throws -> Entry {
+        let original = try ordinary?.original(request.assetID, inventoryID: inventory.id, context: context, checkpoint: checkpoint)
+            ?? SharedMediaNativeOriginalAccounting.audit(assetID: request.assetID,
             inventoryID: inventory.id, context: context, checkpoint: checkpoint)
         let bytes = Int64(original.physicalIdentity.utf8.count)
         guard original.ownerID == request.ownerID, original.assetGeneration == request.assetGeneration,

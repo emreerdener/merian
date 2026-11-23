@@ -1,6 +1,7 @@
 import { requireServerApiKeyFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { readInitialRecoveryHttp } from "./initialRecovery.ts";
 import { readScanObservationHttp } from "./observation.ts";
+import { readCaptureCompletionHttp } from "./captureCompletion.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -98,6 +99,11 @@ Deno.serve((req: Request) =>
     // A reserved phase header must not enter ordinary legacy repair, even when
     // its body is malformed or lacks the reserved JSON marker.
     if (req.headers.has("x-merian-initial-recovery")) {
+      if (
+        req.headers.get("x-merian-initial-recovery") === "capture-completion-v1"
+      ) {
+        return await readCaptureCompletionHttp(req, user.id, supabaseAdmin);
+      }
       if (req.headers.get("x-merian-initial-recovery") === "observe-v1") {
         return await readScanObservationHttp(req, user.id, supabaseAdmin);
       }

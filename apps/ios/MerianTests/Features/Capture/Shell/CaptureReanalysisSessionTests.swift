@@ -37,6 +37,34 @@ struct CaptureReanalysisSessionTests {
         return Seed(container: seed.container, source: try fixture.source(seed), bytes: bytes)
     }
 
+    @Test(arguments: [4, 5])
+    func freshPhotoReplacementPreservesAudioOrVideoSource(sourceVersion: Int) async throws {
+        let original = try fixture.fixture.seed(version: sourceVersion)
+        let source = try fixture.source(original), bytes = try fixture.image()
+        let root = try ObservationReanalysisFileStoreTests().directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let image = try #require(UIImage(data: bytes))
+        var capture = StagedCapture()
+        capture.images = [.init(compressedData: bytes, displayData: bytes, uiImage: image,
+            original: .init(image: image, isFromGallery: true))]
+        let session = CaptureReanalysisSession(source: source, generation: UUID())
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: fixture.account(),
+            loadOriginal: { _, _, _ in
+                Issue.record("A replacement photo must not borrow audio, video or frame evidence")
+                throw MerianError.invalidResponse
+            })
+        _ = try await session.stage(capture: capture, generation: session.generation, container: original.container,
+            producer: producer, action: .submit, isCurrent: { true })
+        let plan = try #require(session.plan)
+        #expect(plan.source.snapshot == source.snapshot && plan.source.analysisID == source.analysisID)
+        for item in plan.items {
+            guard case let .photo(id, .added(saved)) = item else { Issue.record("Unexpected replacement evidence"); continue }
+            #expect(saved == bytes && !source.artifactIDs.contains(id))
+        }
+        try source.validate(container: original.container)
+        #expect(try ModelContext(original.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
     @Test func explicitSubsetPreservesMixedOrderAndNeverTakesFirstTwoOrFive() throws {
         let seed = try seed(count: 6), photos = seed.source.photos
         #expect(throws: (any Error).self) {

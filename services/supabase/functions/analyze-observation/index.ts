@@ -1,3 +1,4 @@
+import { runOwnedCompositionAnalysis } from "../_shared/analysisHistory/compositionProduction.ts";
 import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
@@ -24,15 +25,33 @@ serveGeminiEdge(
       }
       return await analyzeObservation(req, body, user.id, {
         run: async (owner, input) => {
+          const composition = input.schema_version === 5 ||
+            input.schema_version === 6;
+          const signal = composition
+            ? AbortSignal.any([req.signal, AbortSignal.timeout(110_000)])
+            : undefined;
           const work = await historyWorkerRPC(
             client,
-            "begin_owned_observation_analysis",
+            composition
+              ? "begin_owned_observation_composition_analysis"
+              : "begin_owned_observation_analysis",
             {
               p_owner: owner,
               p_input: input,
               p_ip_hash: await quotaIpHash(req),
             },
+            signal,
           );
+          if (composition) {
+            return await runOwnedCompositionAnalysis(
+              client,
+              owner,
+              input.observation_id as string,
+              input.analysis_id as string,
+              work,
+              signal,
+            );
+          }
           return await runOwnedAnalysis(
             client,
             owner,

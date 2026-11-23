@@ -19,10 +19,10 @@ struct SharedMediaNativePhotoAllocationTests {
         return .init(recipient: admission.expectedProcessorPermission, validate: {})
     }
 
-    func fixture() async throws -> (Store, SharedMediaNativeOriginalOwner, Intent.Prepared) {
+    func fixture(cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort) async throws -> (Store, SharedMediaNativeOriginalOwner, Intent.Prepared) {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(temporaryStore: true, fenceBootstrap: true)
         let p = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft,
-            pairIDs: SharedMediaNativeReceivingStagingTests().pairIDs(request),
+            pairIDs: SharedMediaNativeReceivingStagingTests().pairIDs(request), cohortFormat: cohortFormat,
             photoAdmission: .init(authorization: .init(recipient: .gemini, validate: {})))
         _ = try await owner.receiveAppPrepared(p)
         return (h, owner, p)

@@ -12,7 +12,7 @@ final class TopToolbarAppearanceTests: XCTestCase {
         )
         defer { app.terminate() }
 
-        let scansEntry = app.buttons["MainTabBar_Scans"]
+        let scansEntry = app.buttons["MainTabBar_Naturebook"]
         if scansEntry.waitForExistence(timeout: 2), scansEntry.isHittable {
             scansEntry.tap()
         }

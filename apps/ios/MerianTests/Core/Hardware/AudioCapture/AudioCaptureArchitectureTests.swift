@@ -9,7 +9,10 @@ struct AudioCaptureArchitectureTests {
     func reviewBoostLifecycleWiring() throws {
         let controls = try source("apps/ios/Merian/Features/Capture/Shell/Components/CaptureControls/CaptureControlBar.swift")
         let lifecycle = try source("apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Lifecycle.swift")
-        #expect(controls.contains("boostRecordingPreview:\n                        appSettings.boostRecordingPreviewsEnabled"))
+        #expect(controls.contains("boostRecordingPreview: appSettings.boostRecordingPreviewsEnabled"))
+        #expect(controls.contains("boostPreview: appSettings.boostRecordingPreviewsEnabled"))
+        let initial = try source("apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+InitialAudio.swift")
+        #expect(initial.contains("boostRecordingPreview: boostPreview"))
         #expect(controls.contains("audioCaptureManager.stopPlayback()"))
         #expect(lifecycle.components(separatedBy: "audioCaptureManager.stopPlayback()").count == 3)
         let boost = try source("apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioReviewBoostController.swift")
@@ -150,7 +153,14 @@ struct AudioCaptureArchitectureTests {
         let recordingModels = try source(Self.recordingModelsPath)
         let wavPolicy = try source(Self.wavPolicyPath)
 
-        #expect(lineCount(manager) <= 600)
+        // Reviewed residual: recorder orchestration remains colocated; exact
+        // original receipts and delayed retirement have their own owner.
+        #expect(lineCount(manager) <= 627)
+        let custody = try source("apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioCaptureDraftOriginalCustody.swift")
+        #expect(lineCount(custody) <= 150)
+        #expect(manager.contains("private let originalCustody: AudioCaptureDraftOriginalCustody"))
+        #expect(!manager.contains("private var originalRetirements"))
+        #expect(custody.contains("private var originalRetirements"))
         #expect(lineCount(recordingController) <= 550)
         #expect(lineCount(playbackController) <= 250)
         #expect(lineCount(recordingModels) <= 100)

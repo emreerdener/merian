@@ -1,3 +1,350 @@
+## November 21 — V74 native erasure carrier candidate
+
+The current source alias is V74. Frozen V73 compiled successfully before any
+active schema addition (`native-capture-v73-freeze37.log`); all 3,453 source and
+32 runtime fixture pins matched after completion. V74 adds
+`SharedMediaNativeErasurePageRecord` to the same SwiftData store. Its bounded
+header/page bodies are cleanup bookkeeping, never normal media access authority.
+The lightweight V73→V74 stage creates no cleanup rows and preserves opaque draft
+journal bytes. Full and recent startup plans include the new stage and a V73
+source fallback. Generic cleanup blocks on any carrier row; the 21-table source
+fingerprint excludes the carrier while checking complete schema registration.
+Full and recent V73 disk migration paths passed on iOS 26.5 in native38,
+preserving all journal fields and opaque bytes. The overall run failed a stale
+architecture expected-file list, corrected in native39. The iOS 18 migration
+matrix, erasure-owner integration, and end-to-end qualification remain pending.
+This addition does not activate Capture producers.
+
+## November 21 — V73 draft journal candidate
+
+The previous source alias was V73. V72 was frozen and compiled before the active
+schema addition. V73 uses global active model types and adds
+`SharedMediaCaptureDraftJournalRecord`, with owner/store/root identity, stable
+observation and draft generation, revision, canonical body and digest. It has no
+queue cascade. The lightweight V72→V73 stage invents no journal rows. Full and
+source-isolated recent startup plans include that stage, including a dedicated
+V72 fallback. Disk migration and recovery qualification are pending; this schema
+addition does not by itself enable Capture producers.
+
+## November 21 — unbound refund isolation correction
+
+Forward migration `20261121095704` narrows the isolation guard added by
+`20261121092320`: only UPDATE from reserved to refunded, NULL original identity
+on both sides, refund count incremented exactly once, and every other field
+unchanged except state/refund timestamp/update timestamp may continue under
+Repeatable Read or Serializable. It skips only the isolation precondition, never
+the remaining quota/identity/permit guards. Existing maintenance refunds retain
+their accounting semantics; dispatch continues to require a current statement
+snapshot. The correction follows four failures in the broad Edge suite. Focused
+regression and alias checks pass; clean replay passes. The explicit disposable
+catalog passed 221 files / 12,498 assertions and the full Edge suite passed
+4,849 tests / 1,314 steps. Actual reservation-wrapper/refund concurrency passed
+six tests / 19 steps, including ordinary reopening and private-alias denial
+(`private-refund-wrapper03.log`). Native integration and cleanup qualification
+remain open. No hosted change or activation has occurred.
+
+## November 21 — private dispatch snapshot isolation
+
+Forward migration `20261121092320` rejects Repeatable Read and Serializable at
+entry to private-dispatch locking, quota-state guarding and invocation guarding,
+before evidence classification. Existing row/advisory locks serialize current
+reads but cannot refresh an older transaction snapshot. Read Committed remains
+the supported dispatch isolation. No rollout or privilege change is included.
+
+Clean replay and the full catalog passed 221 files / 12,490 assertions. Actual
+two-connection tests establish a snapshot before admission, then verify quota
+finalization and commit deny with SQLSTATE 25000 and no permit/invocation.
+Direct invocation insertion also denies with 25000 through the earlier
+initial-analysis guard. Fresh Read Committed controls succeed after each denial.
+Duplicate and account/terminal retirement schedules verify exactly one dispatch
+or none when retirement wins. Evidence: `private-dispatch-concurrency05.log` and
+`capture-snapshot-catalog01.log` under the retained Capture artifact directory.
+
+## November 20 — V72 local capture artifact liabilities
+
+V72 was the current SwiftData schema at this checkpoint; the V73 candidate below
+supersedes its current alias. It adds `SharedMediaOrdinaryArtifactRecord` for a
+local artifact's complete plan role, media identity, registered
+allocation/reference/lease, owner, scan and generation. Request,
+stage-readiness, acceptance and retirement bytes have separate digests. Rows
+survive queue deletion; no server-prepared audio placeholder creates a local
+file liability. This is storage scaffolding, not an activated mixed-media owner.
+
+V71 was frozen and compiled successfully before the addition. The lightweight
+V71→V72 stage creates no artifact rows and does not reinterpret V70/V71 photo
+submission bytes. All forward and source-isolated startup plans include the new
+stage. Exact V71 detection has a dedicated recent plan; corruption/quarantine
+criteria are unchanged. Source guardrails pass. Disk migration and native tests
+are running and are not yet qualified.
+
+## Private capture admission and completion — November 20
+
+`20261120205233` adds the schema-4 complete-stage admission join under the
+existing ingestion owner. `20261120210630` preserves photos-only image counts
+and separate video-frame counts. `20261120212500` adds the exclusive private
+retained-evidence finalization arm; it cannot fall through to legacy
+public-media completion. `20261120213300`, `20261120213600` and `20261120214300`
+scope owner checks, introduce retained discrimination after mutable intent loss,
+and preserve later scan privacy edits while requiring valid frozen admission
+privacy.
+
+`20261120214900` adds service-only exact-plan sealed recovery independent of
+job/intent TTL. The complete source/prepared graph, order, notes and selection
+must match immutable V9 evidence. Account deletion, scan tombstones, foreign
+ownership and evidence retirement remain blocking. This read-only path grants no
+admission, storage or provider capability. Focused real-handler/disposable-SQL
+checks pass. Clean replay and the catalog through `20261120214900` passed 218
+files / 12,432 assertions. The forward `20261120222500` correction records an
+immutable `private_capture_request_sha256` on retained evidence and uses it as
+the finalizer discriminator. V9 geometry alone does not identify an ingestion
+route: direct V9 photo retention remains valid, while private-stage origin
+survives transient intent/witness cleanup. The correction passed clean replay
+and 66 focused tests / four media steps; the complete revised gate is running.
+No hosted database or rollout gates changed.
+
+## Durable prepared-audio stages and private cleanup — November 20
+
+`20261120195723_prepare_initial_capture_audio_stages.sql` adds private stage,
+object and erasure tables. All have RLS and no direct API-role access. The
+service-only action RPC retains the canonical complete plan, recipe, request
+hash, backend and exclusive preparation attempt before processing. It binds all
+actual output metadata atomically before any write authorization. Readiness
+follows trusted service byte verification, never a client assertion. Stage
+records do not create ingestion jobs or funding.
+
+Account deletion, scan tombstones and identity merge retire the stage, clear its
+complete plan and transfer opaque objects/backend to permanent cleanup
+obligations. The forward trigger repair `20261120200525` branches on the table
+before accessing table-specific row fields. No TTL retires live or adopted work.
+`20261120202921` joins the existing ordinary retention owner to the exact stage
+manifest. The last verified retained artifact records `adopted_evidence_digest`
+and retires staging atomically. Adopted replay validates the same digest without
+recreating DSP output; missing V9 audio staging fails closed.
+
+`20261120200815_integrate_capture_stage_private_erasure.sql` adds typed V4
+acquisition/settlement to the existing dispatcher and aggregate health schema2.
+Old acquisition remains History-only. Stage settlement requires the recorded
+backend and unexpired original token; pause does not invalidate prior
+settlement. Marker failure/expired claims remain observable. Only the owned
+disposable local database has received these migrations. Focused rollback tests
+pass 46 stage lifecycle and 40 typed-erasure assertions. Clean replay through
+that migration passed 217 files / 12,385 assertions.
+
+`20261120203942` adds `initial_capture_client_stage_objects` under the same
+parent, with separate client-only roles, exact plan inventory, immutable object
+identity and one-shot write/readback markers. `client_inventory_at`
+distinguishes this complete graph from the earlier audio-only helper. A separate
+exclusive preparation claim follows all client readiness; prepared DSP roles
+remain under the original server-only capability. Retirement inventories both
+child tables into the same permanent stage outbox before clearing them. New
+private helpers have no API-role grants; the two action RPCs permit only service
+role. The focused local client/adoption tests pass five mixed-media steps and 35
+catalog assertions. Clean replay and the full catalog including these successors
+remain due. Later forward migrations install the begin/finalization successors
+below; no migration enables submission.
+
+## Capture staging plan parser — November 20
+
+The forward migration `20261120194518_validate_initial_capture_staging_plan.sql`
+adds `internal.initial_capture_plan_contract(uuid,jsonb)`. This private,
+invoker-only helper validates the exact client-known plan and returns ordered
+uploads and reserved audio associations. Internal minimum-size audio
+placeholders are used only to reuse V9 shape, geometry, identity and budget
+validation; no placeholder manifest or digest escapes the helper. It creates no
+records, capabilities, ingestion jobs or funding. All API roles lack execution
+grants. Actual prepared audio must be bound and validated separately before
+admission. Twenty-six rollback-isolated catalog assertions pass on the owned
+disposable database. No hosted database was changed.
+
+## Initial photo geometry successor — November 20
+
+`20261120184235_preserve_initial_photo_preparation.sql` extends the ordinary
+initial evidence validator with nested manifest V9 and the private immutable
+`internal.initial_photo_preparation_fields(jsonb)` fingerprint helper. API roles
+receive no direct helper privilege. V7/V8 canonical bytes and limits are
+unchanged; V9 retains V8 storage/provider bounds and adds closed geometry.
+
+Reader18 is negotiated across enrollment, page/state, review/selection and undo
+readers. Old readers reject geometry-bearing baselines. The outer baseline stays
+snapshot8 with exact initial proof, ordinal1 and no predecessor. Private media
+protocol4 handles V9 using the existing role-aware receipt. Guarded replacements
+preserve existing ownership, locks, rollout gates and completion boundaries. The
+migration does not activate a writer or change funding/provider ownership.
+
+## November 20 — ordinary retained-original V8 candidate
+
+`20261120181001_prepare_ordinary_retained_original_v8.sql` extends the existing
+initial-evidence validator with nested manifest8. Source images have a 32 MiB
+per-artifact and 64 MiB cohort bound; prepared images and video frames retain
+their 5 MiB aggregate bound. V7 framing and limits remain unchanged. Existing
+ordinary evidence object rows already admit 32 MiB; no new table, permission or
+execution owner is introduced.
+
+Outer initial result snapshot8, null predecessor, exact completion proof,
+retirement and accepted-result recovery remain unchanged. Origin/proof
+constraints, baseline validation and deleted-result fences recognize both
+initial manifest versions. Reader17 dual-reads V7/V8; reader16 remains V7-only.
+Media SQL protocol4 requires exact sealed membership and returns internal
+receipt3 with the verified artifact role for V8. Older protocols cannot resolve
+V8. Public delivery strips internal role/object fields and rechecks the receipt
+after signing. The migration preserves existing gates and privileges; source
+qualification and live ordinary submission integration are still in progress.
+
+## November 19 — V71 ordinary submission binding storage candidate
+
+Current source schema V71 adds `SharedMediaOrdinarySubmissionRecord`. It retains
+one exact, versioned submission wrapper around the existing canonical photo
+cohort and ordered hold membership independently of queue/job cleanup. The
+wrapper binds each hold/request digest and per-source preparation digest; UUID
+sorting never changes media order. It does not define a second observation DTO
+or establish mixed-media support.
+
+Unique account/scan and account/scan/generation keys prevent representing a
+second submission for the same logical observation. Admission must explicitly
+reject unequal existing identity and bytes before insertion; SwiftData unique
+upsert behavior is not immutable replay enforcement. The generation is also the
+record ID. Inventory, account, queue job/event and writer epoch are lookup
+identities, not authority.
+
+The typed read-only receipt correlates that exact body with the complete V70
+member set and its per-source acceptance digests. It validates parent scalar
+mirrors, canonical bytes, same-context membership and the aggregate metadata
+limit. Partial/missing/extra holds, mismatched generations and nil/unknown
+terminal bodies are rejected. A descriptive exact replay still requires the
+registered owner to prove queue postconditions and current graph/file facts.
+
+Payload, acceptance and retirement fields support a separately qualified
+lifecycle. Nullable request bytes are valid only after terminal erasure, once
+all upload, finalization, recovery and hold dependencies end. The minimal
+terminal identity/digests must reject delayed resurrection without requiring the
+erased private body. Account and scan deletion must explicitly cover this record
+and govern retained terminal fields. No typed acceptance or erasure writer is
+activated by this storage change.
+
+V70 was frozen, independently checked against the outgoing stored shapes and
+compiled before the active-model addition. The lightweight V70→V71 stage
+preserves existing holds and queue/server evidence without inferring submission
+records or rewriting requests. Every forward plan appends the stage; a V70
+source-isolated startup plan and checksum retry preserve existing recovery
+classification. The new record participates in liability and bootstrap/purge
+inventory. Existing owners reject even a standalone binding until correlated
+accounting and lifecycle interpretation are qualified.
+
+Disk-backed migration/reopen, startup recovery and body/membership validation
+are the required local checks. Passing them does not qualify the remaining
+atomic binding + queue/job/event + holds + counter save, original read/upload,
+release, History completion or end-to-end selection flow.
+
+The subsequent explicit `auditAcceptedOrdinary` reader validates full accepted
+V71/V70 membership and current original/lease facts before checking P1 live
+pairs plus accepted holds against the saved counter. It permits an original held
+without a surviving P1 reference. This adds no stored shape or migration;
+default P1 audits and generic lifecycle barriers remain closed. Queue
+postconditions, physical inspection and final zero-count retirement require
+their separate owners and qualification.
+
+## November 16 — V70 ordinary original transfer storage candidate
+
+The V70 storage candidate added `SharedMediaOrdinaryTransferRecord` as a
+separate ledger under the existing registered shared-media owner. It does not
+reuse acquisition receipts, native receiving intents or consumer cohorts. The
+row retains inventory/account identity, source lookup identities, recipient scan
+and frozen submission generation, writer epoch, phase/revision and exact
+request, copy-completion, queue-acceptance and retirement envelopes with hashes.
+These are storage fields, not file or cleanup capabilities. Exact source
+generation/revision, immutable destination identity, byte liability and
+writer-termination evidence belong to the typed envelopes.
+
+A subsequent November 16 History/Hardening review selected owner-retained
+originals with opaque durable queue holds instead of a physical queue copy. The
+active candidate's typed lifecycle and vocabulary are being reconciled to that
+direction before activation; the fields described here are not a qualified copy
+protocol. See the
+[capture plan](../product/capture-review-plan.md#follow-up--november-16-2026-owner-retained-originals).
+
+V69 was frozen and compiled before active-model edits, and an independent
+read-only review found no stored-shape or relationship discrepancy. The
+lightweight V69→V70 stage creates no transfer rows and changes no saved request,
+initial admission/completion sidecar or accepted evidence. All forward plans
+append the stage; startup includes a source-isolated V69 plan and checksum
+retry.
+
+Transfer rows participate in liability and bootstrap/purge inventory. Existing
+owners reject populated transfer storage until its typed lifecycle is integrated
+and validated; original accounting cannot ignore a transfer against the asset.
+This checkpoint does not enable acquisition, copying, queue admission, manual
+selection or runtime rollout. Disk-backed migration/reopen and startup tests are
+required independently of the schema compile.
+
+## November 14 — prepared composition ownership and allocation
+
+Local migrations `20261114212929` and `20261114214232` reuse source bindings,
+occupancy and evidence-object/erasure stores. New private composition cohort and
+allocation tables retain the complete ordered artifact inventory, with exact
+binding foreign keys, RLS, revoked direct API access and immutable-row guards.
+Owner/parent/source/child locks and tombstones fence every writer.
+Parent/account deletion remains authoritative. Older source writers count the
+new namespace and hold retained V5 predecessors until the exact completion proof
+permits source release.
+
+Reader14 service-only source reservation/recovery and allocation/readiness RPCs
+are allowlisted individually. All new admission/evidence/runtime flags default
+false. The source reader's two SQL envelopes are schema3 over input schema5;
+reader11/12 and saved request bytes remain intact. Private allocation guards run
+before the shared upload-receipt guard and reject unallocated/changed objects.
+One fixed expiry applies to the whole inventory. Older single-object expiry
+cannot split it. The dedicated expiry RPC requires the existing current cleanup
+dispatch and retains allocation identity plus permanent erasure obligations.
+
+No hosted migration, rollout change or mixed runtime consumer is installed.
+Local migration `20261114221256` adds private transaction-local whole-cohort
+readiness and canonical execution-profile derivation. Readiness locks the
+owner/parent/source/child, cohort, allocation and ordered objects, rejects
+partial or expired evidence, and uses the existing closed composition receipt.
+Neither helper is callable by API roles or grants funding, dispatch or release
+authority. Local migration `20261114214815` adds the third cleanup stage and
+correlated V3 receipt/health support while retaining V2 readback. Local
+migrations `20261114223045`, `20261114223231` and `20261114223656` add
+composition admission, settlement, result-6 readers and successful source
+release. Completion also writes a private random selection-operation binding and
+invokes the existing selection owner atomically. Immutable receipt proof permits
+later intentional selections without invalidating completion replay. Native
+delivery is wired locally; candidate validation and coordinated deployment
+remain required before activation. See the
+[composition wire contract](05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14).
+
+## November 14 — completed original-media resolver
+
+Local migration `20261114194625_resolve_completed_history_media.sql` adds
+`public.resolve_owned_observation_media(uuid,uuid,uuid,uuid,integer)` for the
+verified Edge adapter only. It uses an empty search path, a 10-second statement
+timeout, the existing owner/deletion locks and reader gates, exact completed
+manifest membership and receipt metadata comparison. PUBLIC, anonymous and
+authenticated callers have no execution grant; service_role is explicitly
+registered in the privileged-routine inventory. The migration changes no media,
+rollout flags or existing read contracts and notifies PostgREST to reload
+schema. See the
+[API contract](05-api-contracts.md#prepared-completed-media-resolution--november-14).
+This local preparation is not deployment or completed mixed-media integration.
+
+## November 14 — private composition metadata contract
+
+The local `20261114192749_prepare_composition_source_contract.sql` migration
+adds three private, stable invoker codecs for schema-5 ordered reanalysis
+metadata. `observation_composition_source_contract` is the single SQL owner of
+validation, the versioned fingerprint and the complete node-indexed artifact
+inventory; its two projections expose only fingerprint or inventory internally.
+The existing retained-video metadata validator is reused without saving or
+executing a synthetic video request. Cross-node identity collisions and
+aggregate media/text limits remain composition-wide.
+
+All three functions use an empty search path and revoke execution from PUBLIC,
+anon, authenticated and service_role. There are no tables, public RPCs, grants,
+rollout changes or installed runtime consumers in this migration. It does not
+implement source reservation, upload, execution or cleanup. See the
+[prepared composition contract](05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14)
+for the native/Edge boundary and outstanding integration.
+
 ## November 9 — prepared original recovery service reads
 
 The local `20261109154413_prepare_initial_completion_recovery_reads.sql`
@@ -42,7 +389,7 @@ restart and broader S0/RUX/cumulative acceptance remain open.
 
 ## November 4 — V69 original admission and completion storage candidate
 
-Current source schema V69 adds four nullable fields to the existing
+The V69 checkpoint added four nullable fields to the existing
 `SharedMediaReceivingIntentRecord`: `initialAdmissionData`,
 `initialAdmissionSHA256`, `initialCompletionData` and `initialCompletionSHA256`.
 They reserve separate original server facts; `resultData` retains its existing
@@ -3294,6 +3641,89 @@ detachment applies the same unlink-and-complete transition to any interrupted
 individual deletion. Thus a completed ledger cannot be used by a stale device to
 recreate a deliberately deleted scan.
 
+`internal.capture_source_admissions` is a private, no-FK owner/scan admission
+witness for complete staged capture observations. It retains canonical request,
+asset/session proofs and checksums independently of mutable ingestion rows.
+Exact retry reuses that document; source omission, alteration and legacy
+in-place upgrade fail closed. Separate `capture_source_admission_stops` rows
+make terminal completion/failure and non-resumable contraction irreversible
+without reversing child/retirement locks. Scan/account retirement and settled
+merge erase the recovery payload while preserving the minimal no-reuse marker.
+Neither table grants direct API/service-role access. The existing service-only
+begin RPC owns creation; insert/update triggers guard the public job/intent
+projections. See the
+[admission and erasure contract](16-scan-ingestion-reliability-and-recovery.md#november-20--durable-capture-source-admission).
+
+`internal.capture_object_authorities` separately retains exact newly signed
+staging keys, backend digest, owner/scan/asset/session binding, maximum issued
+PUT expiry, permanent retirement and retry/absence observations. It has RLS and
+no direct application or service-role table grants. Service-only registration,
+claim, observation and aggregate health RPCs own access. It intentionally has no
+cascade foreign keys or completed/GC transition: a negative HEAD and an expired
+lease do not prove that an earlier PUT cannot finish later. The retained private
+identifiers serve only unresolved exact-object erasure and permanent no-rebind
+fencing; no credentials, signed URLs or source content are stored.
+
+Capability registration takes a per-owner capture-account advisory lock before
+its owner row and sorted existing scan locks. Account-deletion intake takes the
+same advisory lock before its job upsert. This linearizes issuance versus
+retirement without reversing the existing account-cleanup job/owner lock order.
+Scan tombstone insertion, account-job insertion and owner deletion retire keys;
+retirement remains discoverable after the underlying rows disappear. This
+registry's account-merge exception is restricted to the existing private
+schema-aware reparent boundary. An ungranted transaction marker binds the exact
+old and new owners; only `user_id` and its update timestamp may change. The
+wrapper retires the moved old-owner capability before returning and removes the
+marker. Reclassifying the source, detaching a registered key, or rebinding its
+scan/asset/session is rejected. Merge preserves metadata, not an old owner's
+permission to upload or reuse a key. The registry covers new staging issuance
+only; promotion/publication objects, legacy unknown capabilities and draft
+abandonment remain unqualified.
+
+The prepared `internal.capture_promotion_operations` authority reserves a
+separate, immutable destination for each exact backend/source binding. The
+closed binding includes operation, owner, scan, asset, upload session,
+source/destination, MIME, length and SHA-256. Service-only registration rechecks
+the staged capture asset and unretired source capability under account -> user
+-> scan -> asset -> source locks. Every subsequent action repeats those checks.
+Destination-write authorization is consumed once in the database; lease expiry,
+an identical registration retry, or a lost response never resets it. The
+registry has RLS, no direct API/service grants, no cascade foreign keys and no
+completed/GC state.
+
+Existing source-retirement updates propagate to matching promotion destinations
+in the same transaction, including account intake, scan tombstones and merge.
+Exact target abandonment also remains possible after asset/owner deletion and
+does not retire the independent staging source. Direct asset deletion or a
+status change alone does not retire the source or destination: future
+draft-clear and failure owners must explicitly abandon the target.
+Missing/non-staged assets already prevent further I/O authorization. Destination
+claims and observations are separate from staging cleanup; point-in-time absence
+schedules another check and retains the obligation for a late write. These are
+prepared database RPCs, not an installed signer, physical destination reaper,
+finalizer or publication path. See the
+[promotion integration contract](16-scan-ingestion-reliability-and-recovery.md#prepared-capture-promotion-byte-transfer).
+
+The prepared `internal.capture_promotion_cohorts` registry adds independent
+immutable logical-request identity and complete ordered storage membership to
+those operations. Its service-only registration atomically seals the exact
+job/intent/checksums and asset roles/orders before any write. No cascading
+identity foreign key can erase that seal. Fresh authorization checks all members
+under the common owner/scan fence and all source locks; peer drift, job/intent
+loss and replacement fail closed without resetting consumed writes. It does not
+yet validate typed logical slots or bind destinations through finalization. See
+[the cohort contract](16-scan-ingestion-reliability-and-recovery.md#november-20--prepared-immutable-promotion-cohorts)
+for the projection-writer inventory and recovery boundary.
+
+The retained verification successor adds monotonic destination observation time
+and origin to promotion operations. Its separate service-only recovery and
+receipt RPCs use the saved exact operation/cohort after mutable source or job
+loss, while retirement still denies new observations. A narrow registration
+wrapper resolves server job identity without direct ledger SELECT grants. See
+[retained destination verification](16-scan-ingestion-reliability-and-recovery.md#november-20--retained-destination-verification)
+for the exact authority and receipt limits; no finalizer or original release is
+installed by these RPCs.
+
 `complete_scan_ingestion_finalization(...)` is the canonical completion
 boundary. It locks the ledger and scan, verifies that the submitted dispositions
 belong to the claimed object-key manifest, permits deletion only for claimed
@@ -6490,18 +6920,18 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current source schema is `MerianSchemaV69`; see the original-admission
-storage candidate and qualification limits above. V68 added queue presentation
-storage. V67 added nil-default allocation columns through lightweight V66→V67;
-these remain closed to existing owners until the dedicated allocation lifecycle
-is qualified. V66 added optional release-request columns through lightweight
-V65→V66. V65 added an empty receiving intent table through lightweight V64→V65.
-Canonical codec and reservation validation are separate from typed
-staging/receiving and Capture acceptance; the schema does not activate those
-paths. V64 added an empty acquisition receipt table through lightweight V63→V64.
-V63 added explicit native consumer authority and pending/retained accounting
-through lightweight V62→V63. All existing rows retain their legacy semantics.
-V62 added `SharedMediaDerivativePairRecord` and
+The current source schema is `MerianSchemaV72`; see the current checkpoint at
+the top of this document for artifact storage and qualification limits. V68
+added queue presentation storage. V67 added nil-default allocation columns
+through lightweight V66→V67; these remain closed to existing owners until the
+dedicated allocation lifecycle is qualified. V66 added optional release-request
+columns through lightweight V65→V66. V65 added an empty receiving intent table
+through lightweight V64→V65. Canonical codec and reservation validation are
+separate from typed staging/receiving and Capture acceptance; the schema does
+not activate those paths. V64 added an empty acquisition receipt table through
+lightweight V63→V64. V63 added explicit native consumer authority and
+pending/retained accounting through lightweight V62→V63. All existing rows
+retain their legacy semantics. V62 added `SharedMediaDerivativePairRecord` and
 `SharedMediaDerivativeWorkRecord` through lightweight V61→V62. Pair rows bind an
 exact original, revision and AI/display membership; work rows retain prepared
 identities, writer state and explicit retirement facts. Existing data is never
@@ -8340,6 +8770,17 @@ estimates, retained bound objects and unknown-age counts without mutating state.
 It exposes no row or request identity. Both scheduler enablement and cron
 registration remain absent until separately authorized.
 
+The locally prepared `20261114214815` successor adds
+`retire_expired_observation_composition_evidence_for_dispatch(UUID)` (zero to
+eight objects) under the same current-dispatch guard. Its worker emits strict V3
+receipts with seven counters; the scheduler accepts correlated V2 or V3 and
+retains the generation separately. V2 compatibility does not prove composition
+cleanup. Composition allocations are excluded from legacy orphan discovery.
+Health adds the composition retirement partition and last receipt generation,
+without exposing identities. The coordinated cutover requires a paused,
+positively drained worker before SQL/Edge replacement; see the
+[release procedure](06-supabase-deployment-runbook.md#prepared-mixed-media-cleanup-cutover).
+
 ### V58 qualified queued reanalysis storage
 
 V58 adds `OfflineQueuedScan.workKindRaw` (default `ordinary`) and nullable
@@ -10173,3 +10614,51 @@ across calls or deferred events. `initial_qualified_codecs.sql` compares both
 context and direct entry points with independent historical oracles, including
 expected rejection and privilege checks. The migration is local preparation;
 complete candidate qualification and hosted deployment remain separate.
+
+## Accepted private capture finalization recovery
+
+`20261121002834` prevents ordinary job/intent pruning from deleting an accepted,
+unsealed, nonretired initial result's original operational inputs. Its BEFORE
+DELETE trigger precedes terminal erasure and skips only protected rows. Explicit
+terminal retirement, scan tombstones and supported account cleanup preserve
+their existing authority. The guard acquires no reverse owner/evidence locks;
+accepted binding and pruning serialize on the original job row.
+
+`20261121003715` adds private scheduling leases, keyed by retained evidence with
+cascading deletion, and service-only `claim_private_capture_finalizations`.
+Claims preserve job identity, provider attempts and funding. Owner/scan fences,
+immutable private origin/witness/intent, accepted-result digest and ready
+retention must match. Invalid candidates are delayed without retirement. A
+separate replay-worker branch finishes the saved result using the existing
+entitlement finalizer; it never dispatches inference. Exact sealed recovery runs
+first. These prepared migrations do not activate the initial-evidence rollout.
+
+`20261121004841` fences the actual owned scan INSERT and private completion
+against account-deletion intake, rather than relying on an earlier recovery
+read. The shared advisory try-lock avoids reverse waits when callers already
+hold owner/job locks. A retiring account rejects inserts, including conflict
+no-op upserts; null-owner scientific retention is unchanged.
+
+## Private Capture primary dispatch fence — November 21 candidate
+
+The local `20261121083202` candidate records one primary permit per logical
+Capture scan in `internal.private_capture_primary_dispatch`, in the same
+transaction as quota commitment and invocation insertion. Exact retained V9
+evidence, ready artifacts, original job/intent/source admission, assignment,
+provenance and funding identity must agree. The receipt uses the real
+transaction identity, not a caller-set flag. Generic quota commitment and
+invocation inserts must present that exact fresh receipt; post-permit failures
+cannot reset funding.
+
+The receipt is parented only to retained evidence, so invocation/quota pruning
+cannot reopen dispatch. Scan tombstones and independently retained source stops
+or retired admissions deny dispatch after evidence/account erasure. Existing
+evidence receives immutable fence version 0 and remains held; only newly
+retained evidence defaults to version 1. No unused-permit backfill is inferred.
+
+The lock order is account retirement, owner, scan, evidence, job/intent/source
+admission, then reservation. Generic quota transitions use a nonblocking scan
+lock because they already hold the reservation. Source admission refuses an
+already committed ordinary attempt for either original or request scan identity.
+Catalog, race and full-surface qualification are in progress; this migration
+does not activate or deploy private Capture.

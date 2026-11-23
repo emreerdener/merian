@@ -3,7 +3,7 @@ import Foundation
 // Uses the shared MerianError taxonomy from Core/Errors.
 
 // BEGIN GENERATED: Identify wire DTOs
-// Generated from services/supabase/functions/_shared/identify/contract.ts.
+// Generated from identify/contract.ts and identify/initialEvidenceEnvelopeV1.ts.
 // Do not edit this block by hand; run make generate-edge-dto-contract.
 
 private struct IdentifyWireCodingKey: CodingKey {
@@ -69,11 +69,13 @@ struct EdgeResponseWrapper: Codable {
     let success: Bool?
     let data: EdgeResponse
     let entitlement: ScanEntitlementMetadataDTO?
+    let initialEvidence: InitialEvidenceCompletionDTO?
 
     enum CodingKeys: String, CodingKey {
         case success
         case data
         case entitlement
+        case initialEvidence = "initial_evidence"
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +83,8 @@ struct EdgeResponseWrapper: Codable {
         success = try container.decodeIfPresent(Bool.self, forKey: .success)
         data = try container.decode(EdgeResponse.self, forKey: .data)
         entitlement = try container.decodeIfPresent(ScanEntitlementMetadataDTO.self, forKey: .entitlement)
+        initialEvidence = container.contains(.initialEvidence)
+            ? try container.decode(InitialEvidenceCompletionDTO.self, forKey: .initialEvidence) : nil
     }
 }
 
@@ -134,6 +138,51 @@ struct EntitlementSnapshotDTO: Codable {
         scansAvailableToStart = try container.decode(Int.self, forKey: .scansAvailableToStart)
         inFlightCount = try container.decode(Int.self, forKey: .inFlightCount)
         entitlementVersion = try container.decode(Int.self, forKey: .entitlementVersion)
+    }
+}
+
+struct InitialEvidenceCompletionDTO: Codable {
+    let schemaVersion: Int
+    let ownerID: String
+    let scanID: String
+    let generation: String
+    let evidenceDigest: String
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case ownerID = "owner_id"
+        case scanID = "scan_id"
+        case generation
+        case evidenceDigest = "evidence_digest"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["schema_version", "owner_id", "scan_id", "generation", "evidence_digest"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        ownerID = try container.decode(String.self, forKey: .ownerID)
+        scanID = try container.decode(String.self, forKey: .scanID)
+        generation = try container.decode(String.self, forKey: .generation)
+        evidenceDigest = try container.decode(String.self, forKey: .evidenceDigest)
+        guard schemaVersion >= 1 && schemaVersion <= 1 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard ownerID.utf16.count >= 36 && ownerID.utf16.count <= 36 && ownerID.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", options: .regularExpression) == (ownerID.startIndex..<ownerID.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard scanID.utf16.count >= 36 && scanID.utf16.count <= 36 && scanID.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", options: .regularExpression) == (scanID.startIndex..<scanID.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard generation.utf16.count >= 36 && generation.utf16.count <= 36 && generation.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", options: .regularExpression) == (generation.startIndex..<generation.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard evidenceDigest.utf16.count >= 64 && evidenceDigest.utf16.count <= 64 && evidenceDigest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) == (evidenceDigest.startIndex..<evidenceDigest.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
     }
 }
 

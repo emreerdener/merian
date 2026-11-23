@@ -68,6 +68,36 @@ struct ObservationSourceReservationTransport {
         return reply
     }
 
+    /// Reader14 composition is a distinct typed admission path; never retries through older readers.
+    func reserve(_ candidate: CompositionSourceReservationRequest, ownerID: UUID,
+                 validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
+                 validateResponse: @escaping @MainActor @Sendable () throws -> Void) async throws -> CompositionSourceReservationReply {
+        try Task.checkCancellation()
+        let url = try EdgeFunctionRoutePolicy.endpointURL(baseURL: baseURL, function: "reserve-observation-analysis-source")
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        request.httpMethod = "POST"; request.httpBody = candidate.body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("3", forHTTPHeaderField: "X-Merian-Entitlement-Protocol")
+        // Direct single attempt: no generic executor, Auth refresh, route retry or idempotency replay.
+        let result = try await dispatcher.performSourceReservation(.init(request: request, body: candidate.body,
+            onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: ownerID, validateAttempt: validateAttempt))
+        guard let response = result.response as? HTTPURLResponse else { throw MerianError.invalidResponse }
+        if response.statusCode == 409, response.mimeType?.lowercased() == "application/json",
+           Self.isExactConflict(result.data) {
+            try await validateResponse()
+            throw ObservationCompositionSourceReservationConflict(request: candidate, ownerID: ownerID)
+        }
+        guard response.statusCode == 200 else {
+            throw MerianError.httpError(statusCode: response.statusCode, message: "analysis_history_unavailable")
+        }
+        guard response.mimeType?.lowercased() == "application/json" else { throw MerianError.invalidResponse }
+        let reply = try CompositionSourceReservationReply(data: result.data, identity: candidate.identity, ownerID: ownerID)
+        // A known answer survives dispatch cancellation only under the caller's exact settlement scope.
+        try await validateResponse()
+        return reply
+    }
+
     private static func isExactConflict(_ data: Data) -> Bool {
         guard data.count <= ObservationSourceReservationReply.maximumBytes,
               let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -90,5 +120,10 @@ struct ObservationSourceReservationConflict: Error, Equatable, Sendable {
 /// A definite video conflict retains the exact saved candidate and original owner.
 struct ObservationVideoSourceReservationConflict: Error, Equatable, Sendable { // swiftlint:disable:this type_name
     let request: ObservationVideoSourceReservationRequest
+    let ownerID: UUID
+}
+
+struct ObservationCompositionSourceReservationConflict: Error, Equatable, Sendable { // swiftlint:disable:this type_name
+    let request: CompositionSourceReservationRequest
     let ownerID: UUID
 }

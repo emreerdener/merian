@@ -52,7 +52,7 @@ enum ObservationHistoryEnrollmentIntent {
         return value
     }
 
-    /// Hash exact validated V3 transport bytes, with a fixed domain separator.
+    /// Hash exact validated original-result transport bytes, with a fixed domain separator.
     static func baselineDigest(_ bytes: Data) -> String {
         SHA256.hash(data: Data("merian.observation-history.enrollment-baseline.v1\n".utf8) + bytes)
             .map { String(format: "%02x", $0) }.joined()
@@ -109,10 +109,11 @@ enum ObservationHistoryEnrollmentIntent {
               try restore(job, observationID: receipt.observationID, ownerID: receipt.ownerID) == receipt else {
             throw IntegrityError.invalidIntent
         }
-        guard result.version == 3, result.analysisID == enrollment.baselineAnalysisID,
+        guard [3, 8].contains(result.version), result.analysisID == enrollment.baselineAnalysisID,
               try context.fetchOfflineJob(id: baselineJobID(receipt.observationID.uuidString)) == nil else { throw IntegrityError.invalidIntent }
         let checked = try ObservationHistoryPage.snapshot(result.bytes, observationID: receipt.observationID.uuidString.lowercased(), ordinal: 1)
-        guard checked.version == 3, checked.analysisID == enrollment.baselineAnalysisID else { throw IntegrityError.invalidIntent }
+        guard checked.version == result.version, checked.analysisID == enrollment.baselineAnalysisID,
+              checked.initialEvidence.map({ $0.ownerID == receipt.ownerID }) ?? true else { throw IntegrityError.invalidIntent }
         let association = BaselineAssociation(version: 1, observationID: receipt.observationID, ownerID: receipt.ownerID,
             intentID: receipt.intentID, baselineAnalysisID: enrollment.baselineAnalysisID, snapshotSHA256: baselineDigest(result.bytes), provenance: nil)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]

@@ -309,17 +309,18 @@ owner without changing their rendering or interaction contracts:
   shared view contains no notification-manager or app-container lookup.
 
 `CoreUIArchitectureTests` prevents those retired Core paths from returning,
-requires every production Core UI Swift file to remain at or below 600 lines,
-rejects direct live-process resolution outside `Services`, and pins every
-current lookup to its explicit image-loading, share-presentation, or milestone
-adapter owner. It also freezes the skeleton and presenter declaration owners,
-the retired Utilities paths, removal of the unused shimmer API, and the share
-presenter's bounded UIKit contract. The near-limit `AudioPlaybackCarouselPage`
-remains cohesive because its player, observer, replacement, boost, seek, and
-teardown state must share one private mounted-view lifetime. The architecture
-test explicitly requires every `@State` declaration and lifecycle helper to
-remain private; do not split that state merely to reduce the line count by
-widening it to module scope.
+requires production Core UI Swift files to remain within the canonical
+600-physical-line limit or their explicitly reviewed sealed-owner ceiling in
+`scripts/config/ios-source-size-policy.json`, rejects direct live-process
+resolution outside `Services`, and pins every current lookup to its explicit
+image-loading, share-presentation, or milestone adapter owner. It also freezes
+the skeleton and presenter declaration owners, the retired Utilities paths,
+removal of the unused shimmer API, and the share presenter's bounded UIKit
+contract. The near-limit `AudioPlaybackCarouselPage` remains cohesive because
+its player, observer, replacement, boost, seek, and teardown state must share
+one private mounted-view lifetime. The architecture test explicitly requires
+every `@State` declaration and lifecycle helper to remain private; do not split
+that state merely to reduce the line count by widening it to module scope.
 
 ## Safe collection access
 

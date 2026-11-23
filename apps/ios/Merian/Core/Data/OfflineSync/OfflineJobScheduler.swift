@@ -11,6 +11,9 @@ final class OfflineJobScheduler {
     struct DrainOperations {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncReanalysisAdmissions: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var recoverCaptureExecution: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var recoverCaptureFunding: @MainActor (OfflineQueueManager) async -> Void = { _ in }
+        var recoverCaptureHistory: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncReanalyses: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncAnalysisReviews: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
@@ -29,6 +32,9 @@ final class OfflineJobScheduler {
                 }
             },
             syncReanalysisAdmissions: { $0.requestReanalysisAdmissionRecovery() },
+            recoverCaptureExecution: { $0.captureExecutionRecovery?() },
+            recoverCaptureFunding: { await $0.captureFundingRecovery?() },
+            recoverCaptureHistory: { $0.captureHistoryRecovery?() },
             syncReanalyses: { $0.requestReanalysisExecutionRecovery() },
             syncAnalysisReviews: { $0.requestAnalysisReviewRecovery() },
             syncPublications: { await $0.syncObservationPublications() },
@@ -81,6 +87,8 @@ final class OfflineJobScheduler {
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
         drainOperations.syncReanalysisAdmissions(manager)
+        drainOperations.recoverCaptureHistory(manager)
+        await drainOperations.recoverCaptureFunding(manager)
         guard manager.isOnline,
               !manager.isCurrentNetworkConstrained else {
             cancelScheduledWake(using: manager)
@@ -91,6 +99,7 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
+        drainOperations.recoverCaptureExecution(manager)
         drainOperations.syncReanalyses(manager)
         drainOperations.syncAnalysisReviews(manager)
         await drainOperations.syncLibraryDetails(manager)

@@ -41,6 +41,44 @@ final class SharedMediaNativeAppOriginalOperations {
             facts: try SharedMediaNativeAppMetadataFacts.capture(c, profile: authority.profile), io: io,
             binding: binding, files: files, availableBytes: availableBytes, boundary: boundary)
     }
+    /// Read-only preparation. No liability or queue acceptance is created here;
+    /// the eventual transaction must revalidate these exact facts after file I/O.
+    func describeOrdinaryHold(_ source: PhotoOriginalReference, id: UUID,
+                              recipient: SharedMediaOrdinaryHoldRequest.Recipient) throws -> SharedMediaOrdinaryHoldRequest {
+        try facts.requireMutable(source.packageID); try validate()
+        let c = fresh(), rows = try ready(c, source), original = try audit(c, source.assetID)
+        _ = try Rows.reference(c, source: source, live: true)
+        let (acquisition, completion) = try rows.completed()
+        try SharedMediaNativeReleaseStageIdentity.requireFresh([id], inventoryID: facts.profile.inventoryID, context: c)
+        return try .init(id: id, profile: facts.profile, writerEpoch: authority.writerEpoch,
+            source: source, acquisition: acquisition, completion: completion, recipient: recipient,
+            inventoryRevision: header.inventory.revision, sourcePackageRevision: rows.package.revision,
+            sourceMembershipRevision: rows.member.revision, liveCount: original.liveCount, countRevision: original.countRevision)
+    }
+    /// Compare the whole submission with the current ready graph in one owner
+    /// operation. This does not freeze the draft or create any queue liability.
+    func describeOrdinaryPhotoHolds(submission: SharedMediaNativePreparationBlob, holdIDs: [UUID],
+                                    scanID: UUID, submissionGeneration: UUID, eventID: UUID) throws -> SharedMediaOrdinaryPhotoHoldBinding {
+        try validate(); try submission.validate()
+        let frozen = try SharedMediaNativeFrozenCohort.decode(submission.bytes)
+        guard holdIDs.count == frozen.entries.count, Set(holdIDs).count == holdIDs.count else {
+            throw SharedMediaStorageFailure.conflict
+        }
+        try facts.requireMutable(frozen.packageID)
+        let c = fresh(), first = try SharedMediaNativeDerivativeIntent.decode(frozen.entries[0].intent.bytes)
+        let rows = try ready(c, first.preparation.original.reference)
+        _ = try SharedMediaNativeReadyPhotoCohort.read(submission, package: rows.package,
+            member: rows.member, inventory: rows.inventory, context: c)
+        let requests = try zip(frozen.entries, holdIDs).map { entry, id in
+            let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes)
+            return try describeOrdinaryHold(intent.preparation.original.reference, id: id,
+                recipient: .init(scanID: scanID, submissionGeneration: submissionGeneration, eventID: eventID,
+                    observationSHA256: submission.sha256, preparationSHA256: entry.intent.sha256))
+        }
+        let result = try SharedMediaOrdinaryPhotoHoldBinding(holds: .init(requests), submission: submission)
+        try validate()
+        return result
+    }
     func prepareShare(_ source: PhotoOriginalReference, packageID: UUID, generation: UUID) throws -> SharedMediaNativeAppOriginalRequest {
         try facts.requireMutable(source.packageID); try facts.requireNoIntent(packageID)
         try validate()

@@ -22,6 +22,10 @@ struct ObservationAnalysisReceipt: Sendable, Equatable {
         try decode(data, observationID: videoRequest.observationID, analysisID: videoRequest.analysisID)
     }
 
+    static func decode(_ data: Data, compositionRequest: ObservationCompositionReanalysisRequest) throws -> Self {
+        try decode(data, observationID: compositionRequest.observationID, analysisID: compositionRequest.analysisID)
+    }
+
     private static func decode(_ data: Data, observationID: UUID, analysisID: UUID) throws -> Self {
         guard data.count <= 4096,
               let row = try JSONSerialization.jsonObject(with: data) as? [String: Any],

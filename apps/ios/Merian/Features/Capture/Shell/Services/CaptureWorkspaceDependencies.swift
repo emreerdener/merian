@@ -109,13 +109,33 @@ struct CaptureWorkspaceDependencies {
             fileURL: request.fileURL,
             isPro: request.isPro
         )
-        let focusRegion = await ImageFocusRegionDetector.detect(in: prepared.inferenceData)
+        // Default review framing is square even when an imported item is never opened.
+        // Keep the uncropped preview as the optional editor's source.
+        let square = try await DetachedWork.value(priority: .userInitiated, category: .imagePreparation) {
+            guard let aiImage = ImageDownsampler.downsample(data: prepared.inferenceData,
+                    maxSize: CGFloat(prepared.metrics.inferenceMaxDimension)),
+                  let displayImage = ImageDownsampler.downsample(data: prepared.displayData,
+                    maxSize: CGFloat(prepared.metrics.displayMaxDimension)),
+                  let aiCrop = ImageCropProcessor.squareCrop(aiImage, verticalCenterFraction: 0.5),
+                  let displayCrop = ImageCropProcessor.squareCrop(displayImage, verticalCenterFraction: 0.5),
+                  let ai = ImageCropProcessor.encode(aiCrop),
+                  let display = ImageCropProcessor.encode(displayCrop) else { throw MediaPreparationError.encodingFailed }
+            let metrics = MediaPreparationMetrics(sourceFileByteCount: prepared.metrics.sourceFileByteCount,
+                inferenceByteCount: ai.count, displayByteCount: display.count,
+                inferencePixelWidth: aiCrop.width, inferencePixelHeight: aiCrop.height,
+                displayPixelWidth: displayCrop.width, displayPixelHeight: displayCrop.height,
+                inferenceMaxDimension: prepared.metrics.inferenceMaxDimension,
+                displayMaxDimension: prepared.metrics.displayMaxDimension)
+            guard metrics.isWithinImageBudgets else { throw MediaPreparationError.budgetExceeded(metrics) }
+            return (ai, display, metrics)
+        }
+        let focusRegion = await ImageFocusRegionDetector.detect(in: square.0)
         return PreparedStagedImage(
-            compressedData: prepared.inferenceData,
-            displayData: prepared.displayData,
+            compressedData: square.0,
+            displayData: square.1,
             historicalContext: request.historicalContext,
             previewCGImage: SendableCGImage(image: prepared.previewImage.cgImage),
-            metrics: prepared.metrics,
+            metrics: square.2,
             focusRegion: focusRegion
         )
     }

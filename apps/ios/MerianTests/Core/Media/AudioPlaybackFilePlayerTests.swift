@@ -72,6 +72,25 @@ final class CarouselAudioDriverSpy: AudioPlaybackDriver {
 @Suite("Carousel audio player executor and command lifetime")
 @MainActor
 struct AudioPlaybackFilePlayerTests {
+    @Test func terminalRetirementJoinsPriorCommandsAndRejectsNewPlayback() async throws {
+        let driver = CarouselAudioDriverSpy()
+        // Use a held stop to prove disposal cannot overtake a pending command.
+        let owned = AudioPlaybackFilePlayer(driver: driver)
+        try await owned.load()
+        driver.suspendStop = true
+        let stopping = owned.stop()
+        while driver.stopWaiter == nil { await Task.yield() }
+        let retiring = owned.retire()
+        #expect(await owned.play() == false)
+        owned.currentTime = 7
+        #expect(!driver.events.contains("dispose") && !driver.events.contains("seek"))
+        driver.stopWaiter?.resume(); driver.stopWaiter = nil
+        await stopping.value; await retiring.value
+        await owned.retire().value
+        #expect(driver.events.filter { $0 == "dispose" }.count == 1)
+        await #expect(throws: (any Error).self) { try await owned.load() }
+    }
+
     @Test func verifiedMemoryAudioLoadsSilentlyWithoutTemporarySource() async throws {
         let driver = AudioPlaybackFileDriver(data: makeInferenceTestPCM16WAVData())
         let loaded = try await driver.load(delegate: AudioPlayerDelegate())

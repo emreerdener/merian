@@ -15,12 +15,20 @@ final class StagedVideoPreviewPlayback {
         }
     }
 
+    let lifetime = MediaPlaybackLifetime()
     let player: AVPlayer
     let canBoost: Bool
     private(set) var isBoostEnabled = false
     private(set) var isPreparing = false
     private(set) var isSwitchingSource = false
     private(set) var hasBoostFailure = false
+    private(set) var isPlaying = false
+    private(set) var isStartingPlayback = false
+    private(set) var elapsed: Double = 0
+    private(set) var duration: Double = 0
+    private(set) var isMuted = false
+    @ObservationIgnored private var controlTask: Task<Void, Never>?
+    @ObservationIgnored private var controlGeneration = UUID()
 
     @ObservationIgnored private let videoURL: URL
     @ObservationIgnored private let audioPath: String?
@@ -34,17 +42,23 @@ final class StagedVideoPreviewPlayback {
 
     init(
         video: StagedVideo,
+        previewURL: URL? = nil,
         boostSource: StagedPreviewAudioBoostSource? = nil,
         session: AudioPlaybackSessionController? = nil,
         dependencies: Dependencies? = nil
     ) {
-        videoURL = URL(fileURLWithPath: video.filePath)
+        videoURL = previewURL ?? StagedVideo.localURL(for: video.filePath)
         audioPath = video.audioFilePath
         canBoost = video.audioFilePath != nil
-        player = AVPlayer(url: videoURL)
+        player = AVPlayer()
         self.boostSource = boostSource ?? .init()
         self.session = session ?? .init()
         self.dependencies = dependencies ?? .init()
+        // Registration precedes the first AVPlayerItem or asynchronous source read.
+        try? lifetime.configure(stop: { [weak self] in self?.quiesce() }, finish: { [weak self] in
+            self?.boostSource.release()
+            self?.session.deactivate()
+        })
     }
 
     var boostTitle: String {
@@ -57,24 +71,100 @@ final class StagedVideoPreviewPlayback {
         return isBoostEnabled ? "Turn off audio boost" : "Boost audio"
     }
 
-    func start() async {
-        isActive = true
-        let expected = lifecycle
-        let activated = await session.activate()
-        guard activated, isActive, lifecycle == expected, !Task.isCancelled else { return }
-        dependencies.play(player)
+    func start(autoplay: Bool = true) async {
+        await lifetime.run { [self] in
+            isActive = true
+            if player.currentItem == nil { player.replaceCurrentItem(with: AVPlayerItem(url: videoURL)) }
+            let expected = lifecycle
+            let activated = await session.activate()
+            guard activated, isActive, lifecycle == expected, !Task.isCancelled else { return }
+            if autoplay { dependencies.play(player) }
+            refreshProgress()
+        }
+    }
+
+    func refreshProgress() {
+        let current = player.currentTime().seconds
+        let total = player.currentItem?.duration.seconds ?? 0
+        elapsed = current.isFinite ? max(0, current) : 0
+        duration = total.isFinite ? max(0, total) : 0
+        isPlaying = player.rate != 0
+    }
+
+    func togglePlayback() {
+        guard self.isActive, !isSwitchingSource else { return }
+        self.controlGeneration = UUID()
+        controlTask?.cancel()
+        if isPlaying || self.isStartingPlayback || self.player.rate != 0 {
+            self.isStartingPlayback = false
+            self.dependencies.pause(self.player)
+            self.refreshProgress()
+            return
+        }
+        let request = self.controlGeneration, expectedLifecycle = self.lifecycle
+        self.isStartingPlayback = true
+        controlTask = Task { [weak self] in
+            guard let self else { return }
+            await self.lifetime.run { [self] in
+            defer { if self.controlGeneration == request { self.isStartingPlayback = false } }
+            self.refreshProgress()
+            if self.duration > 0, self.elapsed >= self.duration - 0.05 {
+                guard await self.dependencies.seek(self.player, .zero) else { return }
+            }
+            let activated = await self.session.activate()
+            guard activated, self.isActive, self.lifecycle == expectedLifecycle,
+                  self.controlGeneration == request, !Task.isCancelled else { return }
+            self.dependencies.play(self.player)
+            self.refreshProgress()
+            }
+        }
+    }
+
+    /// Scrubbing is preview-only and always leaves the clip paused.
+    func seek(to seconds: Double) {
+        guard self.isActive, !isSwitchingSource, seconds.isFinite, self.duration > 0 else { return }
+        self.controlGeneration = UUID()
+        controlTask?.cancel()
+        self.isStartingPlayback = false
+        self.dependencies.pause(self.player)
+        isPlaying = false
+        let target = min(max(seconds, 0), self.duration)
+        self.elapsed = target
+        let request = self.controlGeneration
+        controlTask = Task { [weak self] in
+            guard let self else { return }
+            await self.lifetime.run { [self] in
+            _ = await self.dependencies.seek(self.player, CMTime(seconds: target, preferredTimescale: 600))
+            guard self.isActive, self.controlGeneration == request, !Task.isCancelled else { return }
+            self.refreshProgress()
+            }
+        }
+    }
+
+    func pauseForEditing() {
+        self.controlGeneration = UUID()
+        controlTask?.cancel()
+        self.isStartingPlayback = false
+        self.dependencies.pause(self.player)
+        self.refreshProgress()
+    }
+
+    func toggleMute() {
+        isMuted.toggle()
+        self.player.isMuted = isMuted
     }
 
     @discardableResult
     func toggleBoost() -> Task<Void, Never>? {
-        guard isActive, canBoost, !isPreparing else { return nil }
+        guard self.isActive, canBoost, !isPreparing else { return nil }
         let enable = !isBoostEnabled
         let request = UUID()
         generation = request
         isPreparing = true
         hasBoostFailure = false
         preparationTask = Task { [weak self] in
-            await self?.changeSource(enable: enable, request: request)
+            guard let self else { return }
+            await self.lifetime.run { [self] in await self.changeSource(enable: enable, request: request) }
         }
         return preparationTask
     }
@@ -88,16 +178,29 @@ final class StagedVideoPreviewPlayback {
     }
 
     func stop() {
+        lifetime.seal()
+        Task { await lifetime.close() }
+    }
+
+    func close() async { await lifetime.close() }
+
+    private func quiesce() {
         isActive = false
         lifecycle = UUID()
         cancelPreparation()
         dependencies.pause(player)
+        player.currentItem?.cancelPendingSeeks()
+        player.cancelPendingPrerolls()
         player.replaceCurrentItem(with: nil)
-        boostSource.release()
-        session.deactivate()
+        session.cancelPendingActivation()
     }
 
     private func cancelPreparation() {
+        controlGeneration = UUID()
+        controlTask?.cancel()
+        controlTask = nil
+        isStartingPlayback = false
+        isPlaying = false
         generation = UUID()
         preparationTask?.cancel()
         preparationTask = nil
@@ -117,6 +220,7 @@ final class StagedVideoPreviewPlayback {
             let replacement: AVPlayerItem
             if enable, let audioPath {
                 let result = try await boostSource.prepare(source: audioPath)
+                guard accepts(request) else { return }
                 replacement = try await dependencies.makeBoostedItem(videoURL, result.url)
             } else {
                 replacement = AVPlayerItem(url: videoURL)

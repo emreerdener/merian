@@ -5,7 +5,7 @@ import {
   parseWavHeader,
 } from "../audio-spec/wav.ts";
 import { decodeBase64 } from "../_shared/encoding.ts";
-import { processMultimodalWAV } from "./audio.ts";
+import { processMultimodalAudio, processMultimodalWAV } from "./audio.ts";
 import {
   type AudioMediaDescriptor,
   validateOwnerMediaTimeline,
@@ -41,6 +41,22 @@ const validTimeline = timeline([companion, standalone], [
   { kind: "video", clipIndex: 0 },
   { kind: "audio", sourceIndex: 0, audioInputIndex: 1 },
 ]);
+
+Deno.test("retention reads exactly the provider DSP bytes without retaining mutable input", () => {
+  for (const descriptor of [standalone, companion]) {
+    const source = fixture(5, descriptor === companion ? 0.08 : 1);
+    const processed = processMultimodalAudio(source, descriptor, validTimeline);
+    const expected = decodeBase64(processed.base64Audio);
+    new Uint8Array(source).fill(0);
+    const firstRead = processed.readBytes();
+    assertEquals(firstRead, expected);
+    firstRead.fill(0);
+    assertEquals(processed.readBytes(), expected);
+    const header = parseWavHeader(expected.buffer as ArrayBuffer);
+    assertEquals(header.sampleRate, 16_000);
+    assertEquals(header.numChannels, 1);
+  }
+});
 
 Deno.test("video companion preserves a sound confined to the partial final window", () => {
   const samples = new Float32Array(44_237);

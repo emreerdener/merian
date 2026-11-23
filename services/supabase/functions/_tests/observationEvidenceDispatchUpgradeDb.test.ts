@@ -34,17 +34,27 @@ Deno.test({
         )).rows;
       const original = await oids();
       assertEquals(original.length, 3);
-      // Controlled effective-body reconstruction, not a historical-schema replay.
+      // The fence migration preserves each exact pre-fence body in its worker
+      // implementation. Later migrations may patch the live workers, so using
+      // pg_get_functiondef here would no longer reconstruct the hashed preimage.
+      const migration = await Deno.readTextFile(
+        new URL(
+          "../../migrations/20261112003746_fence_legacy_private_cleanup_acquisition.sql",
+          import.meta.url,
+        ),
+      );
       for (const name of names) {
-        const definition = (await db.queryObject<{ value: string }>(
-          "SELECT pg_get_functiondef($1::regprocedure) value",
-          [`internal.${name}_worker_impl()`],
-        )).rows[0].value;
-        assert(definition.includes(`FUNCTION internal.${name}_worker_impl()`));
+        const start = migration.indexOf(
+          `CREATE FUNCTION internal.${name}_worker_impl()`,
+        );
+        assert(start >= 0);
+        const end = migration.indexOf("\n$$;", start);
+        assert(end > start);
+        const definition = migration.slice(start, end + 4);
         await db.queryArray(
           definition.replace(
-            `FUNCTION internal.${name}_worker_impl()`,
-            `FUNCTION public.${name}()`,
+            `CREATE FUNCTION internal.${name}_worker_impl()`,
+            `CREATE OR REPLACE FUNCTION public.${name}()`,
           ),
         );
         await db.queryArray(
@@ -81,13 +91,6 @@ Deno.test({
           "SELECT count(*)::int n FROM pg_prepared_statements WHERE name IN ('warmed_0','warmed_1','warmed_2') AND generic_plans=1",
         )).rows[0].n,
         3,
-      );
-      // Read through the Deno fixture owner: pg_prove does not mount migrations.
-      const migration = await Deno.readTextFile(
-        new URL(
-          "../../migrations/20261112003746_fence_legacy_private_cleanup_acquisition.sql",
-          import.meta.url,
-        ),
       );
       await db.queryArray(migration);
       assertEquals(await oids(), original);

@@ -16,6 +16,11 @@ final class MerianNetworkClient {
     func reanalysisStatusTransport() -> ObservationReanalysisStatusTransport { transport.reanalysisStatus() }
     func analysisRetirementTransport() -> ObservationAnalysisRetirementTransport { transport.retirement() }
     func videoEvidenceTransport() -> ObservationVideoEvidenceTransport { transport.videoEvidence() }
+    func captureStageTransport() -> CaptureStageTransport { transport.captureStage() }
+    func capturePrimaryTransport() -> CapturePrimaryTransport { transport.capturePrimary() }
+    func captureCompletionTransport() -> CaptureCompletionTransport { transport.captureCompletion() }
+    func compositionEvidenceTransport() -> ObservationCompositionEvidenceTransport { transport.compositionEvidence() }
+    func compositionAnalysisTransport() -> ObservationCompositionAnalysisTransport { transport.compositionAnalysis() }
     func videoAnalysisTransport() -> ObservationVideoAnalysisTransport { transport.videoAnalysis() }
     func audioAnalysisTransport() -> ObservationAudioAnalysisTransport { transport.audioAnalysis() }
     func audioOutcomeTransport() -> ObservationAudioOutcomeTransport { transport.audioOutcome() }
@@ -553,6 +558,11 @@ private final class NetworkTransportAssembly {
     func reanalysisStatus() -> ObservationReanalysisStatusTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func retirement() -> ObservationAnalysisRetirementTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func videoEvidence() -> ObservationVideoEvidenceTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func captureStage() -> CaptureStageTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func capturePrimary() -> CapturePrimaryTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func captureCompletion() -> CaptureCompletionTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func compositionEvidence() -> ObservationCompositionEvidenceTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
+    func compositionAnalysis() -> ObservationCompositionAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func videoAnalysis() -> ObservationVideoAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioAnalysis() -> ObservationAudioAnalysisTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }
     func audioOutcome() -> ObservationAudioOutcomeTransport { .init(baseURL: baseURL, dispatcher: authenticatedTransport) }

@@ -21,12 +21,22 @@ struct ObservationVideoReanalysisRequestTests {
     @Test func sharedGoldenDigestAndExactReplay() throws {
         let vectors = try fixtures()
         #expect(vectors.count == 2)
-        for vector in vectors {
+        let protocolSevenDigests = [
+            "be71721b63513196fbad43d282291965602fe74512c725bd7603fa0f92c9df68",
+            "ae152692e625f027225a04da80fd4952d1cc226985250f6f9822ee9fa34adff5"
+        ]
+        for (index, vector) in vectors.enumerated() {
             let row = try #require(vector["input"] as? [String: Any])
             let canonical = try #require(vector["canonical_body"] as? String)
             let request = try fresh(row)
-            #expect(request.body == Data(canonical.utf8))
-            #expect(request.requestDigest == row["request_digest"] as? String)
+            // Shared vectors remain frozen protocol-6 replay contracts.
+            let legacy = try ObservationVideoReanalysisRequest(savedBody: Data(canonical.utf8))
+            #expect(legacy.body == Data(canonical.utf8))
+            #expect(legacy.requestDigest == row["request_digest"] as? String)
+            #expect(row["identification_protocol"] as? Int == 6)
+            let freshRow = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
+            #expect(freshRow["identification_protocol"] as? Int == 7)
+            #expect(request.requestDigest == protocolSevenDigests[index])
             let pretty = try JSONSerialization.data(withJSONObject: row, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             let restored = try ObservationVideoReanalysisRequest(savedBody: pretty)
             #expect(restored.body == pretty)

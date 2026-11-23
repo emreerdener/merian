@@ -18,7 +18,8 @@ struct LibrarySignOutRecoveryCoordinator {
     func resume(preservePrimaryData: Bool = MerianEnvironment.isHistoryQualificationBuild) async -> Bool {
         guard !MerianEnvironment.isHistoryQualificationBuild, !preservePrimaryData else { return false }
         do {
-            guard var journal = try store.load() else { return true }
+            guard let stored = try store.load() else { return true }
+            var journal = try store.upgradeForCleanup(stored)
             while journal.phase != .destinationCreated {
                 let expected = journal
                 guard try store.load() == expected else { return false }
@@ -35,14 +36,13 @@ struct LibrarySignOutRecoveryCoordinator {
                           dependencies.currentSession() == nil else { return false }
                     journal.phase = .libraryCleared
                 case .libraryCleared:
-                    // A persisted SDK guest recovers a lost journal write; a
-                    // server-only guest cannot be rediscovered by this protocol.
-                    let destination: AuthTransitionSession?
-                    if let current = dependencies.currentSession() { destination = current } else {
-                        destination = await dependencies.createDestination()
-                    }
-                    guard let destination, destination.isAnonymous,
-                          destination.userID != journal.sourceUserID else { return false }
+                    // An existing anonymous session has no durable link to this
+                    // operation. A lost destination write remains pending rather
+                    // than adopting an unrelated replacement account.
+                    guard dependencies.currentSession() == nil,
+                          let destination = await dependencies.createDestination(), destination.isAnonymous,
+                          destination.userID != journal.sourceUserID,
+                          dependencies.currentSession() == destination else { return false }
                     journal.destinationUserID = destination.userID
                     journal.phase = .destinationCreated
                 case .destinationCreated: return false // Handled after the loop.

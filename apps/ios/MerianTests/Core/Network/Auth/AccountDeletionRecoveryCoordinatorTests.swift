@@ -4,6 +4,25 @@ import XCTest
 
 @MainActor
 final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
+    func testSamePhaseOperationReplacementCannotConsumeServerReceipt() async throws {
+        for legacy in [false, true] {
+            let context = try makeV2RecoveryContext(state: .capabilityIntakePending)
+            let replacement = AccountDeletionCleanupMarker(phase: .capabilityIntakePending, operationID: UUID())
+            let result = await invokeRecovery(context: context, v2Receipt: acceptedReceipt,
+                v2Error: legacy ? MerianError.httpError(statusCode: 404, message: #"{"code":"account_deletion_recovery_invalid"}"#) : nil,
+                afterV2Recovery: { if !legacy { context.harness.cleanupMarker = replacement } },
+                legacyRecovery: { _, _ in
+                    context.harness.cleanupMarker = replacement
+                    return self.acceptedReceipt
+                })
+            XCTAssertFalse(result)
+            XCTAssertEqual(context.harness.cleanupMarker, replacement)
+            XCTAssertTrue(context.secureStore.removals.isEmpty)
+            XCTAssertFalse(context.harness.events.contains("record-cleanup"))
+            XCTAssertFalse(context.harness.events.contains("sign-out"))
+        }
+    }
+
     func testAcceptedRecoveryCannotAdvanceAfterLibraryLoss() async throws {
         let context = try makeV2RecoveryContext(state: .capabilityIntakePending)
         let result = await invokeRecovery(context: context, v2Receipt: acceptedReceipt,
@@ -204,9 +223,14 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             state: .capabilityIntakePending
         )
 
+        let operationID = try XCTUnwrap(context.harness.cleanupMarker?.operationID)
         let result = await invokeRecovery(
             context: context,
-            v2Receipt: acceptedReceipt
+            v2Receipt: acceptedReceipt,
+            duringPurge: {
+                XCTAssertEqual(context.harness.cleanupMarker?.operationID, operationID)
+                XCTAssertEqual(context.harness.cleanupMarker?.phase, .capabilityCleanupPending)
+            }
         )
 
         XCTAssertTrue(result)
@@ -706,7 +730,10 @@ final class AccountDeletionRecoveryCoordinatorTests: XCTestCase {
             recordManualProviderRevocation: {
                 context.harness.events.append("record-manual-revocation")
             },
-            purgeLocalData: { _ in
+            purgeLocalData: { scope in
+                XCTAssertTrue(scope.isCurrent)
+                XCTAssertEqual(scope.expectedMarker, context.harness.cleanupMarker)
+                XCTAssertNotNil(scope.cleanupOperationID)
                 context.harness.events.append("purge")
                 await duringPurge()
                 return true

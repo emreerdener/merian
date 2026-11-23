@@ -17,7 +17,11 @@ SET LOCAL request.headers='{"x-merian-identification-protocol":"6"}';
 SELECT extensions.throws_ok($$SELECT internal.require_identification_result_reader((SELECT value FROM candidate),NULL)$$,'PT426','client_update_required','older reader rejects V3');
 SELECT extensions.ok(NOT pg_catalog.has_function_privilege('service_role','internal.activate_gemini_release(uuid,text,text,text,jsonb,jsonb)','EXECUTE'),'ordinary service calls cannot activate routing');
 SELECT extensions.ok(NOT pg_catalog.has_function_privilege('authenticated','public.claim_gemini_release_smoke(uuid,text,text)','EXECUTE'),'ordinary clients cannot execute release smokes');
-SELECT extensions.ok(pg_catalog.strpos(pg_catalog.pg_get_functiondef('public.get_owned_observation_analysis_page(jsonb,integer)'::regprocedure),'p_reader NOT IN (7,8,9,10,11,13)')>0,'reader13 inherits page coverage, reader12 remains outside page allowlist');
+SELECT extensions.ok(13=ANY(readers) AND NOT (12=ANY(readers)),
+    'reader13 inherits page coverage, reader12 remains outside page allowlist')
+FROM (SELECT string_to_array((regexp_match(pg_catalog.pg_get_functiondef(
+    'public.get_owned_observation_analysis_page(jsonb,integer)'::regprocedure),
+    'p_reader NOT IN \(([^)]*)\)'))[1],',')::INTEGER[] readers) page_contract;
 SELECT extensions.ok(pg_catalog.strpos(pg_catalog.pg_get_functiondef('internal.require_observation_action_reader(uuid,integer,uuid)'::regprocedure),'13')=0,'reader13 receives no action authority');
 SELECT * FROM extensions.finish();
 ROLLBACK;

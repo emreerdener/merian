@@ -1,3 +1,4 @@
+import type { ImageFocusRegion } from "../identify/imageFocus.ts";
 import type { GeminiTransportHooks } from "./geminiTransport.ts";
 /** Internal contracts. No SDK types, credentials, HTTP admission or settlement. */
 import type {
@@ -78,6 +79,8 @@ export type IdentifyEvidence =
     readonly mimeType: string;
     readonly inputIndex: number;
     readonly lineage: VisualMediaDescriptor | null;
+    /** Exact prepared-image coordinates, bound to verified evidence. */
+    readonly focusRegion?: ImageFocusRegion;
   }
   | {
     readonly kind: "audio";
@@ -156,6 +159,8 @@ export interface LegacyGeminiAttemptSnapshot {
   readonly prompt:
     | "identify_describe_v1"
     | "identify_vision_v1"
+    | "identify_vision_focus_v1"
+    | "identify_blended_focus_v1"
     | "identify_audio_v2"
     | "identify_audio_uncertainty_experiment_v1"
     | "identify_audio_compat_v2"

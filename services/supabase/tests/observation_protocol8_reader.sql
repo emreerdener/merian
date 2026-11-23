@@ -90,6 +90,17 @@ SELECT internal.complete_observation_analysis('00000000-0000-4000-8000-00000000e
 CREATE FUNCTION pg_temp.photo(owner_id UUID DEFAULT '00000000-0000-4000-8000-00000000e801',media UUID DEFAULT '00000000-0000-4000-8000-00000000e831',reader INTEGER DEFAULT 8) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT public.resolve_owned_observation_photo(owner_id,'00000000-0000-4000-8000-00000000e811','00000000-0000-4000-8000-00000000e821',media,reader);
 $$;
+-- The shared Capture resolver retains the old photo endpoint and exact membership.
+CREATE FUNCTION pg_temp.completed_media(owner_id UUID DEFAULT '00000000-0000-4000-8000-00000000e801',media UUID DEFAULT '00000000-0000-4000-8000-00000000e831',protocol INTEGER DEFAULT 1) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.resolve_owned_observation_media(owner_id,'00000000-0000-4000-8000-00000000e811','00000000-0000-4000-8000-00000000e821',media,protocol);
+$$;
+SELECT extensions.is(pg_temp.completed_media(),pg_temp.photo(),'completed media resolver preserves exact photo receipt');
+SELECT extensions.throws_ok($$SELECT pg_temp.completed_media('00000000-0000-4000-8000-00000000e802')$$,'P0002','analysis_history_not_found','completed media rejects foreign owner');
+SELECT extensions.throws_ok($$SELECT pg_temp.completed_media(media:='00000000-0000-4000-8000-00000000e832')$$,'P0002','analysis_history_not_found','completed media rejects nonmember');
+SELECT extensions.throws_ok($$SELECT pg_temp.completed_media(protocol:=8)$$,'22023','invalid_analysis_history','completed media requires its own protocol');
+UPDATE internal.observation_history_rollout SET media_reader_enabled=FALSE;
+SELECT extensions.throws_ok('SELECT pg_temp.completed_media()','55000','analysis_history_unavailable','completed media obeys closed reader gate');
+UPDATE internal.observation_history_rollout SET media_reader_enabled=TRUE;
 SELECT extensions.is(pg_temp.photo()->>'media_id','00000000-0000-4000-8000-00000000e831','completed exact photo resolves');
 SELECT extensions.throws_ok($$SELECT pg_temp.photo('00000000-0000-4000-8000-00000000e802')$$,'P0002','analysis_history_not_found','foreign or detached owner cannot resolve');
 SELECT extensions.throws_ok($$SELECT pg_temp.photo(media:='00000000-0000-4000-8000-00000000e832')$$,'P0002','analysis_history_not_found','unreferenced media cannot resolve');
@@ -118,6 +129,7 @@ RESET ROLE;
 UPDATE public.scans SET is_tombstoned=TRUE WHERE id='00000000-0000-4000-8000-00000000e811';
 SELECT set_config('request.jwt.claims','{"role":"service_role"}',true);
 SELECT extensions.throws_ok('SELECT pg_temp.photo()','P0002','analysis_history_not_found','deletion fence supersedes issued-photo retries');
+SELECT extensions.throws_ok('SELECT pg_temp.completed_media()','P0002','analysis_history_not_found','deletion blocks new completed-media tickets');
 SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"00000000-0000-4000-8000-00000000e801"}',true);
 SET LOCAL ROLE authenticated;
 SELECT extensions.throws_ok('SELECT pg_temp.page(8)','P0002','analysis_history_not_found','deletion blocks new history reads');

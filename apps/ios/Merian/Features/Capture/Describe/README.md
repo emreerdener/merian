@@ -1,4 +1,4 @@
-# Capture Describe
+# Capture Field notes and description components
 
 `Capture/Describe` owns typed and dictated ecological observations. It prepares
 an `ObservationContext` for Capture staging or submission; it does not own
@@ -8,6 +8,27 @@ The Foundation-only `ObservationContext` value itself lives in `Models/Media`
 because inference, persistence, historical loading, and Insights also consume
 the durable representation. Describe owns its editing and composition policy,
 not the cross-feature value declaration.
+
+## Current Capture entry
+
+Scan/photo/video and Record/audio are the only selectable workspaces.
+Description is supporting evidence edited through the shared toolbar's Field
+notes button; new submissions require physical media. Shell owns a session-bound
+text/prompt editor, autosaves valid changes, and retains occupancy through outer
+dismissal. Closing or backgrounding stops input without discarding accepted
+edits. Prompts is a navigation destination within that session. Identify awaits
+bounded speech finalization; failure retains the draft and blocks admission. The
+historical text codec and admitted replay support are unchanged.
+
+The legacy page/layout details below document retained components, not an
+available standalone Describe journey. Their scroll-host guidance still applies
+to any consumer that mounts the old paged view. The new overlay is outside the
+horizontal pager and needs its own runtime accessibility/layout validation. The
+Shell-local `CaptureFieldNotesTextEditor` has a finite viewport and internal
+text scrolling so the caret remains visible at accessibility sizes with the
+keyboard open. The legacy `DescribeTextEditorView` retains its growing-field
+behavior; Field notes uses the same guarded description binding without changing
+legacy consumers.
 
 ## Ownership
 
@@ -24,8 +45,8 @@ not the cross-feature value declaration.
   and dictation callbacks so an older text or speech session cannot mutate a
   replacement session, and serializes a replacement dictation start behind
   canceled startup teardown.
-- `Views/` owns the page, workspace-scoped lifecycle observer, prompt sheet,
-  focus, and exact presentation timing.
+- `Views/` retains legacy page/observer components. The current editor and
+  nested Prompts destination are Shell-owned in `CaptureFieldNotesOverlay`.
 - `Components/` owns the UIKit vertical-scroll host, prompt navigation, tag
   presentation, and flexible text editor.
 
@@ -33,12 +54,13 @@ Shared speech recognition is not feature-owned. `Core/Hardware/SpeechManager`
 owns the `AVAudioEngine`, Speech framework, permission, audio-session lease, and
 teardown lifecycle consumed by Describe, Field Notes, Insight media, and the
 Shell-owned Capture controls. `AppDIContainer` supplies that one manager to
-`CaptureWorkspaceView`, which passes it explicitly to the workspace observer.
-The Services-owned `DescribeInputViewModel.Dependencies.live` factory converts
-it into narrow closures; the view model never stores or constructs the concrete
+`CaptureWorkspaceView`. The current Field notes overlay observes that same
+DI-owned instance; the old workspace observer is no longer mounted. The
+Services-owned `DescribeInputViewModel.Dependencies.live` factory converts it
+into narrow closures; the view model never stores or constructs the concrete
 hardware owner.
 
-## Layout and presentation invariants
+## Legacy page layout reference
 
 Answer chips can carry a decorative leading emoji, separated from the label by 6
 pt. A question shows emojis only when every answer supplies a nonempty emoji and
@@ -70,7 +92,7 @@ rounded region remains tappable, including the space below the multiline field.
 `DescribeQuestionNavigation` and `CaptureModeToggle` remain stable UI-test
 identifiers with their documented 8...32 pt rendered spacing.
 
-## Lifecycle and cancellation
+## Shared input lifecycle and cancellation
 
 - Each text change invalidates the previous 1.5-second subject-inference
   generation. Empty standard text resets the funnel immediately; reanalysis and
@@ -90,7 +112,7 @@ identifiers with their documented 8...32 pt rendered spacing.
 - Presentation-only 350 ms tag auto-advance and text focus remain view-owned so
   animation and keyboard timing are unchanged.
 
-## Reanalysis description handoff
+## Legacy historical description editor
 
 Root Describe owns the live supplementary text during reanalysis. Note-node taps
 focus that same editor at full physical capacity. Analyze includes its latest

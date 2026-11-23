@@ -1,3 +1,26 @@
+import { recoverPrivateCaptureCompletion } from "../_shared/analysisHistory/privateCaptureCompletion.ts";
+import { parseInitialEvidenceCapturePlan } from "../_shared/analysisHistory/initialEvidenceCapturePlan.ts";
+import type { InitialRetentionStorage } from "../_shared/analysisHistory/initialEvidenceRetention.ts";
+import {
+  preparePrivateCaptureSubmission,
+  privateCaptureSubmissionDependencies,
+  validatePrivateCaptureSubmissionPayload,
+} from "../_shared/analysisHistory/privateCaptureSubmission.ts";
+import { materializeInitialEvidence } from "../_shared/analysisHistory/initialEvidenceMaterialization.ts";
+import { initialEvidenceRepository } from "../_shared/analysisHistory/initialEvidenceRepository.ts";
+import { PrivateHistoryEvidenceStorage } from "../_shared/analysisHistory/evidenceStorage.ts";
+import { recoverAcceptedInitialResult } from "../_shared/analysisHistory/initialEvidenceRecovery.ts";
+import {
+  finalizeInitialEvidence,
+  initialEvidenceFinalizationDependencies,
+} from "../_shared/analysisHistory/initialEvidenceFinalization.ts";
+import { initialEvidenceCompletionVerifier } from "../_shared/identify/initialEvidenceEnvelopeV1.ts";
+import { HistoryError } from "../_shared/analysisHistory/contract.ts";
+import type { MultimodalAIRequest } from "../_shared/ai/contracts.ts";
+import {
+  type InitialEvidenceEnvelopeV1,
+  parseInitialEvidenceEnvelopeV1,
+} from "../_shared/identify/initialEvidenceEnvelopeV1.ts";
 import { serveGeminiEdge } from "../_shared/ai/geminiDeployment.ts";
 import { prepareAccountedIdentification } from "../_shared/ai/identificationUsage.ts";
 import { identificationProvenance } from "../_shared/ai/provenance.ts";
@@ -64,10 +87,7 @@ import {
   MultimodalPayload,
   VisualMediaItemDTO,
 } from "../_shared/identify/types.ts";
-import {
-  type IdentifySuccessEnvelope,
-  parseIdentifySuccessEnvelope,
-} from "../_shared/identify/contract.ts";
+import { parseIdentifySuccessEnvelope } from "../_shared/identify/contract.ts";
 import {
   hydratePayloadFromCachedSpecies,
   isNewToMerianDictionary,
@@ -117,6 +137,7 @@ import {
 } from "../_shared/identify/media.ts";
 import {
   evaluateAndProcessPayload,
+  evaluatePrivateRetainedMedia,
   promoteSafeMedia,
 } from "../_shared/identify/moderation.ts";
 import {
@@ -358,6 +379,8 @@ export async function handleIdentifyMultimodalRequest(
   prepare = prepareAIExecution,
   resolveComparison = resolveAudioComparison,
   resolvePromptComparison = resolveAudioPromptComparison,
+  privateEvidenceStorage: InitialRetentionStorage =
+    new PrivateHistoryEvidenceStorage(),
 ): Promise<Response> {
   if (internalReplayAttempt == null) {
     const protocolError = await entitlementProtocolResponse(
@@ -385,6 +408,24 @@ export async function handleIdentifyMultimodalRequest(
 
   const rawBody = bodyReadResult.value;
 
+  // The server derives initialEvidence from the exact private capture plan.
+  // Never accept a client-authored final DSP manifest or server admission proof.
+  if (
+    Object.hasOwn(rawBody, "initialEvidence") ||
+    Object.hasOwn(rawBody, "initial_evidence") ||
+    Object.hasOwn(rawBody, "privateCaptureStage") ||
+    Object.hasOwn(rawBody, "capture_plan")
+  ) {
+    return publicErrorResponse(
+      req,
+      503,
+      "analysis_history_unavailable",
+      "Evidence submission is not available yet.",
+      { retryAfterSeconds: 5 },
+    );
+  }
+
+  const hasPrivateCapturePlan = Object.hasOwn(rawBody, "capturePlan");
   const paramError = requireParams(rawBody, ["user_id"]);
   if (paramError) return paramError;
 
@@ -399,7 +440,6 @@ export async function handleIdentifyMultimodalRequest(
   const payload = rawBody as unknown as MultimodalPayload; // Trigger TS Language Server refresh
   const {
     client_scan_id,
-    timestamp,
     imageBase64s = [],
     videoR2ObjectKeys = [],
     videoFrameCount = 0,
@@ -413,33 +453,34 @@ export async function handleIdentifyMultimodalRequest(
     r2ObjectKeys = [],
     mimeType = "image/webp",
   } = payload;
+  let timestamp = payload.timestamp;
   const { audioBase64s, audioR2ObjectKeys } = audioTransport.value;
 
   // The active Swift client sends camelCase telemetry while older queued payloads and
   // some server-side tooling still use snake_case. Accept both forms so the live path
   // remains backward-compatible during migrations and offline queue replays.
-  const gpsLatitude = payload.gpsLatitude ?? payload.gps_latitude;
-  const gpsLongitude = payload.gpsLongitude ?? payload.gps_longitude;
-  const gpsElevation = payload.gpsElevation ?? payload.gps_elevation;
-  const semanticLocation = payload.semanticLocation ??
+  let gpsLatitude = payload.gpsLatitude ?? payload.gps_latitude;
+  let gpsLongitude = payload.gpsLongitude ?? payload.gps_longitude;
+  let gpsElevation = payload.gpsElevation ?? payload.gps_elevation;
+  let semanticLocation = payload.semanticLocation ??
     payload.semantic_location;
-  const publicExploreLocationLabel = payload.publicLocationLabel ??
+  let publicExploreLocationLabel = payload.publicLocationLabel ??
     payload.public_location_label;
-  const scanGeoprivacy = payload.geoprivacy;
-  const weatherCondition = payload.weatherCondition ??
+  let scanGeoprivacy = payload.geoprivacy;
+  let weatherCondition = payload.weatherCondition ??
     payload.weather_condition;
-  const weatherTemperatureF = payload.weatherTemperatureF ??
+  let weatherTemperatureF = payload.weatherTemperatureF ??
     payload.weather_temperature_f;
-  const deviceLocale = payload.deviceLocale ?? payload.device_locale;
-  const deviceTimeZone = payload.deviceTimeZone ?? payload.device_time_zone;
-  const deviceRegion = payload.deviceRegion ?? payload.device_region;
-  const currentMonth = normalizeCurrentMonth(
+  let deviceLocale = payload.deviceLocale ?? payload.device_locale;
+  let deviceTimeZone = payload.deviceTimeZone ?? payload.device_time_zone;
+  let deviceRegion = payload.deviceRegion ?? payload.device_region;
+  let currentMonth = normalizeCurrentMonth(
     payload.currentMonth ?? payload.current_month,
   );
-  const timeOfDay = payload.timeOfDay ?? payload.time_of_day;
-  const depthScaleText = payload.depthScaleText ?? payload.depth_scale_text;
-  const zoomFactor = payload.zoomFactor;
-  const estimatedSizeCm = payload.estimatedSizeCm ??
+  let timeOfDay = payload.timeOfDay ?? payload.time_of_day;
+  let depthScaleText = payload.depthScaleText ?? payload.depth_scale_text;
+  let zoomFactor = payload.zoomFactor;
+  let estimatedSizeCm = payload.estimatedSizeCm ??
     payload.estimated_size_cm;
 
   const generatedScanId = resolveAIRequestId(req, client_scan_id);
@@ -485,11 +526,13 @@ export async function handleIdentifyMultimodalRequest(
   // exception.
   let strandedRecovery;
   try {
-    strandedRecovery = await recoverStrandedScanIngestionAttempt(
-      generatedScanId,
-      user.id,
-      supabaseAdmin,
-    );
+    strandedRecovery = hasPrivateCapturePlan
+      ? undefined
+      : await recoverStrandedScanIngestionAttempt(
+        generatedScanId,
+        user.id,
+        supabaseAdmin,
+      );
   } catch (error) {
     logStructuredError("multimodal/scan_ingestion_recovery_failed", {
       user_id: user.id,
@@ -505,6 +548,34 @@ export async function handleIdentifyMultimodalRequest(
     );
   }
 
+  // This lookup must precede staging-object resolution and quota reservation.
+  // A successful first invocation may already have promoted its staging keys,
+  // and the quota ledger intentionally refuses a second provider call. Replaying
+  // the completed response here turns an ambiguous/lost HTTP response into the
+  // same successful Identify result for clients capable of reading its metadata.
+  const existingCompletion = hasPrivateCapturePlan
+    ? null
+    : await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+  if (existingCompletion) {
+    console.log(JSON.stringify({
+      event: "multimodal/idempotent_completion_replayed",
+      scan_id: generatedScanId,
+      source: existingCompletion.source,
+      ts: new Date().toISOString(),
+    }));
+    return completedIdentifyResponse(
+      req,
+      existingCompletion,
+      internalReplayAttempt != null,
+    );
+  }
+
+  // Saved outcomes survive staging retirement. Require fresh uploads only
+  // after exact-owner completion recovery found no saved result.
   if (strandedRecovery?.outcome === "media_restage_required") {
     const requestedStagingKeys = [
       ...r2ObjectKeys,
@@ -523,30 +594,6 @@ export async function handleIdentifyMultimodalRequest(
         { retryAfterSeconds: 1 },
       );
     }
-  }
-
-  // This lookup must precede staging-object resolution and quota reservation.
-  // A successful first invocation may already have promoted its staging keys,
-  // and the quota ledger intentionally refuses a second provider call. Replaying
-  // the completed response here turns an ambiguous/lost HTTP response into the
-  // same successful Identify result for clients capable of reading its metadata.
-  const existingCompletion = await fetchCompletedIdentifyResponse(
-    generatedScanId,
-    user.id,
-    supabaseAdmin,
-  );
-  if (existingCompletion) {
-    console.log(JSON.stringify({
-      event: "multimodal/idempotent_completion_replayed",
-      scan_id: generatedScanId,
-      source: existingCompletion.source,
-      ts: new Date().toISOString(),
-    }));
-    return completedIdentifyResponse(
-      req,
-      existingCompletion,
-      internalReplayAttempt != null,
-    );
   }
 
   const updateIngestionJobBestEffort = async (
@@ -588,16 +635,148 @@ export async function handleIdentifyMultimodalRequest(
     }
   };
 
-  const safeGpsLat: number | null =
+  let safeGpsLat: number | null =
     gpsLatitude != null && Number.isFinite(gpsLatitude) &&
       gpsLatitude >= -90 && gpsLatitude <= 90
       ? gpsLatitude
       : null;
-  const safeGpsLon: number | null =
+  let safeGpsLon: number | null =
     gpsLongitude != null && Number.isFinite(gpsLongitude) &&
       gpsLongitude >= -180 && gpsLongitude <= 180
       ? gpsLongitude
       : null;
+
+  let privateSubmission:
+    | Awaited<ReturnType<typeof preparePrivateCaptureSubmission>>
+    | undefined;
+  let privateAIRequest: MultimodalAIRequest | undefined;
+  const privateSignal = AbortSignal.any([
+    req.signal,
+    AbortSignal.timeout(120_000),
+  ]);
+  if (hasPrivateCapturePlan) {
+    try {
+      const plan = parseInitialEvidenceCapturePlan(
+        user.id,
+        rawBody.capturePlan,
+      );
+      validatePrivateCaptureSubmissionPayload(plan, payload);
+      await upsertGhostUserIfMissing(user.id, supabaseAdmin);
+      const completed = await recoverPrivateCaptureCompletion(
+        supabaseAdmin,
+        user.id,
+        rawBody.capturePlan,
+        privateSignal,
+      );
+      if (completed) {
+        return identifyResultResponse(req, completed, {
+          "X-Merian-Idempotent-Replay": "initial_evidence",
+        }, internalReplayAttempt != null);
+      }
+      privateSubmission = await preparePrivateCaptureSubmission(
+        {
+          owner: user.id,
+          plan: rawBody.capturePlan,
+          payload,
+          normalizedTelemetry: {
+            gpsLatitude: safeGpsLat,
+            gpsLongitude: safeGpsLon,
+            currentMonth,
+          },
+        },
+        privateCaptureSubmissionDependencies(
+          supabaseAdmin,
+          privateEvidenceStorage,
+        ),
+        privateSignal,
+      );
+      const frozen = privateSubmission.intent.payload
+        .telemetry as Omit<MultimodalPayload, "user_id">;
+      timestamp = frozen.timestamp;
+      gpsLatitude = frozen.gpsLatitude;
+      gpsLongitude = frozen.gpsLongitude;
+      gpsElevation = frozen.gpsElevation;
+      safeGpsLat = frozen.gpsLatitude ?? null;
+      safeGpsLon = frozen.gpsLongitude ?? null;
+      semanticLocation = frozen.semanticLocation;
+      publicExploreLocationLabel = frozen.publicLocationLabel;
+      scanGeoprivacy = frozen.geoprivacy;
+      weatherCondition = frozen.weatherCondition;
+      weatherTemperatureF = frozen.weatherTemperatureF;
+      deviceLocale = frozen.deviceLocale;
+      deviceTimeZone = frozen.deviceTimeZone;
+      deviceRegion = frozen.deviceRegion;
+      currentMonth = normalizeCurrentMonth(frozen.currentMonth);
+      timeOfDay = frozen.timeOfDay;
+      depthScaleText = frozen.depthScaleText;
+      zoomFactor = frozen.zoomFactor;
+      estimatedSizeCm = frozen.estimatedSizeCm;
+      if (privateSubmission.ingestion.alreadyComplete) {
+        const replay = await fetchCompletedIdentifyResponse(
+          generatedScanId,
+          user.id,
+          supabaseAdmin,
+        );
+        if (!replay) throw new HistoryError("analysis_history_unavailable");
+        initialEvidenceCompletionVerifier({
+          ownerID: user.id,
+          scanID: generatedScanId,
+          generation: privateSubmission.request.generation,
+          evidenceDigest: privateSubmission.request.evidence_digest,
+        })(replay.envelope);
+        return completedIdentifyResponse(
+          req,
+          replay,
+          internalReplayAttempt != null,
+        );
+      }
+      const accepted = await recoverAcceptedInitialResult(
+        supabaseAdmin,
+        user.id,
+        privateSubmission.request,
+        privateSignal,
+      );
+      if (accepted !== null) {
+        const completed = await finalizeInitialEvidence(
+          {
+            owner: user.id,
+            request: privateSubmission.request,
+            result: accepted.result,
+            speciesID: accepted.speciesID,
+            telemetry: privateSubmission.intent.payload.telemetry,
+          },
+          initialEvidenceFinalizationDependencies(supabaseAdmin),
+          privateSignal,
+        );
+        return identifyResultResponse(
+          req,
+          parseInitialEvidenceEnvelopeV1(completed.responseEnvelope),
+          { "X-Merian-Idempotent-Replay": "initial_evidence" },
+          internalReplayAttempt != null,
+        );
+      }
+      privateAIRequest = await materializeInitialEvidence(
+        user.id,
+        privateSubmission.request,
+        initialEvidenceRepository(supabaseAdmin),
+        privateEvidenceStorage,
+        privateSignal,
+      );
+    } catch (error) {
+      return publicErrorResponse(
+        req,
+        error instanceof HistoryError &&
+          error.code === "analysis_history_operation_conflict"
+          ? 409
+          : 503,
+        error instanceof HistoryError
+          ? error.code
+          : "analysis_history_unavailable",
+        "We couldn’t safely resume this observation. Please try again.",
+        { retryAfterSeconds: 5 },
+      );
+    }
+  }
 
   // 1. Image Resolution (R2 Fetching + IDOR Check)
   const keyValidationError = validateImageR2ObjectKeys(
@@ -628,11 +807,18 @@ export async function handleIdentifyMultimodalRequest(
   );
   if (videoKeyValidationError) return videoKeyValidationError;
 
-  const { base64Payloads, errorResponse } = await resolveImagePayloads(
-    r2ObjectKeys,
-    imageBase64s,
-    fnStart,
-  );
+  const { base64Payloads, errorResponse } = privateAIRequest
+    ? {
+      base64Payloads: privateAIRequest.evidence.filter((item) =>
+        item.kind === "image"
+      ).map((item) => item.data),
+      errorResponse: undefined,
+    }
+    : await resolveImagePayloads(
+      r2ObjectKeys,
+      imageBase64s,
+      fnStart,
+    );
 
   if (errorResponse) return errorResponse;
 
@@ -641,12 +827,30 @@ export async function handleIdentifyMultimodalRequest(
     visualMediaItems ?? visual_media_items,
     resolvedImageBase64s.length,
   );
-  const mediaTelemetry = resolveVisualMediaTelemetry(
-    resolvedImageBase64s.length,
-    videoFrameCount,
-    videoR2ObjectKeys.length,
-    normalizedVisualMediaItems,
-  );
+  const mediaTelemetry = privateSubmission
+    ? {
+      mediaType: privateAIRequest!.capture.hasVideo
+        ? (privateSubmission.intent.mediaCounts.image_count > 0
+          ? "image_video"
+          : "video")
+        : (privateSubmission.intent.mediaCounts.image_count > 0
+          ? "image"
+          : "none"),
+      hasImage: privateSubmission.intent.mediaCounts.image_count > 0,
+      hasVideo: privateAIRequest!.capture.hasVideo,
+      imageCount: privateSubmission.intent.mediaCounts.image_count,
+      videoClipCount: privateAIRequest!.capture.videoClipCount,
+      declaredVideoFrameCount:
+        privateAIRequest!.capture.declaredVideoFrameCount,
+      videoInferenceFrameCount:
+        privateAIRequest!.capture.videoInferenceFrameCount,
+    }
+    : resolveVisualMediaTelemetry(
+      resolvedImageBase64s.length,
+      videoFrameCount,
+      videoR2ObjectKeys.length,
+      normalizedVisualMediaItems,
+    );
 
   // 2. WAV Preprocessing Loop
   let resolvedAudioBuffers: ArrayBuffer[] = [];
@@ -667,7 +871,9 @@ export async function handleIdentifyMultimodalRequest(
     resolvedAudioBuffers.length,
   );
   const normalizedObservationContexts = normalizeOwnerObservationContexts(
-    observation_contexts,
+    privateSubmission
+      ? privateSubmission.intent.payload.observationContexts
+      : observation_contexts,
   );
   const ownerTimelineValidation = validateOwnerMediaTimeline({
     rawTimeline: ownerMediaTimeline ?? owner_media_timeline,
@@ -692,8 +898,14 @@ export async function handleIdentifyMultimodalRequest(
     resolvedAudioBuffers.length,
   );
 
-  const processedAudios: string[] = [];
-  const processedAudioInputIndexes: number[] = [];
+  const processedAudios: string[] =
+    privateAIRequest?.evidence.filter((item) => item.kind === "audio").map(
+      (item) => item.data,
+    ) ?? [];
+  const processedAudioInputIndexes: number[] =
+    privateAIRequest?.evidence.filter((item) => item.kind === "audio").map(
+      (item) => item.inputIndex,
+    ) ?? [];
   if (resolvedAudioBuffers.length > 0) {
     for (
       const [audioInputIndex, audioBuffer] of resolvedAudioBuffers.entries()
@@ -809,7 +1021,7 @@ export async function handleIdentifyMultimodalRequest(
       generatedScanId,
       `scan-ingestion-replay:${internalReplayAttempt}`,
     );
-  const aiRequest = buildMultimodalAIRequest({
+  const legacyAIRequest = buildMultimodalAIRequest({
     observationEvidenceTexts,
     visualMediaItems: normalizedVisualMediaItems,
     imageBase64s: resolvedImageBase64s,
@@ -842,6 +1054,24 @@ export async function handleIdentifyMultimodalRequest(
     },
   });
 
+  // Preserve the ordered private graph, per-image MIME/focus and video lineage.
+  // Only the established telemetry context is appended; no regrouping or DSP.
+  const aiRequest: MultimodalAIRequest = privateAIRequest
+    ? {
+      ...privateAIRequest,
+      evidence: [
+        ...privateAIRequest.evidence,
+        ...legacyAIRequest.evidence
+          .filter((item) =>
+            item.kind === "text" && item.source === "capture_context"
+          )
+          .map((item, index) => ({
+            ...item,
+            order: privateAIRequest!.evidence.length + index,
+          })),
+      ],
+    }
+    : legacyAIRequest;
   let quotaLease;
   try {
     quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
@@ -921,7 +1151,7 @@ export async function handleIdentifyMultimodalRequest(
 
   const hasObservationContextText = observationEvidenceTexts.length > 0;
 
-  const mediaCounts = {
+  const mediaCounts = privateSubmission?.intent.mediaCounts ?? {
     image_count: mediaTelemetry.imageCount,
     audio_count: resolvedAudioBuffers.length,
     video_count: mediaTelemetry.videoClipCount,
@@ -947,57 +1177,59 @@ export async function handleIdentifyMultimodalRequest(
     mediaObjectKeys,
     uploadSessionIds,
   });
-  const ingestionIntent = await buildScanIngestionIntent({
-    scanId: generatedScanId,
-    payload,
-    mediaCounts,
-    mediaObjectKeys,
-    uploadSessionIds,
-    manifestChecksum,
-    visualMediaItems: normalizedVisualMediaItems,
-    audioMediaItems: durableIntentAudioMediaItems,
-    ownerMediaTimeline: normalizedOwnerMediaTimeline ?? undefined,
-    normalizedTelemetry: {
-      timestamp,
-      gpsLatitude: safeGpsLat,
-      gpsLongitude: safeGpsLon,
-      gpsElevation,
-      semanticLocation,
-      publicLocationLabel: publicExploreLocationLabel,
-      geoprivacy: scanGeoprivacy,
-      weatherCondition,
-      weatherTemperatureF,
-      deviceLocale,
-      deviceTimeZone,
-      deviceRegion,
-      currentMonth,
-      timeOfDay,
-      depthScaleText,
-      zoomFactor,
-      estimatedSizeCm,
-    },
-  });
+  const ingestionIntent = privateSubmission?.intent ??
+    await buildScanIngestionIntent({
+      scanId: generatedScanId,
+      payload,
+      mediaCounts,
+      mediaObjectKeys,
+      uploadSessionIds,
+      manifestChecksum,
+      visualMediaItems: normalizedVisualMediaItems,
+      audioMediaItems: durableIntentAudioMediaItems,
+      ownerMediaTimeline: normalizedOwnerMediaTimeline ?? undefined,
+      normalizedTelemetry: {
+        timestamp,
+        gpsLatitude: safeGpsLat,
+        gpsLongitude: safeGpsLon,
+        gpsElevation,
+        semanticLocation,
+        publicLocationLabel: publicExploreLocationLabel,
+        geoprivacy: scanGeoprivacy,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth,
+        timeOfDay,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm,
+      },
+    });
 
   const preGeminiDbStart = performance.now();
   try {
-    const atomicIngestion = await beginScanIngestion(
-      {
-        scanId: generatedScanId,
-        userId: user.id,
-        endpoint: "identify-multimodal",
-        requestPayload: ingestionIntent.payload,
-        mediaCounts,
-        mediaObjectKeys,
-        storageKeys,
-        manifestChecksum,
-        payloadChecksum: ingestionIntent.payloadChecksum,
-        resumable: ingestionIntent.resumable,
-        inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
-        redactedMediaCounts: ingestionIntent.redactedMediaCounts,
-        leaseSeconds: 300,
-      },
-      supabaseAdmin,
-    );
+    const atomicIngestion = privateSubmission?.ingestion ??
+      await beginScanIngestion(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-multimodal",
+          requestPayload: ingestionIntent.payload,
+          mediaCounts,
+          mediaObjectKeys,
+          storageKeys,
+          manifestChecksum,
+          payloadChecksum: ingestionIntent.payloadChecksum,
+          resumable: ingestionIntent.resumable,
+          inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
+          redactedMediaCounts: ingestionIntent.redactedMediaCounts,
+          leaseSeconds: 300,
+        },
+        supabaseAdmin,
+      );
     uploadSessionIds = atomicIngestion.uploadSessionIds;
     manifestChecksum = atomicIngestion.manifestChecksum ?? manifestChecksum;
     if (atomicIngestion.alreadyComplete) {
@@ -1070,6 +1302,20 @@ export async function handleIdentifyMultimodalRequest(
   let primaryEnrichmentMs = 0;
   let databaseFinalizationMs = 0;
   let providerAttempted = false;
+  let providerCommitAttempted = false;
+  const holdPrivateExecution = async () => {
+    // A missing/malformed reply or lost commit acknowledgement cannot reopen
+    // the original funding or authorize another provider invocation. Accepted
+    // results are discovered independently by the finalize-only worker.
+    await updateIngestionJobBestEffort("processing", "private_execution_held", {
+      lastError: "Original analysis requires completion recovery.",
+      retryAfter: null,
+    });
+    return jsonResponse({
+      error: "Original analysis is awaiting recovery.",
+      code: "capture_execution_held",
+    }, 503);
+  };
 
   try {
     const execution = prepare(aiRequest, {
@@ -1110,6 +1356,7 @@ export async function handleIdentifyMultimodalRequest(
     );
     quotaLease = accounted.lease;
     const quotaCommitStart = performance.now();
+    providerCommitAttempted = true;
     await quotaLease.commit();
     providerAttempted = true;
     const providerStart = performance.now();
@@ -1144,6 +1391,9 @@ export async function handleIdentifyMultimodalRequest(
     }
     llmUsageMetadata.accounting_contract = "identification_invocation_v1";
   } catch (genErr) {
+    if (privateSubmission && providerCommitAttempted) {
+      return await holdPrivateExecution();
+    }
     if (providerAttempted) {
       await quotaLease.fail();
     } else {
@@ -1174,6 +1424,7 @@ export async function handleIdentifyMultimodalRequest(
     (result.kind === "invalid_output" && result.reason === "finish")
   ) {
     const isPermanent = result.kind === "refusal";
+    if (privateSubmission && !isPermanent) return await holdPrivateExecution();
     if (!isPermanent) await quotaLease.fail();
     logStructuredError("multimodal/non_stop_finish", {
       user_id: user.id,
@@ -1214,6 +1465,7 @@ export async function handleIdentifyMultimodalRequest(
       confidencePolicy: resultPolicy.confidence,
     });
   } catch {
+    if (privateSubmission) return await holdPrivateExecution();
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
       "failed_retryable",
@@ -1379,7 +1631,7 @@ export async function handleIdentifyMultimodalRequest(
 
   const persistedObservationContext = normalizedObservationContexts[0];
 
-  let responseEnvelope: IdentifySuccessEnvelope;
+  let responseEnvelope: InitialEvidenceEnvelopeV1;
   try {
     payloadReadyForClient.identification_provenance = identificationProvenance(
       result.execution,
@@ -1391,6 +1643,7 @@ export async function handleIdentifyMultimodalRequest(
     });
     payloadReadyForClient = responseEnvelope.data;
   } catch (error) {
+    if (privateSubmission) return await holdPrivateExecution();
     await quotaLease.fail();
     logStructuredError("multimodal/wire_contract_failed", {
       user_id: user.id,
@@ -1422,7 +1675,10 @@ export async function handleIdentifyMultimodalRequest(
     { leaseSeconds: requireDurableVideo ? 300 : 600 },
   );
 
-  const requiresIdentifySafetyEvaluation = imageBase64s.length > 0 ||
+  const requiresIdentifySafetyEvaluation =
+    (privateAIRequest?.evidence.some((item) => item.kind === "image") ??
+      false) ||
+    imageBase64s.length > 0 ||
     r2ObjectKeys.length > 0;
   const runDurableIngestion = async () => {
     let modResult:
@@ -1430,6 +1686,7 @@ export async function handleIdentifyMultimodalRequest(
       | undefined;
     let identifySafetyEvaluationCompleted = !requiresIdentifySafetyEvaluation;
     let scanInserted = false;
+    let privateResultBindingAttempted = false;
     let videoStorageUrls: string[] = [];
     let promotedAudioUrlsForRollback: string[] = [];
     const markUploadAssetsFailedBestEffort = async (
@@ -1479,7 +1736,7 @@ export async function handleIdentifyMultimodalRequest(
           }
           modResult = {
             status: "PROMOTED",
-            publicUrls: await promoteSafeMedia({
+            publicUrls: privateSubmission ? [] : await promoteSafeMedia({
               userId: user.id,
               r2ObjectKeys: stagedImageKeys,
               imageBase64s,
@@ -1488,15 +1745,22 @@ export async function handleIdentifyMultimodalRequest(
             }),
           };
         } else {
-          modResult = await evaluateAndProcessPayload(
-            user.id,
-            stagedImageKeys,
-            imageBase64s,
-            finishReason,
-            safetyRatings,
-            userTier,
-            videoR2ObjectKeys,
-          );
+          modResult = privateSubmission
+            ? await evaluatePrivateRetainedMedia(
+              user.id,
+              finishReason,
+              safetyRatings,
+              supabaseAdmin,
+            )
+            : await evaluateAndProcessPayload(
+              user.id,
+              stagedImageKeys,
+              imageBase64s,
+              finishReason,
+              safetyRatings,
+              userTier,
+              videoR2ObjectKeys,
+            );
         }
         if (modResult.status === "ERROR") {
           console.error(
@@ -1710,102 +1974,122 @@ export async function handleIdentifyMultimodalRequest(
         "scan_insert_started",
         { leaseSeconds: 300 },
       );
-      await insertScan(
-        {
-          id: generatedScanId,
-          user_id: user.id,
-          identification_provenance: identificationProvenance(
-            result.execution,
-            result.returnedModel,
-          ),
-          species_id: speciesId,
-          timestamp: timestamp ?? undefined,
-          gps_lat_exact: safeGpsLat,
-          gps_long_exact: safeGpsLon,
-          gps_elevation: gpsElevation ?? null,
-          ai_confidence_score: parsedData.confidence_score,
-          is_biological_subject: parsedData.is_biological_subject,
-          blur_score: parsedData.blur_score,
-          ecology_type: parsedData.ecology_type,
-          is_invasive: parsedData.is_invasive ?? undefined,
-          invasive_status_region: parsedData.invasive_status_region ?? null,
-          invasive_rationale: parsedData.invasive_rationale ?? null,
-          invasive_confidence: parsedData.invasive_confidence ?? null,
-          weather_condition: weatherCondition ?? undefined,
-          weather_temperature_f: weatherTemperatureF ?? undefined,
-          semantic_location: semanticLocation ?? undefined,
-          public_location_label: publicExploreLocationLabel ?? undefined,
-          geoprivacy: scanGeoprivacy ?? undefined,
-          device_locale: deviceLocale ?? undefined,
-          device_time_zone: deviceTimeZone ?? undefined,
-          current_month: currentMonth ?? null,
-          time_of_day: timeOfDay ?? undefined,
-          depth_scale_text: depthScaleText ?? undefined,
-          ai_reasoning: parsedData.ai_reasoning ?? null,
-          extracted_visual_traits: parsedData.extracted_visual_traits ?? [],
-          colors: [],
-          llm_prompt_tokens: llmPromptTokens,
-          llm_candidate_tokens: llmCandidateTokens,
-          llm_thinking_tokens: llmThinkingTokens,
-          llm_cached_tokens: llmCachedTokens,
-          llm_total_tokens: llmTotalTokens,
-          llm_usage_metadata: llmUsageMetadata,
-          image_storage_urls: modResult?.publicUrls ?? [],
-          video_storage_urls: videoStorageUrls,
-          audio_storage_urls: audioStorageUrls,
-          captured_media: capturedMedia,
-          life_stage: audioSubjectKind != null &&
-              audioSubjectKind !== "identified_non_human"
-            ? null
-            : parsedData.life_stage ?? "unknown",
-          reproductive_condition: audioSubjectKind != null &&
-              audioSubjectKind !== "identified_non_human"
-            ? null
-            : parsedData.reproductive_condition ?? "not_applicable",
-          sex: parsedData.sex ?? null,
-          sex_confidence: parsedData.sex_confidence ?? null,
-          sex_evidence: parsedData.sex_evidence ?? null,
-          individual_count: parsedData.individual_count ?? null,
-          ecological_interactions: parsedData.ecological_interactions ?? [],
-          estimated_size_cm:
-            (estimatedSizeCm != null && Number.isFinite(estimatedSizeCm) &&
-                estimatedSizeCm > 0)
-              ? Math.min(estimatedSizeCm, 50000)
-              : null,
-          inference_tier: inferenceTier,
-          candidates: payloadReadyForClient.candidates ?? null,
-          image_quality_score: parsedData.image_quality?.overall_score ??
-            null,
-          is_live_capture: parsedData.is_live_capture,
-          pet_identification: parsedData.pet_identification ?? null,
-          user_observation_context: persistedObservationContext ?? null,
-        },
-        supabaseAdmin,
-      );
-      scanInserted = true;
-      const completion = await completeScanIngestionFinalization(
-        {
-          scanId: generatedScanId,
-          userId: user.id,
-          promotedUrlsByStorageKey: new Map([
-            ...publicUrlsByStorageKey(
-              stagedImageKeys,
-              modResult?.publicUrls ?? [],
+      let completion;
+      if (privateSubmission) {
+        completion = await finalizeInitialEvidence(
+          {
+            owner: user.id,
+            request: privateSubmission.request,
+            result: responseEnvelope.data,
+            speciesID: speciesId,
+            telemetry: privateSubmission.intent.payload.telemetry,
+          },
+          initialEvidenceFinalizationDependencies(supabaseAdmin, () => {
+            privateResultBindingAttempted = true;
+          }),
+          // Preparation and provider time cannot consume the finalization
+          // budget. Caller cancellation still closes this continuation.
+          AbortSignal.any([req.signal, AbortSignal.timeout(20_000)]),
+        );
+        scanInserted = true;
+      } else {
+        await insertScan(
+          {
+            id: generatedScanId,
+            user_id: user.id,
+            identification_provenance: identificationProvenance(
+              result.execution,
+              result.returnedModel,
             ),
-            ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
-            ...publicUrlsByStorageKey(
-              standaloneAudioStorageKeys,
-              audioStorageUrls,
-            ),
-          ]),
-          deletedStorageKeys: companionAudioStorageKeys,
-          responseEnvelope,
-        },
-        supabaseAdmin,
-      );
+            species_id: speciesId,
+            timestamp: timestamp ?? undefined,
+            gps_lat_exact: safeGpsLat,
+            gps_long_exact: safeGpsLon,
+            gps_elevation: gpsElevation ?? null,
+            ai_confidence_score: parsedData.confidence_score,
+            is_biological_subject: parsedData.is_biological_subject,
+            blur_score: parsedData.blur_score,
+            ecology_type: parsedData.ecology_type,
+            is_invasive: parsedData.is_invasive ?? undefined,
+            invasive_status_region: parsedData.invasive_status_region ?? null,
+            invasive_rationale: parsedData.invasive_rationale ?? null,
+            invasive_confidence: parsedData.invasive_confidence ?? null,
+            weather_condition: weatherCondition ?? undefined,
+            weather_temperature_f: weatherTemperatureF ?? undefined,
+            semantic_location: semanticLocation ?? undefined,
+            public_location_label: publicExploreLocationLabel ?? undefined,
+            geoprivacy: scanGeoprivacy ?? undefined,
+            device_locale: deviceLocale ?? undefined,
+            device_time_zone: deviceTimeZone ?? undefined,
+            current_month: currentMonth ?? null,
+            time_of_day: timeOfDay ?? undefined,
+            depth_scale_text: depthScaleText ?? undefined,
+            ai_reasoning: parsedData.ai_reasoning ?? null,
+            extracted_visual_traits: parsedData.extracted_visual_traits ?? [],
+            colors: [],
+            llm_prompt_tokens: llmPromptTokens,
+            llm_candidate_tokens: llmCandidateTokens,
+            llm_thinking_tokens: llmThinkingTokens,
+            llm_cached_tokens: llmCachedTokens,
+            llm_total_tokens: llmTotalTokens,
+            llm_usage_metadata: llmUsageMetadata,
+            image_storage_urls: modResult?.publicUrls ?? [],
+            video_storage_urls: videoStorageUrls,
+            audio_storage_urls: audioStorageUrls,
+            captured_media: capturedMedia,
+            life_stage: audioSubjectKind != null &&
+                audioSubjectKind !== "identified_non_human"
+              ? null
+              : parsedData.life_stage ?? "unknown",
+            reproductive_condition: audioSubjectKind != null &&
+                audioSubjectKind !== "identified_non_human"
+              ? null
+              : parsedData.reproductive_condition ?? "not_applicable",
+            sex: parsedData.sex ?? null,
+            sex_confidence: parsedData.sex_confidence ?? null,
+            sex_evidence: parsedData.sex_evidence ?? null,
+            individual_count: parsedData.individual_count ?? null,
+            ecological_interactions: parsedData.ecological_interactions ?? [],
+            estimated_size_cm:
+              (estimatedSizeCm != null && Number.isFinite(estimatedSizeCm) &&
+                  estimatedSizeCm > 0)
+                ? Math.min(estimatedSizeCm, 50000)
+                : null,
+            inference_tier: inferenceTier,
+            candidates: payloadReadyForClient.candidates ?? null,
+            image_quality_score: parsedData.image_quality?.overall_score ??
+              null,
+            is_live_capture: parsedData.is_live_capture,
+            pet_identification: parsedData.pet_identification ?? null,
+            user_observation_context: persistedObservationContext ?? null,
+          },
+          supabaseAdmin,
+        );
+        scanInserted = true;
+        completion = await completeScanIngestionFinalization(
+          {
+            scanId: generatedScanId,
+            userId: user.id,
+            promotedUrlsByStorageKey: new Map([
+              ...publicUrlsByStorageKey(
+                stagedImageKeys,
+                modResult?.publicUrls ?? [],
+              ),
+              ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
+              ...publicUrlsByStorageKey(
+                standaloneAudioStorageKeys,
+                audioStorageUrls,
+              ),
+            ]),
+            deletedStorageKeys: companionAudioStorageKeys,
+            responseEnvelope,
+          },
+          supabaseAdmin,
+        );
+      }
       databaseFinalizationMs = performance.now() - databaseFinalizationStart;
       if (completion.responseEnvelope) {
-        responseEnvelope = parseIdentifySuccessEnvelope(
+        responseEnvelope = parseInitialEvidenceEnvelopeV1(
           completion.responseEnvelope,
         );
       }
@@ -1988,6 +2272,10 @@ export async function handleIdentifyMultimodalRequest(
       const errorMsg = e instanceof Error ? e.message : String(e);
       const terminalFailure = e instanceof ModerationRejectedError;
       const persistenceOutcomeUnknown = isScanPersistenceOutcomeUnknown(e);
+      if (privateSubmission && !terminalFailure) {
+        await holdPrivateExecution();
+        throw e;
+      }
       await updateIngestionJobBestEffort(
         terminalFailure ? "failed_terminal" : "failed_retryable",
         terminalFailure ? "moderation_rejected" : "background_ingestion_failed",
@@ -2014,7 +2302,7 @@ export async function handleIdentifyMultimodalRequest(
         // committed reservation: the former must not become an abuse retry
         // primitive, while the latter has an owner row as its canonical
         // replay/recovery surface.
-        if (!persistenceOutcomeUnknown) {
+        if (!persistenceOutcomeUnknown && !privateResultBindingAttempted) {
           const quotaRetryEnabled = await quotaLease.fail();
           if (!quotaRetryEnabled) {
             logStructuredError("multimodal/quota_retry_enable_failed", {

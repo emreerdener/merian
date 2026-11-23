@@ -535,6 +535,16 @@ struct SharedMediaInboxDestinationAccess {
         try check(); let result = try body(parent, namespace); try check(); return result
     }
     fileprivate func close() { lifetime.open = false }
+
+    /// Cleanup reads return values only; the mutable byte capability stays in
+    /// this dynamic scope and cannot escape into the erasure manifest owner.
+    static func inspectErasure(parent: Int32, namespace: Int32, name: String,
+                               request: SharedMediaNativeErasurePhotoRead.Request,
+                               check: @escaping () throws -> Void) throws -> SharedMediaNativeErasurePhotoRead.Observation {
+        let access = Self(parent: parent, namespace: namespace, name: name, check: check)
+        defer { access.close() }
+        return try SharedMediaNativeErasurePhotoRead.inspect(request, access: access)
+    }
 }
 
 private final class SharedMediaInboxDestinationScope { var open = true }

@@ -164,9 +164,13 @@ struct CaptureScanDependenciesTests {
             isLibraryAccessBlocked: { true },
             accountID: { UUID(uuidString: "00000000-0000-0000-0000-000000000001") }
         )
+        viewModel.composingZoneVerticalCenter = 0.25
         viewModel.executeCapture(emitHaptic: false)
         #expect(await waitUntil { !viewModel.isCapturing })
         #expect(viewModel.stagedCapture.images.count == 1)
+        let staged = try #require(viewModel.stagedCapture.images.first)
+        #expect(staged.original.initialCameraVerticalCenter == 0.25)
+        #expect(staged.reviewBasis == .squareCropSource)
         #expect(viewModel.draftSession.ownership == .unowned)
         #expect(admissionCalls == 0)
         #expect(!viewModel.isAutomaticStagedSubmissionPending)
@@ -325,6 +329,128 @@ struct CaptureScanDependenciesTests {
         #expect(viewModel.offlineToastMessage?.title == "Video couldn't be staged. Please try recording again.")
     }
 
+    @Test func recordingSourceBecomesRemovableOnlyAfterCameraRollBorrowFinishes() async throws {
+        // Production recorders/exporters hand off flat temporary files. Nested
+        // private namespaces deliberately cannot be removed by generic cleanup.
+        let root = FileManager.default.temporaryDirectory, prefix = UUID().uuidString
+        let original = root.appendingPathComponent("\(prefix)_original.mp4")
+        let playback = root.appendingPathComponent("\(prefix)_playback.mp4")
+        defer { for url in [original, playback] { try? FileManager.default.removeItem(at: url) } }
+        try Data([1]).write(to: original)
+        try Data([2]).write(to: playback)
+        let spy = CaptureScanDependencySpy()
+        var release: CheckedContinuation<Void, Never>?
+        let model = makeViewModel(spy: spy, recording: .init(fileURL: original, duration: 1), saveVideo: { url, _ in
+            await withCheckedContinuation { release = $0 }
+            #expect(FileManager.default.fileExists(atPath: url.path))
+        }, prepareVideo: { _ in
+            .init(sampledFrames: [], audioFilePath: nil, playback: .init(fileURL: playback,
+                isCompressed: true, originalBytes: 2, playbackBytes: 1, preparationDuration: 0))
+        })
+        model.startVideoCapture()
+        #expect(await waitUntil { release != nil && spy.prepareVideoCount == 1 })
+        #expect(model.stagedCapture.videos.isEmpty)
+        #expect(model.draftSession.hasUnresolvedWork && !model.canSubmitDraft)
+        release?.resume()
+        #expect(await waitUntil { !model.draftSession.hasUnresolvedWork })
+        #expect(model.stagedCapture.videos.first?.originalFilePath == original.path)
+        #expect(model.draftOwnedFiles.contains(original.path))
+        model.removeStagedVideo(at: 0)
+        for _ in 0..<100 where FileManager.default.fileExists(atPath: original.path) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(!FileManager.default.fileExists(atPath: original.path))
+    }
+
+    @Test(arguments: ["commit", "failure", "dismiss", "generation"], [false, true])
+    func videoReviewSwapsWholeArtifactSetOnlyForCurrentOwner(outcome: String, historySource: Bool) async throws {
+        let fixture = try await VideoAudioFixture(channels: nil)
+        defer { fixture.remove() }
+        let root = FileManager.default.temporaryDirectory, prefix = UUID().uuidString
+        let prior = root.appendingPathComponent("\(prefix)_prior.mp4")
+        let candidate = root.appendingPathComponent("\(prefix)_candidate.mp4")
+        let newest = root.appendingPathComponent("\(prefix)_newest.mp4")
+        defer { for url in [prior, candidate, newest] { try? FileManager.default.removeItem(at: url) } }
+        try Data([1]).write(to: prior)
+        try Data([2]).write(to: candidate)
+        let historyName = "\(UUID().uuidString)_history-staging.mp4"
+        let historyURL = URL.documentsDirectory.appendingPathComponent(historyName)
+        if historySource { try FileManager.default.copyItem(at: fixture.videoURL, to: historyURL) }
+        defer { if historySource { try? FileManager.default.removeItem(at: historyURL) } }
+        let sourcePath = historySource ? historyName : fixture.videoURL.path
+        let priorPath = historySource ? historyName : prior.path
+        let preparation = ControlledVideoPreparation()
+        let model = makeViewModel(spy: CaptureScanDependencySpy(),
+            prepareVideo: { _ in try await preparation.prepare() })
+        let original = StagedVideo(filePath: priorPath, sampledImages: [],
+            originalFilePath: historySource ? nil : sourcePath)
+        model.stagedCapture.videos = [original]
+        model.draftOwnedFiles = [priorPath, sourcePath]
+        #expect(model.presentMediaReview(nodeID: "video_\(original.id)"))
+        let review = try #require(model.mediaReviewSession)
+        let editor = try await CaptureVideoEditorState.load(video: original)
+        editor.crop.resize(to: 300)
+        editor.crop.rotate(clockwise: true)
+        let work = Task { await model.commitVideoReview(editor, session: review) }
+        #expect(await waitUntil { preparation.hasStarted })
+        #expect(model.isDraftMutationLocked)
+        #expect(!model.canSubmitDraft && !model.isDraftReadyForSubmission)
+        #expect(model.stagedCapture.videos.first?.filePath == priorPath)
+        #expect(FileManager.default.fileExists(atPath: prior.path))
+        model.removeReviewedMedia(session: review)
+        #expect(model.stagedCapture.videos.count == 1)
+        if outcome == "dismiss" { model.dismissMediaReview(sessionID: review.id) }
+        if outcome == "generation" { model.draftSession.reset() }
+        if outcome == "failure" {
+            preparation.cancel()
+        } else {
+            preparation.succeed(.init(sampledFrames: [], audioFilePath: nil,
+                playback: .init(fileURL: candidate, isCompressed: true,
+                    originalBytes: 2, playbackBytes: 1, preparationDuration: 0)))
+        }
+        #expect(await work.value == (outcome == "commit"))
+        #expect(model.videoReviewCommitID == nil)
+        #expect(FileManager.default.fileExists(atPath: fixture.videoURL.path))
+        #expect(FileManager.default.fileExists(atPath: StagedVideo.localURL(for: sourcePath).path))
+        let result = try #require(model.stagedCapture.videos.first)
+        #expect(result.id == original.id && result.addedAt == original.addedAt)
+        if outcome == "commit" {
+            #expect(result.filePath == candidate.path)
+            #expect(result.originalFilePath == sourcePath)
+            #expect(result.framing?.quarterTurns == 1)
+            #expect(model.draftOwnedFiles == [sourcePath, candidate.path])
+            let second = try await CaptureVideoEditorState.load(video: result)
+            second.crop.resize(to: 300)
+            #expect(!second.crop.hasEdits && second.crop.quarterTurns == 1)
+            second.crop.rotate(clockwise: false)
+            try Data([3]).write(to: newest)
+            let nextWork = Task { await model.commitVideoReview(second, session: review) }
+            #expect(await waitUntil { preparation.hasStarted })
+            preparation.succeed(.init(sampledFrames: [], audioFilePath: nil,
+                playback: .init(fileURL: newest, isCompressed: true,
+                    originalBytes: 2, playbackBytes: 1, preparationDuration: 0)))
+            #expect(await nextWork.value)
+            #expect(model.stagedCapture.videos.first?.originalFilePath == sourcePath)
+            #expect(model.stagedCapture.videos.first?.framing?.quarterTurns == 0)
+            #expect(model.draftOwnedFiles == [sourcePath, newest.path])
+            for _ in 0..<100 where FileManager.default.fileExists(atPath: candidate.path) {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(!FileManager.default.fileExists(atPath: candidate.path))
+            #expect(FileManager.default.fileExists(atPath: StagedVideo.localURL(for: sourcePath).path))
+        } else {
+            #expect(result.filePath == priorPath && result.framing == nil)
+            #expect(model.draftOwnedFiles == [sourcePath, priorPath])
+        }
+        let removed = outcome == "commit" ? prior : candidate
+        if outcome != "failure", !(historySource && outcome == "commit") {
+            for _ in 0..<100 where FileManager.default.fileExists(atPath: removed.path) {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(!FileManager.default.fileExists(atPath: removed.path))
+        }
+    }
+
     private func makeViewModel(
         spy: CaptureScanDependencySpy,
         captureImage: @escaping @MainActor @Sendable () async throws -> Data = {
@@ -332,6 +458,7 @@ struct CaptureScanDependenciesTests {
         },
         prepareStill: @escaping @Sendable (CaptureScanStillPreparationRequest) async throws -> PreparedCaptureScanStill? = { _ in nil },
         recording: CameraVideoRecording? = nil,
+        saveVideo: (@MainActor @Sendable (URL, CLLocation?) async -> Void)? = nil,
         recordingError: NSError? = nil,
         controlledRecording: ControlledVideoRecording? = nil,
         prepareVideo: @escaping @Sendable (CaptureScanVideoPreparationRequest) async throws -> PreparedCaptureScanVideo = { _ in throw CancellationError() },
@@ -371,7 +498,10 @@ struct CaptureScanDependenciesTests {
             ),
             library: CaptureScanLibraryDependencies(
                 saveImage: { _, _ in spy.saveImageCount += 1 },
-                saveVideo: { _, _ in spy.saveVideoCount += 1 }
+                saveVideo: { url, location in
+                    spy.saveVideoCount += 1
+                    await saveVideo?(url, location)
+                }
             ),
             media: CaptureScanMediaDependencies(
                 prepareStill: { request in

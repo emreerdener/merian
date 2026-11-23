@@ -131,6 +131,26 @@ extension ModelContainerFactory {
             }
 
             if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV73MigrationPlan.self, named: "checksum-recent-v73", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV72MigrationPlan.self, named: "checksum-recent-v72", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV71MigrationPlan.self, named: "checksum-recent-v71", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV70MigrationPlan.self, named: "checksum-recent-v70", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
+                migrationPlan: MerianRecentV69MigrationPlan.self, named: "checksum-recent-v69", diagnostic: &diagnostic
+            ) }) { return recovered }
+
+            if let recovered = try optionalRecovery({ try makePersistentContainer(
                 migrationPlan: MerianRecentV68MigrationPlan.self, named: "checksum-recent-v68", diagnostic: &diagnostic
             ) }) { return recovered }
 
@@ -443,6 +463,16 @@ extension ModelContainerFactory {
             diagnostic: inout StartupStoreDiagnostic
         ) throws -> ModelContainer {
             switch source {
+            case .v73:
+                return try makePersistentContainer(migrationPlan: MerianRecentV73MigrationPlan.self, named: "recent-v73", diagnostic: &diagnostic)
+            case .v72:
+                return try makePersistentContainer(migrationPlan: MerianRecentV72MigrationPlan.self, named: "recent-v72", diagnostic: &diagnostic)
+            case .v71:
+                return try makePersistentContainer(migrationPlan: MerianRecentV71MigrationPlan.self, named: "recent-v71", diagnostic: &diagnostic)
+            case .v70:
+                return try makePersistentContainer(migrationPlan: MerianRecentV70MigrationPlan.self, named: "recent-v70", diagnostic: &diagnostic)
+            case .v69:
+                return try makePersistentContainer(migrationPlan: MerianRecentV69MigrationPlan.self, named: "recent-v69", diagnostic: &diagnostic)
             case .v68:
                 return try makePersistentContainer(migrationPlan: MerianRecentV68MigrationPlan.self, named: "recent-v68", diagnostic: &diagnostic)
             case .v67:

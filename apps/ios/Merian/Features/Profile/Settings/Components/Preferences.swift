@@ -53,7 +53,7 @@ struct Preferences: View {
 
             SettingsToggleRow(
                 title: "Open Explore on launch",
-                description: "Show Explore when you launch Naturebook. Close it to return to Scan, Record, or Describe.",
+                description: "Show Explore when you launch Naturebook. Close it to return to Scan or Record.",
                 isOn: $appSettings.opensExploreOnLaunch,
                 icon: "safari.fill",
                 iconColor: .green
@@ -133,7 +133,7 @@ struct Preferences: View {
             } label: {
                 SettingsNavigationRow(
                     title: "Reorder modes",
-                    description: "Choose which mode opens first and arrange Scan, Record, and Describe.",
+                    description: "Choose which mode opens first and arrange Scan and Record.",
                     icon: "rectangle.split.3x1.fill",
                     iconColor: .yellow
                 )
@@ -164,8 +164,8 @@ struct Preferences: View {
                 iconColor: .green
             )
             SettingsToggleRow(
-                title: "Auto-submit scans",
-                description: "Submit each capture immediately, skipping review and the chance to add a note or another media item.",
+                title: "Identify automatically",
+                description: "Identify immediately after taking a photo or finishing a recording, without reviewing first.",
                 isOn: $appSettings.autoSubmitScans,
                 icon: "arrow.right.circle.fill",
                 iconColor: .blue

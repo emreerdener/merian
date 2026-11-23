@@ -1,0 +1,263 @@
+[
+  {
+    "name": "two_photos",
+    "owner_id": "00000000-0000-4000-8000-000000000001",
+    "plan": {
+      "schema_version": 1,
+      "scan_id": "00000000-0000-4000-8000-000000000002",
+      "generation": "00000000-0000-4000-8000-000000000003",
+      "items": [
+        {
+          "kind": "image",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000010",
+            "content_type": "image/heif",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared": {
+            "media_id": "00000000-0000-4000-8000-000000000011",
+            "content_type": "image/jpeg",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "coordinate_basis": "prepared_image_top_left_v1",
+          "focus_region": {
+            "x": 0.1,
+            "y": 0.2,
+            "width": 0.5,
+            "height": 0.6,
+            "source": "user_selection"
+          },
+          "preparation": {
+            "schema_version": 1,
+            "coordinate_basis": "upright_source_top_left_v1",
+            "format": "nativeSelectedStillImageV2",
+            "crop_display_size": 390,
+            "quarter_turns": 0,
+            "scale": 1,
+            "offset_x": 0,
+            "offset_y": 0,
+            "camera_vertical_center": null,
+            "source_selection": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.5,
+              "height": 0.6,
+              "source": "user_selection"
+            }
+          }
+        },
+        {
+          "kind": "description",
+          "text": "  Synthetic 🦋 field note.  "
+        },
+        {
+          "kind": "image",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000020",
+            "content_type": "image/heif",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared": {
+            "media_id": "00000000-0000-4000-8000-000000000021",
+            "content_type": "image/jpeg",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "coordinate_basis": "prepared_image_top_left_v1",
+          "focus_region": {
+            "x": 0.1,
+            "y": 0.2,
+            "width": 0.5,
+            "height": 0.6,
+            "source": "user_selection"
+          },
+          "preparation": {
+            "schema_version": 1,
+            "coordinate_basis": "upright_source_top_left_v1",
+            "format": "nativeSelectedStillImageV2",
+            "crop_display_size": 390,
+            "quarter_turns": 0,
+            "scale": 1,
+            "offset_x": 0,
+            "offset_y": 0,
+            "camera_vertical_center": null,
+            "source_selection": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.5,
+              "height": 0.6,
+              "source": "user_selection"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "two_audio",
+    "owner_id": "00000000-0000-4000-8000-000000000001",
+    "plan": {
+      "schema_version": 1,
+      "scan_id": "00000000-0000-4000-8000-000000000002",
+      "generation": "00000000-0000-4000-8000-000000000003",
+      "items": [
+        {
+          "kind": "audio",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000010",
+            "content_type": "audio/wav",
+            "byte_count": 16044,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared_media_id": "00000000-0000-4000-8000-000000000011"
+        },
+        {
+          "kind": "description",
+          "text": "  Synthetic 🦋 field note.  "
+        },
+        {
+          "kind": "audio",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000020",
+            "content_type": "audio/wav",
+            "byte_count": 16044,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared_media_id": "00000000-0000-4000-8000-000000000021"
+        }
+      ]
+    }
+  },
+  {
+    "name": "photo_audio",
+    "owner_id": "00000000-0000-4000-8000-000000000001",
+    "plan": {
+      "schema_version": 1,
+      "scan_id": "00000000-0000-4000-8000-000000000002",
+      "generation": "00000000-0000-4000-8000-000000000003",
+      "items": [
+        {
+          "kind": "image",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000010",
+            "content_type": "image/heif",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared": {
+            "media_id": "00000000-0000-4000-8000-000000000011",
+            "content_type": "image/jpeg",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "coordinate_basis": "prepared_image_top_left_v1",
+          "focus_region": {
+            "x": 0.1,
+            "y": 0.2,
+            "width": 0.5,
+            "height": 0.6,
+            "source": "user_selection"
+          },
+          "preparation": {
+            "schema_version": 1,
+            "coordinate_basis": "upright_source_top_left_v1",
+            "format": "nativeSelectedStillImageV2",
+            "crop_display_size": 390,
+            "quarter_turns": 0,
+            "scale": 1,
+            "offset_x": 0,
+            "offset_y": 0,
+            "camera_vertical_center": null,
+            "source_selection": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.5,
+              "height": 0.6,
+              "source": "user_selection"
+            }
+          }
+        },
+        {
+          "kind": "description",
+          "text": "  Synthetic 🦋 field note.  "
+        },
+        {
+          "kind": "audio",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000020",
+            "content_type": "audio/wav",
+            "byte_count": 16044,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared_media_id": "00000000-0000-4000-8000-000000000021"
+        }
+      ]
+    }
+  },
+  {
+    "name": "video_audio",
+    "owner_id": "00000000-0000-4000-8000-000000000001",
+    "plan": {
+      "schema_version": 1,
+      "scan_id": "00000000-0000-4000-8000-000000000002",
+      "generation": "00000000-0000-4000-8000-000000000003",
+      "items": [
+        {
+          "kind": "video",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000010",
+            "content_type": "video/mp4",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "playback": {
+            "media_id": "00000000-0000-4000-8000-000000000011",
+            "content_type": "video/mp4",
+            "byte_count": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "frames": [
+            {
+              "media_id": "00000000-0000-4000-8000-000000000012",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "media_id": "00000000-0000-4000-8000-000000000013",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "audio": {
+            "source": {
+              "media_id": "00000000-0000-4000-8000-000000000014",
+              "content_type": "audio/wav",
+              "byte_count": 16044,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "prepared_media_id": "00000000-0000-4000-8000-000000000015"
+          }
+        },
+        {
+          "kind": "description",
+          "text": "  Synthetic 🦋 field note.  "
+        },
+        {
+          "kind": "audio",
+          "source": {
+            "media_id": "00000000-0000-4000-8000-000000000020",
+            "content_type": "audio/wav",
+            "byte_count": 16044,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "prepared_media_id": "00000000-0000-4000-8000-000000000021"
+        }
+      ]
+    }
+  }
+]

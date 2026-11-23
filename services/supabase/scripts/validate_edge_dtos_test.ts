@@ -1,3 +1,4 @@
+import { initialEvidenceEnvelopeV1Contract as identifyWireEnvelopeContract } from "../functions/_shared/identify/initialEvidenceEnvelopeV1.ts";
 import assert from "node:assert/strict";
 import {
   canonicalSwiftDTOPath,
@@ -16,10 +17,7 @@ import {
   validateGeneratedSwiftSource,
   validateSwiftSourceOwnership,
 } from "./validate_edge_dtos.ts";
-import {
-  identifyWireEnvelopeContract,
-  merianModelContract,
-} from "../functions/_shared/identify/contract.ts";
+import { merianModelContract } from "../functions/_shared/identify/contract.ts";
 
 function capturedError(action: () => void): ContractValidationError {
   try {
@@ -68,6 +66,7 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
     "IdentificationProvenanceV2DTO",
     "IdentificationProvenanceV3DTO",
     "ImageQuality",
+    "InitialEvidenceCompletionDTO",
     "Insight",
     "OpenAIGeneration",
     "PetIdentificationDTO",
@@ -107,10 +106,13 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
     /\? try container\.decode\(IdentificationProvenanceDTO\.self, forKey: \.identification_provenance\) : nil/,
   );
   assert.match(generated, /struct IdentificationCandidate: Codable/);
+  assert.match(generated, /struct InitialEvidenceCompletionDTO: Codable/);
+  assert.match(generated, /case evidenceDigest = "evidence_digest"/);
+  assert.match(generated, /case initialEvidence = "initial_evidence"/);
   assert.strictEqual(
     generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
-    7,
-    "Provenance versions, generation objects and the primary snapshot reject unknown wire keys",
+    8,
+    "Provenance versions, generation objects, primary snapshot and initial evidence proof reject unknown wire keys",
   );
   assert.match(
     generated,

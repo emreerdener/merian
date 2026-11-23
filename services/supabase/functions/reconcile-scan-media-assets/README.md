@@ -2,6 +2,37 @@
 
 Service-role worker for staged scan-media upload-session reconciliation.
 
+## November 19 source quarantine
+
+The current source forces every invocation into diagnostic-only reconciliation,
+including requests with `dryRun: false` and the existing scheduled payload.
+Candidate reads and R2 HEAD checks continue. No R2 COPY, PUT or DELETE, asset or
+scan update, job completion, or terminal failure is permitted. The only write is
+a reconciliation audit row with `status = dry_run` and zero effect counts.
+
+The response explicitly returns `executionMode: quarantined` and
+`holdReason: durable_object_authority_required`. Top-level effect counts are
+zero and all scanned candidates remain pending. `missingObjects` records HEAD
+observations. `preview` contains the old snapshot-based hypothetical
+classification; it is neither durable authority nor proof an operation can
+safely run. It must not be reported as work performed.
+
+This holds recovery of stranded playback video and abandonment cleanup. Normal
+producer-owned successful capture remains separate. Snapshot checks and terminal
+RPC guards cannot prevent a concurrent initial submission or retained History
+consumer from acquiring a source before deletion. Re-enabling effects requires
+exact durable object retirement, binding refusal, and late-PUT/COPY recovery
+under shared serialization. Request flags cannot enable the old behavior.
+
+This is an intermediate source safeguard, not completed cleanup hardening. It
+does not change other promotion callers, revoke previously issued URLs, stop
+already dispatched storage calls, or modify deployed workers or hosted
+schedules. The account-deletion sweep remains a separate authority; its delayed
+verification must cover every issued capability and unresolved writer.
+
+The responsibilities below describe the held legacy classification and intended
+successor work, not enabled mutations in this source revision.
+
 ## Responsibilities
 
 - Scans stale `scan_media_assets` rows where `source = 'capture_upload'` and

@@ -7,8 +7,64 @@ import OSLog
 
 @MainActor @Observable
 final class IdentificationHistoryViewModel {
+    enum CardAction { case use, confirm, reject, review, candidates, community, reanalyze }
     enum Command { case newest, older, preview(UUID), restore, undo, retry, reanalyze }
     private(set) var rows: [IdentificationHistoryRow] = []
+    private(set) var pinnedCurrent: IdentificationHistoryRow?
+    private var cardPresentation = false
+    private var needsCurrentCard = false
+    private(set) var thumbnails: [UUID: UIImage] = [:]
+    private var thumbnailWork: Task<Void, Never>?
+    private(set) var thumbnailGeneration = 0
+    private var thumbnailRunningGeneration: Int?
+    private var pendingThumbnailIDs: Set<UUID> = []
+    private var attemptedThumbnailIDs: Set<UUID> = []
+    var cardRows: [IdentificationHistoryRow] {
+        let current = rows.first { $0.id == selected } ?? pinnedCurrent
+        return (current.map { [$0] } ?? []) + rows.filter { $0.id != selected }
+    }
+    var canChangeCardScope: Bool {
+        !isBusy && !isClosed && !pending && review?.hasUnresolvedRequest != true && publication == nil
+    }
+
+    func openCards() {
+        cardPresentation = true
+        if rows.isEmpty { start(.newest) } else { needsCurrentCard = true; finishUpdatesWhenIdle() }
+    }
+
+    /// Resolve the exact card before invoking existing selection/review owners.
+    /// Merely opening a menu neither fetches authority nor selects a version.
+    func performCardAction(_ action: CardAction, id: UUID) async -> CardAction? {
+        guard work == nil, canChangeCardScope, validate(), allowChoice(),
+              cardRows.contains(where: { $0.id == id }) else { return nil }
+        let expected = generation
+        needsCurrentCard = false
+        await perform(.preview(id))
+        guard accepts(expected), detail?.row.id == id, !isBusy, !pending else { return nil }
+        switch action {
+        case .use: await perform(.restore)
+        case .confirm:
+            guard let review, review.canSubmit else { return nil }
+            if review.ticket.canConfirmPrimary { review.submit(.confirmPrimary) } else if review.ticket.canConfirmName { return .review }
+        case .reject:
+            guard let review, review.canSubmit, review.ticket.canReject else { return nil }
+            review.submit(.reject)
+        case .review: return review == nil ? nil : .review
+        case .candidates: return review?.ticket.candidateChoices.isEmpty == false ? .candidates : nil
+        case .community:
+            askCommunity()
+            return publication == nil ? nil : .community
+        case .reanalyze: await perform(.reanalyze)
+        }
+        return nil
+    }
+
+    func returnToCards() {
+        guard review?.hasUnresolvedRequest != true else { return }
+        back()
+        needsCurrentCard = true
+        finishUpdatesWhenIdle()
+    }
     private(set) var detail: IdentificationHistoryDetail? {
         didSet { review?.close(); review = nil; publication?.close(); publication = nil }
     }
@@ -70,7 +126,7 @@ final class IdentificationHistoryViewModel {
                 if case .older = command { guard let nextBeforeOrdinal else { return }; before = nextBeforeOrdinal } else { before = nil }
                 try await loadPage(before: before, expected: expected)
             case .preview(let id):
-                guard rows.contains(where: { $0.id == id }) else { return }
+                guard rows.contains(where: { $0.id == id }) || (cardPresentation && pinnedCurrent?.id == id && selected == id) else { return }
                 let baseline = try dependencies.context()
                 let result = try await dependencies.preview(id)
                 guard accepts(expected), result.row.id == id else { return }
@@ -165,6 +221,10 @@ final class IdentificationHistoryViewModel {
         refreshLibraryWhenIdle()
     }
     private func refreshLibraryWhenIdle() {
+        if cardPresentation, libraryRefreshPending, work == nil, !isBusy, !pending,
+           detail?.row.id == selected, review?.hasUnresolvedRequest != true, publication == nil {
+            detail = nil; photo = nil; reanalysisAction = nil
+        }
         guard libraryRefreshPending, work == nil, !isBusy, !isClosed,
               detail == nil, review == nil, publication == nil, !pending else { return }
         libraryRefreshPending = false
@@ -173,6 +233,11 @@ final class IdentificationHistoryViewModel {
     private func finishUpdatesWhenIdle() {
         notifyAdmissionWhenIdle()
         refreshLibraryWhenIdle()
+        if cardPresentation, needsCurrentCard, work == nil, !isBusy, !isClosed, !pending,
+           detail == nil, let selected, cardRows.contains(where: { $0.id == selected }) {
+            needsCurrentCard = false
+            start(.preview(selected))
+        }
     }
     private func notifyAdmissionWhenIdle() {
         guard work == nil, !isBusy, !isClosed else { return }
@@ -195,7 +260,7 @@ final class IdentificationHistoryViewModel {
         let terminal = review?.terminalMessage
         if let terminal {
             detail = nil; photo = nil; reanalysisAction = nil
-            rows = []; nextBeforeOrdinal = nil; showingOlder = false
+            rows = []; pinnedCurrent = nil; nextBeforeOrdinal = nil; showingOlder = false
             message = terminal
         }
         // Validation may have invalidated the old review ticket before its
@@ -218,6 +283,15 @@ final class IdentificationHistoryViewModel {
         apply(page.context)
         rows = page.rows; detail = nil; photo = nil; reanalysisAction = nil
         nextBeforeOrdinal = page.nextBeforeOrdinal; showingOlder = before != nil
+        pinnedCurrent = nil
+        if cardPresentation, !rows.contains(where: { $0.id == page.context.selected }) {
+            let current = try await dependencies.preview(page.context.selected)
+            guard accepts(expected), current.row.id == page.context.selected,
+                  try dependencies.context() == page.context else { throw ObservationHistoryPreviewService.AdmissionError.refreshRequired }
+            pinnedCurrent = current.row
+        }
+        needsCurrentCard = cardPresentation
+        if cardPresentation { loadCardThumbnails() }
     }
     private func send(_ expected: Int) async throws {
         traceSelection("before-send")
@@ -254,6 +328,42 @@ final class IdentificationHistoryViewModel {
         Logger(subsystem: "app.merian.Merian", category: "HistoryLocalDiagnostics")
             .notice("selection-view stage=\(stage, privacy: .public)")
 #endif
+    }
+    private func loadCardThumbnails() { clearCardThumbnails() }
+
+    /// Admit visible rows only. Lazy view recreation cannot retry failed reads.
+    func requestCardThumbnail(_ id: UUID) {
+        guard cardPresentation, !isClosed, !attemptedThumbnailIDs.contains(id),
+              thumbnails[id] == nil, cardRows.contains(where: { $0.id == id && $0.thumbnailMediaID != nil }),
+              let load = dependencies.thumbnail else { return }
+        pendingThumbnailIDs.insert(id)
+        guard thumbnailRunningGeneration != thumbnailGeneration else { return }
+        let previous = thumbnailWork
+        let imageGeneration = thumbnailGeneration, expected = generation
+        thumbnailRunningGeneration = imageGeneration
+        thumbnailWork = Task { [weak self] in
+            // Page changes cancel the preceding read, then join it before any
+            // successor starts: only one original is held/decoded at a time.
+            await previous?.value
+            defer {
+                if self?.thumbnailGeneration == imageGeneration { self?.thumbnailRunningGeneration = nil }
+            }
+            while !Task.isCancelled, let self, self.accepts(expected), self.thumbnailGeneration == imageGeneration,
+                  let analysis = self.pendingThumbnailIDs.first {
+                self.pendingThumbnailIDs.remove(analysis)
+                guard let media = self.cardRows.first(where: { $0.id == analysis })?.thumbnailMediaID else { continue }
+                self.attemptedThumbnailIDs.insert(analysis)
+                guard let image = try? await load(analysis, media) else { continue }
+                guard !Task.isCancelled, self.accepts(expected), self.thumbnailGeneration == imageGeneration,
+                      self.cardRows.contains(where: { $0.id == analysis && $0.thumbnailMediaID == media }) else { return }
+                self.thumbnails[analysis] = image
+            }
+        }
+    }
+    func hideCardThumbnail(_ id: UUID) { pendingThumbnailIDs.remove(id) }
+    private func clearCardThumbnails() {
+        thumbnailGeneration += 1; thumbnailWork?.cancel(); thumbnailRunningGeneration = nil
+        thumbnails = [:]; pendingThumbnailIDs = []; attemptedThumbnailIDs = []
     }
     func loadPhoto(_ media: UUID) async {
         guard validate(), let detail, detail.photoIDs.contains(media) else { return }
@@ -307,8 +417,9 @@ final class IdentificationHistoryViewModel {
         if changed {
             // Titles can come from mutable community authority, not only result
             // evidence. No old row or restore control may outlive its revision.
-            rows = []; detail = nil; photo = nil; reanalysisAction = nil; photoGeneration += 1
+            rows = []; pinnedCurrent = nil; detail = nil; photo = nil; reanalysisAction = nil; photoGeneration += 1
             nextBeforeOrdinal = nil; showingOlder = false
+            clearCardThumbnails()
             message = "This scan changed. Refresh history before choosing an identification."
             admissionNotificationPending = true
         }
@@ -316,7 +427,8 @@ final class IdentificationHistoryViewModel {
     func close() {
         guard !isClosed else { return }
         isClosed = true; generation += 1; work?.cancel(); work = nil
-        rows = []; detail = nil; photo = nil; reanalysisAction = nil; selected = nil; undoOperation = nil; nextBeforeOrdinal = nil
+        clearCardThumbnails()
+        rows = []; pinnedCurrent = nil; needsCurrentCard = false; detail = nil; photo = nil; reanalysisAction = nil; selected = nil; undoOperation = nil; nextBeforeOrdinal = nil
         message = nil; isBusy = false; pending = false
         admissionNotificationPending = false; libraryRefreshPending = false
         dependencies.close()

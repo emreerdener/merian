@@ -1,3 +1,27 @@
+## Capture completion recovery (local candidate)
+
+`X-Merian-Initial-Recovery: capture-completion-v1` selects a read-only branch
+before legacy repair. The closed JSON body is
+`{"initial_recovery":{"version":1,"phase":"capture-completion","capture_plan":{...}}}`,
+where `capture_plan` is the complete original ordered Capture plan. Auth
+supplies the owner; the plan parser validates all identity, role, geometry and
+byte facts. The service-only `recover_private_capture_completion` reader
+compares that plan to retained sealed evidence. It does not prepare media,
+reserve funding, finalize, enroll History or dispatch inference.
+
+The closed response contains `version`, `phase`, `owner_id`, `scan_id`,
+`generation`, `status` and `completion`. Status is `completed` with the original
+verified Identify/proof envelope, or `held` with null completion. A held,
+failed, cancelled or malformed response never authorizes primary resubmission.
+Accepted unsealed results are handled by the separate finalization-only worker.
+
+Actual/declared requests are bounded to 1,048,576 bytes before strict UTF-8/JSON
+decoding; responses are bounded to 1,052,672 bytes. The five-second budget
+begins after authentication and includes body collection and the read; it bounds
+caller waiting, not database cancellation. All replies are no-store and failures
+use a fixed unavailable code. Focused HTTP/status tests passed 19 checks; native
+integration and complete surface validation remain open. This is not deployed.
+
 ## November 9 — explicit observation-only status protocol
 
 The source candidate adds an authenticated `observe-v1` branch to

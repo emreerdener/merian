@@ -98,6 +98,10 @@ struct BackgroundAccountWorkArchitectureTests {
     }
 
     @Test func consumersStayAtOfflineSyncBoundaries() throws {
+        let fixture = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "apps/ios/Merian/App/UITesting/InitialMediaHistoryUISubmission.swift")
+        #expect(fixture.hasPrefix("#if DEBUG\n") && fixture.hasSuffix("#endif\n"))
+        #expect(fixture.contains("guard UITestSeedCoordinator.initialMediaHistoryEnabled else"))
         let sources = try DatabaseActorTestSupport.swiftSources(
             below: "apps/ios/Merian"
         )
@@ -200,6 +204,7 @@ struct BackgroundAccountWorkArchitectureTests {
         (
             ".activateBackgroundAccountWork(",
             [
+                "App/UITesting/InitialMediaHistoryUISubmission.swift",
                 "Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift",
                 "Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift",
                 "Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadDispatch.swift"

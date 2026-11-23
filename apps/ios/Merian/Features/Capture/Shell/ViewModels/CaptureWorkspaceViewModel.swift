@@ -38,6 +38,8 @@ final class CaptureWorkspaceViewModel {
 
     // MARK: - UI & Navigation State
     var activePresentation: PresentedRoute?
+    var mediaReviewSession: CaptureMediaReviewSession?
+    var mediaReviewPresentationID: UUID?
     var isRootPresentationDismissing: Bool {
         operationState.isDismissingPresentation
     }
@@ -65,6 +67,8 @@ final class CaptureWorkspaceViewModel {
         }
     }
     var reanalysisEditor: CaptureReanalysisEditor?
+    @ObservationIgnored var reanalysisLoadTask: Task<Void, Never>?
+    var isReanalyzing: Bool { reanalysisEditor != nil || baseRefinementContext != nil }
     var nativeRecoveryModel: CaptureNativeRecoveryModel?
     var pendingExplorePostId: String?
     var pendingSpeciesDictionaryRoute: SpeciesDictionaryRoute?
@@ -80,17 +84,40 @@ final class CaptureWorkspaceViewModel {
     var offlineToastMessage: ToastPayload?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
+    var photoReviewCommit: CapturePhotoReviewCommit?
+    var videoReviewCommitID: UUID?
+    var completedPhotoReviewCommitID: UUID?
     /// All content staged for the next combined submission — images, optional audio (reserved),
     /// and optional describe description. Replaces the previous four parallel image arrays.
     var stagedCapture = StagedCapture()
     var automaticPreferenceRevision: UInt64 = 0
     var draftSession = CaptureDraftSession()
+    var initialDraftSession: CaptureInitialDraftSession?
+    var initialDraftVideoAttempts: [UUID: CaptureInitialVideoAttempt] = [:]
+    @ObservationIgnored var initialDraftProducerResources: CaptureInitialDraftWorkHost.Retained<CaptureInitialProducerResources>?
+    var initialDraftMutationTask: Task<Void, Never>?
+    var initialDraftLifecycleTask: Task<Void, Never>?
+    var initialDraftLifecycleID: UUID?
+    var initialDraftOwnerID: UUID?
+    var initialDraftAuthGeneration: UInt64?
+    var initialDraftNotesRecovery: CaptureInitialNotesRecovery?
+    @ObservationIgnored var initialDraftPendingSources: [CaptureInitialSourceAttempt] = []
+    @ObservationIgnored var initialDraftTemporaryFiles: [UUID: [CaptureScanTemporaryFileLease]] = [:]
+    var initialDraftPresentation: CaptureInitialDraftWorkHost.Retained<CaptureInitialDraftPresentation>?
+    var initialDraftResources: CaptureDraftPresentationResources? {
+        try? initialDraftPresentation?.currentValue().resources
+    }
     var nativePhotoDraftSession: CaptureNativePhotoDraftSession?
     var nativePhotoPickerInputs: [CaptureNativePhotoPickerInput] = []
     var nativePhotoImportTask: Task<Void, Never>?
     var nativePhotoDispositionTask: Task<Void, Never>?
     var descriptionDraft = ObservationContext()
     var descriptionFocusRequest: UUID?
+    var fieldNotesSession: CaptureFieldNotesSession?
+    var isFeaturePresentationAwaitingDismissal = false
+    var fieldNotesPromptProgress: DescribePromptViewModel.Progress?
+    var fieldNotesPromptGeneration: UUID?
+    var pendingFieldNotesIntent: CaptureFieldNotesSession.OpenIntent?
     var isReviewActive = false
     var discardConfirmationGeneration: UUID?
     var isQueueingStagedCapture = false
@@ -150,13 +177,18 @@ final class CaptureWorkspaceViewModel {
     }
 
     var stagedCaptureLimit: Int {
-        (isMultiCaptureFunctionallyEnabled || baseRefinementContext != nil) ? stagedCaptureCapacity : 1
+        (isMultiCaptureFunctionallyEnabled || isReanalyzing) ? stagedCaptureCapacity : 1
     }
 
     var availableStagedCaptureSlots: Int {
-        stagedCapture.availableEvidenceSlots(
+        if hasInitialDraftLiability {
+            let members = Set((initialDraftSession?.sources.map(\.itemID) ?? [])
+                + initialDraftPendingSources.map(\.itemID) + Array(initialDraftTemporaryFiles.keys))
+            return max(0, stagedCaptureLimit - members.count)
+        }
+        return stagedCapture.availableEvidenceSlots(
             limit: stagedCaptureLimit,
-            isRefining: baseRefinementContext != nil
+            isRefining: isReanalyzing
         )
     }
 
@@ -165,8 +197,8 @@ final class CaptureWorkspaceViewModel {
     }
 
     func canUseCaptureControls(in mode: CaptureMode) -> Bool {
-        if mode == .describe, baseRefinementContext == nil { return true }
-        if mode == .describe, baseRefinementContext != nil {
+        if mode == .describe, !isReanalyzing { return true }
+        if mode == .describe, isReanalyzing {
             return stagedCapture.canStageRefinementDescription
         }
         return hasAvailableStagedCaptureSlot
@@ -182,7 +214,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     var describePromptFlow: DescribePromptFlow {
-        if baseRefinementContext != nil {
+        if isReanalyzing {
             return .reanalysis(subjectId: refinementSubjectId)
         }
         return .standard
@@ -318,7 +350,7 @@ final class CaptureWorkspaceViewModel {
     /// background. Staged content survives a brief background trip; an empty
     /// workspace resets to the default camera state after the session timeout.
     private var shouldPreserveStagingOnBackground: Bool {
-        !stagedCapture.isEmpty || !descriptionDraft.isEmpty || isQueueingStagedCapture
+        isReanalyzing || !stagedCapture.isEmpty || !descriptionDraft.isEmpty || isQueueingStagedCapture
     }
 
     private func handleSessionTimeoutReset(now: Date = Date()) {
@@ -347,6 +379,7 @@ final class CaptureWorkspaceViewModel {
         pendingCaptureGoalDestination = nil
         pendingExploreShowsFieldTrips = false
         pendingScansRecoveryContext = nil
+        retireMediaReview()
         imageToCrop = nil
         editingCropIndex = nil
 

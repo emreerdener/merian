@@ -10,22 +10,65 @@ enum LibraryDetailsSyncService {
         let operationID: UUID
         let fieldNotes: String?
         let isFavorite: Bool
+        var fieldNotesAuthoritative: Bool?
     }
 
-    static func stage(_ record: LocalScanRecord, ownerID: UUID, context: ModelContext) throws {
+    static func stage(_ record: LocalScanRecord, ownerID: UUID, context: ModelContext, fieldNotesAuthoritative: Bool = false) throws {
+        let authority = try fieldNotesAuthoritative || hasAuthoritativeNotes(
+            record.fieldNotes, scanID: record.id, ownerID: ownerID, context: context
+        )
         let mutation = Mutation(ownerID: ownerID, scanID: record.id, tags: record.customTags, operationID: UUID(),
                                 fieldNotes: record.fieldNotes,
-                                isFavorite: record.collections?.contains { $0.name == "Favorites" } == true)
+                                isFavorite: record.collections?.contains { $0.name == "Favorites" } == true,
+                                fieldNotesAuthoritative: authority ? true : nil)
         try stage(mutation: mutation, context: context)
     }
 
+    /// A local note edit (including a clear) or restored baseline owns this
+    /// value. Historical tag-only operations do not prove notes were imported.
+    static func hasAuthoritativeNotes(_ notes: String?, scanID: String, ownerID: UUID, context: ModelContext) throws -> Bool {
+        let operations = try context.fetch(FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.subjectId == scanID }
+        )).compactMap { job -> (OfflineJobRecord, Mutation)? in
+            guard job.id.hasPrefix("library-details:"), job.status != .cancelled,
+                  let json = job.metadataJSON,
+                  let mutation = try? JSONDecoder().decode(Mutation.self, from: Data(json.utf8)),
+                  mutation.ownerID == ownerID else { return nil }
+            return (job, mutation)
+        }
+        let authoritative = operations.filter { job, mutation in
+            mutation.fieldNotesAuthoritative == true
+                || (job.status == .complete && job.id.hasPrefix("library-details:baseline:"))
+        }
+        let pending = authoritative.filter { $0.0.status != .complete }
+        let latest = (pending.isEmpty ? authoritative : pending).max { lhs, rhs in
+            lhs.0.createdAt == rhs.0.createdAt ? lhs.0.id < rhs.0.id : lhs.0.createdAt < rhs.0.createdAt
+        }
+        return latest?.1.fieldNotes == notes && latest != nil
+    }
+
     private static func stage(mutation: Mutation, context: ModelContext) throws {
+        // Distinct operation IDs are last-writer-wins on the server. Preserve
+        // producer order even if the wall clock ties or moves backwards: a
+        // later clear must never be delivered before the initial notes seed.
+        let scanID = mutation.scanID
+        let previous = try context.fetch(FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.subjectId == scanID }
+        )).filter { job in
+            guard job.id.hasPrefix("library-details:"), job.status != .cancelled,
+                  let json = job.metadataJSON,
+                  let saved = try? JSONDecoder().decode(Mutation.self, from: Data(json.utf8)) else { return false }
+            return saved.ownerID == mutation.ownerID
+        }.map(\.createdAt).max()
+        let now = Date()
+        let createdAt = previous.map { max(now, Date(timeIntervalSinceReferenceDate: $0.timeIntervalSinceReferenceDate.nextUp)) } ?? now
         let job = try context.ensureOfflineJobRecord(
             id: "library-details:\(mutation.operationID.uuidString.lowercased())", kind: .future, subjectId: mutation.scanID
         )
+        job.createdAt = createdAt
         job.metadataJSON = String(bytes: try JSONEncoder().encode(mutation), encoding: .utf8)
         job.status = .pending
-        job.updatedAt = Date()
+        job.updatedAt = now
     }
 
     /// Called only after the server proves source retirement and destination
@@ -39,7 +82,8 @@ enum LibraryDetailsSyncService {
             guard mutation.ownerID == source else { continue }
             guard job.status == .complete || job.status == .cancelled else { throw LibraryTransferPersistenceError.pending }
             let rebound = Mutation(ownerID: destination, scanID: mutation.scanID, tags: mutation.tags,
-                                   operationID: mutation.operationID, fieldNotes: mutation.fieldNotes, isFavorite: mutation.isFavorite)
+                                   operationID: mutation.operationID, fieldNotes: mutation.fieldNotes, isFavorite: mutation.isFavorite,
+                                   fieldNotesAuthoritative: mutation.fieldNotesAuthoritative)
             job.metadataJSON = String(bytes: try JSONEncoder().encode(rebound), encoding: .utf8)
         }
         let sourceID = source.uuidString.lowercased()
@@ -56,7 +100,7 @@ enum LibraryDetailsSyncService {
     private static var isDraining = false
 
     /// Import legacy notes before unrelated tag/favorite operations can clear
-    /// them. Only a restored baseline proves an old bridge value was cleared.
+    /// them. An explicit note edit or restored baseline fences stale bridge values.
     static func stageLegacyDetails(context: ModelContext, ownerID: UUID, userDefaults: UserDefaults = .standard, scanID: String? = nil) throws {
         let jobDescriptor: FetchDescriptor<OfflineJobRecord>
         let scanDescriptor: FetchDescriptor<LocalScanRecord>
@@ -81,7 +125,7 @@ enum LibraryDetailsSyncService {
                 lhs.0.createdAt == rhs.0.createdAt ? lhs.0.id < rhs.0.id : lhs.0.createdAt < rhs.0.createdAt
             }?.1
             let latestDesired = latestPending ?? operations.max { lhs, rhs in
-                lhs.0.updatedAt == rhs.0.updatedAt ? lhs.0.id < rhs.0.id : lhs.0.updatedAt < rhs.0.updatedAt
+                lhs.0.createdAt == rhs.0.createdAt ? lhs.0.id < rhs.0.id : lhs.0.createdAt < rhs.0.createdAt
             }?.1
             if let latestPending {
                 try restoreDesiredProjection(latestPending, into: record, context: context)
@@ -90,7 +134,9 @@ enum LibraryDetailsSyncService {
                 job.status == .complete && job.id.hasPrefix("library-details:baseline:") && mutation.fieldNotes == record.fieldNotes
             }
             var importedLegacyNotes = false
-            if !hasRestoredNotes, record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
+            let hasNotesAuthority = try hasAuthoritativeNotes(record.fieldNotes, scanID: record.id, ownerID: ownerID, context: context)
+            if !hasRestoredNotes, !hasNotesAuthority,
+               record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
                let legacyNotes = FieldNotesStore.fieldNotes(for: record.id, userDefaults: userDefaults) {
                 record.fieldNotes = latestDesired?.fieldNotes ?? legacyNotes
                 importedLegacyNotes = true
@@ -106,7 +152,8 @@ enum LibraryDetailsSyncService {
             }
             if !alreadyStaged, record.fieldNotes?.isEmpty == false || !tags.isEmpty || favorite {
                 let mutation = Mutation(ownerID: ownerID, scanID: record.id, tags: tags, operationID: UUID(),
-                                        fieldNotes: record.fieldNotes, isFavorite: favorite)
+                                        fieldNotes: record.fieldNotes, isFavorite: favorite,
+                                        fieldNotesAuthoritative: record.fieldNotes?.isEmpty == false ? true : nil)
                 try restoreDesiredProjection(mutation, into: record, context: context)
                 try stage(mutation: mutation, context: context)
             }

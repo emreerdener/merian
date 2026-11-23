@@ -23,9 +23,10 @@ final class PinnedBoundedJSONDataTask: NSObject, URLSessionDataDelegate, Sendabl
     private let limit: Int
     #if DEBUG
     private let completionPause: (@Sendable () -> Void)?
+    private let afterCompletion: (@Sendable () -> Void)?
     private let beforeResume: (@Sendable () -> Void)?
-    init(maximumBytes: Int, completionPause: (@Sendable () -> Void)? = nil, beforeResume: (@Sendable () -> Void)? = nil) {
-        limit = maximumBytes; self.completionPause = completionPause; self.beforeResume = beforeResume; super.init()
+    init(maximumBytes: Int, completionPause: (@Sendable () -> Void)? = nil, beforeResume: (@Sendable () -> Void)? = nil, afterCompletion: (@Sendable () -> Void)? = nil) {
+        limit = maximumBytes; self.afterCompletion = afterCompletion; self.completionPause = completionPause; self.beforeResume = beforeResume; super.init()
     }
     #else
     init(maximumBytes: Int) { limit = maximumBytes; super.init() }
@@ -33,11 +34,14 @@ final class PinnedBoundedJSONDataTask: NSObject, URLSessionDataDelegate, Sendabl
     private static let deadlineQueue = DispatchQueue(label: "com.merian.bounded-json-deadline")
 
     /// Ordinary callers keep prompt completion; only retained mutation owners join.
-    func joinedResponse(using session: URLSession, request: URLRequest, timeout: TimeInterval) async throws -> (Data, URLResponse) {
+    func joinedResponse(using session: URLSession, request: URLRequest, timeout: TimeInterval, preserveReceivedResponse: Bool = false) async throws -> (Data, URLResponse) {
         do {
             let result = try await response(using: session, request: request, timeout: timeout)
             await waitForLocalTermination()
-            try Task.checkCancellation()
+            // A completed response may settle the same durable claim even if
+            // dispatch was cancelled while its termination callback drained.
+            // The caller must still validate owner and settlement authority.
+            if !preserveReceivedResponse { try Task.checkCancellation() }
             return result
         } catch {
             await waitForLocalTermination()
@@ -133,6 +137,9 @@ final class PinnedBoundedJSONDataTask: NSObject, URLSessionDataDelegate, Sendabl
         completionPause?()
         #endif
         finish(error: error)
+        #if DEBUG
+        afterCompletion?()
+        #endif
         let waiters = state.withLock { value in
             value.terminated = true; value.task = nil
             defer { value.waiters.removeAll() }; return value.waiters

@@ -102,7 +102,7 @@ enum ActiveCaptureGoalPresentationPolicy {
     static func shouldShow(
         goalsEnabled: Bool,
         isUserVisible: Bool,
-        isVisualMode: Bool,
+        isCaptureMode: Bool,
         hasPresentation: Bool,
         stagedCaptureIsEmpty: Bool,
         isRefining: Bool,
@@ -110,7 +110,7 @@ enum ActiveCaptureGoalPresentationPolicy {
     ) -> Bool {
         goalsEnabled
             && isUserVisible
-            && isVisualMode
+            && isCaptureMode
             && hasPresentation
             && stagedCaptureIsEmpty
             && !isRefining

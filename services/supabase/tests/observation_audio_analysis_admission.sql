@@ -150,6 +150,11 @@ SELECT extensions.is(pg_temp.begin_work(),' {"state":"complete","claimed":false}
 SELECT extensions.is((SELECT count(*) FROM internal.identification_invocations WHERE scan_id='00000000-0000-4000-8000-00000000a921'),1::BIGINT,'all retries retain one provider execution');
 SELECT extensions.is((SELECT state FROM internal.complimentary_scan_usage WHERE client_scan_id='00000000-0000-4000-8000-00000000a921'),'consumed','only durable completion consumes credit');
 
+SAVEPOINT completed_audio_reader;
+UPDATE internal.observation_history_rollout SET reader_enabled=TRUE,media_reader_enabled=TRUE;
+SELECT extensions.is(public.resolve_owned_observation_media('00000000-0000-4000-8000-00000000a901','00000000-0000-4000-8000-00000000a911','00000000-0000-4000-8000-00000000a921','00000000-0000-4000-8000-00000000a931',1)->>'content_type','audio/wav','completed audio original resolves through immutable membership');
+ROLLBACK TO SAVEPOINT completed_audio_reader;
+
 SELECT extensions.is((SELECT selected_analysis_id FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000a911'),(SELECT selected_analysis_id FROM original_history),'audio completion preserves original selection');
 SELECT extensions.is((SELECT review_snapshot->>'user_review_state' FROM internal.observation_analysis_authorities WHERE analysis_id='00000000-0000-4000-8000-00000000a921'),'unreviewed','new audio starts unreviewed');
 SELECT extensions.is((SELECT (internal.observation_analysis_snapshot(r.observation_id,r.analysis_id,r.source_analysis_id,r.request_digest,r.ordinal,r.completed_at,r.result_snapshot,r.evidence_manifest)::JSONB)->>'schema_version' FROM internal.observation_analysis_results r WHERE analysis_id='00000000-0000-4000-8000-00000000a921'),'4','audio uses outer result4');

@@ -5,6 +5,25 @@ import Observation
 @MainActor
 @Observable
 final class DescribePromptViewModel {
+    struct Progress: Equatable {
+        let subjectID: String?
+        let questionIndex: Int
+        let interactedIndices: Set<Int>
+    }
+
+    var progress: Progress {
+        Progress(subjectID: activeSubjectId, questionIndex: activeQuestionIndex,
+                 interactedIndices: interactedQuestionIndices)
+    }
+
+    func restore(_ progress: Progress) {
+        if let subjectID = progress.subjectID { activateFunnel(for: subjectID) }
+        if activeQuestions.indices.contains(progress.questionIndex) {
+            activeQuestionIndex = progress.questionIndex
+        }
+        interactedQuestionIndices = progress.interactedIndices.filter { activeQuestions.indices.contains($0) }
+    }
+
     var activeQuestionIndex = 0
     var interactedQuestionIndices: Set<Int> = []
     var activeSubjectId: String?

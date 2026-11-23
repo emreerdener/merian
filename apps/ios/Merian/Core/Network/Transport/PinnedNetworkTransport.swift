@@ -128,6 +128,32 @@ final class PinnedNetworkTransport: @unchecked Sendable {
             .response(using: session, request: request, timeout: ObservationVideoEvidenceTransport.requestSeconds)
     }
 
+    /// Holds the account lease until the actual upload task drains, including cancellation.
+    func captureStageData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: CaptureStageTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await PinnedBoundedJSONDataTask(maximumBytes: CaptureStageReceipt.maximumBytes)
+            .joinedResponse(using: session, request: request, timeout: CaptureStageTransport.requestSeconds)
+    }
+
+    func capturePrimaryData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: CapturePrimaryTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await PinnedBoundedJSONDataTask(maximumBytes: OrdinaryInferenceCompletion.maximumBytes)
+            .joinedResponse(using: session, request: request, timeout: CapturePrimaryTransport.requestSeconds,
+                            preserveReceivedResponse: true)
+    }
+
+    func compositionEvidenceData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let session = URLSession(configuration: scopedConfiguration(timeout: ObservationCompositionEvidenceTransport.requestSeconds),
+                                 delegate: MerianTLSDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        return try await PinnedBoundedJSONDataTask(maximumBytes: ObservationCompositionEvidenceReceipt.maximumBytes)
+            .response(using: session, request: request, timeout: ObservationCompositionEvidenceTransport.requestSeconds)
+    }
+
     /// The immutable state envelope has a larger, still streamed and bounded, read-only budget.
     func audioOutcomeData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await PinnedBoundedJSONDataTask(maximumBytes: ObservationHistoryPage.maximumPageBytes)

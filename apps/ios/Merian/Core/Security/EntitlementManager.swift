@@ -116,6 +116,19 @@ import Supabase
         return reservation
     }
 
+    /// The caller supplies fresh, owner-qualified durable identities. This
+    /// snapshot never mutates reservations; the Capture owner must first save
+    /// the chosen effective funding together with its resolution receipt.
+    func captureFundingEvidence(ownershipProofs: [String: String]) -> CaptureDeferredFundingDecision.Evidence? {
+        guard let ownerID = sessionUserID else { return nil }
+        return .init(ownerID: ownerID, sessionGeneration: sessionGeneration,
+            entitlementVersion: entitlementVersion, paidAvailable: hasPaidProAccessForAdmission,
+            complimentaryAvailable: hasVerifiedComplimentaryAccessForAdmission,
+            availableCredits: locallyAvailableComplimentaryCredits,
+            blockerStates: complimentaryStates.filter { ownershipProofs[$0.key] != nil }.mapValues(\.rawValue),
+            unresolvedBlockers: unresolvedComplimentaryBlockerIds, ownershipProofs: ownershipProofs)
+    }
+
     func restoreFundingReservation(_ reservation: ScanFundingReservation) {
         guard reservation.accountId == sessionUserID else { return }
         let key = reservation.scanId.lowercased()
@@ -128,6 +141,14 @@ import Supabase
             return
         }
         fundingReservations[key] = reservation
+    }
+
+    /// Only the current native owner may replace the conservative legacy
+    /// placeholder after freshly qualifying the accepted Capture receipt.
+    func restoreQualifiedCaptureFunding(_ reservation: ScanFundingReservation) {
+        guard reservation.accountId == sessionUserID else { return }
+        legacyPotentialBlockers[reservation.scanId] = nil
+        restoreFundingReservation(reservation)
     }
 
     func restoreLegacyPotentialBlocker(scanId: String, createdAt: Date, unresolvedOwnership: Bool = false) {

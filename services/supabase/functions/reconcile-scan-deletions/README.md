@@ -33,3 +33,27 @@ delete credentials. The route accepts no caller-controlled job identity.
 Foreign-owner URLs, malformed paths, and non-scan prefixes are skipped and
 reported only as aggregate rejection counts; they can never nominate an R2
 object for deletion.
+
+## Capture staging obligations
+
+The source implementation also runs one exact-object retirement pass after scan
+job reconciliation. It claims at most 25 retired staging keys, stops starting
+objects after 40 seconds, and uses bounded R2 requests. The configured backend
+digest and owner namespace must match before DELETE or HEAD. Only HEAD 404
+records an absence observation; failed I/O, other statuses, or unknown
+acknowledgement remain unresolved. There is no completed/garbage-collection
+transition.
+
+`capture_object_retirement` in the response/log contains per-pass counts and an
+aggregate `health` snapshot: unresolved, due, leased, error counts and oldest
+retired age. These are separate from the existing scan-row completion counts and
+`health_status`. An absent object may still be written by an already-issued PUT;
+its permanent no-rebind fence and scheduled recheck survive that observation.
+Successful absence schedules a recheck after the outstanding capability expiry
+and at least one hour; errors retry after five minutes. Leases expire after two
+minutes. Backend mismatch remains an unresolved obligation, never a delete
+against a different configured bucket.
+
+This is containment for registered staging keys, not complete physical-erasure
+qualification. COPY/publication targets, legacy unknown capabilities, and draft
+abandonment remain open. No new hosted schedule or deployment was performed.

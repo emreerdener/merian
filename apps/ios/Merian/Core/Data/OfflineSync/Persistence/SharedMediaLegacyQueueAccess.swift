@@ -23,6 +23,32 @@ enum SharedMediaLegacyQueueAccess {
         guard !scanID.isEmpty else { return false }
         let lower = scanID.lowercased(), upper = scanID.uppercased()
         let identities = [scanID, lower, upper]
+        // Durable ordinary-original liabilities outlive the queue/job. Presence
+        // denies legacy authority even when receipt bytes or row state are damaged.
+        // Only the registered owner can interpret their acceptance/retirement.
+        if let recipient = UUID(uuidString: scanID) {
+            var holds = FetchDescriptor<SharedMediaOrdinaryTransferRecord>(predicate: #Predicate {
+                $0.recipientScanID == recipient
+            })
+            holds.fetchLimit = 1
+            guard try context.fetch(holds).isEmpty else { return false }
+            var artifacts = FetchDescriptor<SharedMediaOrdinaryArtifactRecord>(predicate: #Predicate {
+                $0.recipientScanID == recipient
+            })
+            artifacts.fetchLimit = 1
+            guard try context.fetch(artifacts).isEmpty else { return false }
+        }
+        let ordinaryJobIDs = identities.map { "scan-ingestion:" + $0 }
+        var submissions: FetchDescriptor<SharedMediaOrdinarySubmissionRecord>
+        if let recipient = UUID(uuidString: scanID) {
+            submissions = FetchDescriptor(predicate: #Predicate {
+                $0.recipientScanID == recipient || ordinaryJobIDs.contains($0.jobID)
+            })
+        } else {
+            submissions = FetchDescriptor(predicate: #Predicate { ordinaryJobIDs.contains($0.jobID) })
+        }
+        submissions.fetchLimit = 1
+        guard try context.fetch(submissions).isEmpty else { return false }
         var queues = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
             $0.id == scanID || $0.id == lower || $0.id == upper
         })

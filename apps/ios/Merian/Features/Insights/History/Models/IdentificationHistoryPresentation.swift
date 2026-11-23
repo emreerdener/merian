@@ -8,6 +8,8 @@ struct IdentificationHistoryRow: Identifiable, Equatable {
     let confidence: String?
     let review: String
     let isImported: Bool
+    var confidenceStyle: ConfidenceBadgePresentation.Style = .unknown
+    var thumbnailMediaID: UUID?
 }
 
 struct IdentificationHistoryDetail {
@@ -51,7 +53,8 @@ enum IdentificationHistoryPresentation {
         return IdentificationHistoryRow(id: entry.result.analysisID, title: String(title.prefix(200)),
             scientificName: scientific.map { String($0.prefix(200)) }, completedAt: entry.result.completedAt,
             confidence: confidence.isVisible ? confidence.label : nil, review: review(entry.authority, biological: biological),
-            isImported: entry.result.version == 3)
+            isImported: entry.result.version == 3, confidenceStyle: confidence.style,
+            thumbnailMediaID: entry.result.photos.first?.mediaID)
     }
 
     static func detail(_ entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context, cached: Bool) throws -> IdentificationHistoryDetail {

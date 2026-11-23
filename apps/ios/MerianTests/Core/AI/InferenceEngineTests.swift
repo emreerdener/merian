@@ -1513,7 +1513,7 @@ struct InferenceEngineTests {
             commonName: "Raccoon",
             scientificName: "Procyon lotor",
             insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
-            confidenceScore: 0.92,
+            confidenceScore: 0.98,
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,

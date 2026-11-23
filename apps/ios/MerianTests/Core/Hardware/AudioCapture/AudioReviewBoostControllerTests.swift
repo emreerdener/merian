@@ -81,7 +81,7 @@ private struct ReviewBoostFixture {
         try? FileManager.default.removeItem(at: boosted)
     }
 
-    func manager(enabled: Bool = false, autoSubmit: Bool = false) -> AudioCaptureManager {
+    func manager(enabled: Bool = false, autoSubmit: Bool = false, holdOriginal: Bool = false) -> AudioCaptureManager {
         let session = AudioSessionCoordinator(operations: .init(configureAndActivate: { _ in }, deactivate: {}))
         let manager = AudioCaptureManager(dependencies: .init(
             activateRecordingSession: { _ in try await session.activate(.playback) },
@@ -100,6 +100,7 @@ private struct ReviewBoostFixture {
             fileName: original.lastPathComponent,
             boostRecordingPreview: enabled
         )
+        if holdOriginal, let id = manager.recordingID { manager.holdOriginalForDraft(recordingID: id) }
         manager.debugFinishRecording(reachedMaxDuration: autoSubmit)
         if !autoSubmit { manager.restoreSubmissionForReview() }
         return manager
@@ -109,6 +110,93 @@ private struct ReviewBoostFixture {
 @Suite("Recording preview boost")
 @MainActor
 struct AudioReviewBoostControllerTests {
+    @Test("Account refresh preserves a completed original after UI reset until retry input is copied")
+    func completedDraftOriginalSurvivesReset() async throws {
+        let fixture = try ReviewBoostFixture()
+        defer { fixture.cleanup() }
+        let manager = fixture.manager(autoSubmit: true, holdOriginal: true)
+        let id = try #require(manager.recordingID)
+        manager.reset()
+        #expect(await manager.drainOriginalRetirements() == false)
+        #expect(FileManager.default.fileExists(atPath: fixture.original.path))
+        let retry = try #require(try await manager.copyHeldDraftOriginal(recordingID: id))
+        #expect(retry.bytes == Data([1, 2, 3, 4]))
+        manager.releaseOriginalForDraft(recordingID: id)
+        #expect(await manager.drainOriginalRetirements())
+        #expect(!FileManager.default.fileExists(atPath: fixture.original.path))
+    }
+
+    @Test("Original transfer joins replaced boost work before reading and acknowledges exact custody")
+    func originalTransferWaitsForLateBoost() async throws {
+        let fixture = try ReviewBoostFixture()
+        defer { fixture.cleanup() }
+        let manager = fixture.manager(enabled: true)
+        manager.playPendingRecording()
+        try await waitUntil { fixture.probe.waiters.count == 1 }
+        manager.retryStaging()
+        let id = try #require(manager.recordingID)
+        var didRead = false
+        let transfer = Task {
+            try await manager.withSubmittedOriginal(recordingID: id, path: fixture.original.lastPathComponent) { url in
+                didRead = true
+                return try Data(contentsOf: url)
+            }
+        }
+        try await waitUntil { manager.isTransferringOriginal }
+        #expect(!didRead)
+        #expect(FileManager.default.fileExists(atPath: fixture.original.path))
+        fixture.probe.succeed(fixture.boosted)
+        #expect(try await transfer.value == Data([1, 2, 3, 4]))
+        #expect(didRead)
+        #expect(!FileManager.default.fileExists(atPath: fixture.boosted.path))
+        #expect(FileManager.default.fileExists(atPath: fixture.original.path))
+        manager.acknowledgeRetainedOriginal(recordingID: id, path: fixture.original.lastPathComponent)
+        try await waitUntil { !FileManager.default.fileExists(atPath: fixture.original.path) }
+    }
+
+    @Test("Reset cannot unlink an original while its durable copy is suspended")
+    func resetJoinsOriginalTransfer() async throws {
+        let fixture = try ReviewBoostFixture()
+        defer { fixture.cleanup() }
+        let manager = fixture.manager(autoSubmit: true)
+        let id = try #require(manager.recordingID)
+        var continuation: CheckedContinuation<Void, Never>?
+        let transfer = Task {
+            try await manager.withSubmittedOriginal(recordingID: id, path: fixture.original.lastPathComponent) { _ in
+                await withCheckedContinuation { continuation = $0 }
+            }
+        }
+        try await waitUntil { continuation != nil }
+        manager.reset()
+        #expect(FileManager.default.fileExists(atPath: fixture.original.path))
+        #expect(manager.isTransferringOriginal)
+        continuation?.resume()
+        do { try await transfer.value; Issue.record("Revoked handoff must not succeed") } catch is CancellationError {
+        } catch { Issue.record("Unexpected handoff error") }
+        try await waitUntil { !FileManager.default.fileExists(atPath: fixture.original.path) }
+        #expect(!manager.isTransferringOriginal)
+    }
+
+    @Test("Failed native retention preserves the exact recorder original for retry")
+    func failedOriginalTransferPreservesRecording() async throws {
+        let fixture = try ReviewBoostFixture()
+        defer { fixture.cleanup() }
+        let manager = fixture.manager(autoSubmit: true)
+        let id = try #require(manager.recordingID)
+        do {
+            try await manager.withSubmittedOriginal(recordingID: id, path: fixture.original.lastPathComponent) { _ in
+                throw CocoaError(.fileWriteOutOfSpace)
+            }
+            Issue.record("Expected retention failure")
+        } catch {}
+        manager.restoreSubmissionForReview()
+        #expect(manager.pendingPlaybackPath == fixture.original.lastPathComponent)
+        #expect(try Data(contentsOf: fixture.original) == Data([1, 2, 3, 4]))
+        #expect(!manager.isTransferringOriginal)
+        manager.reset()
+        try await waitUntil { !FileManager.default.fileExists(atPath: fixture.original.path) }
+    }
+
     @Test("Asynchronous boosted-file preparation failure falls back to the original")
     func asynchronousBoostedFileFailureFallsBackToOriginal() async throws {
         let fixture = try ReviewBoostFixture()

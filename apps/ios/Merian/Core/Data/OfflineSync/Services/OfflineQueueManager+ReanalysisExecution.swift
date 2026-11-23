@@ -6,9 +6,12 @@ extension OfflineQueueManager {
     func cancelPreparedAnalysisDispatch() {
         sourceReservationOwner.cancel()
         videoReservationOwner.cancel()
+        compositionReservationOwner.cancel()
         videoUploadOwner.cancel()
+        compositionUploadOwner.cancel()
         audioExecutionOwner.cancel()
         videoExecutionOwner.cancel()
+        compositionExecutionOwner.cancel()
     }
 
     /// Restores only durably admitted bound children. Draft binding remains an explicit submission action.
@@ -47,9 +50,12 @@ extension OfflineQueueManager {
         protectedChatDeliveryOwner.invalidate()
         sourceReservationOwner.invalidate()
         videoReservationOwner.invalidate()
+        compositionReservationOwner.invalidate()
         videoUploadOwner.invalidate()
+        compositionUploadOwner.invalidate()
         audioExecutionOwner.invalidate()
         videoExecutionOwner.invalidate()
+        compositionExecutionOwner.invalidate()
         audioStatusOwner.invalidate()
         confirmationUndoOwner.cancelAll()
         rejectionUndoOwner.cancelAll()
@@ -74,9 +80,12 @@ extension OfflineQueueManager {
         await protectedChatDeliveryOwner.invalidateAndAwait()
         await sourceReservationOwner.invalidateAndAwait()
         await videoReservationOwner.invalidateAndAwait()
+        await compositionReservationOwner.invalidateAndAwait()
         await videoUploadOwner.invalidateAndAwait()
+        await compositionUploadOwner.invalidateAndAwait()
         await audioExecutionOwner.invalidateAndAwait()
         await videoExecutionOwner.invalidateAndAwait()
+        await compositionExecutionOwner.invalidateAndAwait()
         await audioStatusOwner.invalidateAndAwait()
     }
 }

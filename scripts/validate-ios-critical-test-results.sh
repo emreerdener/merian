@@ -184,10 +184,10 @@ assert_suite_has_passed_test_case \
   "Capture workspace staging" \
   "automaticSingleCaptureFencesTheIdentifyTray"
 assert_suite_has_passed_test_case \
-  "Required-crop capture chrome suppression" \
-  "CaptureWorkspaceStagingTests" \
-  "Capture workspace staging" \
-  "requiredCropStateFencesCaptureChromeBeforePresentation"
+  "Optional review occupancy fences capture ingress" \
+  "CaptureWorkspaceViewModelRefinementTests" \
+  "CaptureWorkspaceViewModelRefinementTests" \
+  "testReviewOccupancyBlocksQueuedCaptureAndRecordingIngress"
 assert_suite_has_passed_test_case \
   "Still-capture lifecycle generation fence" \
   "CaptureScanDependenciesTests" \
@@ -487,7 +487,7 @@ assert_suite_has_passed_test_case \
   "Strong noncompetitive candidate toolbar policy" \
   "InsightShellCapabilitiesTests" \
   "InsightShellCapabilitiesTests" \
-  "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates"
+  "strongPrimaryCanBeConfirmedWithoutShowingNonCompetitiveAlternatives"
 assert_suite_has_passed_test_case \
   "Competitive candidate toolbar policy" \
   "InsightShellCapabilitiesTests" \

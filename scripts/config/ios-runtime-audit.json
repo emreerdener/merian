@@ -386,6 +386,20 @@
         "InitialMediaHistoryUITests"
       ],
       "owner": "apps/ios/MerianUITests/InitialMediaHistoryUITests.swift"
+    },
+    {
+      "selector": "merianTests/ObservationCompositionExecutionTests",
+      "suite_names": [
+        "ObservationCompositionExecutionTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/ObservationCompositionExecutionTests.swift"
+    },
+    {
+      "selector": "merianTests/CompositionExecutionServiceTests",
+      "suite_names": [
+        "CompositionExecutionServiceTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/CompositionExecutionServiceTests.swift"
     }
   ],
   "ui": [
@@ -536,14 +550,14 @@
       "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
     },
     {
-      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromHistoricalPreview",
+      "selector": "merianUITests/PublicationConsentUITests/testPrimaryConfirmationUndoFromCurrentHistoryCard",
       "suite_names": [
         "PublicationConsentUITests"
       ],
       "owner": "apps/ios/MerianUITests/PublicationConsentUITests.swift"
     },
     {
-      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromHistoricalPreview",
+      "selector": "merianUITests/PublicationConsentUITests/testNamedConfirmationUndoFromCurrentHistoryCard",
       "suite_names": [
         "PublicationConsentUITests"
       ],

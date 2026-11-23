@@ -7,7 +7,7 @@ import XCTest
         defer { app.terminate() }
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
@@ -44,7 +44,7 @@ import XCTest
         defer { app.terminate() }
         let scans = app.segmentedControls.buttons["Scans"]
         if !scans.waitForExistence(timeout: 5) {
-            let entry = app.buttons["MainTabBar_Scans"]
+            let entry = app.buttons["MainTabBar_Naturebook"]
             XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         }
         XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()

@@ -52,6 +52,9 @@ export function resolveAIClaim(
     return resolveContentClaim(request, authority);
   }
   const inputProfile = identificationInputProfile(request);
+  const focused = request.variant === "multimodal" && request.evidence.some(
+    (item) => item.kind === "image" && item.focusRegion !== undefined,
+  );
 
   const operation = request.variant === "audio_compat"
     ? "scan_audio_identification"
@@ -76,7 +79,7 @@ export function resolveAIClaim(
   }
   if (authority.reservation.assignment.provider === "openai") {
     if (
-      authority.audioPromptComparison !== undefined ||
+      focused || authority.audioPromptComparison !== undefined ||
       !["free", "pro"].includes(
         authority.reservation.tier?.effective_tier ?? "",
       )
@@ -113,7 +116,11 @@ export function resolveAIClaim(
         : variant === "vision_compat"
         ? "identify_vision_v1"
         : images
-        ? audio ? "identify_blended_v1" : "identify_vision_v1"
+        ? focused
+          ? audio ? "identify_blended_focus_v1" : "identify_vision_focus_v1"
+          : audio
+          ? "identify_blended_v1"
+          : "identify_vision_v1"
         : audio
         ? "identify_audio_v2"
         : "identify_text_v1",
@@ -225,7 +232,11 @@ export function resolveAIClaim(
       policyVersion,
       permission: "google_gemini",
       prompt: images
-        ? audio ? "identify_blended_v1" : "identify_vision_v1"
+        ? focused
+          ? audio ? "identify_blended_focus_v1" : "identify_vision_focus_v1"
+          : audio
+          ? "identify_blended_v1"
+          : "identify_vision_v1"
         : audio
         ? authority.audioPromptComparison === "B"
           ? "identify_audio_uncertainty_experiment_v1"

@@ -10,13 +10,13 @@ struct SharedMediaNativeReceivingStagingTests {
     private static let recipe = SharedMediaNativePreparationRecipe(format: .stillImage, isPro: false,
         cropDisplaySize: nil, quarterTurns: 0, scale: 1, offsetX: 0, offsetY: 0)
 
-    @Test(arguments: [1, 2])
-    func oneImmutableSlotSurvivesColdReopenWithoutAnotherSave(_ count: Int) async throws {
+    @Test(arguments: [1, 2], [SharedMediaNativeFrozenCohort.Format.cohort, .initialNotes])
+    func oneImmutableSlotSurvivesColdReopenWithoutAnotherSave(_ count: Int, _ format: SharedMediaNativeFrozenCohort.Format) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture(count: count)
         let ids = try pairIDs(request), before = try facts(h)
         var saves = 0
         try owner.setMetadataFault { if $0 == .beforeSave { saves += 1 } }
-        let prepared = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+        let prepared = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids, cohortFormat: format)
         let again = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
         #expect(try prepared.encoded() == again.encoded())
         #expect(prepared.operationID != request.freeze.commit.operationID)
@@ -35,8 +35,8 @@ struct SharedMediaNativeReceivingStagingTests {
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test(arguments: ["before", "after", "readback"])
-    func uncertainAcknowledgementRecoversOnlyTheSavedSlot(_ fault: String) async throws {
+    @Test(arguments: ["before", "after", "readback"], [SharedMediaNativeFrozenCohort.Format.cohort, .initialNotes])
+    func uncertainAcknowledgementRecoversOnlyTheSavedSlot(_ fault: String, _ format: SharedMediaNativeFrozenCohort.Format) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
         let ids = try pairIDs(request), before = try facts(h)
         var saves = 0, saved = false
@@ -46,10 +46,10 @@ struct SharedMediaNativeReceivingStagingTests {
             if $0 == .beforeReadback && saved && fault == "readback" { throw SharedMediaStorageFailure.unavailable }
         }
         if fault == "after" {
-            _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+            _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids, cohortFormat: format)
         } else {
             await #expect(throws: (any Error).self) {
-                _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+                _ = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids, cohortFormat: format)
             }
         }
         #expect(saves == 1)
@@ -61,7 +61,7 @@ struct SharedMediaNativeReceivingStagingTests {
         if fault != "before" {
             let bytes = try #require(rows.first?.preparedData), cold = try await reopen(h)
             try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
-            let recovered = try await cold.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+            let recovered = try await cold.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids, cohortFormat: format)
             #expect(try recovered.encoded() == bytes)
             #expect(await cold.invalidateAndAwaitForAccountTransition())
         } else {

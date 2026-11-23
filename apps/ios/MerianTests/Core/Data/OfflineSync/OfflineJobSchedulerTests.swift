@@ -17,6 +17,32 @@ struct OfflineJobSchedulerTests {
         }
     }
 
+    @Test func committedCaptureFundingRecoversOfflineWithoutProviderWork() async {
+        let manager = OfflineQueueManager.shared, originalOnline = manager.isOnline
+        manager.isOnline = false
+        defer { manager.isOnline = originalOnline }
+        var events: [String] = []
+        let scheduler = OfflineJobScheduler(drainOperations: .init(
+            syncReanalysisAdmissions: { _ in events.append("admission") },
+            recoverCaptureFunding: { received in
+                #expect(received === manager)
+                events.append("captureReceipt")
+            },
+            recoverCaptureHistory: { received in
+                #expect(received === manager)
+                events.append("captureHistory")
+            },
+            reconcileFunding: { _ in Issue.record("Offline network funding lookup") },
+            syncPendingScans: { _ in Issue.record("Offline upload") },
+            replayInference: { _ in Issue.record("Offline provider replay") },
+            replayFieldTripProgress: { _ in Issue.record("Offline progress") },
+            syncPendingDeletions: { _ in Issue.record("Offline deletion") },
+            syncCollections: { _ in Issue.record("Offline collection") }))
+        await scheduler.drainRunnableJobs(using: manager)
+        #expect(events == ["admission", "captureHistory", "captureReceipt"])
+        #expect(scheduler.scheduledWakeDate == nil)
+    }
+
     @Test func detailsAcknowledgmentSaveFailureRetriesAutomatically() async throws {
         let manager = OfflineQueueManager.shared
         let originalOnline = manager.isOnline

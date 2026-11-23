@@ -35,11 +35,13 @@ TestFlight, App Store, support, and QA.
 
 - Scans is now Book in the main navigation, with a book icon. Find your saved
   scans and collections in Book, your personal record of nature discoveries.
-- A short update sheet introduces map improvements including search, terrain
-  view by default, zoom controls and a distance scale, descriptions available to
-  everyone to help improve accuracy, marking AI identifications as incorrect,
-  identification history to revisit earlier results after reanalysis, emoji
-  reactions on Explore posts, and louder previews for quiet recordings.
+- A short update sheet introduces simpler Scan/Record controls, shared media
+  review with framing and playback tools, photo subject selection, and map
+  improvements including search, terrain view by default, zoom controls and a
+  distance scale, descriptions available to everyone to help improve accuracy,
+  marking AI identifications as incorrect, identification history to revisit
+  earlier results after reanalysis, emoji reactions on Explore posts, and louder
+  previews for quiet recordings.
 - Existing users see each set of highlights once after updating. Reopen it from
   Settings → Resources → What’s new.
 

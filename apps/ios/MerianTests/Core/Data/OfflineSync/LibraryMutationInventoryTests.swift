@@ -159,6 +159,37 @@ struct LibraryMutationInventoryTests {
         #expect(try harness.inventory().isReady)
     }
 
+    @Test(arguments: [Optional<String>.none, Optional("Edited notes")])
+    func initialNotesSeedPrecedesLaterMutationWhenClockMovesBackwards(laterNotes: String?) async throws {
+        let harness = try Harness()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: "Submitted description")
+        harness.context.insert(record)
+        try LibraryDetailsSyncService.stageLegacyDetails(context: harness.context, ownerID: harness.owner, userDefaults: harness.defaults)
+        let seed = try #require(harness.context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        let seedBytes = seed.metadataJSON
+        seed.createdAt = Date().addingTimeInterval(3600)
+        try harness.context.save()
+        record.fieldNotes = laterNotes
+        try LibraryDetailsSyncService.stage(record, ownerID: harness.owner, context: harness.context)
+        try harness.context.save()
+        // Refetch rather than relying on in-memory Date precision. The ordering
+        // must survive the persisted SwiftData representation and a restart.
+        let restarted = ModelContext(harness.container)
+        let saved = try restarted.fetch(FetchDescriptor<OfflineJobRecord>())
+        let savedSeed = try #require(saved.first { $0.id == seed.id })
+        let later = try #require(saved.first { $0.id != seed.id })
+        #expect(later.createdAt > savedSeed.createdAt)
+        #expect(savedSeed.metadataJSON == seedBytes)
+        var sent: [LibraryDetailsSyncService.Mutation] = []
+        await LibraryDetailsSyncService.drainPending(
+            context: restarted, ownerID: harness.owner, userDefaults: harness.defaults,
+            isCurrent: { true }, send: { sent.append($0) }
+        )
+        #expect(sent.map(\.fieldNotes) == ["Submitted description", laterNotes])
+        #expect(try restarted.fetch(FetchDescriptor<LocalScanRecord>()).first?.fieldNotes == laterNotes)
+        #expect(try harness.inventory().isReady)
+    }
+
     @Test func failedAcknowledgmentSaveRetriesSameImmutableOperation() async throws {
         let harness = try Harness()
         let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: "Note")

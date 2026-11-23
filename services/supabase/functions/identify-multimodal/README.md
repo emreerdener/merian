@@ -1,8 +1,38 @@
+## Private capture continuation
+
+The local `capturePlan` branch uses closed V1 client membership and immutable
+schema-4 admission. It materializes retained V9 evidence, preserving order,
+selection and video lineage, then uses the existing quota/provider executor.
+Staging owns audio DSP; Identify never repeats it. Accepted-result binding comes
+before insertion and the existing entitlement finalizer supplies the exact
+completion seal. Empty public media arrays are intentional. Exact completed-plan
+recovery runs before admission, including after transient job/intent cleanup.
+Native mixed-media original holds and dispatch are still unfinished; this is not
+activation or end-to-end qualification. See the
+[continuation contract](../../../../docs/backend-and-data/05-api-contracts.md#private-capture-identify-continuation--november-20).
+
 # identify-multimodal
 
 Primary scan-ingestion Edge Function for mixed media. The iOS client uses this
 endpoint for still images, audio, short video captures, description context, and
 combined submissions.
+
+## Client evidence boundary
+
+The handler rejects client-supplied `initialEvidence` and `initial_evidence`
+proofs, including null or malformed values, before media/provider work. These
+proofs are service-owned. New original-preserving requests use the closed
+`capturePlan` V1 continuation described above. Legacy media requests keep their
+existing path. No native production cutover or hosted activation is implied by
+this local source integration.
+
+## Completed retries after account merge
+
+After stranded-attempt repair, exact-owner completion recovery runs before the
+retired-upload refresh check. Already saved observations replay even if their
+old staging keys are gone; unfinished observations still require valid uploads.
+Unavailable or invalid sealed recovery fails closed. See the
+[ingestion recovery contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#identity-merge-interruption).
 
 ## Bounded audio comparison (disabled)
 

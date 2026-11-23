@@ -69,6 +69,34 @@ struct CaptureAudioSourceHostTests {
         }
     }
 
+    @Test func workspaceCancellationRetainsTheExactSavedChildForRetry() async throws {
+        let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
+        let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)
+        let service = ObservationAudioSourcePreparation(producer: fixture.producer(seed))
+        let entered = AsyncStream<Void>.makeStream(); defer { entered.continuation.finish() }
+        var release: CheckedContinuation<Void, Never>?, starts: [UUID] = [], delay = true
+        let host = CaptureAudioReanalysisHost(source: .init(session: session, isCurrent: { true }, submit: { current in
+            let result = try await session.submitSource(generation: session.generation, preparation: service,
+                isCurrentAccount: { true }, isCurrentPresentation: current, start: { saved, _ in
+                    guard case let .source(snapshot) = saved else { return .unavailable }
+                    starts.append(snapshot.identity.analysisID); return .started
+                })
+            if delay { await withCheckedContinuation { release = $0; entered.continuation.yield(()) } }
+            return result
+        }))
+        let choices: [CaptureAudioReanalysisPlan.Choice] = [.audio(seed.bytes)]
+        let caller = Task { try await host.submitFromWorkspace(choices) }
+        for await _ in entered.stream { break }
+        let child = try #require(host.analysisID)
+        caller.cancel(); release?.resume()
+        await #expect(throws: CancellationError.self) { try await caller.value }
+        #expect(host.analysisID == child && host.isFrozen && !host.isBusy)
+        delay = false
+        #expect(try await host.submitFromWorkspace(choices) == .started)
+        #expect(starts == [child, child] && host.analysisID == child)
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
+    }
+
     @Test func closeRetainsSourceWaiterAndLateReplyCannotPresent() async throws {
         let seed = try fixture.seed(); defer { try? FileManager.default.removeItem(at: seed.root) }
         let session = CaptureAudioReanalysisSession(source: seed.source, generation: UUID(), container: seed.container)

@@ -12,6 +12,8 @@ import {
 import { generateStagingUrls, parseStagingUploadFiles } from "./storage.ts";
 import type { PresignedUrlPayload } from "./storage.ts";
 import { stagedAssetInputs } from "./assetRegistration.ts";
+import { getR2Config } from "../_shared/aws.ts";
+import { registerCaptureUploadCapabilities } from "./capabilityRegistration.ts";
 
 function attachStagedAssetIds(
   urls: PresignedUrlPayload[],
@@ -60,11 +62,20 @@ Deno.serve((req: Request) =>
       );
     }
 
-    const urls = await generateStagingUrls(user.id, parsed.files);
+    const config = getR2Config();
+    const urls = await generateStagingUrls(user.id, parsed.files, config);
     let stagedAssets: StagedScanMediaAssetRow[];
     try {
       stagedAssets = await createStagedScanMediaAssets(
         stagedAssetInputs(user.id, parsed.files, urls),
+        supabaseAdmin,
+      );
+      await registerCaptureUploadCapabilities(
+        user.id,
+        parsed.files,
+        urls,
+        stagedAssets,
+        config,
         supabaseAdmin,
       );
     } catch (error) {

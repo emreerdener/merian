@@ -104,8 +104,9 @@ struct CaptureScanVideoAudioExtractorTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let intermediate = root.appendingPathComponent("intermediate.wav")
-        let canonical = root.appendingPathComponent("canonical.wav")
+        let intermediate = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-intermediate.wav")
+        let canonical = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-canonical.wav")
+        defer { for url in [intermediate, canonical] { try? FileManager.default.removeItem(at: url) } }
         let gate = AudioArtifactGate()
         let task = Task {
             await CaptureScanVideoAudioExtractor.qualifyArtifactLifecycle { register in
@@ -150,6 +151,7 @@ struct CaptureScanVideoAudioExtractorTests {
             outputDirectory: fixture.outputDirectory
         ))
         #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: lease.fileURL))
+        try await lease.discard()
     }
 }
 

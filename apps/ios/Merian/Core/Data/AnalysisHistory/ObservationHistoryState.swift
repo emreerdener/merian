@@ -49,7 +49,9 @@ struct ObservationHistoryState {
         let ordinal = try ObservationHistoryPage.integer(envelope["ordinal"])
         guard ordinal > 0 else { throw ObservationHistoryError.invalidSnapshot }
         let result = try ObservationHistoryPage.snapshot(bytes, observationID: request.observation_id, ordinal: ordinal)
-        guard result.analysisID == (target ?? selected) else { throw ObservationHistoryError.invalidSnapshot }
+        guard result.analysisID == (target ?? selected), result.initialEvidence.map({ $0.ownerID == ownerID }) ?? true else {
+            throw ObservationHistoryError.invalidSnapshot
+        }
         return Self(ownerID: ownerID, observationID: observation, revision: revision, selectedAnalysisID: selected,
             result: result, reviewRevision: try ObservationHistoryPage.integer(item["review_revision"]),
             review: try ObservationHistoryAuthority.decode(item["review_snapshot"]))

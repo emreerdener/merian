@@ -167,6 +167,17 @@ export function createAudioHandler(prepare = prepareAIExecution) {
         { retryAfterSeconds: 5 },
       );
     }
+    const existingCompletion = await fetchCompletedIdentifyResponse(
+      generatedScanId,
+      user.id,
+      supabaseAdmin,
+    );
+    if (existingCompletion) {
+      return completedIdentifyResponse(req, existingCompletion);
+    }
+
+    // Saved outcomes survive staging retirement. Require fresh uploads only
+    // after exact-owner completion recovery found no saved result.
     if (
       strandedRecovery?.outcome === "media_restage_required" &&
       typeof stagedAudioSourceKey === "string" &&
@@ -179,15 +190,6 @@ export function createAudioHandler(prepare = prepareAIExecution) {
         "This observation’s upload needs to be refreshed for your account.",
         { retryAfterSeconds: 1 },
       );
-    }
-
-    const existingCompletion = await fetchCompletedIdentifyResponse(
-      generatedScanId,
-      user.id,
-      supabaseAdmin,
-    );
-    if (existingCompletion) {
-      return completedIdentifyResponse(req, existingCompletion);
     }
 
     // GPS range validation — out-of-bounds values are sanitised to null (same policy as identify).

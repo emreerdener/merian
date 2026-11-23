@@ -16,15 +16,21 @@ struct ReanalysisStatusSheet: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(title(row.phase)).font(.headline)
                                 Text(detail(row.phase)).font(.callout).foregroundStyle(.secondary)
-                                if model.allowsPhotoPreview {
+                                if model.allowsPhotoPreview, !row.isComposition {
                                     Button("View saved photos") { model.viewPhoto(row) }
                                         .disabled(model.isBusy)
                                         .accessibilityIdentifier("ReanalysisPhotos_\(row.id.uuidString.lowercased())")
                                 }
-                                if model.allowsOutcomeRecovery, row.canCheckOutcome {
+                                if model.allowsOutcomeRecovery, row.canCheckOutcome, !row.isComposition {
                                     Button("Check for the original result") { model.checkOutcome(row) }
                                         .disabled(model.isBusy)
                                         .accessibilityIdentifier("ReanalysisOutcome_\(row.id.uuidString.lowercased())")
+                                }
+                                if row.isComposition, model.allowsCompositionContinuation, row.canContinue || row.canCheckOutcome {
+                                    Button(row.canCheckOutcome ? "Check for the original result" : "Continue saved reanalysis") {
+                                        model.continueComposition(row)
+                                    }.disabled(model.isBusy)
+                                    .accessibilityIdentifier("ReanalysisComposition_\(row.id.uuidString.lowercased())")
                                 }
                                 if model.allowsRetirement, let action = row.retirement {
                                     Button(action == .requestStop ? "Try to stop this reanalysis" : "Check this stop request again") {
@@ -96,12 +102,12 @@ struct ReanalysisStatusSheet: View {
         switch phase {
         case .stopping: "Checking stop request"
         case .stopNeedsChecking: "Stop request needs checking"
-        case .preparingEvidence: "Photo preparation pending"
+        case .preparingEvidence: "Media preparation pending"
         case .waitingToStart: "Waiting to continue"
         case .processing: "Result pending"
         case .waitingToRetry: "Waiting to check again"
         case .consentRequired: "AI permission required"
-        case .evidenceUnavailable: "Photos unavailable"
+        case .evidenceUnavailable: "Media unavailable"
         case .reconciliationRequired: "Result needs checking"
         case .retryLimit: "Preparation attempts paused"
         case .executionRetryLimit: "Result checks paused"
@@ -112,12 +118,12 @@ struct ReanalysisStatusSheet: View {
         switch phase {
         case .stopping: "The app is checking the original request. It will stop only if analysis has not started."
         case .stopNeedsChecking: "The stop could not be confirmed. Checking this request will not start another analysis."
-        case .preparingEvidence: "Saved photos are waiting to be prepared for this request."
+        case .preparingEvidence: "Saved media are waiting to be prepared for this request."
         case .waitingToStart: "This request is saved and waiting for its requirements to be met."
         case .processing: "This saved request is awaiting processing or recovery. A result has not been confirmed yet."
         case .waitingToRetry: "The app will check this same request again when it can."
         case .consentRequired: "This request is paused because AI processing permission is required."
-        case .evidenceUnavailable: "The original photos for this request could not be recovered. The request is paused."
+        case .evidenceUnavailable: "The original media for this request could not be recovered. The request is paused."
         case .reconciliationRequired: "The outcome could not be confirmed. The request is paused to avoid starting another analysis."
         case .retryLimit: "The app could not finish preparing this request. Preparation attempts have stopped."
         case .executionRetryLimit: "Automatic result checks have stopped. You can check for the original result without starting another analysis."

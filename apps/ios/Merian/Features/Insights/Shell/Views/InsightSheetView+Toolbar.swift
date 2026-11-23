@@ -66,6 +66,7 @@ extension InsightSheetView {
             },
             showNewCollectionAlert: toolbarNewCollectionBinding,
             hasCollectionScanId: toolbarRecordSnapshot != nil,
+            onIdentification: identificationAction,
             onIdentificationHistory: historyAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
             onReanalysisStatus: reanalysisStatusAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
             onReanalyze: viewModel.canReanalyze && (dependencies.savedReanalysisAccess != nil || permitsLegacyReview(toolbarLocalScanId)) ? {
@@ -300,7 +301,7 @@ extension InsightSheetView {
         )
     }
 
-    private var presentedRecordSnapshot: InsightToolbarRecordSnapshot? {
+    var presentedRecordSnapshot: InsightToolbarRecordSnapshot? {
         guard viewModel.presentedLocalRecordScanId != nil else { return nil }
         return viewModel.toolbarRecordSnapshot
     }
@@ -310,7 +311,7 @@ extension InsightSheetView {
         return viewModel.state.sharedExplorePostId
     }
 
-    private var presentedCommunityRequestId: String? {
+    var presentedCommunityRequestId: String? {
         guard presentedRecordSnapshot != nil else { return nil }
         return viewModel.state.sharedCommunityIdentificationRequestId
     }

@@ -208,7 +208,7 @@ struct CorePolicyOwnershipArchitectureTests {
             ["ImagePreparationPolicy.displayMaxDimension"]
         ),
         (
-            "Features/Capture/Staging/Views/CropSheetModifier.swift",
+            "Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+PhotoReview.swift",
             ["ImagePreparationPolicy.displayMaxDimension"]
         ),
         (

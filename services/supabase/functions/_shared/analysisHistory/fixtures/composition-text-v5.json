@@ -1,0 +1,17 @@
+[
+  {
+    "name": "lone-high",
+    "manifest_utf8": "{\"schema_version\":5,\"items\":[{\"kind\":\"image\",\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000010\",\"content_type\":\"image/jpeg\",\"byte_count\":3,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"kind\":\"description\",\"text\":\"\\ud800\"}]}",
+    "valid": false
+  },
+  {
+    "name": "lone-low",
+    "manifest_utf8": "{\"schema_version\":5,\"items\":[{\"kind\":\"image\",\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000010\",\"content_type\":\"image/jpeg\",\"byte_count\":3,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"kind\":\"description\",\"text\":\"\\udfff\"}]}",
+    "valid": false
+  },
+  {
+    "name": "pair",
+    "manifest_utf8": "{\"schema_version\":5,\"items\":[{\"kind\":\"image\",\"artifact\":{\"media_id\":\"00000000-0000-4000-8000-000000000010\",\"content_type\":\"image/jpeg\",\"byte_count\":3,\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},{\"kind\":\"description\",\"text\":\"\\ud83e\\udd8b\"}]}",
+    "valid": true
+  }
+]

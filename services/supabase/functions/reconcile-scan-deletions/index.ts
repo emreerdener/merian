@@ -8,6 +8,10 @@ import {
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { reconcileScanDeletions } from "./worker.ts";
+import {
+  captureRetirementHealth,
+  reconcileCaptureObjectRetirements,
+} from "../_shared/captureObjectRetirement.ts";
 
 serveEdge(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -34,6 +38,10 @@ serveEdge(async (req: Request) => {
       auth.serverApiKey,
     );
     const result = await reconcileScanDeletions(supabaseAdmin);
+    const captureObjects = await reconcileCaptureObjectRetirements(
+      supabaseAdmin,
+    );
+    const captureHealth = await captureRetirementHealth(supabaseAdmin);
     const event = JSON.stringify({
       event: "scan_deletion_health",
       request_id: requestId,
@@ -46,6 +54,7 @@ serveEdge(async (req: Request) => {
       processing_count: result.health.processingCount,
       expired_lease_count: result.health.expiredLeaseCount,
       oldest_pending_age_seconds: result.health.oldestPendingAgeSeconds,
+      capture_object_retirement: { ...captureObjects, health: captureHealth },
       ts: new Date().toISOString(),
     });
     if (result.healthStatus === "critical") {
@@ -62,6 +71,7 @@ serveEdge(async (req: Request) => {
         completed: result.completed,
         deferred: result.deferred,
         health_status: result.healthStatus,
+        capture_object_retirement: { ...captureObjects, health: captureHealth },
       },
       200,
       {

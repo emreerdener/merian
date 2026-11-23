@@ -60,7 +60,9 @@ final class CapturePhotoOriginalPreparationAccess {
                 cropOffsetY: image.original.lastCropOffset.height, focus: image.focusRegion,
                 latitude: environment?.location?.coordinate.latitude, longitude: environment?.location?.coordinate.longitude,
                 locationName: environment?.locationName, weatherCondition: environment?.weatherCondition,
-                weatherTemperature: environment?.weatherTemperature, captureDate: environment?.captureDate)
+                weatherTemperature: environment?.weatherTemperature, captureDate: environment?.captureDate,
+                cropDisplaySize: image.original.lastCropDisplaySize.map(Double.init),
+                sourceSelection: image.original.manualSourceSelection)
         }
         revision = try await owner.saveContexts(packageID: packageID, revision: revision, contexts: contexts, presentation: presentation)
         hasUnsavedChanges = false
@@ -134,6 +136,8 @@ final class CapturePhotoOriginalPreparationAccess {
                 original.lastCropScale = metadata.cropScale
                 original.lastCropOffset = CGSize(width: metadata.cropOffsetX, height: metadata.cropOffsetY)
                 original.lastCropQuarterTurns = metadata.cropQuarterTurns
+                original.lastCropDisplaySize = metadata.cropDisplaySize.map { CGFloat($0) }
+                original.manualSourceSelection = metadata.sourceSelection
                 images.append(StagedImage(compressedData: ai, displayData: display, uiImage: UIImage(cgImage: thumbnail),
                     original: original, focusRegion: metadata.focus, addedAt: metadata.addedAt, photoOriginalReference: handle))
             } catch { needsRecovery = true }
@@ -152,7 +156,7 @@ final class CapturePhotoOriginalPreparationAccess {
 
 extension CaptureWorkspaceViewModel {
     func restorePhotoPreparationDraft(packageID: UUID) async {
-        guard let access = dependencies.photoOriginalPreparation, stagedCapture.images.isEmpty,
+        guard let access = activePhotoOriginalPreparation, stagedCapture.images.isEmpty,
               !isDraftMutationLocked, let operation = beginDraftOperation() else { return }
         isCheckingScanAdmission = true
         var succeeded = false
@@ -175,7 +179,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func schedulePhotoPreparationPersistence() {
-        guard let access = dependencies.photoOriginalPreparation else { return }
+        guard let access = activePhotoOriginalPreparation else { return }
         access.markUnsaved()
         guard !stagedCapture.images.isEmpty else { return }
         let operation = draftSession.beginRelatedWork()
@@ -214,8 +218,6 @@ extension CaptureWorkspaceViewModel {
             stagedCapture.images.append(image)
             succeeded = await persistPhotoPreparationDraft()
             guard succeeded else { return .temporarilyBlocked }
-            operationState.appendRequiredGalleryCrop(imageID: image.original.id)
-            presentNextRequiredGalleryCrop()
             return .staged
         } catch {
             offlineToastMessage = .error("Import is pending. Any committed original remains in local recovery.")
@@ -224,7 +226,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func persistPhotoPreparationDraft() async -> Bool {
-        guard let access = dependencies.photoOriginalPreparation else { return true }
+        guard let access = activePhotoOriginalPreparation else { return true }
         do {
             try await access.persist(images: stagedCapture.images,
                 contexts: stagedCapture.observationContexts.map(\.context))
@@ -237,7 +239,7 @@ extension CaptureWorkspaceViewModel {
 
     func submitPhotoPreparationDraft(_ access: CapturePhotoOriginalPreparationAccess) async {
         guard !isCheckingScanAdmission, !isQueueingStagedCapture,
-              !draftSession.hasUnresolvedWork, !hasPendingRequiredGalleryCrop, imageToCrop == nil, isDraftAccountCurrent,
+              !draftSession.hasUnresolvedWork, imageToCrop == nil, isDraftAccountCurrent,
               !dependencies.submission.admission.isLibraryAccessBlocked(),
               stagedCapture.audios.isEmpty, stagedCapture.videos.isEmpty,
               baseRefinementContext == nil else {
@@ -276,10 +278,9 @@ extension CaptureWorkspaceViewModel {
                     })
                     guard draftSession.contains(operation), isDraftAccountCurrent else { return }
                     stagedCapture.images.append(image)
-                    operationState.appendRequiredGalleryCrop(imageID: image.original.id)
                 }
                 succeeded = await persistPhotoPreparationDraft()
-                if succeeded { selectedPhotoItems.removeAll(); presentNextRequiredGalleryCrop() }
+                if succeeded { selectedPhotoItems.removeAll() }
             } catch {
                 offlineToastMessage = .error("Photo preparation stopped. Your selection and retained originals are preserved.")
             }
@@ -315,32 +316,52 @@ extension CaptureWorkspaceViewModel {
     }
 
     func removePhotoPreparationImage(_ index: Int) {
-        guard let access = dependencies.photoOriginalPreparation,
-              stagedCapture.images.indices.contains(index), !isDraftMutationLocked else { return }
+        guard let access = activePhotoOriginalPreparation,
+              stagedCapture.images.indices.contains(index), !areCaptureActionsBlocked else { return }
         let image = stagedCapture.images[index]
+        let generation = draftSession.generation
+        let accountID = dependencies.submission.admission.accountID()
         isCheckingScanAdmission = true
         Task { @MainActor in
-            defer { isCheckingScanAdmission = false }
+            defer { if draftSession.generation == generation { isCheckingScanAdmission = false } }
             do {
                 try await access.remove(image)
+                guard draftSession.generation == generation, activePhotoOriginalPreparation === access,
+                      dependencies.submission.admission.accountID() == accountID, isDraftAccountCurrent else { return }
                 stagedCapture.images.removeAll { $0.original.id == image.original.id }
-                operationState.removeRequiredGalleryCrop(imageID: image.original.id)
+                clearFieldNotesAfterFinalMediaRemoval()
                 imageToCrop = nil; editingCropIndex = nil
                 _ = await persistPhotoPreparationDraft()
-            } catch { offlineToastMessage = .error("Removal is pending. The original remains protected.") }
+            } catch {
+                guard draftSession.generation == generation,
+                      dependencies.submission.admission.accountID() == accountID else { return }
+                offlineToastMessage = .error("Removal is pending. The original remains protected.")
+            }
         }
     }
 
     func discardPhotoPreparationDraft(_ access: CapturePhotoOriginalPreparationAccess) {
         guard !isCheckingScanAdmission else { return }
+        let generation = draftSession.generation
+        let accountID = dependencies.submission.admission.accountID()
         isCheckingScanAdmission = true
         Task { @MainActor in
-            defer { isCheckingScanAdmission = false }
+            defer { if draftSession.generation == generation { isCheckingScanAdmission = false } }
             do {
                 try await access.discard(returningSourcesTo: dependencies.externalImageImports)
-                stagedCapture.clearAll(); descriptionDraft = ObservationContext(); draftSession.reset()
+                guard draftSession.generation == generation, activePhotoOriginalPreparation === access,
+                      dependencies.submission.admission.accountID() == accountID, isDraftAccountCurrent else { return }
+                stagedCapture.clearAll()
+                clearFieldNotesAfterFinalMediaRemoval()
+                descriptionDraft = ObservationContext()
+                isCheckingScanAdmission = false
+                draftSession.reset()
                 imageToCrop = nil; editingCropIndex = nil; isReviewActive = false
-            } catch { offlineToastMessage = .error("Discard is pending. Your local files remain protected.") }
+            } catch {
+                guard draftSession.generation == generation,
+                      dependencies.submission.admission.accountID() == accountID else { return }
+                offlineToastMessage = .error("Discard is pending. Your local files remain protected.")
+            }
         }
     }
 }

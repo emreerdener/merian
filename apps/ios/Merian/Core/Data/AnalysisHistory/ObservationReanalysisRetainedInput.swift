@@ -33,6 +33,9 @@ struct ObservationReanalysisRetainedInput: Sendable {
         let roleID: UUID
         let byteCount: Int
         let sha256: String
+        /// Frozen with the retained AI artifact, never reconstructed from the
+        /// current display or mutable observation notes.
+        let focusRegion: NormalizedImageFocusRegion?
         fileprivate let originalBytes: Data
 
         func validate(source: ObservationReanalysisSource, bytes: Data, edited: Bool) throws {
@@ -64,7 +67,8 @@ struct ObservationReanalysisRetainedInput: Sendable {
             guard loaded.pairID == intent.pairID, loaded.bytes.count == intent.ai.byteCount,
                   SharedMediaAcquisitionEncoding.digest(loaded.bytes) == intent.ai.sha256 else { throw SharedMediaStorageFailure.stale }
             return (.init(origin: origin, pairID: intent.pairID, roleID: intent.ai.id,
-                byteCount: loaded.bytes.count, sha256: intent.ai.sha256, originalBytes: loaded.bytes), loaded.bytes)
+                byteCount: loaded.bytes.count, sha256: intent.ai.sha256,
+                focusRegion: intent.focus, originalBytes: loaded.bytes), loaded.bytes)
         }
         let supporting: SharedMediaNativeFrozenSupporting = try SharedMediaAcquisitionEncoding.decode(
             frozen.supportingBytes, maximum: Int(PhotoPreparationPolicy.metadata))

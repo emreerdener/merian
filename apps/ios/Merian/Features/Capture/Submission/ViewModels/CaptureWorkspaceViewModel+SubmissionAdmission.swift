@@ -11,6 +11,7 @@ extension CaptureWorkspaceViewModel {
     func admitSelectedImageImport(imageCount: Int, operation: CaptureDraftSession.Operation) async -> Bool {
         guard imageCount > 0, imageCount <= availableStagedCaptureSlots,
               draftSession.contains(operation) else { return false }
+        if reanalysisEditor != nil { return canEditHistoryWorkspace && isDraftAccountCurrent }
         let route = await requestScanAdmission(
             flashFallbackEligible: isProspectiveFreeMediaEligible(images: imageCount)
         )
@@ -26,15 +27,16 @@ extension CaptureWorkspaceViewModel {
     ) async -> Bool {
         guard prospectiveImageCount > 0,
               prospectiveImageCount <= availableStagedCaptureSlots,
-              !isDraftMutationLocked,
+              !areCaptureActionsBlocked,
               !draftSession.hasUnresolvedWork,
               activePresentation == nil,
               !isRootPresentationDismissing else {
             return false
         }
 
+        if reanalysisEditor != nil { return canEditHistoryWorkspace && isDraftAccountCurrent }
         let existingItemCount = stagedCapture.totalItemCount
-        let isRefining = baseRefinementContext != nil
+        let isRefining = isReanalyzing
         isCheckingScanAdmission = true
         defer { isCheckingScanAdmission = false }
 
@@ -44,10 +46,11 @@ extension CaptureWorkspaceViewModel {
         )
         guard route != nil,
               !Task.isCancelled,
+              !isFieldNotesOccupied,
               activePresentation == nil,
               !isRootPresentationDismissing,
               stagedCapture.totalItemCount == existingItemCount,
-              (baseRefinementContext != nil) == isRefining,
+              (isReanalyzing) == isRefining,
               prospectiveImageCount <= availableStagedCaptureSlots else {
             return false
         }

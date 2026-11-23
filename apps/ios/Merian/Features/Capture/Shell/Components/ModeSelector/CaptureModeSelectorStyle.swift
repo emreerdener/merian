@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum CaptureModeSelectorStyle {
-    static let controlWidth: CGFloat = 200
+    static let controlWidth: CGFloat = 144
     static let controlHeight: CGFloat = 56
     static let symbolPointSize: CGFloat = 24
     static let describeContentClearance: CGFloat = 82

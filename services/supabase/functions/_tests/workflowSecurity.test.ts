@@ -198,6 +198,36 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   ]);
 
   assertStringIncludes(candidateWorkflow, "  pull_request:");
+  for (
+    const path of [
+      "_shared/captureSourceCollector_test.ts",
+      "_shared/captureSourceEvidence_test.ts",
+      "_shared/analysisHistory/initialEvidenceManifest_test.ts",
+      "_shared/analysisHistory/initialEvidenceStaging_test.ts",
+      "_shared/analysisHistory/initialEvidenceRetention_test.ts",
+      "_shared/analysisHistory/initialEvidenceRecovery_test.ts",
+      "_shared/analysisHistory/initialEvidenceRepository_test.ts",
+      "_shared/analysisHistory/initialEvidenceCapturePlan_test.ts",
+      "_shared/analysisHistory/initialCaptureAudioStaging_test.ts",
+      "_shared/analysisHistory/initialCaptureAudioStageRepository_test.ts",
+      "_tests/initialPhotoPreparationMigration.test.ts",
+      "_tests/initialCaptureStagingPlanMigration.test.ts",
+      "_tests/initialCaptureAudioStagesMigration.test.ts",
+      "_tests/initialCaptureAudioAdoptionDb.test.ts",
+      "_tests/initialCaptureClientStageDb.test.ts",
+      "_tests/privateCaptureAdmissionDb.test.ts",
+      "_tests/privateCaptureRetentionDb.test.ts",
+      "_shared/analysisHistory/privateCaptureIntent_test.ts",
+      "_shared/analysisHistory/initialCaptureClientStaging_test.ts",
+      "upload-capture-stage/route_test.ts",
+    ]
+  ) {
+    assertEquals(
+      candidateWorkflow.split(`supabase/functions/${path}`).length - 1,
+      2,
+      `Capture source/retention boundary must be type-checked and tested: ${path}`,
+    );
+  }
   assertEquals(
     candidateWorkflow.split(
       "supabase/functions/_shared/analysisHistory/publicPhotoStorage_test.ts",
@@ -365,7 +395,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assert(helperStep, "Candidate helper step must remain explicit");
   assertEquals(
     helperStep.match(/--allow-read=([^\s]+)/)?.[1],
-    "supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql,supabase/migrations/20261010150954_prepare_private_video_outcome_recovery.sql,supabase/migrations/20261010161048_prepare_private_video_draft_persistence.sql,supabase/migrations/20261010162902_prepare_private_video_accounting.sql,supabase/migrations/20261010164735_prepare_private_video_terminal_settlement.sql,supabase/migrations/20261010170334_prepare_private_video_completion.sql,supabase/migrations/20261010173424_prepare_video_history_reader.sql,supabase/migrations/20261011070945_prepare_initial_analysis_admission.sql",
+    "supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql,supabase/migrations/20261010150954_prepare_private_video_outcome_recovery.sql,supabase/migrations/20261010161048_prepare_private_video_draft_persistence.sql,supabase/migrations/20261010162902_prepare_private_video_accounting.sql,supabase/migrations/20261010164735_prepare_private_video_terminal_settlement.sql,supabase/migrations/20261010170334_prepare_private_video_completion.sql,supabase/migrations/20261010173424_prepare_video_history_reader.sql,supabase/migrations/20261011070945_prepare_initial_analysis_admission.sql,supabase/migrations/20261114192749_prepare_composition_source_contract.sql,supabase/migrations/20261114212929_prepare_composition_source_ownership.sql,supabase/migrations/20261114221256_prepare_composition_execution_evidence_guard.sql",
     "Helper reads must include reviewed video and initial admission migration fixtures without broadening filesystem access",
   );
   assertStringIncludes(candidateWorkflow, "  merge_group:");
@@ -1520,4 +1550,24 @@ Deno.test("private handoff CI owns fresh projects after ordinary database dispos
     "path: ${{ runner.temp }}/initial-media-handoff-qualification/**",
   );
   assertEquals(retained.includes("committed-disposable-state"), false);
+});
+
+Deno.test("composition ingress and receipt suites remain in both candidate selectors", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  for (
+    const suite of [
+      "reserve-observation-analysis-source/composition_route_test.ts",
+      "_shared/analysisHistory/compositionRepository_test.ts",
+      "_shared/analysisHistory/compositionUpload_test.ts",
+      "upload-observation-composition/handler_test.ts",
+      "upload-observation-composition/route_test.ts",
+      "erase-observation-evidence/receipt_test.ts",
+      "erase-observation-evidence/storage_test.ts",
+    ]
+  ) assertEquals(source.split(`supabase/functions/${suite}`).length - 1, 2);
 });

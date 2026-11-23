@@ -87,6 +87,7 @@ final class AudioPlaybackFilePlayer {
     private let driver: any AudioPlaybackDriver
     private let delegate = AudioPlayerDelegate()
     private var tail: Task<Void, Never>?
+    private var retirement: Task<Void, Never>?
     private var revision = 0
     private var playbackRevision = 0
     private var acceptsCallbacks = false
@@ -104,6 +105,7 @@ final class AudioPlaybackFilePlayer {
             return min(duration, max(0, sampledTime + seconds))
         }
         set {
+            guard retirement == nil else { return }
             revision &+= 1
             sampledTime = min(duration, max(0, newValue))
             sampledAt = .now
@@ -133,14 +135,16 @@ final class AudioPlaybackFilePlayer {
     }
 
     func load() async throws {
+        guard retirement == nil else { throw CancellationError() }
         let snapshot = try await driver.load(delegate: delegate)
         try Task.checkCancellation()
+        guard retirement == nil else { throw CancellationError() }
         duration = snapshot.duration
         apply(snapshot)
     }
 
     func play() async -> Bool {
-        guard !Task.isCancelled else { return false }
+        guard retirement == nil, !Task.isCancelled else { return false }
         let expectedPlaybackRevision = playbackRevision
         let expectedRevision = revision
         let preceding = tail
@@ -165,6 +169,7 @@ final class AudioPlaybackFilePlayer {
     }
 
     func pause() {
+        guard retirement == nil else { return }
         revision &+= 1
         playbackRevision &+= 1
         acceptsCallbacks = false
@@ -174,11 +179,25 @@ final class AudioPlaybackFilePlayer {
 
     @discardableResult
     func stop() -> Task<Void, Never> {
+        if let retirement { return retirement }
         revision &+= 1
         playbackRevision &+= 1
         acceptsCallbacks = false
         pauseProjection()
         return enqueue { await $0.stop() }
+    }
+
+    /// Terminal release, unlike pause/stop. Owners await this before deleting
+    /// the underlying source; deinit is deliberately not an acknowledgement.
+    @discardableResult
+    func retire() -> Task<Void, Never> {
+        if let retirement { return retirement }
+        revision &+= 1; playbackRevision &+= 1
+        acceptsCallbacks = false
+        pauseProjection()
+        let task = enqueue { await $0.dispose() }
+        retirement = task
+        return task
     }
 
     func waitForRetirement(_ retirement: Task<Void, Never>?) {
@@ -190,6 +209,7 @@ final class AudioPlaybackFilePlayer {
     }
 
     func refresh() async {
+        guard retirement == nil else { return }
         let expectedRevision = revision
         let preceding = tail
         await preceding?.value

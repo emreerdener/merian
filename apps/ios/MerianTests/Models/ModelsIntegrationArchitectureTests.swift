@@ -18,6 +18,9 @@ struct ModelsIntegrationArchitectureTests {
                 || source.relativePath == "Models/Schema/SchemaV63ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV64ScanSnapshots.swift"
                 || source.relativePath == "Models/Schema/SchemaV68ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV69ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV70ScanSnapshots.swift"
+                || source.relativePath == "Models/Schema/SchemaV71ScanSnapshots.swift"
             let consentFixture = source.relativePath == "App/UITesting/UITestSeedCoordinator+PublicationConsent.swift"
             if consentFixture {
                 // The sole synthetic enrollment seed is excluded from Release;
@@ -48,7 +51,18 @@ struct ModelsIntegrationArchitectureTests {
                 #expect(code.contains("cancelAndAwaitAll()"))
                 #expect(code.contains("scoped.isCurrent ="))
             }
-            if !historyAdapter && !chatRefreshOwner {
+            let compositionCompletionOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationCompositionExecutionDependencies.swift"
+            if compositionCompletionOwner {
+                #expect(code.contains(".syncSelected(observationID:"))
+                let execution = try DatabaseActorTestSupport.loadRepositorySource(
+                    at: "apps/ios/Merian/Core/Data/AnalysisHistory/ObservationCompositionExecutionService.swift")
+                let save = try #require(execution.range(of: "let receipt = try Store.complete("))
+                let refresh = try #require(execution.range(of: "try? await dependencies.synchronize("))
+                let cleanup = try #require(execution.range(of: "await cleanup(receipt)"))
+                #expect(save.lowerBound < refresh.lowerBound && refresh.lowerBound < cleanup.lowerBound)
+                #expect(execution.contains("if !Task.isCancelled, scope.mayDispatch() {"))
+            }
+            if !historyAdapter && !chatRefreshOwner && !compositionCompletionOwner {
                 #expect(code.range(of: #"ObservationHistoryStateSyncService\s*\("#, options: .regularExpression) == nil,
                     "Normal state scheduling remains behind the activation hold: \(source.relativePath)")
             }
@@ -185,11 +199,11 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV69.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV69"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV74.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV74"))
         let aliases = try source(at: "apps/ios/Merian/Models/Aliases.swift")
-        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV69"))
-        #expect(registry.contains("migrateV68toV69"))
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV74"))
+        #expect(registry.contains("migrateV70toV71"))
         #expect(registry.contains("migrateV61toV62"))
         let frozen = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
         #expect(frozen.contains("MerianSchemaV58.LocalScanRecord.self"))
@@ -343,6 +357,7 @@ struct ModelsIntegrationArchitectureTests {
         "SharedMediaAcquisitionReceiptRecord.swift",
         "SharedMediaAllocationRecord.swift",
         "SharedMediaAssetReferenceCountRecord.swift",
+        "SharedMediaCaptureDraftJournalRecord.swift",
         "SharedMediaConsumerRecord.swift",
         "SharedMediaDerivativePairRecord.swift",
         "SharedMediaDerivativeWorkRecord.swift",
@@ -351,6 +366,10 @@ struct ModelsIntegrationArchitectureTests {
         "SharedMediaInventoryRecord.swift",
         "SharedMediaLeaseRecord.swift",
         "SharedMediaMembershipBootstrapRecord.swift",
+        "SharedMediaNativeErasurePageRecord.swift",
+        "SharedMediaOrdinaryArtifactRecord.swift",
+        "SharedMediaOrdinarySubmissionRecord.swift",
+        "SharedMediaOrdinaryTransferRecord.swift",
         "SharedMediaPendingMembershipRecord.swift",
         "SharedMediaReceivingIntentRecord.swift",
         "SharedMediaReferenceRecord.swift",

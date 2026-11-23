@@ -2,6 +2,17 @@ import Foundation
 
 @MainActor
 extension SharedMediaNativeOriginalOwner {
+    func describeAppOrdinaryPhotoHolds(submission: SharedMediaNativePreparationBlob, holdIDs: [UUID],
+                                       scanID: UUID, submissionGeneration: UUID, eventID: UUID) async throws -> SharedMediaOrdinaryPhotoHoldBinding {
+        try await appOriginalLifecycle {
+            try $0.describeOrdinaryPhotoHolds(submission: submission, holdIDs: holdIDs,
+                scanID: scanID, submissionGeneration: submissionGeneration, eventID: eventID)
+        }
+    }
+    func describeAppOrdinaryHold(_ source: PhotoOriginalReference, id: UUID,
+                                 recipient: SharedMediaOrdinaryHoldRequest.Recipient) async throws -> SharedMediaOrdinaryHoldRequest {
+        try await appOriginalLifecycle { try $0.describeOrdinaryHold(source, id: id, recipient: recipient) }
+    }
     func prepareAppOriginalShare(_ source: PhotoOriginalReference, packageID: UUID, draftGeneration: UUID) async throws -> SharedMediaNativeAppOriginalRequest {
         try await appOriginalLifecycle { try $0.prepareShare(source, packageID: packageID, generation: draftGeneration) }
     }

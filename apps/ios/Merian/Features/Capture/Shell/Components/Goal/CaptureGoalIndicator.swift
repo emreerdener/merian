@@ -103,6 +103,9 @@ private struct CaptureGoalIntroductionIndicator: View {
 
     var body: some View {
         indicatorSurface
+            // Consume a swipe without turning it into a tap or paging the
+            // workspace. The introduction has no selectable goal yet.
+            .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { _ in })
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("captureGoalIntroductionIndicator")
             .task(id: introduction.id) {
@@ -131,7 +134,7 @@ private struct CaptureGoalIntroductionIndicator: View {
             // the sole hit-testing and gesture region over the camera.
             .frame(
                 maxWidth: .infinity,
-                alignment: expansionState.isExpanded ? .leading : .trailing
+                alignment: .leading
             )
     }
 
@@ -287,7 +290,7 @@ private struct ActiveCaptureGoalIndicator: View {
             // the sole hit-testing and gesture region over the camera.
             .frame(
                 maxWidth: .infinity,
-                alignment: expansionState.isExpanded ? .leading : .trailing
+                alignment: .leading
             )
     }
 

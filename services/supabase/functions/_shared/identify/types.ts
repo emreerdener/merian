@@ -71,6 +71,8 @@ export interface Payload {
 }
 
 export interface MultimodalPayload {
+  /** Closed private capture plan; server derives final V9 evidence after DSP. */
+  capturePlan?: unknown;
   // Optional gated comparison handle; it never selects a model or provider.
   // Runtime validation belongs to identify-multimodal/comparison/assignment.ts.
   audio_comparison?: { planSha256: string; slot: number };

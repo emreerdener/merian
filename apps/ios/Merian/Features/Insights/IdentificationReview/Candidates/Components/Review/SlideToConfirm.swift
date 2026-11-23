@@ -49,6 +49,15 @@ struct SlideToConfirm: View {
             Capsule()
                 .strokeBorder(color.opacity(0.2), lineWidth: 0.5)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint("Activate to confirm")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            guard !isCompleted else { return }
+            feedback.lightImpact()
+            isCompleted = true
+        }
         .task(id: isCompleted) {
             guard isCompleted else { return }
             defer {

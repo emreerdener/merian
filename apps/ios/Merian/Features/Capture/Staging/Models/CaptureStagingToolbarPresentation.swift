@@ -5,6 +5,7 @@ struct CaptureStagingToolbarPresentation {
     let visibleNodes: [StagedCaptureNode]
     let photoSelectionCount: Int?
     let submitTitle: String
+    let submitAccessibilityHint: String
     let isSubmitDisabled: Bool
     let showsProMediaPlaceholder: Bool
 
@@ -44,7 +45,8 @@ struct CaptureStagingToolbarPresentation {
             photoSelectionCount = nil
         }
 
-        submitTitle = isRefining ? "Analyze" : "Identify"
+        submitTitle = isRefining ? "Reanalyze" : "Identify"
+        submitAccessibilityHint = isRefining ? "Submit scan for reanalysis" : "Submit scan for identification"
         isSubmitDisabled = stagedCapture.isEmpty
     }
 }

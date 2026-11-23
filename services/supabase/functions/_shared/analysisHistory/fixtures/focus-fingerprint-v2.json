@@ -1,0 +1,70 @@
+[
+  {
+    "name": "decimal",
+    "focus_region": {
+      "x": 0.1,
+      "y": 0.2,
+      "width": 0.3,
+      "height": 0.4,
+      "source": "user_selection"
+    },
+    "fields": [
+      "3fb999999999999a",
+      "3fc999999999999a",
+      "3fd3333333333333",
+      "3fd999999999999a",
+      "user_selection"
+    ]
+  },
+  {
+    "name": "negative-zero",
+    "focus_region": {
+      "x": -0.0,
+      "y": 0.0,
+      "width": 1.0,
+      "height": 1.0,
+      "source": "user_selection"
+    },
+    "fields": [
+      "0000000000000000",
+      "0000000000000000",
+      "3ff0000000000000",
+      "3ff0000000000000",
+      "user_selection"
+    ]
+  },
+  {
+    "name": "nextafter",
+    "focus_region": {
+      "x": 1e-16,
+      "y": 0.12345678901234568,
+      "width": 0.9999999999999998,
+      "height": 0.25,
+      "source": "user_selection"
+    },
+    "fields": [
+      "3c9cd2b297d889bc",
+      "3fbf9add3746f65f",
+      "3feffffffffffffe",
+      "3fd0000000000000",
+      "user_selection"
+    ]
+  },
+  {
+    "name": "subnormal",
+    "focus_region": {
+      "x": 5e-324,
+      "y": 0.0,
+      "width": 5e-324,
+      "height": 1.0,
+      "source": "user_selection"
+    },
+    "fields": [
+      "0000000000000001",
+      "0000000000000000",
+      "0000000000000001",
+      "3ff0000000000000",
+      "user_selection"
+    ]
+  }
+]

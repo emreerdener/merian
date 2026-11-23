@@ -382,6 +382,30 @@ extension MerianNetworkClient {
         try await ConsentManager.shared.ensureCloudConsentForInference()
     }
 
+    /// Called only with the durable owner's frozen observation after staging.
+    /// Shape preflight and account-bound authorization remain mandatory.
+    func buildPrivateCaptureRequest(plan: CaptureInitialEvidencePlan,
+                                    context frozen: SharedMediaCaptureSubmissionContext,
+                                    validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> AuthenticatedInferenceRequest {
+        try await ensureInferenceConsent()
+        try validateEndpointConfiguration("identify-multimodal")
+        let (context, owner) = try await makeInferencePayloadContext(telemetry: frozen.telemetry)
+        guard owner == plan.ownerID else { throw SupabaseAuthTransitionError.signOutSessionChanged }
+        try await validateAttempt()
+        let prepared = try await DetachedWork.value(category: .inferenceRequestPreparation) {
+            try Task.checkCancellation()
+            return try PreparedIdentificationPayload(data: InferencePayloadBuilder.privateCaptureBody(
+                plan: plan, frozen: frozen, context: context), function: "identify-multimodal")
+        }
+        let authorization = try await prepareIdentificationAuthorization(input: prepared.preflight,
+            expectedAuthUserID: owner, validateAttempt: validateAttempt)
+        let request = try await makeAuthenticatedInferenceURLRequest(function: "identify-multimodal",
+            bodyData: prepared.data, idempotencyKey: plan.scanID.uuidString.lowercased(),
+            expectedAuthUserID: owner, identificationAuthorization: authorization)
+        try await validateAttempt()
+        return .init(request: request, expectedAuthUserID: owner, identificationAuthorization: authorization)
+    }
+
     private func makeInferencePayloadContext(
         telemetry: CaptureTelemetry
     ) async throws -> (InferencePayloadContext, UUID) {

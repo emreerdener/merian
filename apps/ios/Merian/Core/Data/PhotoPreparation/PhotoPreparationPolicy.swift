@@ -48,6 +48,8 @@ enum PhotoPreparationPolicy {
         guard presentation.count <= 2, Set(presentation.map(\.referenceID)).count == presentation.count,
               presentation.allSatisfy({ $0.cropScale.isFinite && $0.cropScale >= 1
                   && $0.cropOffsetX.isFinite && $0.cropOffsetY.isFinite
+                  && ($0.cropDisplaySize.map { $0.isFinite && $0 > 0 } ?? true)
+                  && ($0.sourceSelection.map { $0.isValidEvidence && $0.source == .userSelection } ?? true)
                   && (0...3).contains($0.cropQuarterTurns) }) else { throw PhotoPreparationFailure.invalidMedia }
         let bytes = try JSONEncoder().encode(PhotoPreparationDraftEnvelope(version: 1, contexts: contexts, presentation: presentation))
         guard bytes.count <= metadata else { throw PhotoPreparationFailure.sizeLimit }

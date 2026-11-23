@@ -1,0 +1,27 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SELECT extensions.no_plan();
+SELECT extensions.ok(NOT prosecdef AND provolatile='s' AND proconfig @> ARRAY['search_path=""'],
+    'composition metadata codec is stable invoker with fixed search path') FROM pg_proc
+    WHERE oid='internal.observation_composition_source_contract(jsonb)'::regprocedure;
+SELECT extensions.ok(NOT has_function_privilege(role_name,signature,'EXECUTE'),role_name || ' cannot call composition metadata codec')
+    FROM unnest(ARRAY['anon','authenticated','service_role']) role_name
+    CROSS JOIN unnest(ARRAY['internal.observation_composition_source_contract(jsonb)',
+        'internal.observation_composition_source_fingerprint(jsonb)',
+        'internal.observation_composition_source_cohort_items(jsonb)']) signature;
+SELECT extensions.throws_ok($$SELECT internal.observation_composition_source_contract(NULL)$$,
+    '22023','invalid_analysis_history','SQL NULL rejected');
+SELECT extensions.throws_ok($$SELECT internal.observation_composition_source_contract('{}')$$,
+    '22023','invalid_analysis_history','missing fields rejected');
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok($$SELECT internal.observation_composition_source_contract('{}')$$,'42501',NULL,'anon actual access denied');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($$SELECT internal.observation_composition_source_contract('{}')$$,'42501',NULL,'authenticated actual access denied');
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT extensions.throws_ok($$SELECT internal.observation_composition_source_contract('{}')$$,'42501',NULL,'service actual access denied');
+RESET ROLE;
+SELECT * FROM extensions.finish();
+ROLLBACK;

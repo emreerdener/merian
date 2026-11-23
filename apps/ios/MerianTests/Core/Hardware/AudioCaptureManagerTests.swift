@@ -176,7 +176,7 @@ struct AudioCaptureManagerTests {
     }
 
     @Test("Acknowledgement retains the original; unclaimed completion cleanup deletes it")
-    func completionOwnershipRequiresAcknowledgement() throws {
+    func completionOwnershipRequiresAcknowledgement() async throws {
         for accept in [true, false] {
             let manager = AudioCaptureManager()
             let fileName = "\(UUID().uuidString).wav"
@@ -186,6 +186,12 @@ struct AudioCaptureManagerTests {
             manager.debugStageRecordingForFinish(fileName: fileName)
             manager.stopRecordingEarly()
             if accept { manager.acknowledgeStagedRecording() } else { manager.reset() }
+            if !accept {
+                let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+                while FileManager.default.fileExists(atPath: url.path), ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(5))
+                }
+            }
             #expect(FileManager.default.fileExists(atPath: url.path) == accept)
             #expect(manager.audioFilePath == nil)
         }

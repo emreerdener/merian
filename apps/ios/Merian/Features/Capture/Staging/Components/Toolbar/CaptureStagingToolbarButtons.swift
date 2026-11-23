@@ -71,19 +71,21 @@ struct CaptureTrayGlass: ViewModifier {
 
 struct CaptureStagingSubmitButton: View {
     let title: String
+    let submitAccessibilityHint: String
     let isDisabled: Bool
     let onSubmit: () -> Void
 
     var body: some View {
         Button(action: onSubmit) {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 24, weight: .semibold))
-                .frame(width: 52, height: 52)
+            Text(title)
+                .font(.body.weight(.semibold))
+                .padding(.horizontal, 18)
+                .frame(minHeight: 48)
                 .background(isDisabled ? Color.primary.opacity(0.15) : Color.accentColor)
                 .foregroundStyle(isDisabled ? Color.secondary : .white)
-                .clipShape(Circle())
+                .clipShape(Capsule())
                 .overlay(
-                    Circle().strokeBorder(
+                    Capsule().strokeBorder(
                         isDisabled ? .clear : Color.accentColor.opacity(0.4), lineWidth: 1.5
                     )
                 )
@@ -94,7 +96,7 @@ struct CaptureStagingSubmitButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title))
-        .accessibilityHint(Text(title == "Analyze" ? "Submit scan for reanalysis" : "Submit scan for identification"))
+        .accessibilityHint(Text(submitAccessibilityHint))
         .accessibilityShowsLargeContentViewer {
             Label(title, systemImage: "arrow.up")
         }

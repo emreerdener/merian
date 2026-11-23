@@ -17,6 +17,14 @@ selection and already-enrolled recovery guards remain. See the
 
 # Offline Sync
 
+Present visual descriptors are evidence, not optional hints that may be dropped
+on decode failure. Capture admission validates their role, focus bounds and
+image count, and serializes them before claiming identity or funding. Background
+request construction rejects malformed or count-mismatched saved descriptors
+with `invalid_saved_visual_evidence`, preserving the queued draft for attention.
+Absent historical metadata remains distinct. This guard does not implement the
+versioned manual-focus admission, byte binding or completed History projection.
+
 ## Native receiving cleanup protection under qualification
 
 Legacy queue flushing, soft deletion and invalid-media quarantine check fresh
@@ -54,11 +62,15 @@ The canonical behavioral contract is the
 `SharedMediaLegacyQueueAccess` is a denial boundary for the existing queue,
 job-reset, deletion, diagnostics and funding helpers. It checks queue and local
 record authority, surviving consumer routes, and the reserved
-`native_receiving_v1` job marker with bounded row fetches. Missing queue state
-alone never downgrades a surviving native receipt. Malformed scan-job metadata
-fails closed. This is not native admission or execution authority, and does not
-qualify media availability. Existing shared V1 and native receiving authority
-remain distinct.
+`native_receiving_v1`/`native_receiving_v2` job markers with bounded row
+fetches. Surviving V70 ordinary holds and V71 submissions also deny legacy
+access by recipient scan identity (or V71 job identity), regardless of phase or
+damaged receipt bytes. This remains true for missing queues and queues whose
+authority was incorrectly reset to legacy; only the registered original owner
+can interpret or retire those liabilities. Missing queue state alone never
+downgrades a surviving native receipt. Malformed scan-job metadata fails closed.
+This is not native admission or execution authority, and does not qualify media
+availability. Existing shared V1 and native receiving authority remain distinct.
 
 Creating or resetting a scan-ingestion job requires its actual ordinary queue in
 the same transaction, including `ensureScanIngestionJob`, which explicitly
@@ -80,6 +92,12 @@ checks do not authorize another AI invocation, refund an uncertain operation, or
 implement native settlement. Activation remains disabled.
 
 ## Ownership
+
+`Services/CaptureAdmission/CaptureQueueInitialRecords.swift` constructs the
+uninserted visual/nonvisual scan, optional goal hint, queued event and existing
+job metadata. It has no context, save, funding decision, file or dispatch
+authority. `OfflineQueueManager+CaptureEnqueue.swift` retains admission checks,
+job creation, insertion/save ordering, rollback, cleanup and dispatch.
 
 - `Models/` contains `Sendable` queue and collection desired-state snapshots,
   media-staging values, generation and account-work identities, completion
@@ -261,7 +279,7 @@ implement native settlement. Activation remains disabled.
 | `Services/MediaUpload/OfflineQueueManager+UploadLifecycle.swift`                  | Generation validation/invalidation plus generation-aware upload latch completion and expiry.                                                                                                                               |
 | `Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`                | Staging-owner resolution, media preparation, invalid-media rejection, and bounded batch selection.                                                                                                                         |
 | `Services/MediaUpload/OfflineQueueManager+UploadDispatch.swift`                   | Signed-manifest validation, request policy, background task dispatch, and signing-failure recovery.                                                                                                                        |
-| `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`                 | Generation-fenced upload callback accumulation, unsupported-audio quarantine, durable staging finalization, and inference dispatch handoff.                                                                                |
+| `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`                 | Generation-fenced upload callback accumulation and token membership, exact successful-member manifest tracking, unsupported-audio quarantine, durable staging finalization, and inference dispatch handoff.                |
 | `Services/QueueMaintenance/OfflineQueueManager+QueueState.swift`                  | Main-context flushes, automatic-work count projection, invalid-media quarantine, and failed-state tombstoning.                                                                                                             |
 | `Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift`               | Persistence-fenced explicit deletion, task cancellation, retained-media policy, and failed-record purging.                                                                                                                 |
 | `Services/Funding/OfflineQueueManager+Funding.swift`                              | Funding restoration, deferred-reservation reconciliation, and durable proven-failure release.                                                                                                                              |

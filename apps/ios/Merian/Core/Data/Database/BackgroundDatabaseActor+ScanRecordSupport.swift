@@ -5,6 +5,21 @@ import SwiftData
 /// persistence owners. Keeping these operations on `BackgroundDatabaseActor`
 /// prevents a `ModelContext` or persistent model from crossing an actor boundary.
 extension BackgroundDatabaseActor {
+    func validateOrdinaryBackgroundCompletion(
+        _ completion: OrdinaryInferenceCompletion?,
+        ownership: BackgroundAccountWorkOwnership?, scanID: String
+    ) async throws {
+        guard let completion else { return }
+        try await completion.account.validate()
+        try Task.checkCancellation()
+        guard let ownership, completion.scanID == scanID,
+              ownership.ownerUserID == completion.account.ownerID,
+              ownership.generation == completion.generation, ownership.phase == .inference,
+              backgroundAccountWorkIsCurrent(scanId: scanID, ownership: ownership) else {
+            throw OrdinaryInferenceCompletion.Invalid.evidence
+        }
+    }
+
     func acquireScanFinalizationLock(
         scanId: String,
         operation: String
@@ -54,10 +69,10 @@ extension BackgroundDatabaseActor {
     }
 
     func preservedScanRecordFieldNotes(scanId: String) throws -> String? {
-        if let localNotes = try localScanRecord(id: scanId)?.fieldNotes?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !localNotes.isEmpty {
-            return localNotes
+        if let record = try localScanRecord(id: scanId) {
+            // Existence is authoritative: an intentional clear must not revive
+            // the creation-time seed still retained by the queue.
+            return record.fieldNotes
         }
 
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -82,6 +97,7 @@ extension BackgroundDatabaseActor {
         originalCompletion: OrdinaryInferenceCompletion? = nil,
         originalOwnership: BackgroundAccountWorkOwnership? = nil
     ) async throws {
+        try await validateOrdinaryBackgroundCompletion(originalCompletion, ownership: originalOwnership, scanID: recordId)
         if let existing = try localScanRecord(id: recordId) {
             _ = try OrdinaryInferenceCompletion.preservesExisting(existing, incoming: originalCompletion, context: modelContext)
             try validatePrimaryCompletion(mappedData, existing: existing)

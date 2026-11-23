@@ -36,7 +36,13 @@ function resultPolicyKey(snapshot: AIAttemptSnapshot): string {
     );
   const visualOrText = snapshot.schema === "merian_identify_v1" &&
     snapshot.confidence === "gemini_identify_v1" &&
-    ["identify_vision_v1", "identify_text_v1", "identify_blended_v1"].includes(
+    [
+      "identify_vision_v1",
+      "identify_text_v1",
+      "identify_blended_v1",
+      "identify_vision_focus_v1",
+      "identify_blended_focus_v1",
+    ].includes(
       snapshot.prompt,
     );
   const supportedGeneration = snapshot.binding === "gemini_generation3_v1"
@@ -89,10 +95,14 @@ export function prepareMultimodalResultPolicy(
 ): MultimodalResultPolicy {
   const key = resultPolicyKey(snapshot);
   const confidence: IdentificationConfidencePolicy = Object.freeze(
-    snapshot.provider === "openai" ? { kind: "unqualified" as const } : {
-      kind: "diagnostic_threshold" as const,
-      threshold: snapshot.diagnosticTrigger!,
-    },
+    snapshot.provider === "openai" ||
+      snapshot.prompt === "identify_vision_focus_v1" ||
+      snapshot.prompt === "identify_blended_focus_v1"
+      ? { kind: "unqualified" as const }
+      : {
+        kind: "diagnostic_threshold" as const,
+        threshold: snapshot.diagnosticTrigger!,
+      },
   );
   return Object.freeze({
     confidence,

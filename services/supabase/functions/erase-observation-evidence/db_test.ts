@@ -19,10 +19,17 @@ Deno.test("private erasure RPC boundary is fixed, scoped, abortable and strict",
     signal = new AbortController().signal;
   assertEquals(await repository.retire(signal), 0);
   assertEquals(await repository.retireVideo(signal), 0);
+  assertEquals(await repository.retireComposition(signal), 0);
   value = null;
   assertEquals(await repository.claim(signal), null);
   value = true;
-  assertEquals(await repository.finish("object", "token", false, signal), true);
+  assertEquals(
+    await repository.finish("object", "token", false, signal, {
+      namespace: "history",
+      backend_sha256: null,
+    }),
+    true,
+  );
   assertEquals(calls, [["retire_expired_observation_evidence_for_dispatch", {
     p_dispatch_id: "00000000-0000-4000-8000-00000000ee01",
   }, false], [
@@ -30,16 +37,27 @@ Deno.test("private erasure RPC boundary is fixed, scoped, abortable and strict",
     { p_dispatch_id: "00000000-0000-4000-8000-00000000ee01" },
     false,
   ], [
-    "claim_observation_evidence_erasure_for_dispatch",
+    "retire_expired_observation_composition_evidence_for_dispatch",
     { p_dispatch_id: "00000000-0000-4000-8000-00000000ee01" },
     false,
-  ], ["finish_observation_evidence_erasure", {
+  ], [
+    "claim_private_evidence_erasure_v4_for_dispatch",
+    { p_dispatch_id: "00000000-0000-4000-8000-00000000ee01" },
+    false,
+  ], ["finish_private_evidence_erasure_v4", {
+    p_namespace: "history",
+    p_backend: null,
     p_object: "object",
     p_claim: "token",
     p_success: false,
   }, false]]);
   value = "true";
-  await assertRejects(() => repository.finish("object", "token", true, signal));
+  await assertRejects(() =>
+    repository.finish("object", "token", true, signal, {
+      namespace: "history",
+      backend_sha256: null,
+    })
+  );
   const aborted = new AbortController();
   aborted.abort();
   const count = calls.length;

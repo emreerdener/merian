@@ -150,6 +150,22 @@ enum InferencePayloadBuilder {
         return try jsonData(from: payload)
     }
 
+    /// Private staged originals use the same telemetry and goal contract, with
+    /// the complete plan instead of public object keys or inline media arrays.
+    static func privateCaptureBody(plan: CaptureInitialEvidencePlan,
+                                   frozen: SharedMediaCaptureSubmissionContext,
+                                   context: InferencePayloadContext) throws -> Data {
+        try frozen.validate(plan: plan)
+        guard context.userId == plan.ownerID.uuidString.lowercased() else { throw MerianError.invalidResponse }
+        var payload = telemetryPayloadFields(telemetry: frozen.telemetry, context: context,
+            clientScanId: plan.scanID.uuidString.lowercased())
+        payload["capturePlan"] = plan.object
+        if let goal = frozen.preferredGoal {
+            payload["preferred_goal"] = ["user_field_trip_id": goal.userFieldTripId, "item_id": goal.itemId]
+        }
+        return try jsonData(from: payload)
+    }
+
     static func normalizedGeoprivacy(_ value: String) -> String {
         switch value {
         case "private", "obscured":

@@ -1,3 +1,60 @@
+## History cards — November 13 local redesign
+
+The History destination is now a card stack in the existing Identification
+navigation sheet. The current version stays expanded first; the remaining
+bounded page stays newest-first. An older current version is fetched by its
+exact ID and pinned without changing the server cursor or duplicating a row. The
+maximum retained list is one 20-entry page plus one current row.
+
+Card menus prepare exact version authority only when an action is chosen. Use
+identification, review, community consent and reanalysis reuse the existing
+owners. Loading or opening a menu never selects a version. Current review uses
+slide controls; older reviews do not move the current card. Confirmed and
+incorrect states reuse the shared review banners inside the current card, with
+Undo supplied by the preview-bound review model. Incorrect-card recovery actions
+resolve the exact card through the existing community/reanalysis owners.
+Auxiliary review, name/candidate and community forms retain their existing
+behavior; the full identification preview screen is no longer part of this
+route. Pending review recovery remains reachable without discarding its durable
+request.
+
+The current card's menu omits Correct/Incorrect because its review controls are
+already inline. Older cards expose those actions in their menu without changing
+the selected identification. `IdentificationHistoryCardMenu` presents an
+anchored action popover so both the Correct label and icon are green, and both
+Incorrect elements are red. It dismisses before handing the exact-version action
+to the existing owner; disabling actions or changing the current card cancels
+pending menu choices. The card menu omits Review alternatives and Review
+decision. Alternatives remain in Identification; eligible review Undo remains
+inside the expanded current card. Pending-review recovery retains its separate
+status action.
+
+Card and sheet ellipsis icons use the adaptive primary foreground color.
+Selection Undo is in the sheet's top-level options menu while its existing
+receipt-bound opportunity is available; it is not a link below the cards.
+
+Card thumbnails use each version’s first immutable photo ID through the existing
+account/deletion-fenced photo resolver. Only visible cards request thumbnails;
+each row is attempted once per page generation. Reads and decoding are
+serialized; the cache retains at most 21 images downsampled to 160 pixels.
+Page/revision changes and dismissal cancel and clear it; successor loads join
+the previous task before reading. Missing media uses a neutral placeholder,
+never the selected scan’s cover or a species reference image. Original-media
+download and individual-version deletion are not implemented by this
+presentation change. Prepared progress and existing community-request links are
+supplied by the same scoped Shell host. Automatic prompts remain paused; no user
+data migration, deployment or device update is included.
+
+## Identification navigation — November 13 presentation slice
+
+The Insights menu and confidence badge now share the Identification sheet.
+History opens from its overflow within the same navigation stack. Back returns
+to Identification; Done closes to Insights. The existing History model,
+selection, review and Undo operations are reused. Changing the current version
+refreshes Identification without dismissing History. The card stack is described
+above; remaining individual-version actions are tracked in the
+[redesign roadmap](../../../../../../docs/rfcs/identification-history-version-actions-and-redesign-2026-10-11.md).
+
 ## Initial audio/video completion UI candidate
 
 The Debug-only `-seedInitialMediaHistory` fixture exercises ordinary initial
@@ -97,8 +154,9 @@ previews.
   must still match current context before presentation; selection acknowledgment
   refreshes the newest bounded page without making its success depend on that
   read.
-- `Views` renders a native list/preview in Shell's existing modal slot. Opening
-  a row never chooses it; Use this identification is explicit.
+- `Views` renders the card stack and auxiliary review/consent forms in Shell’s
+  existing modal slot. Card actions prepare exact detail authority internally;
+  Use identification remains explicit.
 
 Selection completion releases command/task ownership before notifying the parent
 Insight to reload acknowledged state. The notification is coalesced, revalidates

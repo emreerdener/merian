@@ -23,6 +23,20 @@ struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
     let captureSource: IdentifyVisualCaptureSource?
     let hasEmbeddedCaptureDate: Bool?
 
+    /// Validate before saving or sending evidence. A present descriptor must
+    /// never disappear merely because its selection or role is malformed.
+    var isValidEvidence: Bool {
+        switch kind {
+        case .image:
+            return sourceIndex.map { $0 >= 0 } == true && clipIndex == nil && frameIndex == nil
+                && (focusRegion?.isValidEvidence ?? true)
+        case .videoFrame:
+            return sourceIndex == nil && clipIndex.map { $0 >= 0 } == true
+                && frameIndex.map { $0 >= 0 } == true && focusRegion == nil
+                && captureSource == nil && hasEmbeddedCaptureDate == nil
+        }
+    }
+
     static func image(
         sourceIndex: Int,
         focusRegion: NormalizedImageFocusRegion? = nil,

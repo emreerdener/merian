@@ -11,6 +11,7 @@ private struct CaptureAuxiliaryControlModifier: ViewModifier {
             content
                 .frame(width: 50, height: 50)
                 .glassEffect(.regular.tint(tint).interactive(), in: Circle())
+                .contentShape(Circle())
         } else {
             content
                 .frame(width: 50, height: 50)
@@ -18,6 +19,7 @@ private struct CaptureAuxiliaryControlModifier: ViewModifier {
                 .circularMaterialControl(
                     borderColor: .primary.opacity(0.15)
                 )
+                .contentShape(Circle())
         }
     }
 }

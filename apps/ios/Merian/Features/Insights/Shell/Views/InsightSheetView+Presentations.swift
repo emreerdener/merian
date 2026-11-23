@@ -28,6 +28,8 @@ extension InsightSheetView {
             if let selectedPublicationModel { IdentificationPublicationSheet(model: selectedPublicationModel) }
         case .reanalysisStatus:
             if let reanalysisStatusModel { ReanalysisStatusSheet(model: reanalysisStatusModel) }
+        case .identification(let scanID, let generation):
+            identificationContent(scanID: scanID, generation: generation)
         case .identificationHistory:
             if let historyModel { IdentificationHistorySheet(model: historyModel, candidateRendering: dependencies.candidateRendering) }
         case .paywall:
@@ -340,6 +342,11 @@ extension InsightSheetView {
             selectedPublicationModel?.close(); selectedPublicationModel = nil
         case .reanalysisStatus:
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
+        case .identification(let scanID, let generation):
+            historyModel?.close(); historyModel = nil
+            identificationHistoryVisible = false
+            resumeIdentificationContinuation(scanID: scanID, generation: generation)
+            resumeHistoryReanalysis(scanID: scanID, generation: generation)
         case .identificationHistory(let scanID, let generation):
             historyModel?.close(); historyModel = nil
             resumeHistoryReanalysis(scanID: scanID, generation: generation)
@@ -375,6 +382,8 @@ extension InsightSheetView {
             selectedPublicationModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .reanalysisStatus(let scanId, let generation):
             reanalysisStatusModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
+        case .identification(let scanId, let generation):
+            viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .identificationHistory(let scanId, let generation):
             historyModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .paywall:
@@ -441,6 +450,12 @@ extension InsightSheetView {
         case .reanalysisStatus:
             reanalysisStatusModel?.close()
             if releasePayload { reanalysisStatusModel = nil }
+        case .identification:
+            if releasePayload {
+                cancelIdentificationContinuation()
+                historyModel?.close(); historyModel = nil
+                identificationHistoryVisible = false
+            }
         case .identificationHistory:
             historyModel?.close()
             if releasePayload { historyModel = nil; pendingHistoryReanalysis = nil }

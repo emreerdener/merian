@@ -41,7 +41,7 @@ extension UITestSeedCoordinator {
          candidateConfirmation: Bool = ProcessInfo.processInfo.arguments.contains("-seedCandidateConfirmation")) throws {
         self.container = container
         self.namedReview = namedReview
-        undoReview = confirmationUndo ? .init(named: namedReview) : nil
+        undoReview = confirmationUndo ? .init(named: namedReview, rejected: ProcessInfo.processInfo.arguments.contains("-seedRejectionUndo")) : nil
         candidateReview = candidateConfirmation ? .init() : nil
         let bytes = try UITestSeedCoordinator.uiTestPNGData()
         let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
@@ -169,7 +169,8 @@ extension UITestSeedCoordinator {
             reviewWake: { [self] in
                 if let undoReview { undoReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else if let candidateReview { candidateReview.wake(container: container, cloud: cloud, snapshots: snapshots) } else { assert((try? verifyReviewDiscovery()) == true, "Synthetic review persistence mismatch") }
             }, reviewGeneration: { [self] in undoReview?.generation ?? candidateReview?.generation ?? 0 }, publication: config,
-            confirmationUndo: undoReview?.configuration ?? candidateReview?.undoConfiguration, currentGeneration: { 1 },
+            confirmationUndo: undoReview?.configuration ?? candidateReview?.undoConfiguration,
+            rejectionUndo: undoReview?.rejectionConfiguration, currentGeneration: { 1 },
             sessionIsCurrent: { $0.userID == Self.owner && !$0.isAnonymous })
     }
 
@@ -264,6 +265,8 @@ extension UITestSeedCoordinator {
 @MainActor @Observable
 final class ConfirmationUndoUIFixture {
     private let named: Bool
+    private let rejected: Bool
+    private let rejectionLookupOwner = ObservationRejectionUndoOwner()
     private let lookupOwner = ObservationConfirmationUndoOwner()
     private let deliveryOwner = ObservationAnalysisReviewDeliveryOwner()
     private var applied: ObservationAnalysisReviewRequest?
@@ -271,7 +274,7 @@ final class ConfirmationUndoUIFixture {
     private(set) var revision = 11
     private(set) var generation: UInt64 = 0
 
-    init(named: Bool) { self.named = named }
+    init(named: Bool, rejected: Bool = false) { self.named = named; self.rejected = rejected }
 
     private func originalOperation(_ analysis: String) -> UUID {
         UUID(uuidString: analysis == PublicationConsentUIFixture.selected
@@ -282,14 +285,14 @@ final class ConfirmationUndoUIFixture {
     }
     func authority(_ analysis: String) -> [String: Any] {
         let undone = applied?.analysisID.uuidString.lowercased() == analysis
-        return ["user_review_state": undone ? "unreviewed" : (named ? "user_overridden" : "ai_confirmed"),
-            "user_confirmed_identification": !undone && !named,
+        return ["user_review_state": undone || rejected ? "unreviewed" : (named ? "user_overridden" : "ai_confirmed"),
+            "user_confirmed_identification": !undone && !named && !rejected,
             "user_identification_override": !undone && named ? "Danaus plexippus" : NSNull(),
-            "confirmed_species_identity": undone ? NSNull() : ["version": 1,
+            "confirmed_species_identity": undone || rejected ? NSNull() : ["version": 1,
                 "species_id": "00000000-0000-4000-8000-00000000000b", "scientific_name": "Danaus plexippus",
                 "common_name": NSNull(), "gbif_taxon_key": 1], "confirmed_species_identity_revision": undone ? 2 : 1,
-            "confirmed_species_id": undone ? NSNull() : "00000000-0000-4000-8000-00000000000b",
-            "ai_identification_review": ["version": 1, "revision": undone ? 8 : 7, "state": "clear",
+            "confirmed_species_id": undone || rejected ? NSNull() : "00000000-0000-4000-8000-00000000000b",
+            "ai_identification_review": ["version": 1, "revision": undone ? 8 : 7, "state": rejected && !undone ? "ai_rejected" : "clear",
                 "origin_scan_id": PublicationConsentUIFixture.observation, "origin_identification": NSNull(),
                 "operation_id": (undone ? (applied?.operationID ?? originalOperation(analysis)) : originalOperation(analysis)).uuidString.lowercased(),
                 "operation_digest": String(repeating: "a", count: 32), "community": NSNull()]]
@@ -310,6 +313,22 @@ final class ConfirmationUndoUIFixture {
             return try .init(data: JSONSerialization.data(withJSONObject: row), request: request)
         })
     }
+    var rejectionConfiguration: IdentificationHistoryReviewAccess.RejectionUndoConfiguration? {
+        guard rejected else { return nil }
+        return .init(owner: rejectionLookupOwner, fetch: { [self] request, owner, validate in
+            try validate()
+            guard owner == PublicationConsentUIFixture.owner,
+                  request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
+                  request.observationRevision == revision,
+                  request.reviewRevision == reviewRevision(request.analysisID.uuidString.lowercased()) else {
+                throw ObservationHistoryError.resultConflict
+            }
+            var row = try request.object()
+            row["status"] = "available"
+            row["rejection_operation_id"] = originalOperation(request.analysisID.uuidString.lowercased()).uuidString.lowercased()
+            return try .init(data: JSONSerialization.data(withJSONObject: row), request: request)
+        })
+    }
     func wake(container: ModelContainer, cloud: ObservationHistoryCloudClient, snapshots: [String: Data]) {
         let service = ObservationAnalysisReviewDeliveryService(cloud: cloud, submit: { [self] request, owner, validate in
             try validate()
@@ -317,7 +336,9 @@ final class ConfirmationUndoUIFixture {
                   request.observationID.uuidString.lowercased() == PublicationConsentUIFixture.observation,
                   snapshots[request.analysisID.uuidString.lowercased()] != nil,
                   request.expectedObservationRevision == 11, request.expectedReviewRevision == 2,
-                  request.decision == .undoConfirmation(confirmationOperationID: originalOperation(request.analysisID.uuidString.lowercased())) else {
+                  request.decision == (rejected
+                    ? .undo(rejectionOperationID: originalOperation(request.analysisID.uuidString.lowercased()))
+                    : .undoConfirmation(confirmationOperationID: originalOperation(request.analysisID.uuidString.lowercased()))) else {
                 throw ObservationHistoryError.resultConflict
             }
             if let applied {

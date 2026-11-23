@@ -45,6 +45,16 @@ session is stopped before the replacement enters `SpeechManager`. When the
 manager ends recognition automatically, Field Notes invalidates its generation
 and rejects late transcription without calling shared teardown again.
 
+`finishDictation()` adds a bounded, session-specific finalization path for
+Capture Field notes. It ends audio input and waits up to three seconds for a
+terminal recognition result. Final text reaches the caller before success is
+returned. Error, timeout, cancellation, or cancellation during startup returns
+failure; a callback containing both final text and an error retains the text but
+does not authorize submission. `stopDictation()` remains immediate cancellation.
+Only one finalizer can own a session. Session identity rejects old callbacks,
+startup joins configuration before teardown, and replacement startup waits for
+the prior exact lease release. Capture keeps its draft editable on failure.
+
 Shared manager lifecycle tests live in
 `apps/ios/MerianTests/Core/Hardware/SpeechManagerTests.swift`; consumer overlap
 coverage remains in the Describe and Field Notes feature view-model suites.
@@ -219,8 +229,10 @@ implementation lives under `EnvironmentContext/`:
 - `Policies/EnvironmentLocationPolicy.swift` owns authorization, prompt,
   accuracy, location-profile, three-decimal cache-key, placemark-presentation,
   and region-normalization decisions.
+- `Services/EnvironmentLocationHardware.swift` constructs the live Core Location
+  manager and selects explicit DEBUG fixtures before hardware construction.
 - `Services/EnvironmentLocationController.swift` is the sole Core Location
-  delegate and `CLLocationManager` owner. It coalesces authorization waiters,
+  delegate and location lifecycle owner. It coalesces authorization waiters,
   owns live tracking and one-shot requests, scopes cancellation to the calling
   request, rejects negative-accuracy updates, and keeps coarse fallbacks out of
   the accurate cache. Revocation retires active one-shot requests, and a
@@ -282,9 +294,13 @@ existing dependency boundary, before constructing `CLLocationManager` or reading
 system authorization. The synthetic denied state returns no location and cannot
 prompt or start tracking. `TestExecutionCoordinator.isRunningUnitTests` excludes
 UI-test processes even when XCTest is loaded. UI tests retain live hardware and
-the separate prompt-suppression contract above; Release always uses live
-hardware. This prevents a stalled simulator location service from blocking
-unit-test host startup. It does not qualify physical-device location behavior.
+the separate prompt-suppression contract above by default. The explicit DEBUG
+capture-review fixture requires `UITesting=true`, `-seedStagedAudioReviewFlow`,
+and `-mockCaptureReviewLocation` together; it selects the same inert adapter
+before live hardware construction. This fixture qualifies review interactions
+only, not location behavior. Release always uses live hardware. The unit-test
+adapter prevents a stalled simulator location service from blocking unit-test
+host startup. Neither fixture qualifies physical-device location behavior.
 
 Before release, verify Environment Context on a signed physical device. Grant,
 deny, and revoke Location access while the camera is active and while a shutter

@@ -274,7 +274,7 @@ extension ObservationHistorySyncTests {
             #expect(throws: (any Error).self) { try ObservationHistoryPage.snapshot(bytes(row), observationID: observation, ordinal: 1) }
         }
     }
-    @Test func audioAdmissionReplayPreservesSelectionAndCannotBecomeLegacySource() async throws {
+    @Test func audioAdmissionReplayPreservesSelectionAndCapturesOnlyTypedAudioSource() async throws {
         let container = try container(), data = try audioPage(audioSnapshot())
         let service = ObservationHistorySyncService(cloud: client(fetch: { _ in data }))
         _ = try await service.syncPage(observationID: observation, container: container)
@@ -285,9 +285,14 @@ extension ObservationHistorySyncTests {
         let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
         #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
         #expect(scan.userIdentificationOverride == "Existing correction")
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!, analysisID: UUID(uuidString: record.id)!, ownerID: owner, container: container)
-        }
+        let source = try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!,
+            analysisID: UUID(uuidString: record.id)!, ownerID: owner, container: container)
+        #expect(source.snapshot == record.resultSnapshotData && source.analysisID.uuidString.lowercased() == record.id)
+        #expect(source.ownerID == owner && source.observationID.uuidString.lowercased() == observation)
+        let audioID = UUID(uuidString: "00000000-0000-4000-8000-000000000070")!
+        #expect(source.audio?.mediaID == audioID && source.artifactIDs == [audioID])
+        #expect(source.photos.isEmpty && source.evidence.isEmpty && source.video == nil && source.composition == nil)
+        try source.validate(container: container)
         let loader = ObservationHistoryPhotoLoader(account: client(fetch: { _ in Data() }), resolve: { _ in
             Issue.record("Audio reached photo resolver"); throw ObservationHistoryError.unavailable
         }, download: { _ in Issue.record("Audio reached photo downloader"); return Data() })
@@ -390,14 +395,8 @@ extension ObservationHistorySyncTests {
         #expect(entry.result.version == 5 && entry.result.video != nil && entry.result.audio == nil && entry.result.photos.isEmpty)
         #expect(scan.selectedAnalysisID == "00000000-0000-4000-8000-000000000009")
         #expect(scan.userIdentificationOverride == "Existing correction")
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
-        }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.captureForAudio(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
-        }
-        #expect(throws: ObservationHistoryError.unavailable) {
-            try ObservationReanalysisSource.captureForVideo(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened)
-        }
+        #expect(try ObservationReanalysisSource.capture(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened).video != nil)
+        #expect(try ObservationReanalysisSource.captureForAudio(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened).video != nil)
+        #expect(try ObservationReanalysisSource.captureForVideo(observationID: UUID(uuidString: observation)!, analysisID: analysis, ownerID: owner, container: reopened).video != nil)
     }
 }

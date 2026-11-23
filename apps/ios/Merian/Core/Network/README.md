@@ -1,3 +1,33 @@
+## November 21 — private primary transport candidate
+
+`CapturePrimaryTransport` uses one fixed `identify-multimodal` request with a
+130-second scoped session and the ordinary completion byte cap. It bypasses
+logical retries and Auth recovery. The dispatcher awaits the retained owner's
+durable dispatch reservation after Auth, then rechecks consent, cancellation and
+attempt identity immediately before transport. Failure after reservation retains
+recovery-only state. The collector joins actual task termination and preserves a
+complete response that won before cancellation; the native owner independently
+checks account/root/claim before local settlement. Focused native validation is
+in progress.
+
+Expected-account header requests now propagate token-load failure rather than
+starting anonymous bootstrap. SDK refresh of the same session remains allowed;
+the caller still checks the actual account after token loading. This prevents a
+request holding native/account leases from recursively waiting on its own drain.
+Unowned bootstrap policy is unchanged.
+
+## November 21 — private Capture completion recovery
+
+`CaptureCompletionTransport` uses the existing pinned, account-bound dispatcher
+and joined bounded response reader for `capture-completion-v1`. It sends the
+frozen whole-observation plan to `check-scan-status`, validates the returned
+owner, observation, generation and completion proof, and returns a held result
+without inference authority. It has a five-second deadline, a 1,048,576-byte
+request limit and a 1,052,672-byte response limit. It performs no Auth refresh,
+route retry, upload or primary inference. The result writer remains responsible
+for full result/funding validation and durable local commitment. Production
+execution-worker integration is still in progress.
+
 ## November 13 — preserve endpoint encoding during authentication
 
 `AuthenticatedTransportDispatcher.applyingValidatedAuthHeaders` preserves an
@@ -1359,30 +1389,37 @@ and [focused matrix](#account-deletion-and-recovery-verification).
 ### Core Network integration audit
 
 `CoreNetworkIntegrationArchitectureTests` protects the complete boundary across
-the individually extracted slices. It requires exactly 18 endpoint-extension
+the individually extracted slices. It requires exactly 28 endpoint-extension
 owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
-`Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
-client façade. The Auth inventory is exactly sixty-four production files; its
-source guard also caps Auth at 7,887 production lines, Purchase Identity at
-2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,695. The
-November 9 approved allowance excludes only 66 reviewed Debug-only lines from
-Auth: 61 in the lifecycle provider and five in its live factory. Exact
+`Endpoints/`, `Inference/`, `Media/`, `Models/`, `Recovery/`, and `Transport/`.
+The client façade uses its independently reviewed 604-line ceiling from the
+shared source-size policy. The Auth inventory is exactly sixty-five production
+files; its source guard caps Auth at 7,945 production lines, Purchase Identity
+at 2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,748.
+The November 9 approved allowance excludes only 66 reviewed Debug-only lines
+from Auth: 61 in the lifecycle provider and five in its live factory. Exact
 whole-file SHA-256 assertions fail before subtraction after any source edit;
 renewed independent review is required before updating those hashes. Other Auth
 files receive no exclusion, and individual owner limits remain unchanged. The
-September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
-keyed foreground/listener coalescing and replacement fencing; the other limits
-and ownership checks remain unchanged. The October deletion-account resume hook
-adds 7 Auth lines and 7 facade lines, including its extra session fence. The
-subsequent library-transition preparation adds 123 Auth lines and 310 facade
-lines for durable sign-out recovery, ownership/admission fences and transfer
-status. The asynchronous account purge adds one Auth line for the post-await
-session-absence fence, without increasing the individual owner ceilings. The
-facade remains the existing reviewed residual owner because these live bindings
-share private transition state; no mutable internals were widened solely to
-satisfy the earlier feature budget. Other extracted owners retain the 600-line
-ceiling. See the
+November 22 review accounts for 58 additional Auth lines: 41 in existing
+account-deletion/sign-out owners for immutable cleanup-marker/CAS and guest
+nonadoption boundaries, and 17 in `AuthenticatedHeaderTokenLoader` for scoped
+expected-owner token loading without bootstrap recursion. Purchase Identity and
+the two hashed Debug exclusions are unchanged. The transport inventory
+explicitly includes the three bounded Capture primary, stage and completion
+owners. The September 2026 startup fix adds exactly 22 Auth lines and 14 façade
+lines for keyed foreground/listener coalescing and replacement fencing; the
+other limits and ownership checks remain unchanged. The October deletion-account
+resume hook adds 7 Auth lines and 7 facade lines, including its extra session
+fence. The subsequent library-transition preparation adds 123 Auth lines and 310
+facade lines for durable sign-out recovery, ownership/admission fences and
+transfer status. The asynchronous account purge adds one Auth line for the
+post-await session-absence fence, without increasing the individual owner
+ceilings. The facade remains the existing reviewed residual owner because these
+live bindings share private transition state; no mutable internals were widened
+solely to satisfy the earlier feature budget. Other extracted owners retain the
+600-line ceiling. See the
 [startup investigation](../../../../../docs/incidents/2026-09-startup-log-triage.md).
 The guard freezes the effect-free observable runtime owner for transition,
 generation, analytics-token, exact-session lease/drain, and local sign-out
@@ -3163,7 +3200,14 @@ complimentary access. Response decoding copies the generated DTO into a domain
 settlement without mutating account state. Offline Sync applies it only after
 successful local persistence and any required exact queue deletion, then keeps
 the account-work lease in `InferenceFundingReconciliationOwner` until the
-coalesced follow-up finishes or Auth cancellation drains it.
+coalesced follow-up finishes or Auth cancellation drains it. The separate native
+Capture candidate retains its queue and media custody: it saves the immutable
+original settlement with the committed result, applies typed account-bound
+effects, and acknowledges delivery afterward. Receipt recovery neither invokes
+another provider execution nor restores later user edits. Reconciliation starts
+after the native persistence fences exit. Its remaining activation and
+validation work is recorded in the
+[Capture plan](../../../../../docs/product/capture-review-plan.md).
 
 Local funding completion uses `plan_used` and `credit_consumed` together.
 `pro_complimentary` with `credit_consumed = true` settles the local blocker as
@@ -4436,11 +4480,16 @@ Photo V2/audio V3 now have durable candidate staging/CAS and an explicitly
 injected, queue-retained `ObservationSourceReservationService` /
 `ObservationSourceReservationOwner` delivery path. Exact typed conflicts settle
 under the same owner/request/claim fences even after dispatch cancellation. No
-composition caller is installed. Ordinary UI, scheduler, upload and execution
-remain disconnected; installed composition and unfunded retirement are separate
-checkpoints. Tests are `ObservationSourceReservationTests`,
-`ObservationSourceTransportTests`, `ObservationSourceStoreTests`,
-`ObservationSourceReservationOwnerTests` and
+ordinary composition caller was installed at that checkpoint. The November 14
+local candidate adds `CompositionSourceReservationRequest` (schema3/reader14),
+`ObservationCompositionEvidenceTransport` and
+`ObservationCompositionAnalysisTransport`, each using the saved exact identity
+and response bounds without hidden retry. The shared Capture workspace starts
+this lane only on explicit submission. Its pending native verification and
+coordinated backend deployment must precede an installed full-flow claim.
+Unfunded retirement remains a separate checkpoint. Tests are
+`ObservationSourceReservationTests`, `ObservationSourceTransportTests`,
+`ObservationSourceStoreTests`, `ObservationSourceReservationOwnerTests` and
 `ObservationSourceReservationServiceTests`. See
 [the source reservation contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-reservation-and-unfunded-retirement-wire).
 

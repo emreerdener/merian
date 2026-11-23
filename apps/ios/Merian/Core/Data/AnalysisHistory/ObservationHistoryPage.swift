@@ -32,6 +32,17 @@ struct ObservationHistoryPage {
         let completedAt: Date?
         let importedAt: Date?
         let bytes: Data
+        let composition: ObservationCompositionManifest?
+        let initialEvidence: ObservationInitialEvidence?
+
+        init(version: Int, photos: [ObservationHistoryPhotoReference], audio: ObservationHistoryAudioReference?,
+             video: ObservationVideoManifest?, analysisID: UUID, completedAt: Date?, importedAt: Date?, bytes: Data,
+             composition: ObservationCompositionManifest? = nil, initialEvidence: ObservationInitialEvidence? = nil) {
+            self.version = version; self.photos = photos; self.audio = audio; self.video = video
+            self.analysisID = analysisID; self.completedAt = completedAt; self.importedAt = importedAt
+            self.bytes = bytes; self.composition = composition
+            self.initialEvidence = initialEvidence
+        }
     }
     let ownerID: UUID
     let observationID: String
@@ -69,6 +80,7 @@ struct ObservationHistoryPage {
                 throw ObservationHistoryError.invalidPage
             }
             let result = try snapshot(Data(text.utf8), observationID: request.observation_id, ordinal: ordinal)
+            guard result.initialEvidence.map({ $0.ownerID == ownerID }) ?? true else { throw ObservationHistoryError.invalidPage }
             guard seen.insert(result.analysisID).inserted else { throw ObservationHistoryError.invalidPage }
             previous = ordinal
             return result
@@ -82,12 +94,14 @@ struct ObservationHistoryPage {
 
     static func snapshot(_ bytes: Data, observationID: String, ordinal: Int) throws -> Result {
         guard bytes.count <= LocalAnalysisRecord.maximumSnapshotBytes else { throw ObservationHistoryError.invalidSnapshot }
-        let row = try object(JSONSerialization.jsonObject(with: bytes), keys:
-            ["schema_version", "observation_id", "analysis_id", "source_analysis_id", "request_digest", "ordinal", "completed_at_ms", "result", "evidence_manifest"])
+        let raw = try JSONSerialization.jsonObject(with: bytes)
+        let version = try integer((raw as? [String: Any])?["schema_version"])
+        var keys: Set<String> = ["schema_version", "observation_id", "analysis_id", "source_analysis_id", "request_digest", "ordinal", "completed_at_ms", "result", "evidence_manifest"]
+        if version == 8 { keys.insert("initial_evidence") }
+        let row = try object(raw, keys: keys)
         let analysisID = try uuid(row["analysis_id"])
         let observationUUID = try uuid(observationID)
-        let version = try integer(row["schema_version"])
-        guard [1, 2, 3, 4, 5].contains(version), row["observation_id"] as? String == observationID,
+        guard [1, 2, 3, 4, 5, 6, 7, 8].contains(version), row["observation_id"] as? String == observationID,
               analysisID != observationUUID,
               try integer(row["ordinal"]) == ordinal else {
             throw ObservationHistoryError.invalidSnapshot
@@ -125,7 +139,19 @@ struct ObservationHistoryPage {
         var photos: [ObservationHistoryPhotoReference] = []
         var audio: ObservationHistoryAudioReference?
         var video: ObservationVideoManifest?
-        if version == 5 {
+        var composition: ObservationCompositionManifest?
+        var initialEvidence: ObservationInitialEvidence?
+        if version == 8 {
+            guard ordinal == 1, row["source_analysis_id"] is NSNull else { throw ObservationHistoryError.invalidSnapshot }
+            initialEvidence = try ObservationInitialEvidence(manifest: row["evidence_manifest"], proof: row["initial_evidence"],
+                observationID: observationUUID, analysisID: analysisID, requestDigest: digest)
+        } else if version == 6 || version == 7 {
+            let sourceID = try uuid(row["source_analysis_id"])
+            guard let manifest = row["evidence_manifest"] else { throw ObservationHistoryError.invalidSnapshot }
+            composition = try ObservationCompositionManifest(data: JSONSerialization.data(withJSONObject: manifest),
+                observationID: observationUUID, analysisID: analysisID, sourceAnalysisID: sourceID)
+            guard composition?.schemaVersion == (version == 7 ? 6 : 5) else { throw ObservationHistoryError.invalidSnapshot }
+        } else if version == 5 {
             let sourceID = try uuid(row["source_analysis_id"])
             guard let manifest = row["evidence_manifest"] else { throw ObservationHistoryError.invalidSnapshot }
             let decoded = try ObservationVideoManifest(data: JSONSerialization.data(withJSONObject: manifest),
@@ -149,7 +175,7 @@ struct ObservationHistoryPage {
             guard !media.items.isEmpty else { throw ObservationHistoryError.invalidSnapshot }
         }
         return Result(version: version, photos: photos, audio: audio, video: video, analysisID: analysisID,
-            completedAt: Date(timeIntervalSince1970: Double(milliseconds) / 1000), importedAt: nil, bytes: bytes)
+            completedAt: Date(timeIntervalSince1970: Double(milliseconds) / 1000), importedAt: nil, bytes: bytes, composition: composition, initialEvidence: initialEvidence)
     }
 
     /// The generated media decoder includes legacy compatibility; new history must not.

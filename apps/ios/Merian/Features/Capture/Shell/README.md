@@ -1,3 +1,108 @@
+## November 21 — final UI qualification in progress
+
+Root Field notes mounts as a sibling modal layer and owns the sole active draft
+toolbar while occupied. Underlying toolbar controls are removed until dismissal;
+inactive capture-side actions are also unmounted so native glass buttons cannot
+share invisible touch or accessibility targets. The Field notes root header now
+owns explicit 44-point prompt and dictation buttons instead of compact native
+navigation-bar items. Prompts retains native back navigation. Capture auxiliary
+controls use circular hit regions matching their 50-point visible surfaces;
+introduction swipes are consumed without opening a goal or paging the workspace.
+Empty Scan and Record restore an available goal at the leading side; drafts and
+active recording hide the goal. The simulator camera surface preserves focus
+taps and vertical-drag locking while allowing horizontal paging through UIKit
+gesture arbitration. Physical camera behavior still needs device validation.
+Native79 passed 16 of 18 UI journeys, including recording completion. Native80
+corrected the remaining assertions but its full-target run was interrupted after
+finding a registry-order defect and stale test expectations. Native81 applies
+the reviewed corrections and a wrapping Field notes heading; 116 focused unit
+tests and all 18 UI journeys passed with unchanged source/fixture pins. Visual
+inspection still found a clipped caret at accessibility XXXL. Field notes now
+uses a private bounded scrolling editor sized to its available viewport, with
+focus/keyboard changes revealing the complete input. Its bindings and autosave
+session are unchanged. Native82 passed 15 unit tests and five affected UI
+journeys; screenshot inspection confirmed final-line/caret visibility for long
+multiline input at accessibility XXXL. Native83 passed all 1,563 XCTest methods,
+then exposed video preparation/cleanup failures in Swift Testing; the
+interrupted run is not a complete-target pass. Native84 passed all 34 focused
+tests for the producer ownership correction and orientation-aware pixel
+reference, with unchanged source/fixture pins. Under the user's updated
+early-switch direction, native85 was gracefully interrupted with 7,184 passing
+methods, 13 assertion failures, one interruption failure and eight declared
+skips; all source/fixture/product pins matched after exit. The 607 unexecuted
+methods were classified by dependency: 41 are required for Capture closeout and
+566 remain open broader baseline evidence. Native86 applies the reviewed
+test/policy corrections without changing production Swift and runs 58 targeted
+methods/111 cases, including two missing video History UI flows. It passed 57 of
+58 methods and all 69 parameter cases; one video Boost timing regression was
+found. The follow-up restores asset-timed audio gaps with a bounded PCM writer.
+Native87 passed that regression and both video History UI journeys: 30 of 31
+methods/42 of 43 expanded cases passed. Its one new fixture failed before
+production. Native88 corrected only the fixture and passed all three timeline
+methods. Source/fixture pins and matching simulator/configuration identities
+were reconciled; local implementation and targeted validation are ready for
+manual-device review. Installed selection gestures and physical capture remain
+unqualified. There is no automatic full-target rerun; the complete-target
+release gate remains open and the interrupted result remains failed. Close,
+rotation and selection controls now have 44-point actual button labels. See the
+[Capture plan](../../../../../../docs/product/capture-review-plan.md) for
+results.
+
+## November 15 — two-mode workspace and Field notes foundation
+
+The authorized successor candidate exposes Scan and Record. Legacy `.describe`
+values remain decodable but are removed from selectable ordering. Field notes
+opens from the shared draft toolbar only when physical media exists. Shell owns
+one `CaptureFieldNotesSession`, tied to draft generation and account, with its
+own prompt snapshot and `DescribeInputViewModel`. The overlay and live adapter
+use the same DI-owned SpeechManager.
+
+Text and prompt changes autosave through the original draft mutation guards. The
+separate occupancy guard blocks capture, mode changes, imports and competing
+routes until the matching outer dismissal completes. Nested Prompts navigation
+cannot release occupancy; closing notes reevaluates the underlying presentation
+before restoring hardware. Removing the final physical item clears supplementary
+notes and prompt progress, preserving protected historical context. Identify
+awaits final dictation before freezing; errors retain the editable draft.
+
+`CaptureMediaReviewSession` now owns one stable-ID outer photo/audio/video
+review presentation. Its retained presentation ID blocks competing ingress until
+matching dismissal, including pre-mount retirement and queued hardware events.
+Nested notes have their own lifetime; closing them preserves the selected
+review. Photo changes pass through the identity-fenced commit barrier before
+navigation or submission. Retained frozen admission returns to its existing root
+retry owner.
+
+This is an in-progress source checkpoint, not complete native qualification or
+release. Manual focus and matching square video preparation remain engine
+integration work tracked in the
+[implementation plan](../../../../../../docs/product/capture-review-plan.md).
+
+## November 14 — shared-toolbar audio and video bridges
+
+`CaptureReanalysisAccess` installs `CaptureWorkspaceAudioReanalysis` and
+`CaptureWorkspaceVideoReanalysis` through the existing parent-retained source
+hosts. The editor chooses the submission owner from the final staged media, not
+the source identification's type. A single audio or video item uses its existing
+durable owner; retry retains its child identity and frozen content. Video frames
+and companion audio belong to one toolbar item.
+
+Protected original media loads through `ObservationHistoryMediaLoader` using
+immutable result membership, account/source revalidation and exact byte/hash
+checks. Staged files are disposable workspace-owned copies. Cancellation or a
+failed preload cleans only those copies. `FileIOActor` snapshots audio and binds
+video input to its directory/file identity before durable copying.
+
+Mixed-media reanalysis now connects the shared workspace to its retained
+composition preparation, upload, execution and native result-delivery owners.
+This local candidate still requires a coordinated backend release for live use.
+A mixed toolbar must never fall through to photo submission or create several
+children. Both History and legacy reanalysis use the existing refinement
+controls; their shared toolbar capacity is unchanged. See the
+[shared-workspace contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#history-reanalysis-integration-status)
+for runtime/deployment boundaries. Existing forms remain only for legacy
+recovery paths; new reanalysis enters Capture.
+
 ## November 12 — capture overlay simplification
 
 The Capture overlay no longer displays the Pending submissions shortcut below
@@ -322,15 +427,16 @@ surface, not a trigger for a separate filter or pop-up menu.
 
 `MainTabBar` is Capture-workspace navigation chrome rather than a Core UI route
 owner. Its Capture-only `FloatingNavigationMenu` layout is co-located in
-`Components/Navigation`; its visible labels are Explore, Book, and Profile. Book
-uses `book.fill` and the accessibility label “Book”, retaining the existing
-Scans route, unread badge, bindings, and `MainTabBar_Scans` identifier. The
-injected navigation view model refreshes Explore badge sources on mount,
-foreground return, and Explore dismissal. A UUID generation fence rejects an
-older overlapping result or a completion after disappearance. An unavailable
-notification count preserves the last known notification badge, while the
-existing feed-fetch failure behavior clears the external-post badge. The view
-contains no network client, badge coordinator, or haptic singleton lookup.
+`Components/Navigation`; its visible labels are Explore, Naturebook, and
+Profile. Naturebook uses `book.fill` and the accessibility label “Naturebook”,
+retaining the existing Scans route, unread badge and bindings. Its current
+UI-test identifier is `MainTabBar_Naturebook`. The injected navigation view
+model refreshes Explore badge sources on mount, foreground return, and Explore
+dismissal. A UUID generation fence rejects an older overlapping result or a
+completion after disappearance. An unavailable notification count preserves the
+last known notification badge, while the existing feed-fetch failure behavior
+clears the external-post badge. The view contains no network client, badge
+coordinator, or haptic singleton lookup.
 
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
@@ -364,18 +470,18 @@ Image imports also cross admission before expensive or user-visible import work.
 previews a one-photo addition and includes pending shared text. The selected
 count is admitted through a registered draft operation before file loading. A
 pending external Photos/Files receipt uses `requestImageImportEntryAdmission`
-before metadata extraction, image preparation, or required crop. Known
+before metadata extraction, image preparation, or optional review. Known
 quota/entitlement denial therefore opens the paywall with no staged image or
 crop sheet; the durable external-import receipt remains available for retry.
-This preview is read-only, so crop confirmation and submission still perform the
+This preview is read-only, so whole-observation submission still performs the
 normal admission recheck to catch a concurrent account/quota change. Once an
 import is allowed, `shouldSuppressCaptureChromeForCrop` owns the visual handoff
-from the staged commit through the required crop's dismissal. Both the capture
-row and bottom navigation/Identify tray remain hidden while that fence is
-active. `CropSheetModifier` is the only full-screen presentation owner; the
-workspace does not add a transition canvas or input-blocking overlay during the
-handoff. This keeps background/foreground scene changes from stranding a cover
-above the app.
+from the staged commit through the optional review presentation's dismissal.
+Both the capture row and bottom navigation/Identify tray remain hidden while
+that fence is active. `CropSheetModifier` is the only full-screen presentation
+owner; the workspace does not add a transition canvas or input-blocking overlay
+during the handoff. This keeps background/foreground scene changes from
+stranding a cover above the app.
 
 ## Fresh-launch presentation
 
@@ -590,41 +696,71 @@ cleanup never clears a newer operation or deletes an already-staged original.
 
 ## Protected reanalysis editor
 
+The
+[shared-workspace redesign](../../../../../../docs/rfcs/identification-history-version-actions-and-redesign-2026-10-11.md#november-14--preserve-the-existing-media-toolbar-composition)
+preserves the existing toolbar's remove/add/replace media behavior without
+locking the final input to the source media type. Its preparatory
+`loadForWorkspace` helper loads the entire verified photo/notes timeline or
+leaves the editor unchanged on failure. If a legacy source exposes no immutable
+original photos, the route returns to the saved identification with an
+explanation instead of silently opening an empty toolbar. This does not recover
+missing originals or borrow mutable parent media. `updateWorkspacePhotoCapture`
+validates photo lineage before accepting edits and cannot replace a frozen
+submission; empty media and unfinished notes remain editable. The protected
+photo route now uses these helpers in the shared workspace. Audio, video and
+mixed submission adapters remain incomplete; photo-route coverage does not
+qualify those paths.
+
 The prepared `historicalReanalysis` route carries an explicit observation,
 historical analysis and expected owner. `CaptureReanalysisAccess` validates the
-owner and frozen source at entry, then `CameraSheetRouter` mounts a dedicated
-`CaptureReanalysisSheet`. `CaptureWorkspaceDependencies.reanalysis` defaults to
-nil: ordinary entry remains disabled until the complete activation contract is
-qualified. The prepared access factory requires a current-owner/session check
-and account generation from its assembler, plus the queue-owned shared
-preparation coordinator; idle sheets hold no Auth work lease. Producer and local
-recovery reserve the same child before metadata access, so recovery cannot
-invalidate a writer that has not reached its file lock.
+owner and frozen source at entry, then
+`CaptureWorkspaceViewModel+HistoryWorkspace` loads the shared Capture workspace
+without mounting the separate photo form. Its owned load task and draft
+generation prevent stale completion from replacing another draft. An occupied
+draft is retained rather than overwritten. The old sheet remains compatibility
+code, not the ordinary protected photo route.
+`CaptureWorkspaceDependencies.reanalysis` defaults to nil: ordinary entry
+remains disabled until the complete activation contract is qualified. The
+prepared access factory requires a current-owner/session check and account
+generation from its assembler, plus the queue-owned shared preparation
+coordinator; idle sheets hold no Auth work lease. Producer and local recovery
+reserve the same child before metadata access, so recovery cannot invalidate a
+writer that has not reached its file lock.
 
 `CaptureReanalysisEditor` owns explicit original-photo selection, private
 preview loading, a complete verified staged cohort, photo additions and note
 edits/removal. It uses the existing immutable source, selection, loader and
 session owners. Its five-photo budget is independent of ordinary Capture's two
-physical slots. Selection starts empty, retains exact mixed source order and
-never takes the first N originals. Photos can be previewed before selection;
-unsupported originals require choosing another photo or adding new evidence.
-V1/V3 analyses inherit no mutable observation media or notes. Added photos use
-file-backed import and bounded existing image preparation, without borrowing
-parent location or gallery metadata into the reanalysis request.
+physical slots. The shared workspace loads all supported original photos and
+notes in source order, or leaves the editor unchanged on failure. In the
+retained compatibility chooser, selection starts empty, retains exact mixed
+source order and never takes the first N originals. Photos can be previewed
+before selection; unsupported originals require choosing another photo or adding
+new evidence. V1/V3 analyses inherit no mutable observation media or notes.
+Added photos use file-backed import and bounded existing image preparation,
+without borrowing parent location or gallery metadata into the reanalysis
+request.
 
-The editor submits only through `CaptureReanalysisSession.stage`; it never calls
-ordinary admission, local funding, replacement or `InferenceEngine.analyze`. The
-single **Reanalyze** action freezes the exact plan and explicitly requests
-submission before private files are written. A failed or ambiguous save retains
-that identity and action, and disables edits until explicit discard succeeds.
-After durable preparation and fresh owner/generation checks, the editor invokes
-the required injected submission callback with the persisted child ID. The
-assembler connects it to the queue's `.submitted(childID)` admission
-opportunity; ordinary access remains gated. An exact already-bound replay stays
-owned by execution and does not reenter advisory admission. Saved presentation
-confirms local submission only, without claiming provider completion or changing
-the selected identification. Processing waits for current consent and an
-eligible connection; old saved-only drafts remain inert.
+Shared workspace staging does not request ordinary new-scan funding. The History
+producer retains funding/admission ownership. A frozen request locks media and
+notes while leaving exact retry and explicit discard available. Successful
+submission or discard returns to the source identification; account change
+clears only ephemeral staging and leaves saved work with its durable owner.
+
+The photo editor submits only through `CaptureReanalysisSession.stage`; it never
+calls ordinary admission, local funding, replacement or
+`InferenceEngine.analyze`. The single **Reanalyze** action freezes the exact
+plan and explicitly requests submission before private files are written. A
+failed or ambiguous save retains that identity and action, and disables edits
+until explicit discard succeeds. After durable preparation and fresh
+owner/generation checks, the editor invokes the required injected submission
+callback with the persisted child ID. The assembler connects it to the queue's
+`.submitted(childID)` admission opportunity; ordinary access remains gated. An
+exact already-bound replay stays owned by execution and does not reenter
+advisory admission. Saved presentation confirms local submission only, without
+claiming provider completion or changing the selected identification. Processing
+waits for current consent and an eligible connection; old saved-only drafts
+remain inert.
 
 Explicit discard retires only the session's unattempted child and requests
 receipt-bound local cleanup after commit. Account-generation changes and root

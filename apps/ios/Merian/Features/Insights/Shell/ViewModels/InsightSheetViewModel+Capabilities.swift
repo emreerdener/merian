@@ -71,8 +71,16 @@ extension InsightSheetViewModel {
 
     var canConfirm: Bool {
         guard queuedContext == nil,
-              presentedLocalRecordScanId != nil else { return false }
-        return inferenceEngine?.speciesData?.canConfirmReanalysisProposal == true || !reviewAlternativeCandidates.isEmpty
+              presentedLocalRecordScanId != nil, !isProcessing,
+              let species = inferenceEngine?.speciesData,
+              species.isBiological, !species.isHumanSubject,
+              !species.userConfirmedIdentification, species.userIdentificationOverride == nil,
+              species.aiReview.pending == nil, !species.aiReview.needsAttention,
+              species.aiReview.community == nil else { return false }
+        // Confirming the primary result does not depend on whether there are
+        // competitive alternatives to review.
+        return species.canConfirmReanalysisProposal
+            || (species.aiReview.state == .clear && species.hasSpeciesLevelIdentification)
     }
 
     var canShareToExplore: Bool {

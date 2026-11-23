@@ -135,6 +135,8 @@ function database(
   const client = {
     rpc(name: string, args: Record<string, unknown> = {}) {
       switch (name) {
+        case "recover_owned_initial_completion":
+          return response(null);
         case "get_entitlement_rollout_service":
           return response({
             entitlement_mode: "complimentary",

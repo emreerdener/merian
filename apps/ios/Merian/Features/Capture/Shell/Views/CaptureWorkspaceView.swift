@@ -7,13 +7,14 @@ struct CaptureWorkspaceView: View {
     @Environment(CameraManager.self) private var cameraManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(ActiveCaptureGoalStore.self) private var activeCaptureGoalStore
-    @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
 
     // MARK: - View Model & State
     private let showsWhatsNewOnFreshLaunch: Bool
     @State private var viewModel: CaptureWorkspaceViewModel
+    // Observe and control the same manager used by the session's live adapter.
+    private var speechManager: SpeechManager { viewModel.diContainer.speechManager }
 
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
@@ -93,13 +94,6 @@ struct CaptureWorkspaceView: View {
         _scrollPageMode = State(initialValue: mode)
     }
 
-    private var describePageIdentity: String {
-        if viewModel.baseRefinementContext != nil {
-            return "reanalysis-\(viewModel.refinementSubjectId ?? "unknown")"
-        }
-        return "standard"
-    }
-
     private var activeCaptureGoalPresentation: ActiveCaptureGoalPresentation? {
         activeCaptureGoalStore.presentation
     }
@@ -108,17 +102,42 @@ struct CaptureWorkspaceView: View {
         ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: FeatureFlags.isEnabled(.fieldTrips),
             isUserVisible: appSettings.showsCaptureGoalProgress,
-            isVisualMode: captureMode == .visual,
+            isCaptureMode: captureMode == .visual || captureMode == .audio,
             hasPresentation: activeCaptureGoalPresentation != nil,
-            stagedCaptureIsEmpty: viewModel.stagedCapture.isEmpty,
-            isRefining: viewModel.baseRefinementContext != nil,
+            stagedCaptureIsEmpty: viewModel.stagedCapture.isEmpty && !viewModel.hasInitialDraftLiability
+                && !audioCaptureManager.isRecording,
+            isRefining: viewModel.isReanalyzing,
             isVideoRecording: viewModel.isVideoRecording
         )
     }
 
     // MARK: - View Hierarchy
     var body: some View {
-        workspaceContent
+        ZStack {
+            workspaceContent
+                .allowsHitTesting(!viewModel.isFieldNotesOccupied && viewModel.mediaReviewPresentationID == nil)
+                .accessibilityHidden(viewModel.isFieldNotesOccupied || viewModel.mediaReviewPresentationID != nil)
+            if viewModel.mediaReviewPresentationID == nil, let session = viewModel.fieldNotesSession {
+                CaptureFieldNotesOverlay(workspace: viewModel, session: session,
+                                         speechManager: speechManager) {
+                    activeToolbar
+                }
+                .id(session.id)
+            }
+        }
+            .onChange(of: viewModel.draftSession.generation) { _, _ in
+                if let session = viewModel.fieldNotesSession,
+                   session.draftGeneration != viewModel.draftSession.generation {
+                    viewModel.invalidateFieldNotes(clearProgress: true)
+                }
+                viewModel.resumePendingFieldNotesIfPossible()
+            }
+            .onChange(of: viewModel.canOpenFieldNotes) { _, ready in
+                if ready { viewModel.resumePendingFieldNotesIfPossible() }
+            }
+            .onChange(of: viewModel.stagedCapture.physicalItemCount) { old, new in
+                if old > 0, new == 0 { viewModel.clearFieldNotesAfterFinalMediaRemoval() }
+            }
             .environment(\.captureChromeLayout, chromeLayout)
             .onPreferenceChange(CaptureToolbarHeightKey.self) { height in
                 guard height.isFinite, abs(stagedToolbarHeight - height) > 0.5 else { return }
@@ -205,26 +224,17 @@ struct CaptureWorkspaceView: View {
                                             .id(CaptureMode.audio)
 
                                     case .describe:
-                                        // MARK: Describe page — Text input
-                                        DescribeInputView(
-                                            promptFlow: viewModel.describePromptFlow,
-                                            context: descriptionBinding,
-                                            promptViewModel: describePromptViewModel,
-                                            focusRequest: viewModel.descriptionFocusRequest
-                                        )
-                                        .frame(width: proxy.size.width, height: proxy.size.height)
-                                        .clipped()
-                                        .id(describePageIdentity)
-                                        .id(CaptureMode.describe)
+                                        EmptyView() // Historical value; never a selectable workspace.
                                     }
                                 }
                             }
                             .scrollTargetLayout()
                         }
                         .transparentTopToolbar()
+                        .accessibilityIdentifier("CaptureWorkspacePager")
                         .scrollTargetBehavior(.paging)
                         .scrollPosition(id: $scrollPageMode)
-                        .scrollDisabled(isVerticalZooming || isToggleDragging || viewModel.isDraftMutationLocked)
+                        .scrollDisabled(isVerticalZooming || isToggleDragging || viewModel.areCaptureActionsBlocked)
                         .scrollDismissesKeyboard(.interactively)
                         .background(ScrollBounceDisabler())
                         .onChange(of: appSettings.captureModeOrderRaw, initial: true) { _, raw in
@@ -284,17 +294,6 @@ struct CaptureWorkspaceView: View {
                 }
                 .ignoresSafeArea()
 
-                DescribeInputLifecycleObserver(
-                    captureMode: captureMode,
-                    promptFlow: viewModel.describePromptFlow,
-                    context: descriptionBinding,
-                    promptViewModel: describePromptViewModel,
-                    isQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
-                    coordinator: coordinator,
-                    speechManager: speechManager
-                )
-                .frame(width: 0, height: 0)
-
                 // MARK: Fixed Overlay — Mode Toggle / Capture Goal (top)
                 if viewModel.shouldShowMediaModeToggle {
                     GeometryReader { overlayProxy in
@@ -309,6 +308,15 @@ struct CaptureWorkspaceView: View {
                                     )
                                 }
                             )
+                            .disabled(viewModel.areCaptureActionsBlocked)
+                            .frame(maxWidth: .infinity)
+                            .overlay(alignment: .leading) {
+                                if viewModel.shouldPresentActiveScanToolbar {
+                                    CaptureStagingCancelButton { viewModel.requestDraftDiscard() }
+                                        .disabled(viewModel.isDraftMutationLocked && !viewModel.canRetryHistoryWorkspace && !viewModel.canDiscardInitialDraft)
+                                        .padding(.leading, 20)
+                                }
+                            }
 
                             if shouldShowCaptureGoalPresentation,
                                let presentation = activeCaptureGoalPresentation {
@@ -329,15 +337,15 @@ struct CaptureWorkspaceView: View {
                                 )
                                 .padding(
                                     .leading,
-                                    CaptureGoalIndicatorLayoutPolicy.expandedHorizontalMargin
-                                )
-                                .padding(
-                                    .trailing,
                                     captureGoalIndicatorExpansionState.isExpanded
                                         ? CaptureGoalIndicatorLayoutPolicy.expandedHorizontalMargin
                                         : CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
                                             containerWidth: overlayProxy.size.width
                                         )
+                                )
+                                .padding(
+                                    .trailing,
+                                    CaptureGoalIndicatorLayoutPolicy.expandedHorizontalMargin
                                 )
                                 .offset(
                                     y: CaptureGoalIndicatorLayoutPolicy.verticalOffset(
@@ -370,7 +378,7 @@ struct CaptureWorkspaceView: View {
                         isSuppressed: shouldHideBottomChrome,
                         coordinator: coordinator
                     )
-                    .disabled(viewModel.isDraftMutationLocked)
+                    .disabled(viewModel.areCaptureActionsBlocked)
                 }
 
                 // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
@@ -385,40 +393,8 @@ struct CaptureWorkspaceView: View {
                             dependencies: viewModel.dependencies.navigation
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else {
-                        ActiveScanToolbar(
-                            stagedCapture: viewModel.stagedCapture,
-                            isRefining: viewModel.baseRefinementContext != nil,
-                            stagedCaptureLimit: viewModel.stagedCaptureLimit,
-                            isSubmissionReady: viewModel.canSubmitDraft,
-                            isMutationLocked: viewModel.isDraftMutationLocked,
-                            onNoteTap: editSharedNote,
-                            onUpgradeTap: viewModel.presentStagedMediaUpgradePaywall,
-                            selectedPhotoItems: $viewModel.selectedPhotoItems,
-                            onRequestPhotoPickerPresentation: { selectionCount in
-                                await viewModel.requestPhotoPickerEntryAdmission(
-                                    maximumSelectionCount: selectionCount
-                                )
-                            },
-                            onThumbnailTap: { index in viewModel.presentCrop(for: index) },
-                            onCancel: { viewModel.requestDraftDiscard() },
-                            onSubmit: {
-                                submitActiveStagedCapture()
-                            },
-                            onDescriptionTap: { index in
-                                coordinator.isDictationRequested = false
-                                speechManager.stopDictation()
-                                if viewModel.baseRefinementContext != nil,
-                                   !viewModel.stagedCapture.observationContexts[index].isRefinementSupplement {
-                                    stagedDescriptionEditIndex = index
-                                } else {
-                                    editSharedNote()
-                                }
-                            },
-                            onAudioTap: { index in stagedAudioReviewIndex = index },
-                            onVideoTap: { index in stagedVideoReviewIndex = index },
-                            dependencies: viewModel.dependencies.stagingToolbar
-                        )
+                    } else if viewModel.mediaReviewPresentationID == nil && !viewModel.isFieldNotesOccupied {
+                        activeToolbar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -429,12 +405,15 @@ struct CaptureWorkspaceView: View {
                 .opacity(shouldHideBottomChrome ? 0 : 1)
                 .allowsHitTesting(!shouldHideBottomChrome)
         } // ZStack
-        .alert(viewModel.baseRefinementContext == nil ? "Discard this scan?" : "Discard reanalysis?",
-               isPresented: Binding(get: { viewModel.discardConfirmationGeneration != nil },
-                                    set: { if !$0 { viewModel.discardConfirmationGeneration = nil } }),
+        .alert(!viewModel.isReanalyzing ? "Discard observation?" : "Discard reanalysis?",
+               isPresented: Binding(get: { viewModel.mediaReviewPresentationID == nil
+                                        && viewModel.discardConfirmationGeneration != nil },
+                                    set: { if !$0, viewModel.mediaReviewPresentationID == nil {
+                                        viewModel.discardConfirmationGeneration = nil
+                                    } }),
                presenting: viewModel.discardConfirmationGeneration) { generation in
             Button("Keep editing", role: .cancel) { viewModel.discardConfirmationGeneration = nil }
-            Button("Discard scan", role: .destructive) {
+            Button("Discard", role: .destructive) {
                 guard generation == viewModel.draftSession.generation,
                       !viewModel.isQueueingStagedCapture, !viewModel.isCheckingScanAdmission else { return }
                 coordinator.isDictationRequested = false
@@ -444,14 +423,70 @@ struct CaptureWorkspaceView: View {
                 _ = viewModel.confirmDraftDiscard(generation: generation)
             }
         } message: { _ in
-            Text("Your staged media and description will be removed.")
+            Text(viewModel.isReanalyzing
+                 ? "Your added media and details will be removed. The original observation will be kept."
+                 : "All added photos, recordings, and details will be removed.")
         }
     }
 
+    private var activeToolbar: some View {
+        ActiveScanToolbar(
+            stagedCapture: viewModel.stagedCapture,
+            isRefining: viewModel.isReanalyzing,
+            stagedCaptureLimit: viewModel.stagedCaptureLimit,
+            isSubmissionReady: viewModel.canSubmitDraft,
+            isMutationLocked: viewModel.isDraftMutationLocked || viewModel.fieldNotesSession?.isSubmitting == true,
+            isNotesPresented: viewModel.isFieldNotesOccupied,
+            allowsFrozenRequestActions: viewModel.canRetryHistoryWorkspace || viewModel.canRetryInitialDraft || viewModel.canRecoverInitialDraft,
+            onNoteTap: editSharedNote,
+            onUpgradeTap: viewModel.presentStagedMediaUpgradePaywall,
+            selectedPhotoItems: $viewModel.selectedPhotoItems,
+            onRequestPhotoPickerPresentation: { selectionCount in
+                await viewModel.requestPhotoPickerEntryAdmission(
+                    maximumSelectionCount: selectionCount
+                )
+            },
+            onThumbnailTap: { index in viewModel.presentCrop(for: index) },
+            onCancel: { viewModel.requestDraftDiscard() },
+            onSubmit: {
+                submitActiveStagedCapture()
+            },
+            onDescriptionTap: { index in
+                guard !viewModel.areCaptureActionsBlocked,
+                      viewModel.stagedCapture.observationContexts.indices.contains(index) else { return }
+                coordinator.isDictationRequested = false
+                speechManager.stopDictation()
+                if viewModel.isReanalyzing,
+                   !viewModel.stagedCapture.observationContexts[index].isRefinementSupplement {
+                    viewModel.isFeaturePresentationAwaitingDismissal = true
+                    stagedDescriptionEditIndex = index
+                } else {
+                    editSharedNote()
+                }
+            },
+            onAudioTap: { index in
+                guard !viewModel.areCaptureActionsBlocked,
+                      viewModel.stagedCapture.audios.indices.contains(index) else { return }
+                _ = viewModel.presentMediaReview(nodeID: "audio_\(viewModel.stagedCapture.audios[index].id)")
+            },
+            onVideoTap: { index in
+                guard !viewModel.areCaptureActionsBlocked,
+                      viewModel.stagedCapture.videos.indices.contains(index) else { return }
+                _ = viewModel.presentMediaReview(nodeID: "video_\(viewModel.stagedCapture.videos[index].id)")
+            },
+            dependencies: viewModel.dependencies.stagingToolbar
+        )
+    }
+
     private func editSharedNote() {
-        guard !viewModel.isDraftMutationLocked else { return }
-        captureMode = .describe
-        viewModel.descriptionFocusRequest = UUID()
+        if let session = viewModel.fieldNotesSession {
+            viewModel.closeFieldNotes(sessionID: session.id)
+        } else {
+            guard stagedAudioReviewIndex == nil, stagedVideoReviewIndex == nil,
+                  stagedDescriptionEditIndex == nil, !isDescribeQuestionsSheetPresented,
+                  !showFeedbackSurvey else { return }
+            _ = viewModel.openFieldNotes()
+        }
     }
 
     private func dismissCaptureKeyboardAndRestoreChrome() {
@@ -461,11 +496,28 @@ struct CaptureWorkspaceView: View {
 
     private func submitActiveStagedCapture() {
         CaptureWorkspaceKeyboardService.dismissKeyboard()
-        var draft = observationContext
-        guard viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft) else { return }
-        coordinator.isDictationRequested = false
-        observationContext = draft
+        let session = viewModel.fieldNotesSession
+        if let session {
+            guard viewModel.acceptsFieldNotesWrite(session), !session.isSubmitting else { return }
+            session.isSubmitting = true
+            session.errorMessage = nil
+        }
         Task { @MainActor in
+            defer { session?.isSubmitting = false }
+            if let session {
+                let finalized = await session.input.finishDictation {
+                    session.isDictationRequested = false
+                }
+                guard viewModel.acceptsFieldNotesWrite(session) else { return }
+                guard finalized else {
+                    session.errorMessage = "Dictation could not finish. Your notes are kept. Review them before identifying."
+                    return
+                }
+            }
+            var draft = observationContext
+            guard viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft) else { return }
+            coordinator.isDictationRequested = false
+            observationContext = draft
             await viewModel.submitStagedCapture(
                 modelContext: modelContext,
                 preferredGoal: preferredFieldTripGoal
@@ -479,7 +531,7 @@ struct CaptureWorkspaceView: View {
             goalsEnabled: FeatureFlags.isEnabled(.fieldTrips),
             isUserVisible: appSettings.showsCaptureGoalProgress,
             isVisualMode: captureMode == .visual,
-            isRefining: viewModel.baseRefinementContext != nil,
+            isRefining: viewModel.isReanalyzing,
             selectedGoal: activeCaptureGoalStore.selectedGoal
         )
     }

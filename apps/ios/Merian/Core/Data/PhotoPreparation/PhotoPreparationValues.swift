@@ -117,6 +117,8 @@ struct PhotoPreparationImagePresentation: Codable, Sendable {
     let weatherCondition: String?
     let weatherTemperature: Double?
     let captureDate: Date?
+    var cropDisplaySize: Double?
+    var sourceSelection: NormalizedImageFocusRegion?
 }
 
 struct PhotoPreparationDraftEnvelope: Codable, Sendable {

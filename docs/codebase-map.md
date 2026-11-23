@@ -1699,6 +1699,19 @@ endpoint. The service fences before dispatch and after response; a fresh actor
 purges only rows still marked for deletion, so an in-flight local reactivation
 survives the stale acknowledgement.
 
+### Capture native invocation ownership
+
+`Core/Data/SharedMediaStorage/SharedMediaNativeOriginalOwner+AppCapture.swift`
+composes fixed Capture endpoints. `SharedMediaNativeStorageRepository` mints
+private invocation authority under held namespace files;
+`SharedMediaNativeAppCaptureOperations` owns endpoint execution using a weak
+invocation borrow. Callback exit revokes authority, joins entered operations,
+then releases locks. `SharedMediaNativeErasureReverseAudit` and
+`SharedMediaNativeReceivingReverseAudit` own bounded reverse graph checks. See
+the [storage README](../apps/ios/Merian/Core/Data/SharedMediaStorage/README.md)
+and [ownership guide](development-guides/19-code-ownership-and-refactoring.md)
+for the current boundaries and reviewed residual ceilings.
+
 ## SwiftData Actors
 
 | Actor                                  | File                                                                                                                                                                                                                                                                                                                                                                                                                                     | Lifecycle                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -3164,6 +3177,17 @@ reads and the preparation-owner/account-lease wrapper
 `ObservationAudioSourceResumeReader`. It returns exact evidence only; legacy
 resume/status readers and execution owners remain separate. See the Analysis
 History README for mutation-free reads and post-await snapshot fencing.
+
+### Prepared mixed-media ingress
+
+`services/supabase/functions/upload-observation-composition` owns authenticated
+bounded binary ingress for one artifact in a complete composition. Shared
+`compositionUpload` coordinates exact byte verification, whole allocation,
+conditional write and readiness. `compositionEvidenceRepository` owns bounded
+reader14 RPCs; `compositionVerification` is shared with materialization. Source
+reservation selects schema3 through `compositionSourceReservationRepository`. No
+provider dispatch or native queue caller is connected. See the
+[contract](backend-and-data/05-api-contracts.md#prepared-composition-item-upload).
 
 ### Private video ingress
 

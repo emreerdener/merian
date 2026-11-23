@@ -54,9 +54,11 @@ struct CoreNetworkIntegrationArchitectureTests {
         }
 
         let aggregate = try networkSource("MerianNetworkClient.swift")
+        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot())
+        let rule = policy.productionRule(for: "Core/Network/MerianNetworkClient.swift")
         #expect(
-            lineCount(aggregate) <= 600,
-            "The Core Network facade exceeded the shared review ceiling"
+            rule.count(aggregate) <= rule.ceiling,
+            "The Core Network facade exceeded its reviewed ceiling"
         )
     }
 
@@ -100,8 +102,11 @@ struct CoreNetworkIntegrationArchitectureTests {
         // mutation admission and transfer-status composition. Private transition
         // state stays in the existing facade; extracted owners retain the 600-line
         // ceiling above. The async purge adds one post-await session fence line.
+        // November 22 review: immutable cleanup-marker/CAS and guest nonadoption
+        // changes add 41 Auth lines; the scoped token loader adds 17. Debug
+        // exclusions and Purchase Identity remain unchanged.
         #expect(
-            authProductionLineCount <= 7_887,
+            authProductionLineCount <= 7_945,
             "Auth production grew beyond its reviewed budget"
         )
         #expect(
@@ -115,7 +120,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             authProductionLineCount
                 + purchaseIdentityProductionLineCount
-                + facadeLineCount <= 13_695,
+                + facadeLineCount <= 13_748,
             "The Auth facade extraction surfaces grew in aggregate"
         )
         let models = try networkSource(
@@ -4316,7 +4321,6 @@ struct CoreNetworkIntegrationArchitectureTests {
             "apps/ios/MerianTests/Core/Network/Transport/ScanObservationResponseTests.swift")
         #expect(FileManager.default.fileExists(atPath: observationTests.path))
 
-
         let client = try networkSource("MerianNetworkClient.swift")
         let executor = try networkSource(
             "Transport/AuthenticatedRequestExecutor.swift"
@@ -4605,6 +4609,11 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let transportOwnerFilenames: Set<String> = [
+        "CapturePrimaryTransport.swift",
+        "CaptureStageTransport.swift",
+        "CaptureCompletionTransport.swift",
+        "ObservationCompositionAnalysisTransport.swift",
+        "ObservationCompositionEvidenceTransport.swift",
         "ScanObservationResponse.swift",
         "NativeReceivedStatusTransport.swift",
         "AdmissionRPCRequestPolicy.swift",
@@ -4629,6 +4638,7 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let authFoundationPaths: Set<String> = [
+        "Coordinators/AuthenticatedHeaderTokenLoader.swift",
         "Models/LibraryTransferResult.swift",
         "Models/LibraryTransitionIssue.swift",
         "Coordinators/LibrarySignOutRecoveryCoordinator.swift",

@@ -1,114 +1,48 @@
-# Describe Mode & Voice Dictation
+# Field notes, supporting descriptions, and voice dictation
 
-The Describe capture mode is one of the user-orderable pages in
-`CaptureWorkspaceView`'s horizontal pager. It allows users to identify a
-biological subject through free-text description or live voice dictation instead
-of a photograph. The shipped path now routes through the same shared non-visual
-`/identify-multimodal` flow used by audio-only captures, via
-`CaptureWorkspaceViewModel.submitNonVisualCapture(...)` and
-`InferenceEngine.analyzeNonVisual(...)`; the engine delegates execution to
-`InferenceLivePipelineCoordinator`, which invokes the injected
-`InferenceLiveRequestService` for request mapping and the live endpoint call.
-`/identify-describe` remains deployed only as a compatibility route and writes
-the same ingestion ledger so text-only legacy rows can recover through
-`/identify-multimodal`.
+Capture exposes Scan/photo/video and Record/audio. Field notes is an
+observation-wide supporting-description editor opened from the shared toolbar;
+new identification and reanalysis require physical media. Historical text codecs
+and already-admitted exact replay remain supported. No standalone text-only
+capture or no-media reanalysis journey is exposed.
 
----
+## 1. Current editor ownership
 
-## 1. Architecture Overview
+`ObservationContext` remains the shared Codable value in `Models/Media`.
+`CaptureWorkspaceViewModel.descriptionDraft` owns editable supporting text.
+`CaptureFieldNotesSession` binds a prompt snapshot and input view model to one
+draft generation and account. `CaptureFieldNotesOverlay` renders the partial
+sheet, expands for text input, and keeps the shared observation toolbar above
+the keyboard. Prompts is a session-owned navigation destination.
 
-### State Ownership
+Text and prompt progress autosave through Shell's original mutation guards.
+Closing with the handle or outside tap stops dictation while preserving accepted
+edits. Backgrounding also stops input. Occupancy survives until the matching
+outer dismissal callback; child navigation cannot resume hardware or release
+competing routes/imports. On close, Shell reevaluates any underlying review.
+Rapid reopen, replacement drafts and account changes reject stale writes.
+Removing the final media item clears supplementary notes/progress while keeping
+protected historical descriptions and saved observation Field Notes intact.
 
-`ObservationContext` is a `Codable, Equatable, Sendable` struct with a single
-`freeText: String` property and a computed `isEmpty` guard (trims whitespace).
-It is the value type that carries the user's input from the UI through
-`InferenceEngine` and `InferenceLivePipelineCoordinator` to
-`InferenceLiveRequestService`, which serializes it for the shared nonvisual
-request. Its cross-feature declaration lives in
-`Models/Media/ObservationContext.swift`; Capture Describe owns editing and
-composition policy, not the durable value type.
+Identify finishes active dictation before reading/finalizing the submitted
+context. `SpeechManager.finishDictation()` is session-specific, returns after
+final text delivery, and has a three-second deadline. Errors, timeout and
+cancellation retain the editable draft and block admission. A terminal callback
+with both final text and an error retains its text but reports failure. Existing
+`stopDictation()` consumers retain immediate cancellation semantics.
 
-`@State private var observationContext = ObservationContext()` lives in
-**`CaptureWorkspaceView`**, not in `DescribeInputView`. This lift is required
-because workspace-scoped dictation writes `observationContext.freeText` from
-outside `DescribeInputView`. `DescribeInputViewModel` receives transcription
-through an injected `SpeechManager` adapter, generation-fences it, and returns a
-composed string to `DescribeInputLifecycleObserver`; the observer alone mutates
-the binding. `DescribeInputView` receives the context as
-`@Binding var context: ObservationContext`.
+The November 15 foundation is an in-progress source change. Native qualification
+is tracked separately in the [capture plan](../product/capture-review-plan.md).
+The later once-only initialization of saved editable Field Notes is a separate
+submission integration; it is not implied by this editor. Submitted supporting
+descriptions remain immutable evidence.
 
-The editor resets after successful staging/submission through **+**, or after
-the toolbar successfully stages its live draft. Failed staging retains the text.
-The staged description remains available for review and editing in the tray.
-
-Describe is organized by responsibility:
-
-- `Models/` owns prompt/subject values, deterministic text composition, and tag
-  ranking.
-- `Services/` owns live `UserDefaults`, haptic, UIKit keyboard, subject-delay,
-  and speech-manager adapters.
-- `ViewModels/` owns prompt state plus delayed-inference and dictation session
-  generations.
-- `Views/` owns the page, workspace observer, focus, and sheet presentation.
-- `Components/` owns the UIKit scroll host, prompt navigation/tags, and editor.
-
-Presentation files resolve no singleton or platform action. Cross-feature speech
-hardware lives in `Core/Hardware`, not under Capture Describe.
-
-### Submission Routing (`CaptureWorkspaceViewModel.submitDescribe`)
-
-`submitDescribe(observationContext:modelContext:)` is an extension on
-`CaptureWorkspaceViewModel` in
-`CaptureWorkspaceViewModel+DescribeSubmission.swift`. It routes based on what
-else is staged. Root Describe owns the shared draft text. Typing alone neither
-reveals the tray nor submits. The initial plus stages the note for review; with
-Auto-submit enabled the initial arrow explicitly submits it. Once the tray
-exists, remove the central Describe action and let Identify/Analyze submit the
-latest shared text. Both note states navigate to root Describe and focus it,
-even at physical capacity. Only historical descriptions use
-`StagedDescriptionSheet`.
-
-`submitDescribeSolo` mirrors the resilience pattern of the other capture paths:
-it always inserts a zero-byte `.staged` nonvisual queue row before any provider
-dispatch. A still-online foreground route persists and carries a foreground
-inference UUID into `InferenceEngine.analyzeNonVisual`; an offline or typed
-queue-only route retains the same durable row, skips the live engine, and
-surfaces a queued toast. Because Describe shares `submitNonVisualCapture`, it
-also consumes an existing environment prefetch or starts a lookup from the
-pinned cached location. Cached telemetry is persisted first; only after queue
-acceptance does the optional context receive a 150 ms live-request grace, with a
-later result merged locally and through `/update-scan-context`. A branch with no
-foreground consumer cancels the lookup. A description-only scan can therefore
-produce the same privacy-filtered Explore location label as a visual or audio
-scan without making WeatherKit or geocoding a durability dependency.
-
-**Submission rule**: Free permits one photo/audio plus one optional note; Pro
-permits two media plus one optional note. Text-only remains valid. Reanalysis
-preserves historical descriptions and its separate current supplement. No
-placeholder enters the payload. See the
-[complete capture contract](./29-staged-capture-review.md).
-
-In reanalysis, root Describe edits one supplementary description and Analyze
-submits its latest value after any mode switch. Updates preserve its insertion
-time; historical descriptions remain separate. Clearing shared text removes the
-current supplement. Historical evidence uses the local-copy sheet: Done saves,
-swipe-dismiss discards pending edits, and Remove commits removal. Starting a new
-reanalysis clears the previous draft before loading the new original.
-
-Before ordinary review exists, plus stages text or the arrow explicitly submits
-with Auto-submit enabled. Once the tray exists there is no central Describe
-action. Keyboard-toolbar Done dismisses editing without losing text. Submission
-and historical-editor entry stop dictation, and request/draft-generation checks
-reject late callbacks. Admission failure retains shared text and media for
-manual retry.
-
-The glass tray uses compact or wrapped media rows while keeping Discard and
-Identify/Analyze visible. See the
-[adaptive tray contract](29-staged-capture-review.md). Automated coverage and
-remaining manual acceptance are in
-[reanalysis description verification](../development-guides/08-testing-strategy.md#reanalysis-description-verification).
-
----
+Describe's Models, Services and ViewModels continue to own guided question data,
+text composition, live dependency adapters and generation-fenced input. Shared
+speech hardware stays in Core. The retained legacy page and workspace observer
+are not mounted by the current Capture workspace. Later sections describing that
+paged wiring are historical implementation reference, not current product entry
+points; the current session ownership above takes precedence.
 
 ## 2. Guided Question System
 
@@ -418,7 +352,7 @@ resetting `isRecording = false` without user action.
 
 ---
 
-## 5. Workspace Dictation and Sheet Wiring
+## 5. Legacy paged workspace wiring and retained Insight editor
 
 `CaptureActionCoordinator` is the intent boundary between fixed capture chrome
 and Describe lifecycle state:

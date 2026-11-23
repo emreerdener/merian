@@ -1,3 +1,50 @@
+## November 20 — original preparation geometry
+
+The native reader18 candidate decodes the V9 initial manifest, validates its
+source-to-prepared geometry and includes that geometry in the shared canonical
+digest. The outer completed snapshot remains version8. V7/V8 digests retain
+their existing meanings. Source-image resolution uses protocol3 and its bounded
+32 MiB original limit; prepared-image bounds remain unchanged.
+
+Geometry is indexed by its prepared artifact identity. A full-aspect still with
+a null crop is distinct from a centered square. Decoding geometry does not grant
+original-file ownership or enable reframing: those require the separate
+qualified media and submission owners. Native compilation and end-to-end
+integration remain pending at this checkpoint.
+
+## November 14 — workspace media and composition preparation
+
+`ObservationReanalysisSource` captures immutable V1–V6 source identity
+separately from the type of new evidence. `ObservationCompositionSource` exposes
+original manifest nodes for protected audio/video preload;
+`ObservationHistoryMediaLoader` validates ephemeral resolver tickets and exact
+bytes against that frozen source. No mutable parent media or current notes
+substitute for submitted content.
+
+`ObservationCompositionPreparation`, `ObservationCompositionPreparationStore`
+and `ObservationCompositionProducer` prepare one **held** child containing the
+whole ordered schema-5 composition. They reuse the qualified queue/erasure
+namespace and `ObservationReanalysisFileStore` descriptor locks. Complete-cohort
+recovery never regenerates missing media; uncertain promotion retains exact
+files. `ObservationCompositionPayload` validates standalone images/WAVs and
+accepts video only through the existing retained-cohort proof; a matching hash
+alone cannot qualify arbitrary media. The local Capture candidate now explicitly
+connects this proof to separate source reservation, ordered whole-cohort upload
+and consumed-execution owners. Each grants only its own phase capability;
+uncertain execution can read its original result but cannot invoke AI again.
+Result-6 delivery commits through the existing result/erasure transaction, then
+refreshes authoritative current selection through
+`ObservationHistoryStateSyncService`. The backend selects the new version
+atomically on first completion; replay never reselects. The existing progress
+sheet exposes durable continuation and consumed original-result checks.
+Candidate verification and coordinated deployment remain separate; the user’s
+installed simulator is unchanged.
+
+The
+[shared Capture contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#history-reanalysis-integration-status)
+owns current routing and deployment limitations. Existing photo/audio/video
+saved bytes and their recovery owners remain separate.
+
 ## November 9 — V5 History action candidate
 
 Completion271 extends the existing selection and review owners to strictly
@@ -319,25 +366,34 @@ disconnected. The backend reader, enrollment and selection gates remain false.
   and Unicode bounds, and rejects private locator fields. `LocalAnalysisRecord`
   stores V4 in the existing V58 opaque snapshot fields with finite completion;
   disk reopening does not select the new child or change the parent's review.
-  Named history page/state reads use reader 11; selection and review transports
-  retain reader 10. V4 review tickets strictly decode the WAV snapshot before
-  admitting review and receipt-bound confirmation/rejection Undo through the
-  existing reader-10 owners. V4 cannot enter photo publication, photo loading,
-  or become an empty legacy Capture source. Explicit selection and receipt-bound
-  selection Undo admit V4 only after validating both results' retained evidence,
-  authority and display; staging does not change the visible identification.
-  Explicit `captureForAudio` can retain V4 as immutable source provenance for a
-  new WAV with optional caller-supplied descriptions; it never loads the
-  original WAV. Candidate selection, publication and selected chat remain
-  unavailable for V4. Enrollment remains reader 9 and photo resolution
-  remains 8.
+  Named history page/state, selection and review transports now use reader 17.
+  Review tickets strictly decode the retained typed snapshot before admitting
+  review and receipt-bound confirmation/rejection Undo. V4 cannot enter photo
+  publication, photo loading, or become an empty legacy Capture source. Explicit
+  selection and receipt-bound selection Undo admit V4 only after validating both
+  results' retained evidence, authority and display; staging does not change the
+  visible identification. Explicit `captureForAudio` can retain V4 as immutable
+  source provenance for a new WAV with optional caller-supplied descriptions; it
+  never loads the original WAV. Candidate selection, publication and selected
+  chat remain unavailable for V4. Legacy enrollment/recovery remains reader 9,
+  and its selected-state reconciliation uses reader 15. Initial-evidence
+  enrollment/reconciliation uses reader 17. The protected media resolver maps
+  public protocol 1 to SQL protocol 2 and public protocol 2 (initial evidence)
+  to SQL protocol 3. Public protocol3 maps to SQL protocol4 for full-size V8
+  originals; these version domains are intentionally distinct. Only the exact
+  immutable V8 source-image role may exceed5MiB, up to32MiB. Prepared images
+  keep their existing bound. The candidate remains fenced from live initial
+  submission until full ordinary queue/finalization integration is qualified.
 - Video result V5 uses the strict manifest-4 provenance decoder and requires a
   distinct source analysis, including against every retained artifact ID. It
   exposes typed video provenance separately from photo and audio references,
   preserving exact original snapshot bytes in the existing opaque record fields.
-  No SwiftData schema shape changes. Page/state RPC reader11 admits V1–V5; video
-  selection, review, execution, media loading and source release remain
-  unavailable. Reads do not authorize another provider invocation or refund.
+  No SwiftData schema shape changes for typed result storage. Current reader 17
+  admits V1–V8, including nested initial manifest V7/V8. Reader16 remains
+  nested-V7-only. Selection and review require exact retained typed evidence; V8
+  additionally binds the evidence owner to the local observation. Candidate
+  selection and publication retain their narrower independent allowlists. Reads
+  do not authorize another provider invocation or refund.
 - `ObservationHistorySyncService` owns page admission and the shared immutable
   child insertion helper. Every call reads one page and returns the server
   continuation only after the local transaction succeeds. It never assigns

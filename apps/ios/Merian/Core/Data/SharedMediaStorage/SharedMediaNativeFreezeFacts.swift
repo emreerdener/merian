@@ -28,7 +28,8 @@ enum SharedMediaNativeFreezeFacts {
 
     static func request(context: ModelContext, inventory: SharedMediaInventoryRecord, package: PhotoPreparationRecord,
                         member: SharedMediaPendingMembershipRecord, binding: SharedMediaNativeBinding,
-                        operationID: UUID, pairIDs: [UUID], proofs: [SharedMediaPhotoRetirementInspection]) throws -> SharedMediaNativeFreezeRequest {
+                        operationID: UUID, pairIDs: [UUID], proofs: [SharedMediaPhotoRetirementInspection],
+                        cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort) throws -> SharedMediaNativeFreezeRequest {
         let states = try states(context: context, inventory: inventory, package: package, member: member, pairIDs: pairIDs)
         guard proofs.count == states.count * 3 else { throw SharedMediaStorageFailure.conflict }
         var entries: [SharedMediaNativeFrozenEntry] = []
@@ -52,9 +53,10 @@ enum SharedMediaNativeFreezeFacts {
                 displayReferenceRevision: display.revision, aiDescriptor: observations[1].identity, displayDescriptor: observations[2].identity))
         }
         let envelope = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData)
-        let cohort = SharedMediaNativeFrozenCohort(format: .cohort, packageID: package.id, ownerID: package.ownerID,
+        let cohort = SharedMediaNativeFrozenCohort(format: cohortFormat, packageID: package.id, ownerID: package.ownerID,
             draftGeneration: package.draftGeneration, supportingBytes: try SharedMediaNativeFrozenSupporting(
-                contexts: envelope.contexts, presentation: envelope.presentation).encoded(), entries: entries)
+                contexts: envelope.contexts, presentation: envelope.presentation).encoded(), entries: entries,
+            initialFieldNotes: cohortFormat == .initialNotes ? InitialFieldNotesSeed.make(contexts: envelope.contexts) : nil)
         let commit = SharedMediaNativeFreezeCommit(format: .receipt, operationID: operationID, inventoryID: inventory.id,
             inventoryGeneration: inventory.generation, beforeInventoryRevision: inventory.revision,
             beforePackageRevision: package.revision, membershipRevision: member.revision,

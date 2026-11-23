@@ -1,4 +1,9 @@
-import { assertEquals, assertObjectMatch, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertObjectMatch,
+  assertRejects,
+  assertThrows,
+} from "@std/assert";
 
 import {
   buildReplayIdentifyPayload,
@@ -270,6 +275,50 @@ Deno.test("replayScanIngestion dispatches staged rows through identify", async (
   assertObjectMatch(invoked[0] as Record<string, unknown>, {
     replayAttemptCount: 1,
   });
+});
+
+Deno.test("initial evidence never enters legacy replay or proof-free completion", async () => {
+  // Null/malformed evidence is a denial, never a fallback to legacy semantics.
+  for (const initialEvidence of [null, {}, { schema_version: 1 }]) {
+    for (const existingOwner of [undefined, "user-1", null]) {
+      const row = replayRow();
+      row.request_payload.initialEvidence = initialEvidence;
+      assertThrows(() => buildReplayIdentifyPayload(row));
+      const mutations: string[] = [];
+      const result = await replayScanIngestion({} as never, {
+        identifyUrl: "https://example.test/functions/v1/identify-multimodal",
+        serviceRoleKey: CURRENT_SECRET_KEY,
+        awaitInvocations: true,
+      }, {
+        claimJobs: () => Promise.resolve([row]),
+        fetchScans: () =>
+          Promise.resolve(
+            existingOwner === undefined ? [] : [{
+              id: row.scan_id,
+              user_id: existingOwner,
+              video_storage_urls: ["https://media.merian.app/synthetic.mp4"],
+              captured_media: [{ kind: "video" }],
+            }],
+          ),
+        markComplete: () => {
+          mutations.push("complete");
+          return Promise.resolve();
+        },
+        markFailure: () => {
+          mutations.push("failure");
+          return Promise.resolve();
+        },
+        invokeIdentify: () => {
+          mutations.push("provider");
+          return Promise.resolve();
+        },
+      });
+      assertEquals(mutations, []);
+      assertEquals(result.dispatched, 0);
+      assertEquals(result.completedExisting, 0);
+      assertEquals(result.heldForInitialRecovery, 1);
+    }
+  }
 });
 
 Deno.test("replayScanIngestion marks already-complete scan rows complete without invoking identify", async () => {

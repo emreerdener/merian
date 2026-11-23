@@ -153,8 +153,10 @@ write_test_tree() {
             ]),
             suite("Capture workspace staging"; [
               "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop",
-              "automaticSingleCaptureFencesTheIdentifyTray",
-              "requiredCropStateFencesCaptureChromeBeforePresentation"
+              "automaticSingleCaptureFencesTheIdentifyTray"
+            ]),
+            suite("CaptureWorkspaceViewModelRefinementTests"; [
+              "testReviewOccupancyBlocksQueuedCaptureAndRecordingIngress"
             ]),
             suite("Capture scan dependencies"; [
               "testLifecycleInterruptionFencesOverlappingStillCapture",
@@ -241,7 +243,7 @@ write_test_tree() {
               "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
             ]),
             suite("InsightShellCapabilitiesTests"; [
-              "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates",
+              "strongPrimaryCanBeConfirmedWithoutShowingNonCompetitiveAlternatives",
               "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
             ]),
             suite("InsightContentActionsTests"; [
@@ -422,7 +424,7 @@ required_cases=(
   "secureTransportFailuresUseOnlyDurableRecovery"
   "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop"
   "automaticSingleCaptureFencesTheIdentifyTray"
-  "requiredCropStateFencesCaptureChromeBeforePresentation"
+  "testReviewOccupancyBlocksQueuedCaptureAndRecordingIngress"
   "testLifecycleInterruptionFencesOverlappingStillCapture"
   "testLifecycleInterruptionCancelsPendingVideoStartupWithoutAdmission"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
@@ -484,7 +486,7 @@ required_cases=(
   "testRecordSwitchInvalidatesPriorActionGeneration"
   "testResetMonotonicallyInvalidatesScanBoundRequests"
   "testFieldNotesRejectChangedPresentationIdentity"
-  "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates"
+  "strongPrimaryCanBeConfirmedWithoutShowingNonCompetitiveAlternatives"
   "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
   "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty"
   "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes"

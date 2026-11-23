@@ -24,7 +24,7 @@ struct ObservationReanalysisLocalVideoInputTests {
             try #require(ObservationReanalysisLocalVideoInput.choices(source: source, container: container).first)
         }
     }
-    func seed(reference: StoredMediaReference = .documents("chosen.mp4")) throws -> Seed {
+    func seed(reference: StoredMediaReference = .documents("chosen.mp4"), sourceVersion: Int = 3) throws -> Seed {
         let root = try ObservationReanalysisFileStoreTests().directory()
         let documents = root.appendingPathComponent("Documents"), temporary = root.appendingPathComponent("tmp")
         for url in [documents, temporary] { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
@@ -33,7 +33,7 @@ struct ObservationReanalysisLocalVideoInputTests {
                 storeURL: root.appendingPathComponent("library.sqlite"), anchor: root)
         }
         let container = try #require(outcome.container), startup = try #require(outcome.nativeReleaseAdmission)
-        let fixture = ObservationReanalysisSourceTests(), history = try fixture.seed(version: 3, in: container)
+        let fixture = ObservationReanalysisSourceTests(), history = try fixture.seed(version: sourceVersion, in: container)
         let context = ModelContext(history.container)
         let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
         parent.capturedMediaJSON = CapturedMediaSnapshot(items: [.video(.init(video: reference))]).jsonString

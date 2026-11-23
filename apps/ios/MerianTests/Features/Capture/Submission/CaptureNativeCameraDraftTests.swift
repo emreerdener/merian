@@ -27,10 +27,16 @@ struct CaptureNativeCameraDraftTests {
             } else {
                 f.vm.importNativePhotoItems([.init(localIdentifier: nil, load: { @MainActor in f.spy.bytes })])
                 await f.vm.nativePhotoImportTask?.value
-                let image = try #require(f.vm.stagedCapture.images.last)
-                f.vm.confirmNativePhotoCrop(imageID: image.original.id, thumbnailData: f.spy.bytes,
-                    scale: 1, offset: .zero, displaySize: 200, quarterTurns: 0)
+
             }
+            // Add more returns to capture only after the matching outer dismissal.
+            let review = try #require(f.vm.mediaReviewSession)
+            let imageID = try #require(f.vm.imageToCrop?.id)
+            let commit = try #require(f.vm.beginPhotoReviewCommit(imageID: imageID, action: .addMore))
+            #expect(!f.vm.finishPhotoReviewCommit(commit, succeeded: true))
+            #expect(f.vm.completedPhotoReviewCommitID == commit.id)
+            #expect(f.vm.finishMediaReviewDismissal(sessionID: review.id))
+            f.vm.isFeaturePresentationAwaitingDismissal = false // outer orchestration callback
         }
         if !pro {
             // A completed free capture still consumes the sole physical-media slot.

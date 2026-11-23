@@ -34,6 +34,8 @@ struct InsightSheetView: View {
     @State var selectedReviewHost = SelectedAnalysisReviewHost()
     @State var historyAvailabilityRevision: UInt64 = 0
     @State var historyModel: IdentificationHistoryViewModel?
+    @State var identificationHistoryVisible = false
+    @State var identificationContinuation: IdentificationSheetContinuation?
     @State var selectedPublicationModel: IdentificationPublicationModel?
     @State var publicationContinuation = PublicationConsentContinuation()
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
@@ -180,6 +182,7 @@ struct InsightSheetView: View {
     // MARK: - View
     var body: some View {
         presentationRoot
+        .environment(\.openIdentification, identificationAction)
         .accessibilityIdentifier("InsightSheetView")
         .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
             chatViewModel.updateConnectivity(isOnline: isOnline)
@@ -187,6 +190,7 @@ struct InsightSheetView: View {
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
                 closeProtectedChat(clearContinuation: true)
+                cancelIdentificationContinuation()
                 cancelSavedReanalysis()
                 closeSelectedPublication()
                 closeSelectedNameConfirmation(); closeSelectedCandidateReview()
@@ -215,10 +219,12 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
-        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
-        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: ObjectIdentifier(modelContext.container)) { _, _ in closeIdentification(); closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
+        .onChange(of: dependencies.authenticationSnapshot()) { _, _ in closeIdentification(); closeProtectedChat(clearContinuation: true); closeSelectedNameConfirmation(); closeSelectedCandidateReview(); closeSelectedPublication(); publicationContinuation.clear() }
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
             closeProtectedChat()
+            cancelIdentificationContinuation()
+            cancelOrDismissShellPresentation { if case .identification = $0 { true } else { false } }
             cancelSavedReanalysis()
             closeSelectedNameConfirmation(); closeSelectedCandidateReview()
             closeSelectedPublication()
@@ -228,7 +234,7 @@ struct InsightSheetView: View {
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
         }
 
-        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in closeProtectedChat(); closeSelectedNameConfirmation(); closeSelectedCandidateReview() }
+        .onChange(of: inferenceEngine.scanPresentationGeneration) { _, _ in cancelIdentificationContinuation(); closeProtectedChat(); closeSelectedNameConfirmation(); closeSelectedCandidateReview() }
         .onChange(of: selectedReviewKey, initial: true) { _, _ in bindSelectedReview() }
         .onChange(of: selectedReviewHost.deliveryGeneration) { _, _ in refreshSelectedReview() }
         .onChange(of: selectedReviewHost.scopeIsCurrent) { _, current in

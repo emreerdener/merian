@@ -7,6 +7,11 @@ struct ActiveScanToolbar: View {
     let stagedCaptureLimit: Int
     let isSubmissionReady: Bool
     let isMutationLocked: Bool
+    let isNotesPresented: Bool
+    let allowsFrozenRequestActions: Bool
+    let selectedNodeID: String?
+    let primaryActionTitle: String?
+    let onAddMore: (() -> Void)?
     let onNoteTap: () -> Void
     let onUpgradeTap: () -> Void
     @Binding var selectedPhotoItems: [PhotosPickerItem]
@@ -35,6 +40,11 @@ struct ActiveScanToolbar: View {
         stagedCaptureLimit: Int,
         isSubmissionReady: Bool = true,
         isMutationLocked: Bool = false,
+        isNotesPresented: Bool = false,
+        allowsFrozenRequestActions: Bool = false,
+        selectedNodeID: String? = nil,
+        primaryActionTitle: String? = nil,
+        onAddMore: (() -> Void)? = nil,
         onNoteTap: @escaping () -> Void = {},
         onUpgradeTap: @escaping () -> Void,
         selectedPhotoItems: Binding<[PhotosPickerItem]>,
@@ -52,6 +62,11 @@ struct ActiveScanToolbar: View {
         self.stagedCaptureLimit = stagedCaptureLimit
         self.isSubmissionReady = isSubmissionReady
         self.isMutationLocked = isMutationLocked
+        self.isNotesPresented = isNotesPresented
+        self.allowsFrozenRequestActions = allowsFrozenRequestActions
+        self.selectedNodeID = selectedNodeID
+        self.primaryActionTitle = primaryActionTitle
+        self.onAddMore = onAddMore
         self.onNoteTap = onNoteTap
         self.onUpgradeTap = onUpgradeTap
         self._selectedPhotoItems = selectedPhotoItems
@@ -71,15 +86,15 @@ struct ActiveScanToolbar: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 16) {
-                discardButton
-                HStack(spacing: 8) { mediaNodes }
-                .padding(8)
-                .modifier(CaptureTrayGlass())
-                .disabled(isCheckingPhotoImportAdmission)
+            HStack(spacing: 8) {
+                mediaNodes
                 submitButton
                     .disabled(isCheckingPhotoImportAdmission)
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+            .modifier(CaptureTrayGlass())
             // Report the complete ideal width; never accept a compressed media row.
             .fixedSize(horizontal: true, vertical: false)
 
@@ -87,18 +102,23 @@ struct ActiveScanToolbar: View {
                 CaptureStagingMediaFlowLayout {
                     mediaNodes
                 }
-                .padding(8)
-                .modifier(CaptureTrayGlass(isExpanded: true))
-                .disabled(isCheckingPhotoImportAdmission)
-
-                HStack(spacing: 16) {
-                    discardButton
-                    Spacer(minLength: 0)
-                    submitButton
-                        .disabled(isCheckingPhotoImportAdmission)
-                }
+                .disabled(isCheckingPhotoImportAdmission || isMutationLocked)
+                submitButton.disabled(isCheckingPhotoImportAdmission)
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+            .modifier(CaptureTrayGlass(isExpanded: true))
         }
+        .overlay(alignment: .top) {
+            Capsule().fill(.secondary).frame(width: 56, height: 4)
+                .padding(.top, 5).allowsHitTesting(false).accessibilityHidden(true)
+        }
+        .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { value in
+            guard !isNotesPresented, !isMutationLocked, value.translation.height < -30,
+                  abs(value.translation.height) > abs(value.translation.width) else { return }
+            onNoteTap()
+        })
         .overlay(alignment: .top) {
             if showTooltip {
                 Text("Add a note about what you noticed")
@@ -117,7 +137,7 @@ struct ActiveScanToolbar: View {
             matching: .images,
             photoLibrary: dependencies.photoLibrary
         )
-        .disabled(isMutationLocked)
+        .disabled(isMutationLocked && !allowsFrozenRequestActions)
         .padding(.horizontal, 16)
         .background {
             GeometryReader { proxy in
@@ -168,13 +188,14 @@ struct ActiveScanToolbar: View {
 
     private var submitButton: some View {
         CaptureStagingSubmitButton(
-            title: presentation.submitTitle,
-            isDisabled: presentation.isSubmitDisabled || !isSubmissionReady,
+            title: primaryActionTitle ?? presentation.submitTitle,
+            submitAccessibilityHint: presentation.submitAccessibilityHint,
+            isDisabled: (!allowsFrozenRequestActions && presentation.isSubmitDisabled) || !isSubmissionReady,
             onSubmit: onSubmit
         )
         .overlay(alignment: .bottomTrailing) {
             if showSubmitTooltip && canShowSubmitTooltip {
-                Text(isRefining ? "Submit to analyze" : "Submit to identify")
+                Text(isRefining ? "Submit to reanalyze" : "Submit to identify")
                     .font(.caption)
                     .padding(8)
                     .frame(width: 140)
@@ -199,6 +220,10 @@ struct ActiveScanToolbar: View {
     private var mediaNodes: some View {
         CaptureStagingToolbarMediaRow(
             presentation: presentation,
+            selectedNodeID: selectedNodeID,
+            addAccessibilityLabel: onAddMore == nil ? "Add photo" : "Add media",
+            isReview: onAddMore != nil,
+            isAddingMedia: onAddMore == nil && !isNotesPresented,
             isCheckingPhotoImportAdmission:
                 isCheckingPhotoImportAdmission,
             onRequestPhotoPickerPresentation:
@@ -209,13 +234,17 @@ struct ActiveScanToolbar: View {
             onAudioTap: onAudioTap,
             onVideoTap: onVideoTap
         )
+        .disabled(isNotesPresented || isCheckingPhotoImportAdmission || isMutationLocked)
         Button(action: onNoteTap) {
             CaptureStagingNoteIcon(hasNote: hasSharedNote)
                 .frame(width: 48, height: 48)
                 .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote))
+                .overlay { if isNotesPresented { Circle().stroke(.blue, lineWidth: 2) } }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(hasSharedNote ? "Edit note" : "Add note")
+        .accessibilityLabel(hasSharedNote ? "Edit field notes" : "Add field notes")
+        .accessibilityAddTraits(isNotesPresented ? .isSelected : [])
+        .accessibilityIdentifier("CaptureFieldNotes")
     }
 
     private var hasSharedNote: Bool {
@@ -233,7 +262,8 @@ struct ActiveScanToolbar: View {
     }
 
     private func requestPhotoPickerPresentation(selectionCount: Int) {
-        guard photoImportAdmissionTask == nil else { return }
+        guard photoImportAdmissionTask == nil, !isNotesPresented else { return }
+        if let onAddMore { onAddMore(); return }
 
         isCheckingPhotoImportAdmission = true
         photoImportAdmissionTask = Task { @MainActor in
@@ -245,7 +275,7 @@ struct ActiveScanToolbar: View {
             let shouldPresent = await onRequestPhotoPickerPresentation(
                 selectionCount
             )
-            guard shouldPresent, !Task.isCancelled else { return }
+            guard shouldPresent, !Task.isCancelled, !isNotesPresented else { return }
 
             dependencies.dismissKeyboard()
             photoPickerSelectionLimit = selectionCount
@@ -257,8 +287,12 @@ struct ActiveScanToolbar: View {
 
 /// Note state uses supported outlined/filled symbols and the node's border treatment.
 struct CaptureStagingNoteIcon: View {
-    static let emptySymbol = "bubble.left"
-    static let populatedSymbol = "text.bubble.fill"
+    // Match the Figma SF symbols where available, retaining a drawable note
+    // affordance on supported systems whose SF Symbols catalog predates them.
+    static let emptySymbol = UIImage(systemName: "long.text.page.and.pencil") != nil
+        ? "long.text.page.and.pencil" : "square.and.pencil"
+    static let populatedSymbol = UIImage(systemName: "long.text.page.and.pencil.fill") != nil
+        ? "long.text.page.and.pencil.fill" : "doc.text.fill"
 
     let hasNote: Bool
 

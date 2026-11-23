@@ -1,3 +1,7 @@
+import { initialEvidenceCompletionVerifier } from "./identify/initialEvidenceEnvelopeV1.ts";
+import initialPage from "./analysisHistory/fixtures/page-v8.json" with {
+  type: "json",
+};
 import { assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -493,4 +497,146 @@ Deno.test("recoverStrandedScanIngestionAttempt rejects malformed authority", asy
     Error,
     "malformed RPC response",
   );
+});
+
+Deno.test("strict initial finalization never uses legacy completion or accepts an unsealed response", async () => {
+  const input = {
+    scanId: "00000000-0000-4000-8000-000000000091",
+    userId: "00000000-0000-4000-8000-000000000092",
+    promotedUrlsByStorageKey: new Map<string, string>(),
+    deletedStorageKeys: [],
+    initialEvidence: {
+      generation: "00000000-0000-4000-8000-000000000093",
+      evidence_digest: "a".repeat(64),
+      verifyResponse: initialEvidenceCompletionVerifier({
+        ownerID: "00000000-0000-4000-8000-000000000092",
+        scanID: "00000000-0000-4000-8000-000000000091",
+        generation: "00000000-0000-4000-8000-000000000093",
+        evidenceDigest: "a".repeat(64),
+      }),
+    },
+  };
+  for (
+    const response of [
+      {
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: "missing complete_scan_ingestion_with_entitlement",
+        },
+      },
+      { data: { result: "completed", response_envelope: null }, error: null },
+      {
+        data: {
+          result: "already_complete",
+          response_envelope: { success: true, data: { scan_id: input.scanId } },
+        },
+        error: null,
+      },
+    ]
+  ) {
+    const calls: string[] = [];
+    const client = {
+      rpc(name: string) {
+        calls.push(name);
+        return Promise.resolve(response);
+      },
+    } as unknown as SupabaseClient;
+    await assertRejects(() => completeScanIngestionFinalization(input, client));
+    assertEquals(calls, ["complete_scan_ingestion_with_entitlement"]);
+  }
+});
+
+Deno.test("strict finalization without a synchronous verifier fails before RPC", async () => {
+  let calls = 0;
+  const client = {
+    rpc() {
+      calls++;
+      throw new Error("Unexpected RPC");
+    },
+  } as unknown as SupabaseClient;
+  const malformed = {
+    scanId: "00000000-0000-4000-8000-000000000091",
+    userId: "00000000-0000-4000-8000-000000000092",
+    promotedUrlsByStorageKey: new Map<string, string>(),
+    deletedStorageKeys: [],
+    initialEvidence: {
+      generation: "00000000-0000-4000-8000-000000000093",
+      evidence_digest: "a".repeat(64),
+    },
+  };
+  await assertRejects(
+    () =>
+      completeScanIngestionFinalization(
+        malformed as unknown as Parameters<
+          typeof completeScanIngestionFinalization
+        >[0],
+        client,
+      ),
+    Error,
+    "initial_evidence_completion_verifier_required",
+  );
+  assertEquals(calls, 0);
+});
+
+Deno.test("strict completion and already-complete replay require the exact returned proof", async () => {
+  const snapshot = JSON.parse(initialPage.items[0].snapshot);
+  const proof = snapshot.initial_evidence;
+  const input = {
+    scanId: proof.scan_id,
+    userId: proof.owner_id,
+    promotedUrlsByStorageKey: new Map<string, string>(),
+    deletedStorageKeys: [],
+    initialEvidence: {
+      generation: proof.generation,
+      evidence_digest: proof.evidence_digest,
+      verifyResponse: initialEvidenceCompletionVerifier({
+        ownerID: proof.owner_id,
+        scanID: proof.scan_id,
+        generation: proof.generation,
+        evidenceDigest: proof.evidence_digest,
+      }),
+    },
+  };
+  for (const result of ["completed", "already_complete"] as const) {
+    for (
+      const changed of [
+        undefined,
+        null,
+        {},
+        proof,
+        { ...proof, evidence_digest: "b".repeat(64) },
+        { ...proof, generation: "00000000-0000-4000-8000-000000000778" },
+        { ...proof, owner_id: "00000000-0000-4000-8000-000000000779" },
+        { ...proof, schema_version: 2 },
+      ]
+    ) {
+      const envelope = {
+        success: true,
+        data: snapshot.result,
+        ...(changed === undefined ? {} : { initial_evidence: changed }),
+      };
+      const calls: string[] = [];
+      const client = {
+        rpc(name: string) {
+          calls.push(name);
+          return Promise.resolve({
+            data: { result, response_envelope: envelope },
+            error: null,
+          });
+        },
+      } as unknown as SupabaseClient;
+      if (changed === proof) {
+        assertEquals(await completeScanIngestionFinalization(input, client), {
+          result,
+          responseEnvelope: envelope,
+        });
+      } else {
+        await assertRejects(() =>
+          completeScanIngestionFinalization(input, client)
+        );
+      }
+      assertEquals(calls, ["complete_scan_ingestion_with_entitlement"]);
+    }
+  }
 });

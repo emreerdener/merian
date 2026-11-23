@@ -115,3 +115,36 @@ Deno.test("admission identity conflicts are permanent but worker claim conflicts
     );
   }
 });
+
+Deno.test("composition HTTP gateway preserves schema5 and does not downgrade invalid input", async () => {
+  const fixture = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../_shared/analysisHistory/fixtures/composition-request-v5.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const body = fixture.find((value: { valid: boolean }) => value.valid).input;
+  let calls = 0;
+  const run = (_owner: string, input: Record<string, unknown>) => {
+    calls++;
+    assertEquals(input.schema_version, 5);
+    return Promise.resolve("dispatched" as const);
+  };
+  const response = await analyzeObservation(req, body, id(999), { run });
+  assertEquals(response.status, 202);
+  assertEquals(calls, 1);
+  for (
+    const changed of [{ ...body, identification_protocol: 6 }, {
+      ...body,
+      owner_id: id(999),
+    }, { ...body, schema_version: 6 }]
+  ) {
+    assertEquals(
+      (await analyzeObservation(req, changed, id(999), { run })).status,
+      400,
+    );
+  }
+  assertEquals(calls, 1);
+});

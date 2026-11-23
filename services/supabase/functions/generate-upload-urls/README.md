@@ -36,6 +36,25 @@ receives durable lifecycle registration before any URL is returned.
   Exact rows reused after an ambiguous response retain their original committed
   session and order identity.
 
+## Exact staging capability retirement
+
+Before returning any signed URL, `capabilityRegistration.ts` reads that URL's
+actual signing timestamp and expiry, checks its exact configured backend/key,
+and persists `register_capture_upload_capabilities`. Scan media binds the saved
+asset/session identity; non-scan uploads retain an owner-only obligation. A lost
+or negative registration acknowledgement returns 503 without exposing URLs.
+
+The private registry survives scan, asset, and account cascades. Scan deletion
+and account-deletion intake retire matching keys permanently. Registration and
+account intake serialize on the same per-owner advisory lock; registration also
+uses the existing owner/scan deletion locks. Retries may extend outstanding
+expiry but cannot rebind or reopen a retired key.
+
+This covers newly issued staging PUTs only. It does not qualify legacy issued
+URLs, abandoned drafts, promotion/COPY destinations, or publication ownership.
+Those remain separate integration requirements. No deployment is implied by this
+source implementation.
+
 ## Native Client Ownership
 
 `Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift` owns

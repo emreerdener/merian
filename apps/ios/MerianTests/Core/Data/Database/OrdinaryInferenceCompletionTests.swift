@@ -6,6 +6,146 @@ import Testing
 @MainActor
 @Suite("Ordinary completion proof", .sharedProcessState(.offlineQueueManager))
 struct OrdinaryInferenceCompletionTests {
+    @Test(arguments: ["success", "changedResult", "changedGeneration", "saveFailure"])
+    func sealedEnrollmentUsesOriginalResultAndNeverFallsBack(_ mode: String) async throws {
+        let text = try DatabaseActorTestSupport.loadRepositorySource(at:
+            "services/supabase/functions/_shared/analysisHistory/fixtures/page-v8.json")
+        let page = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        let items = try #require(page["items"] as? [[String: Any]])
+        let originalText = try #require(items.first?["snapshot"] as? String)
+        let original = try #require(JSONSerialization.jsonObject(with: Data(originalText.utf8)) as? [String: Any])
+        let fixture = try await Fixture(initialSnapshot: original)
+        defer { fixture.finish() }
+        try #require(await fixture.persist(background: false))
+        let context = ModelContext(fixture.container)
+        let job = try #require(try context.fetchOfflineJob(id: fixture.jobID))
+        job.status = .complete
+        for queue in try context.fetch(FetchDescriptor<OfflineQueuedScan>()) { context.delete(queue) }
+        try context.save()
+        var snapshot = original
+        if mode == "changedResult" {
+            var result = try #require(snapshot["result"] as? [String: Any])
+            result["scientific_name"] = "Different original result"
+            snapshot["result"] = result
+        }
+        if mode == "changedGeneration" {
+            var proof = try #require(snapshot["initial_evidence"] as? [String: Any])
+            proof["generation"] = UUID().uuidString.lowercased()
+            snapshot["initial_evidence"] = proof
+        }
+        let analysis = try #require(snapshot["analysis_id"] as? String)
+        var state = try ObservationHistoryStateTests().fixture()
+        state["owner_id"] = fixture.owner.uuidString.lowercased()
+        state["observation_id"] = fixture.id; state["selected_analysis_id"] = analysis
+        var item = try #require(state["analysis"] as? [String: Any])
+        item["snapshot"] = String(decoding: try JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys]), as: UTF8.self)
+        state["analysis"] = item
+        let stateData = try JSONSerialization.data(withJSONObject: state)
+        let receipt = try JSONSerialization.data(withJSONObject: ["schema_version": 1,
+            "owner_id": fixture.owner.uuidString.lowercased(), "observation_id": fixture.id,
+            "baseline_analysis_id": analysis])
+        var legacyCalls = 0, initialCalls = 0, saves = 0
+        var cloud = ObservationHistoryCloudClient(begin: { owner in .init(id: UUID(), session: .init(userID: owner, isAnonymous: false)) },
+            isCurrent: { _ in true }, finish: { _ in }, fetch: { _ in throw ObservationHistoryError.unavailable })
+        cloud.enroll = { _ in legacyCalls += 1; throw ObservationHistoryError.unavailable }
+        cloud.enrollInitial = { _ in initialCalls += 1; return receipt }
+        cloud.fetchState = { _ in stateData }
+        let service = ObservationHistoryEnrollmentService(cloud: cloud, save: { context in
+            saves += 1
+            if mode == "saveFailure", saves == 2 { throw OrdinaryInferenceCompletion.Invalid.evidence }
+            try context.save()
+        })
+        if mode == "success" {
+            #expect(try await service.enroll(observationID: fixture.id, expectedOwnerID: fixture.owner,
+                container: fixture.container) == UUID(uuidString: analysis))
+            let fresh = ModelContext(fixture.container)
+            #expect(try fresh.fetch(FetchDescriptor<LocalAnalysisRecord>()).first?.snapshotVersion == 8)
+            #expect(try !ObservationHistoryEnrollmentIntent.holds(fixture.id, context: fresh))
+        } else {
+            await #expect(throws: (any Error).self) {
+                try await service.enroll(observationID: fixture.id, expectedOwnerID: fixture.owner, container: fixture.container)
+            }
+            let fresh = ModelContext(fixture.container)
+            #expect(try fresh.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
+            #expect(try ObservationHistoryEnrollmentIntent.holds(fixture.id, context: fresh))
+        }
+        #expect(initialCalls == 1 && legacyCalls == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func sealedReplayUsesStableSubmissionAcrossAttempts(background: Bool) async throws {
+        var fixture = try await Fixture(withInitialEvidence: true)
+        defer { fixture.finish() }
+        try #require(await fixture.persist(background: background))
+        let oldCompletion = fixture.completion, oldOwnership = fixture.ownership
+        try fixture.rotateAttempt()
+        let before = try fixture.metadata()
+        let actor = BackgroundDatabaseActor(modelContainer: fixture.container)
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: fixture.id)
+        let stale = await actor.persistOfflineScanResultAssumingPersistenceLock(mappedData: fixture.mapped,
+            originalImagePaths: [], scanId: fixture.id, originalTimestamp: Date(), observationContextsJSON: nil,
+            audioFilePaths: nil, videoFilePaths: nil, capturedMediaJSON: "[]",
+            originalCompletion: oldCompletion, originalOwnership: oldOwnership)
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: fixture.id)
+        #expect(!stale.wasCleaned)
+        try #require(await fixture.persist(background: background))
+        #expect(try fixture.metadata() == before)
+        let context = ModelContext(fixture.container)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(try OrdinaryInferenceCompletion.retainedInitial(for: scan, owner: fixture.owner, context: context) == fixture.initialEvidence)
+    }
+
+    @Test(arguments: [false, true])
+    func sealedCompletionSurvivesBothWritersAndRestart(backgroundFirst: Bool) async throws {
+        let fixture = try await Fixture(withInitialEvidence: true)
+        defer { fixture.finish() }
+        try #require(await fixture.persist(background: backgroundFirst))
+        let first = try fixture.metadata()
+        try #require(await fixture.persist(background: !backgroundFirst))
+        #expect(try fixture.metadata() == first)
+        let context = ModelContext(fixture.container)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(try OrdinaryInferenceCompletion.retainedInitial(for: scan, owner: fixture.owner, context: context) == fixture.initialEvidence)
+        let job = try #require(try context.fetchOfflineJob(id: fixture.jobID))
+        var object = OfflineScanJobMetadataContract.object(from: job.metadataJSON)
+        var proof = try #require(object[OrdinaryInitialEvidenceProof.completionKey] as? [String: Any])
+        proof["generation"] = UUID().uuidString
+        object[OrdinaryInitialEvidenceProof.completionKey] = proof
+        job.metadataJSON = OfflineScanJobMetadataContract.json(from: object)
+        try context.save()
+        #expect(throws: (any Error).self) {
+            try OrdinaryInferenceCompletion.retainedInitial(for: scan, owner: fixture.owner, context: context)
+        }
+        #expect(await !fixture.persist(background: !backgroundFirst))
+    }
+
+    @Test(arguments: ["absentExpectation", "changedExpectation", "missingFunding", "wrongGeneration", "missingJob"])
+    func sealedCompletionCannotFallBackToLegacyPersistence(_ mode: String) async throws {
+        let fixture = try await Fixture(withInitialEvidence: true)
+        defer { fixture.finish() }
+        let context = ModelContext(fixture.container)
+        let job = try #require(try context.fetchOfflineJob(id: fixture.jobID))
+        var object = OfflineScanJobMetadataContract.object(from: job.metadataJSON)
+        switch mode {
+        case "absentExpectation": object.removeValue(forKey: OrdinaryInitialEvidenceProof.expectationKey)
+        case "changedExpectation":
+            var expected = try #require(object[OrdinaryInitialEvidenceProof.expectationKey] as? [String: Any])
+            expected["generation"] = UUID().uuidString
+            object[OrdinaryInitialEvidenceProof.expectationKey] = expected
+        case "missingFunding": object = [OrdinaryInitialEvidenceProof.expectationKey: try fixture.initialEvidence!.submission.object()]
+        case "wrongGeneration":
+            job.metadataJSON = InferenceGenerationMetadataContract.setting(UUID(), in: job.metadataJSON)
+            object = OfflineScanJobMetadataContract.object(from: job.metadataJSON)
+        case "missingJob": context.delete(job)
+        default: Issue.record("Unexpected mode")
+        }
+        if mode != "missingJob" { job.metadataJSON = OfflineScanJobMetadataContract.json(from: object) }
+        try context.save()
+        #expect(await !fixture.persist(background: false))
+        #expect(try ModelContext(fixture.container).fetchCount(FetchDescriptor<LocalScanRecord>()) == 0)
+    }
+
     @Test func replayCannotResurrectPristineEligibilityAfterReview() async throws {
         let fixture = try await Fixture()
         defer { fixture.finish() }
@@ -232,26 +372,44 @@ struct OrdinaryInferenceCompletionTests {
         let container: ModelContainer
         let id: String
         let owner: UUID
-        let generation: UUID
+        var generation: UUID
         let scope: InferenceCompletionAccountScope
         let mapped: SpeciesData
-        let completion: OrdinaryInferenceCompletion
+        var completion: OrdinaryInferenceCompletion
+        let responseData: Data
+        let initialEvidence: OrdinaryInitialEvidenceProof?
         var jobID: String { OfflineQueueManager.scanIngestionJobId(scanId: id) }
         var ownership: BackgroundAccountWorkOwnership { .init(ownerUserID: owner, generation: generation, phase: .inference) }
 
-        init(withCandidates: Bool = false) async throws {
+        init(withCandidates: Bool = false, withInitialEvidence: Bool = false, initialSnapshot: [String: Any]? = nil) async throws {
             container = try DatabaseActorTestSupport.makeIsolatedContainer()
-            id = UUID().uuidString.lowercased(); owner = UUID(); generation = UUID()
+            if let initialSnapshot, let proof = initialSnapshot["initial_evidence"] as? [String: Any] {
+                id = try #require(initialSnapshot["observation_id"] as? String)
+                owner = try ObservationHistoryPage.uuid(proof["owner_id"])
+            } else { id = UUID().uuidString.lowercased(); owner = UUID() }
+            generation = UUID()
             scope = .init(ownerID: owner, isCurrent: { true }, release: {})
-            let data = Data("""
+            var data = Data("""
             {"success":true,"data":{"scan_id":"\(id)","is_biological_subject":true,"is_live_capture":false,
             "ecology_type":"wild","is_invasive":false,"scientific_name":"Danaus plexippus","common_name":"Monarch",
             \(withCandidates ? "\"candidates\":[{\"scientific_name\":\"Synthetic alternative\",\"common_name\":\"First, Second\",\"confidence_score\":0.4,\"distinguishing_feature\":\"Synthetic feature\"},{\"scientific_name\":\"Another alternative\",\"common_name\":null,\"confidence_score\":0.2,\"distinguishing_feature\":null}]," : "")
             "confidence_score":0.75,"insight_data":{"hazard_type":"none","ai_reasoning":"Synthetic proof fixture."}}}
             """.utf8)
-            mapped = try await InferenceResponsePreparationService.live.prepare(resultData: data, telemetry: nil, audioFilePaths: nil, videoFilePaths: nil, expectedScanId: id).mappedData
+            if let initialSnapshot {
+                data = try JSONSerialization.data(withJSONObject: ["success": true,
+                    "data": initialSnapshot["result"]!, "initial_evidence": initialSnapshot["initial_evidence"]!], options: [.sortedKeys])
+            } else if withInitialEvidence {
+                var envelope = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+                envelope["initial_evidence"] = ["schema_version": 1, "owner_id": owner.uuidString.lowercased(),
+                    "scan_id": id, "generation": UUID().uuidString.lowercased(), "evidence_digest": String(repeating: "a", count: 64)]
+                data = try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
+            }
+            let prepared = try await InferenceResponsePreparationService.live.prepare(resultData: data, telemetry: nil, audioFilePaths: nil, videoFilePaths: nil, expectedScanId: id)
+            responseData = data
+            mapped = prepared.mappedData
+            initialEvidence = prepared.initialEvidence
             completion = try OrdinaryInferenceCompletion.prepare(resultData: data, mappedData: mapped,
-                scanID: id, generation: generation, account: scope)
+                scanID: id, generation: generation, account: scope, initialEvidence: initialEvidence)
             let context = ModelContext(container)
             context.insert(OfflineQueuedScan(id: id, capturedMediaJSON: "[]", scanState: .inferencing))
             let job = OfflineJobRecord(id: OfflineQueueManager.scanIngestionJobId(scanId: id), kind: .scanIngestion,
@@ -260,6 +418,11 @@ struct OrdinaryInferenceCompletionTests {
                 funding: .init(accountId: owner, scanId: id, source: .paidPro))
             job.metadataJSON = OfflineScanJobMetadataContract.settingBackgroundAccountWork(
                 .init(ownerUserID: owner, generation: generation, phase: .inference), in: job.metadataJSON)
+            if let initialEvidence {
+                var object = OfflineScanJobMetadataContract.object(from: job.metadataJSON)
+                object[OrdinaryInitialEvidenceProof.expectationKey] = try initialEvidence.submission.object()
+                job.metadataJSON = OfflineScanJobMetadataContract.json(from: object)
+            }
             context.insert(job); try context.save()
             OfflineQueueManager.shared.foregroundInferenceGenerations[id] = generation
             OfflineQueueManager.shared.startedForegroundInferenceGenerations[id] = generation
@@ -278,6 +441,19 @@ struct OrdinaryInferenceCompletionTests {
             }
             return await actor.saveNonVisualRecord(mappedData: mapped,
                 persistenceFence: .init(scanId: id, generation: generation), originalCompletion: completion).wasSaved
+        }
+
+        mutating func rotateAttempt() throws {
+            generation = UUID()
+            completion = try OrdinaryInferenceCompletion.prepare(resultData: responseData, mappedData: mapped,
+                scanID: id, generation: generation, account: scope, initialEvidence: initialEvidence)
+            let context = ModelContext(container)
+            let job = try #require(try context.fetchOfflineJob(id: jobID))
+            job.metadataJSON = InferenceGenerationMetadataContract.setting(generation, in: job.metadataJSON)
+            job.metadataJSON = OfflineScanJobMetadataContract.settingBackgroundAccountWork(ownership, in: job.metadataJSON)
+            try context.save()
+            OfflineQueueManager.shared.foregroundInferenceGenerations[id] = generation
+            OfflineQueueManager.shared.startedForegroundInferenceGenerations[id] = generation
         }
 
         func metadata() throws -> String {

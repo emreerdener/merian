@@ -34,6 +34,10 @@ enum SharedMediaNativeAppOpeningOperations {
                 grant: grant, discovery: discovery)
             retain(candidate)
         }
+        if candidate.captureRootNeedsRecovery {
+            try grant.validate()
+            return .captureRootRecovery
+        }
         #if DEBUG
         grant.debug.inspectionTrace?.enter(.inspect)
         #endif

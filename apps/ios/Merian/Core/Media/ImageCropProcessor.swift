@@ -134,137 +134,85 @@ struct ImageCropProcessor {
         ),
         encoding: ImagePreparationPolicy.Encoding = .preferred
     ) async -> Data {
-        let finalScale = scale * currentScale
-        let finalOffset = CGSize(
-            width: offset.width + currentOffset.width,
-            height: offset.height + currentOffset.height
-        )
-
-        guard displaySize > 0, displaySize.isFinite,
-              finalScale >= 1, finalScale.isFinite,
-              finalOffset.width.isFinite, finalOffset.height.isFinite else { return Data() }
-        let rotated = rotatedImage(image, quarterTurns: quarterTurns)
-        let imageSize = rotated.size
-        let sourceCGImage = image.cgImage
-        let targetOrientation = rotated.imageOrientation
-
+        guard let mapping = cropMapping(image: image, displaySize: displaySize,
+            scale: scale * currentScale,
+            offset: CGSize(width: offset.width + currentOffset.width, height: offset.height + currentOffset.height),
+            quarterTurns: quarterTurns), let sourceCGImage = image.cgImage else { return Data() }
         let processedBytes: Data? = autoreleasepool {
-            guard let sourceCGImage else { return nil }
-
-            let sourceWidth = imageSize.width
-            let sourceHeight = imageSize.height
-            let imageRatio = sourceWidth / sourceHeight
-            let renderedWidth = imageRatio > 1
-                ? displaySize * imageRatio
-                : displaySize
-            let imageScale = sourceWidth / renderedWidth
-
-            let horizontalOffset = -finalOffset.width
-                / finalScale * imageScale
-            let verticalOffset = -finalOffset.height
-                / finalScale * imageScale
-            let visibleWidth = displaySize / finalScale * imageScale
-            let visibleHeight = displaySize / finalScale * imageScale
-            let cropX = (sourceWidth - visibleWidth) / 2 + horizontalOffset
-            let cropY = (sourceHeight - visibleHeight) / 2 + verticalOffset
-
-            let normalizedX = max(
-                0,
-                min(1, cropX / sourceWidth)
-            )
-            let normalizedY = max(
-                0,
-                min(1, cropY / sourceHeight)
-            )
-            let normalizedWidth = min(
-                1 - normalizedX,
-                max(0, visibleWidth / sourceWidth)
-            )
-            let normalizedHeight = min(
-                1 - normalizedY,
-                max(0, visibleHeight / sourceHeight)
-            )
-
-            let pixelWidth = CGFloat(sourceCGImage.width)
-            let pixelHeight = CGFloat(sourceCGImage.height)
-            let cropRect: CGRect
-            switch targetOrientation {
-            case .up:
-                cropRect = CGRect(
-                    x: normalizedX * pixelWidth,
-                    y: normalizedY * pixelHeight,
-                    width: normalizedWidth * pixelWidth,
-                    height: normalizedHeight * pixelHeight
-                )
-            case .down:
-                cropRect = CGRect(
-                    x: (1 - normalizedX - normalizedWidth) * pixelWidth,
-                    y: (1 - normalizedY - normalizedHeight) * pixelHeight,
-                    width: normalizedWidth * pixelWidth,
-                    height: normalizedHeight * pixelHeight
-                )
-            case .left:
-                cropRect = CGRect(
-                    x: (1 - normalizedY - normalizedHeight) * pixelWidth,
-                    y: normalizedX * pixelHeight,
-                    width: normalizedHeight * pixelWidth,
-                    height: normalizedWidth * pixelHeight
-                )
-            case .right:
-                cropRect = CGRect(
-                    x: normalizedY * pixelWidth,
-                    y: (1 - normalizedX - normalizedWidth) * pixelHeight,
-                    width: normalizedHeight * pixelWidth,
-                    height: normalizedWidth * pixelHeight
-                )
-            case .upMirrored:
-                cropRect = CGRect(
-                    x: (1 - normalizedX - normalizedWidth) * pixelWidth,
-                    y: normalizedY * pixelHeight,
-                    width: normalizedWidth * pixelWidth,
-                    height: normalizedHeight * pixelHeight
-                )
-            case .downMirrored:
-                cropRect = CGRect(
-                    x: normalizedX * pixelWidth,
-                    y: (1 - normalizedY - normalizedHeight) * pixelHeight,
-                    width: normalizedWidth * pixelWidth,
-                    height: normalizedHeight * pixelHeight
-                )
-            case .leftMirrored:
-                cropRect = CGRect(
-                    x: normalizedY * pixelWidth,
-                    y: normalizedX * pixelHeight,
-                    width: normalizedHeight * pixelWidth,
-                    height: normalizedWidth * pixelHeight
-                )
-            case .rightMirrored:
-                cropRect = CGRect(
-                    x: (1 - normalizedY - normalizedHeight) * pixelWidth,
-                    y: (1 - normalizedX - normalizedWidth) * pixelHeight,
-                    width: normalizedHeight * pixelWidth,
-                    height: normalizedWidth * pixelHeight
-                )
-            @unknown default:
-                cropRect = CGRect(
-                    x: normalizedX * pixelWidth,
-                    y: normalizedY * pixelHeight,
-                    width: normalizedWidth * pixelWidth,
-                    height: normalizedHeight * pixelHeight
-                )
-            }
-
-            let croppedImage = sourceCGImage.cropping(to: cropRect)
-                ?? sourceCGImage
+            let cropRect = mapping.cropPixels
+            // A failed edit must leave the previous staged artifact intact.
+            // Returning the full source would submit a different framing.
+            guard !cropRect.isEmpty, !cropRect.isNull,
+                  let croppedImage = sourceCGImage.cropping(to: cropRect) else { return nil }
             return encode(
                 croppedImage,
-                orientation: cgOrientation(from: targetOrientation),
+                orientation: cgOrientation(from: mapping.targetOrientation),
                 maxPixelSize: maxPixelSize,
                 encoding: encoding
             )
         }
 
         return processedBytes ?? Data()
+    }
+
+    /// Geometry for both encoded pixels and submitted subject selection.
+    nonisolated static func cropMapping(image: UIImage, displaySize: CGFloat, scale: CGFloat,
+                                        offset: CGSize, quarterTurns: Int) -> ImageCropMapping? {
+        guard displaySize > 0, displaySize.isFinite, scale >= 1, scale.isFinite,
+              offset.width.isFinite, offset.height.isFinite, let sourceCGImage = image.cgImage else { return nil }
+        let rotated = rotatedImage(image, quarterTurns: quarterTurns)
+        let imageSize = rotated.size
+        let targetOrientation = rotated.imageOrientation
+        let finalScale = scale
+        let finalOffset = offset
+        let sourceWidth = imageSize.width
+        let sourceHeight = imageSize.height
+        let imageRatio = sourceWidth / sourceHeight
+        let renderedWidth = imageRatio > 1
+            ? displaySize * imageRatio
+            : displaySize
+        let imageScale = sourceWidth / renderedWidth
+
+        let horizontalOffset = -finalOffset.width
+            / finalScale * imageScale
+        let verticalOffset = -finalOffset.height
+            / finalScale * imageScale
+        let visibleWidth = displaySize / finalScale * imageScale
+        let visibleHeight = displaySize / finalScale * imageScale
+        let cropX = (sourceWidth - visibleWidth) / 2 + horizontalOffset
+        let cropY = (sourceHeight - visibleHeight) / 2 + verticalOffset
+
+        let normalizedX = max(
+            0,
+            min(1, cropX / sourceWidth)
+        )
+        let normalizedY = max(
+            0,
+            min(1, cropY / sourceHeight)
+        )
+        let normalizedWidth = min(
+            1 - normalizedX,
+            max(0, visibleWidth / sourceWidth)
+        )
+        let normalizedHeight = min(
+            1 - normalizedY,
+            max(0, visibleHeight / sourceHeight)
+        )
+
+        let raw = ImageCropMapping.rawRect(fromUpright: CGRect(
+            x: normalizedX, y: normalizedY, width: normalizedWidth, height: normalizedHeight
+        ), orientation: targetOrientation)
+        let cropRect = CGRect(x: raw.minX * CGFloat(sourceCGImage.width),
+                              y: raw.minY * CGFloat(sourceCGImage.height),
+                              width: raw.width * CGFloat(sourceCGImage.width),
+                              height: raw.height * CGFloat(sourceCGImage.height))
+        // CGImage crops on integral pixels. Both the exported artifact and
+        // its focus transform must use this exact same rounded rectangle.
+        let pixels = cropRect.integral.intersection(CGRect(x: 0, y: 0,
+            width: sourceCGImage.width, height: sourceCGImage.height))
+        guard !pixels.isEmpty, !pixels.isNull else { return nil }
+        return ImageCropMapping(sourcePixelSize: CGSize(width: sourceCGImage.width, height: sourceCGImage.height),
+            sourceOrientation: image.imageOrientation, targetOrientation: targetOrientation, cropPixels: pixels)
     }
 
     /// Convert immutable normalized shutter framing to the crop editor's current

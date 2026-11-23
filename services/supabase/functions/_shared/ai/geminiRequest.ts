@@ -1,9 +1,11 @@
+import { parseImageFocusRegion } from "../identify/imageFocus.ts";
 import { audioUncertaintySystemInstruction } from "../../identify-multimodal/comparison/promptInstruction.ts";
 import type { ThinkingLevel } from "@google/genai";
 import type {
   GenerateContentParameters,
   HarmBlockThreshold,
   HarmCategory,
+  Part,
   Schema,
 } from "@google/genai";
 import type { AIRequest, GeminiAttemptSnapshot } from "./contracts.ts";
@@ -55,15 +57,32 @@ export function buildGeminiRequestParameters(
   },
 ): GenerateContentParameters {
   const options = snapshot.generation;
+  const focusedPrompt = snapshot.prompt === "identify_vision_focus_v1" ||
+    snapshot.prompt === "identify_blended_focus_v1";
+  const hasFocus = request.task === "identify" && request.evidence.some(
+    (item) => item.kind === "image" && item.focusRegion !== undefined,
+  );
+  const hasAudio = request.task === "identify" && request.evidence.some(
+    (item) => item.kind === "audio",
+  );
+  if (
+    hasFocus !== focusedPrompt || (focusedPrompt &&
+      (request.variant !== "multimodal" ||
+        (snapshot.prompt === "identify_blended_focus_v1") !== hasAudio))
+  ) {
+    throw new Error("ai_image_focus_prompt_mismatch");
+  }
   if (request.task !== "identify" && !content) {
     throw new Error("ai_content_projection_missing");
   }
   const systemInstruction = content?.systemInstruction ??
     (snapshot.prompt === "identify_describe_v1"
       ? getDescribeSystemInstruction()
-      : snapshot.prompt === "identify_blended_v1"
+      : (snapshot.prompt === "identify_blended_v1" ||
+          snapshot.prompt === "identify_blended_focus_v1")
       ? MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION
-      : snapshot.prompt === "identify_vision_v1"
+      : (snapshot.prompt === "identify_vision_v1" ||
+          snapshot.prompt === "identify_vision_focus_v1")
       ? getSystemInstruction(
         snapshot.promptDiagnosticTrigger ?? diagnosticTrigger(snapshot),
       )
@@ -85,11 +104,33 @@ export function buildGeminiRequestParameters(
     contents: request.task === "identify"
       ? [{
         role: "user",
-        parts: request.evidence.map((item) =>
-          item.kind === "text"
-            ? { text: item.text }
-            : { inlineData: { mimeType: item.mimeType, data: item.data } }
-        ),
+        parts: request.evidence.flatMap((item): Part[] => {
+          if (item.kind === "text") return [{ text: item.text }];
+          const media: Part = {
+            inlineData: { mimeType: item.mimeType, data: item.data },
+          };
+          if (item.kind !== "image" || item.focusRegion === undefined) {
+            return [media];
+          }
+          const focus = parseImageFocusRegion(item.focusRegion);
+          if (!focus) throw new Error("ai_image_focus_invalid");
+          if (item.lineage?.kind === "video_frame") {
+            throw new Error("ai_image_focus_invalid");
+          }
+          const bounds = JSON.stringify({
+            x: focus.x,
+            y: focus.y,
+            width: focus.width,
+            height: focus.height,
+          });
+          const instruction = focus.source === "user_selection"
+            ? "The user selected the intended subject in the following image. Focus identification on that subject; use the surrounding image as context."
+            : "Automatic saliency suggests a possible subject in the following image. This is only a hint, not a user selection; assess the whole image.";
+          return [{
+            text:
+              `${instruction} Rectangle in normalized image coordinates with top-left origin: ${bounds}. Selection does not establish identity or justify greater confidence.`,
+          }, media];
+        }),
       }]
       : content!.contents,
     config: {

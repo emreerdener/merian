@@ -39,6 +39,21 @@ actor ObservationVideoCohort {
         defer {
             if completed { try? FileManager.default.removeItem(at: directory) } else { consumed = false }
         }
+        let buffers = try verifiedBytes()
+        let result = try await store.persistVideo(preparation: preparation, payload: .init(request: request, bytes: buffers),
+                                                 validateBeforeWrite: validateBeforeWrite, commit: commit)
+        completed = true
+        return result
+    }
+
+    /// Immutable snapshot for a larger composition, never a reservation or
+    /// execution grant. Only this retained cohort can construct its payload.
+    func compositionPayload() throws -> Payload {
+        guard !consumed else { throw ObservationVideoCohortError.invalidScope }
+        return Payload(request: request, bytes: try verifiedBytes())
+    }
+
+    private func verifiedBytes() throws -> [Data] {
         var buffers: [Data] = []
         for file in files {
             try Task.checkCancellation()
@@ -54,10 +69,7 @@ actor ObservationVideoCohort {
             }
             buffers.append(bytes)
         }
-        let result = try await store.persistVideo(preparation: preparation, payload: .init(request: request, bytes: buffers),
-                                                 validateBeforeWrite: validateBeforeWrite, commit: commit)
-        completed = true
-        return result
+        return buffers
     }
 
     deinit { try? FileManager.default.removeItem(at: directory) }

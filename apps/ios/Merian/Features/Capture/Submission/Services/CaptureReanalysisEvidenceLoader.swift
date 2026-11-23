@@ -46,7 +46,8 @@ struct CaptureReanalysisEvidenceLoader {
             try validate()
             let image = UIImage(cgImage: preview.cgImage)
             capture.images.append(.init(compressedData: value.bytes, displayData: value.bytes, uiImage: image,
-                original: .init(image: image), addedAt: Date(timeIntervalSince1970: TimeInterval(index)),
+                original: .init(image: image), focusRegion: value.photo.focusRegion,
+                addedAt: Date(timeIntervalSince1970: TimeInterval(index)),
                 reanalysisProvenance: .retained(value.photo, edited: false)))
         }
         for (index, text) in retained.descriptions.enumerated() {

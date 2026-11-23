@@ -30,8 +30,8 @@ struct ObservationAnalysisReviewTicket: Equatable {
 
     init(entry: ObservationHistoryListingService.Entry, context: ObservationHistoryListingService.Context,
          observationID: UUID) throws {
-        // Review transports use reader 11; other media actions retain their own format gates.
-        guard [1, 2, 3, 4, 5].contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
+        // Review transports use reader 18; other media actions retain their own format gates.
+        guard (1...8).contains(entry.result.version), let authority = entry.authority, let reviewRevision = entry.reviewRevision,
               context.revision > 0, reviewRevision >= 0, reviewRevision <= context.revision else {
             throw ObservationHistoryError.unavailable
         }
@@ -54,6 +54,23 @@ struct ObservationAnalysisReviewTicket: Equatable {
                   entry.result.photos.isEmpty, entry.result.audio == nil, entry.result.importedAt == nil else {
                 throw ObservationHistoryError.invalidSnapshot
             }
+        }
+        if [6, 7].contains(entry.result.version) {
+            let decoded = try ObservationHistoryPage.snapshot(entry.result.bytes, observationID: observationID.uuidString.lowercased(),
+                ordinal: ObservationHistoryPage.integer(envelope?["ordinal"]))
+            guard decoded.version == entry.result.version, decoded.composition != nil, decoded.composition == entry.result.composition,
+                  decoded.analysisID == entry.result.analysisID, decoded.completedAt == entry.result.completedAt,
+                  entry.result.photos.isEmpty, entry.result.audio == nil, entry.result.video == nil,
+                  entry.result.importedAt == nil else { throw ObservationHistoryError.invalidSnapshot }
+        }
+        if entry.result.version == 8 {
+            let decoded = try ObservationHistoryPage.snapshot(entry.result.bytes, observationID: observationID.uuidString.lowercased(),
+                ordinal: ObservationHistoryPage.integer(envelope?["ordinal"]))
+            guard decoded.version == 8, let evidence = decoded.initialEvidence, evidence.ownerID == context.owner,
+                  evidence == entry.result.initialEvidence, decoded.analysisID == entry.result.analysisID,
+                  decoded.completedAt == entry.result.completedAt, entry.result.photos.isEmpty,
+                  entry.result.audio == nil, entry.result.video == nil, entry.result.composition == nil,
+                  entry.result.importedAt == nil else { throw ObservationHistoryError.invalidSnapshot }
         }
         resultVersion = entry.result.version
         let biological = (result["is_biological_subject"] as? NSNumber).map {

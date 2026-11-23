@@ -63,7 +63,7 @@ extension CaptureWorkspaceViewModel {
 
     func presentStagedMediaUpgradePaywall() {
         guard !isDraftMutationLocked,
-              baseRefinementContext == nil,
+              !isReanalyzing,
               stagedCaptureLimit == 1,
               stagedCapture.physicalItemCount < stagedCaptureCapacity,
               activeSheet == nil else { return }
@@ -99,16 +99,19 @@ extension CaptureWorkspaceViewModel {
         _ newPhase: ScenePhase,
         captureMode: CaptureMode,
         cameraManager: CameraManager,
-        audioCaptureManager: AudioCaptureManager
+        audioCaptureManager: AudioCaptureManager,
+        isPresentationOccupied: Bool = false
     ) {
         if newPhase == .active {
             if captureMode == .visual,
+               !isFieldNotesOccupied, !isPresentationOccupied,
                self.activeSheet == nil,
                self.imageToCrop == nil {
                 cameraManager.startSession()
             }
         }
         if newPhase == .inactive || newPhase == .background {
+            fieldNotesSession?.stopInput()
             handleVisualCaptureInterruption()
             audioCaptureManager.cancelPendingRecordingTransition()
             audioCaptureManager.stopPlayback()
@@ -130,7 +133,8 @@ extension CaptureWorkspaceViewModel {
         _ newMode: CaptureMode,
         scenePhase: ScenePhase,
         cameraManager: CameraManager,
-        audioCaptureManager: AudioCaptureManager
+        audioCaptureManager: AudioCaptureManager,
+        isPresentationOccupied: Bool = false
     ) {
         triggerSheetFeedback()
 
@@ -148,6 +152,7 @@ extension CaptureWorkspaceViewModel {
         if newMode == .audio || newMode == .describe {
             cameraManager.stopSession()
         } else if scenePhase == .active,
+                  !isFieldNotesOccupied, !isPresentationOccupied,
                   self.activeSheet == nil,
                   self.imageToCrop == nil {
             cameraManager.startSession()

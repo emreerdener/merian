@@ -2,7 +2,8 @@ import CryptoKit
 import Foundation
 import SwiftData
 
-/// Explicit current attachment choice, never historical original-media evidence.
+/// Explicit legacy attachment or workspace-owned input, never an inferred
+/// historical original. The authority of these two input paths stays separate.
 /// The existing source, FileIO and preparation owners retain their authority.
 @MainActor
 final class ObservationReanalysisLocalVideoInput {
@@ -11,6 +12,7 @@ final class ObservationReanalysisLocalVideoInput {
         let mediaIndex: Int
         let filename: String
         fileprivate let capturedBytes: Data
+        fileprivate var workspaceInput: FileIOActor.StagedVideoInput?
 
         @MainActor fileprivate func validate(container: ModelContainer) throws {
             try ConfirmedSpeciesReviewPersistence.transaction { try validate(context: ModelContext(container)) }
@@ -18,6 +20,7 @@ final class ObservationReanalysisLocalVideoInput {
 
         @MainActor fileprivate func validate(context: ModelContext) throws {
             try source.validate(context: context)
+            if workspaceInput != nil { return }
             let scan = try ObservationHistorySyncService.enrolledScan(source.observationID.uuidString, context: context)
             guard scan.analysisOwnerAccountID == source.ownerID.uuidString.lowercased(),
                   try SharedMediaConsumerAuthority.classify(raw: scan.mediaAuthorityRaw,
@@ -26,6 +29,22 @@ final class ObservationReanalysisLocalVideoInput {
                 throw ObservationHistoryError.unavailable
             }
         }
+    }
+
+    /// The workspace supplies only its owned staged path. FileIO binds the
+    /// current descriptor before the session freezes a child identity.
+    static func workspaceChoice(source: ObservationReanalysisSource, path: String, ownedPaths: Set<String>,
+                                files: FileIOActor, container: ModelContainer,
+                                isCurrent: @MainActor () -> Bool) async throws -> Choice {
+        try Task.checkCancellation()
+        guard isCurrent(), ownedPaths.contains(path) else { throw ObservationHistoryError.unavailable }
+        try source.validate(container: container)
+        guard let input = await files.stagedVideoInput(path: path) else { throw ObservationHistoryError.unavailable }
+        try Task.checkCancellation()
+        guard isCurrent() else { throw ObservationHistoryError.accountChanged }
+        try source.validate(container: container)
+        return Choice(source: source, mediaIndex: -1, filename: path,
+            capturedBytes: Data(input.binding.utf8), workspaceInput: input)
     }
 
     let source: ObservationReanalysisSource
@@ -177,7 +196,8 @@ final class ObservationReanalysisLocalVideoInput {
                 }, advance: { before, after in
                     try ObservationReanalysisInputPersistence.advance(from: before, to: after, container: self.container, validate: current)
                 }, validate: validate, copy: { [files, choice] descriptor in
-                    await files.copyVideoInput(filename: choice.filename, ownedOutput: descriptor)
+                    if let input = choice.workspaceInput { return await files.copyVideoInput(input, ownedOutput: descriptor) }
+                    return await files.copyVideoInput(filename: choice.filename, ownedOutput: descriptor)
                 })
             }
             // Preserve the existing post-copy handoff independently of early ownership.

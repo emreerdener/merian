@@ -75,7 +75,9 @@ struct CoreDataIntegrationArchitectureTests {
         }
 
         let repository = try source("Database/ScanRepository.swift")
-        #expect(DatabaseActorTestSupport.lineCount(of: repository) <= 600)
+        let policy = try IOSSourceSizePolicy.load(root: DatabaseActorTestSupport.repositoryRoot())
+        let rule = policy.productionRule(for: "Core/Data/Database/ScanRepository.swift")
+        #expect(rule.count(repository) <= rule.ceiling)
         #expect(imports(in: repository) == [
             "import Foundation",
             "import os",

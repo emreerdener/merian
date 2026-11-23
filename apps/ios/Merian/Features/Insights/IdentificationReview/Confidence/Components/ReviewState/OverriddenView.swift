@@ -6,6 +6,7 @@ struct OverriddenView: View {
     let aiScientificName: String
     var onUndo: (() -> Void)?
     var unavailableReason: String?
+    var undoIdentifier = "ConfidenceUndoConfirmation"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -21,7 +22,7 @@ struct OverriddenView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.green)
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("ConfidenceUndoConfirmation")
+                    .accessibilityIdentifier(undoIdentifier)
                 }
             }
 

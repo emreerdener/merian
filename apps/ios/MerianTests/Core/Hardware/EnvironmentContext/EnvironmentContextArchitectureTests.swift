@@ -9,6 +9,7 @@ struct EnvironmentContextArchitectureTests {
         let models = try source(Self.modelsPath)
         let policy = try source(Self.policyPath)
         let locationController = try source(Self.locationControllerPath)
+        let locationHardware = try source(Self.locationHardwarePath)
         let geocodingService = try source(Self.geocodingServicePath)
         let weatherService = try source(Self.weatherServicePath)
 
@@ -32,6 +33,8 @@ struct EnvironmentContextArchitectureTests {
             )
         )
         #expect(locationController.contains("timeoutGeneration"))
+        #expect(!locationController.contains("CLLocationManager()"))
+        #expect(locationHardware.contains("CLLocationManager()"))
         #expect(
             geocodingService.contains(
                 "final class EnvironmentGeocodingService"
@@ -97,6 +100,7 @@ struct EnvironmentContextArchitectureTests {
         #expect(lineCount(try source(Self.modelsPath)) <= 75)
         #expect(lineCount(try source(Self.policyPath)) <= 100)
         #expect(lineCount(try source(Self.locationControllerPath)) <= 375)
+        #expect(lineCount(try source(Self.locationHardwarePath)) <= 100)
         #expect(lineCount(try source(Self.geocodingServicePath)) <= 175)
         #expect(lineCount(try source(Self.weatherServicePath)) <= 100)
     }
@@ -153,6 +157,9 @@ struct EnvironmentContextArchitectureTests {
     private static let locationControllerPath =
         "apps/ios/Merian/Core/Hardware/EnvironmentContext/Services/" +
         "EnvironmentLocationController.swift"
+    private static let locationHardwarePath =
+        "apps/ios/Merian/Core/Hardware/EnvironmentContext/Services/" +
+        "EnvironmentLocationHardware.swift"
     private static let geocodingServicePath =
         "apps/ios/Merian/Core/Hardware/EnvironmentContext/Services/" +
         "EnvironmentGeocodingService.swift"

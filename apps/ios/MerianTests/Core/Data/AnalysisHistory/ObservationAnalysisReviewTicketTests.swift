@@ -45,6 +45,46 @@ struct ObservationAnalysisReviewTicketTests {
         #expect(try saved.request(.confirmName("Synthetic correction"), operationID: UUID()).analysisID == saved.analysisID)
     }
 
+    @Test(arguments: [7, 8]) func focusedAndInitialReviewBindsTypedEvidenceWithoutPublication(version: Int) throws {
+        let support = ObservationInitialEvidenceTests()
+        let (page, initial) = try support.fixture()
+        var snapshot = initial
+        if version == 7 {
+            let initialManifest = try #require(initial["evidence_manifest"] as? [String: Any])
+            let image = try #require((initialManifest["items"] as? [[String: Any]])?.first)
+            snapshot["schema_version"] = 7
+            snapshot["ordinal"] = 2
+            snapshot["analysis_id"] = "00000000-0000-4000-8000-000000000004"
+            snapshot["source_analysis_id"] = initial["analysis_id"]
+            snapshot.removeValue(forKey: "initial_evidence")
+            snapshot["evidence_manifest"] = ["schema_version": 6, "items": [["kind": "image",
+                "artifact": image["prepared"]!, "focus_region": image["focus_region"]!]]]
+        }
+        let observation = try ObservationHistoryPage.uuid(page["observation_id"])
+        let decoded = try ObservationHistoryPage.snapshot(JSONSerialization.data(withJSONObject: snapshot),
+            observationID: observation.uuidString.lowercased(), ordinal: version == 8 ? 1 : 2)
+        let state = try ObservationHistoryStateTests().decode(ObservationHistoryStateTests().fixture())
+        let context = ObservationHistoryListingService.Context(owner: try ObservationHistoryPage.uuid(page["owner_id"]),
+            selected: decoded.analysisID, revision: 10, pendingOperation: nil, undoOperation: nil)
+        let entry = ObservationHistoryListingService.Entry(result: decoded, display: nil, authority: state.review, reviewRevision: 0)
+        let ticket = try ObservationAnalysisReviewTicket(entry: entry, context: context, observationID: observation)
+        #expect(ticket.canReject && ticket.candidateChoices.isEmpty && !ticket.supportsPhotoPublicationFormat)
+        #expect(try ticket.request(.reject, operationID: UUID()).analysisID == decoded.analysisID)
+        let forged = ObservationHistoryPage.Result(version: decoded.version, photos: [], audio: nil, video: nil,
+            analysisID: decoded.analysisID, completedAt: decoded.completedAt, importedAt: nil, bytes: decoded.bytes)
+        #expect(throws: (any Error).self) {
+            try ObservationAnalysisReviewTicket(entry: .init(result: forged, display: nil, authority: state.review, reviewRevision: 0),
+                context: context, observationID: observation)
+        }
+        if version == 8 {
+            let other = ObservationHistoryListingService.Context(owner: UUID(), selected: decoded.analysisID,
+                revision: 10, pendingOperation: nil, undoOperation: nil)
+            #expect(throws: (any Error).self) {
+                try ObservationAnalysisReviewTicket(entry: entry, context: other, observationID: observation)
+            }
+        }
+    }
+
     @Test func confidenceUsesSavedProvenanceAndPhotoIdentity() throws {
         let photo = ObservationHistoryPhotoReference(mediaID: UUID(), contentType: "image/jpeg", byteCount: 7, sha256: String(repeating: "a", count: 64))
         let saved = try ticket(resultPatch: ["inference_tier": "pro"], version: 2, photos: [photo], omittedResultKeys: ["identification_provenance"])

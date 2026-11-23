@@ -31,7 +31,7 @@ export async function evidenceWorkerReceipt(
   // Only terminal work echoes correlation. Legacy acquisition is denied by
   // both this boundary and the permanent old-RPC denial in the database.
   return jsonResponse(
-    { schema_version: 2, dispatch_id: dispatch, ...counts },
+    { schema_version: 4, dispatch_id: dispatch, ...counts },
     200,
     headers,
   );

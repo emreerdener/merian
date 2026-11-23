@@ -118,9 +118,10 @@ struct CaptureStagingToolbarPresentationTests {
         let full = CaptureStagingToolbarPresentation(
             stagedCapture: capture, isRefining: true, stagedCaptureLimit: 2
         )
-        #expect(full.visibleNodes.map(\.id) == ["img_0", "audio_0"])
+        #expect(full.visibleNodes.map(\.id) == ["img_\(capture.images[0].original.id)", "audio_\(capture.audios[0].id)"])
         #expect(full.photoSelectionCount == nil)
-        #expect(full.submitTitle == "Analyze")
+        #expect(full.submitTitle == "Reanalyze")
+        #expect(full.submitAccessibilityHint == "Submit scan for reanalysis")
         #expect(!full.isSubmitDisabled)
         #expect(capture.availableEvidenceSlots(limit: 2, isRefining: true) == 0)
         #expect(capture.canStageRefinementDescription)
@@ -156,8 +157,8 @@ struct CaptureStagingToolbarPresentationTests {
 
         #expect(
             presentation.visibleNodes.map(\.id) == [
-                "audio_0",
-                "img_0"
+                "audio_\(capture.audios[0].id)",
+                "img_\(capture.images[0].original.id)"
             ]
         )
     }
@@ -186,7 +187,7 @@ struct CaptureStagingToolbarPresentationTests {
             stagedCaptureLimit: 3
         )
 
-        #expect(presentation.visibleNodes.map(\.id) == ["video_1"])
+        #expect(presentation.visibleNodes.map(\.id) == ["video_\(capture.videos[1].id)"])
     }
 
     @Test("Photo capacity preserves the established filtered tray behavior")
@@ -237,7 +238,8 @@ struct CaptureStagingToolbarPresentationTests {
 
         #expect(empty.submitTitle == "Identify")
         #expect(empty.isSubmitDisabled)
-        #expect(refining.submitTitle == "Analyze")
+        #expect(refining.submitTitle == "Reanalyze")
+        #expect(refining.submitAccessibilityHint == "Submit scan for reanalysis")
         #expect(!refining.isSubmitDisabled)
     }
 

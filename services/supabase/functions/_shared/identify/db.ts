@@ -337,16 +337,21 @@ export async function fetchCandidateCommonNames(
   return result;
 }
 
-export async function insertScan(
-  row: ScanInsertRow,
+/** Resolve mutable account defaults exactly once, before binding a durable
+ * finalization continuation. Retrying a bound row must not consult them again.
+ */
+export async function prepareScanInsert(
+  input: ScanInsertRow,
   supabaseAdmin: SupabaseClient,
-): Promise<void> {
+): Promise<PreparedScanInsertRow> {
+  // Own nested arrays/context before the account lookup yields.
+  const row = structuredClone(input);
   const geoprivacy = await resolveScanGeoprivacy(
     row.user_id,
     supabaseAdmin,
     row.geoprivacy,
   );
-  const scanRow = {
+  return {
     ...row,
     geoprivacy,
     ecology_type: normalizeScanEcologyType(row.ecology_type),
@@ -354,10 +359,30 @@ export async function insertScan(
       ? null
       : row.public_location_label,
   };
+}
 
+export type PreparedScanInsertRow = ScanInsertRow & {
+  geoprivacy: ScanGeoprivacy;
+  ecology_type: ScanEcologyType;
+};
+
+/** This entry point accepts an already validated, canonical continuation, not
+ * arbitrary client JSON. Recovery must validate its stored projection before
+ * calling it; no user preference or provider work belongs here.
+ */
+export async function insertPreparedScan(
+  input: PreparedScanInsertRow,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const scanRow = structuredClone(input);
+  if (
+    !isScanGeoprivacy(scanRow.geoprivacy) ||
+    !VALID_SCAN_ECOLOGY_TYPES.has(scanRow.ecology_type) ||
+    (scanRow.geoprivacy === "private" && scanRow.public_location_label !== null)
+  ) throw new Error("invalid_prepared_scan_insert");
   await persistOwnedScanRow({
-    scanId: row.id,
-    userId: row.user_id,
+    scanId: scanRow.id,
+    userId: scanRow.user_id,
     operationName: "insertScan",
     supabaseAdmin,
     write: async () => {
@@ -370,4 +395,14 @@ export async function insertScan(
       return { error };
     },
   });
+}
+
+export async function insertScan(
+  row: ScanInsertRow,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  await insertPreparedScan(
+    await prepareScanInsert(row, supabaseAdmin),
+    supabaseAdmin,
+  );
 }

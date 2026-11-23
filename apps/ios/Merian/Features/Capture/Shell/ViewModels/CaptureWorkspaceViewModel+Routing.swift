@@ -21,6 +21,7 @@ extension CaptureWorkspaceViewModel {
 
         if activePresentation != nil
             || operationState.isDismissingPresentation
+            || isFieldNotesOccupied
             || isFeaturePresentationOccupied {
             operationState.deferRoute(requestID: request.id)
             coordinator.resolve(
@@ -50,12 +51,9 @@ extension CaptureWorkspaceViewModel {
         }
         switch route {
         case let .historicalReanalysis(target):
-            guard reanalysisEditor == nil, let access = dependencies.reanalysis,
-                  let container = diContainer.offlineQueueManager.modelContext?.container else {
+            guard beginHistoryWorkspace(target) else {
                 return .rejected(reason: .targetUnavailable)
             }
-            do { reanalysisEditor = try access.open(target, container) } catch { return .rejected(reason: .targetUnavailable) }
-            activeSheet = .reanalysis
         case .proAccessRequired:
             activeSheet = .paywall
         case .scan(let scanId):
@@ -143,8 +141,7 @@ extension CaptureWorkspaceViewModel {
 
     func handleRouteAccountGenerationChanged() {
         dismissNativeRecovery()
-        reanalysisEditor?.invalidate()
-        reanalysisEditor = nil
+        invalidateHistoryWorkspace()
         operationState.clearPendingRoutes()
         clearExplorePresentationRoute()
         pendingScansRecoveryContext = nil
@@ -158,7 +155,7 @@ extension CaptureWorkspaceViewModel {
     // MARK: - App Linking
 
     @discardableResult
-    private func handleDeepLinkRoute(scanId: String) -> Bool {
+    func handleDeepLinkRoute(scanId: String) -> Bool {
         clearExplorePresentationRoute()
 
         // SwiftData Context Access boundary seamlessly leveraging the shared queue context
@@ -362,6 +359,7 @@ extension CaptureWorkspaceViewModel {
     /// A deferred global route is requeued here, after UIKit has released the
     /// presentation slot, rather than after a guessed teardown delay.
     func handleFeaturePresentationDismissed() {
+        guard !isFeaturePresentationAwaitingDismissal, mediaReviewPresentationID == nil else { return }
         guard let deferredRouteRequestID = operationState
             .takeDeferredRouteRequestID() else { return }
         diContainer.appRouteCoordinator.resumeDeferredRequest(deferredRouteRequestID)

@@ -104,7 +104,7 @@ actor InferenceProcessingActor {
         let originalCompletion = try (mappedData.requiresSavedRecord ? persistenceFence : nil).flatMap { fence in
             try completionAccount.map { account in
                 try OrdinaryInferenceCompletion.prepare(resultData: resultData, mappedData: mappedData,
-                    scanID: fence.scanId, generation: fence.generation, account: account)
+                    scanID: fence.scanId, generation: fence.generation, account: account, initialEvidence: decoded.initialEvidence)
             }
         }
         var newDiscovery = false

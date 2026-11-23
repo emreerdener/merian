@@ -1,34 +1,10 @@
 import Foundation
 
 extension CaptureWorkspaceViewModel {
-    // MARK: - Manual Crop Routing
+    // MARK: - Optional Media Review
 
-    var hasPendingRequiredGalleryCrop: Bool {
-        stagedCapture.images.contains { image in
-            operationState.containsRequiredGalleryCrop(
-                imageID: image.original.id
-            )
-        }
-    }
-
-    /// Required imports enter staging before their full-screen crop cover can
-    /// animate on screen. Keep the capture controls hidden from that ownership
-    /// transfer into the mounted cover so the staged Identify tray cannot
-    /// appear in its first frame. The crop cover remains the only full-screen
-    /// presentation owner; manual recrops use the presentation half of this
-    /// nonblocking chrome policy as well.
     var shouldSuppressCaptureChromeForCrop: Bool {
-        Self.shouldSuppressCaptureChromeForCrop(
-            hasPendingRequiredGalleryCrop: hasPendingRequiredGalleryCrop,
-            isCropPresented: imageToCrop != nil
-        )
-    }
-
-    nonisolated static func shouldSuppressCaptureChromeForCrop(
-        hasPendingRequiredGalleryCrop: Bool,
-        isCropPresented: Bool
-    ) -> Bool {
-        hasPendingRequiredGalleryCrop || isCropPresented
+        mediaReviewPresentationID != nil || imageToCrop != nil
     }
 
     var isAutomaticSubmissionArmed: Bool {
@@ -44,8 +20,8 @@ extension CaptureWorkspaceViewModel {
 
     var shouldPresentActiveScanToolbar: Bool {
         Self.shouldPresentActiveScanToolbar(
-            hasStagedContent: !stagedCapture.isEmpty,
-            isRefining: baseRefinementContext != nil,
+            hasStagedContent: !stagedCapture.isEmpty || hasInitialDraftLiability,
+            isRefining: isReanalyzing,
             isAutomaticSubmissionPending: isAutomaticStagedSubmissionPending
         )
     }
@@ -71,60 +47,27 @@ extension CaptureWorkspaceViewModel {
         updateAutomaticStagedSubmissionPending(false)
     }
 
-    func isRequiredGalleryCrop(_ imageID: UUID) -> Bool {
-        operationState.containsRequiredGalleryCrop(imageID: imageID)
-    }
-
-    @discardableResult
-    func completeRequiredGalleryCrop(for imageID: UUID) -> Bool {
-        operationState.removeRequiredGalleryCrop(imageID: imageID)
-
-        if hasPendingRequiredGalleryCrop {
-            presentNextRequiredGalleryCrop()
-            return false
-        }
-
-        return beginAutomaticStagedSubmissionIfEligible()
-    }
-
-    func cancelRequiredGalleryCrop(for imageID: UUID) {
-        if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
-            removeNativePhoto(imageID: imageID)
-            return
-        }
-        if dependencies.photoOriginalPreparation != nil,
-           let index = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
-            removePhotoPreparationImage(index)
-            return
-        }
-        revokeAutomaticSubmission()
-        cancelActiveCropTask()
-        operationState.removeRequiredGalleryCrop(imageID: imageID)
-        if let editIndex = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
-            stagedCapture.images.remove(at: editIndex)
-            resetReviewIfEmpty()
-        }
-        editingCropIndex = nil
-        imageToCrop = nil
-        presentNextRequiredGalleryCrop()
-    }
-
     func clearStagedCaptureAndCropState(
         discardStagedMediaFiles: Bool = false,
         allowingPendingQueue: Bool = false
     ) {
         guard !isQueueingStagedCapture || allowingPendingQueue else { return }
+        if initialDraftSession != nil || hasInitialDraftLiability {
+            if discardStagedMediaFiles { discardInitialDraft() }
+            return
+        }
         if stagedCapture.nativePhotoDraft != nil || nativePhotoDraftSession != nil {
             if discardStagedMediaFiles { discardNativePhotoDraft() }
             return
         }
-        if let access = dependencies.photoOriginalPreparation {
+        if let access = activePhotoOriginalPreparation {
             if discardStagedMediaFiles { discardPhotoPreparationDraft(access) }
             return
         }
         cancelAllVisualCaptureWork()
+        retireMediaReview()
         cancelActiveCropTask()
-        operationState.removeAllRequiredGalleryCrops()
+        photoReviewCommit = nil
         let discardedMediaPaths = discardStagedMediaFiles
             ? Array(draftOwnedFiles)
             : []
@@ -132,6 +75,7 @@ extension CaptureWorkspaceViewModel {
         // presentation fence first would briefly make the retained item eligible
         // for ActiveScanToolbar during this synchronous reset.
         stagedCapture.clearAll()
+        clearFieldNotesAfterFinalMediaRemoval()
         descriptionDraft = ObservationContext()
         descriptionFocusRequest = nil
         isReviewActive = false
@@ -146,19 +90,23 @@ extension CaptureWorkspaceViewModel {
     }
 
     func removeStagedVideo(at index: Int) {
-        guard !isDraftMutationLocked, stagedCapture.videos.indices.contains(index) else { return }
+        guard !areCaptureActionsBlocked, stagedCapture.videos.indices.contains(index) else { return }
+        if initialDraftSession != nil { removeInitialDraftItem(stagedCapture.videos[index].id); return }
         revokeAutomaticSubmission()
         let removedVideo = stagedCapture.videos.remove(at: index)
+        clearFieldNotesAfterFinalMediaRemoval()
         resetReviewIfEmpty()
         discardLocalMediaFiles(
-            at: [removedVideo.filePath, removedVideo.audioFilePath].compactMap { $0 }
+            at: [removedVideo.filePath, removedVideo.audioFilePath, removedVideo.originalFilePath].compactMap { $0 }
         )
     }
 
     func removeStagedAudio(at index: Int) {
-        guard !isDraftMutationLocked, stagedCapture.audios.indices.contains(index) else { return }
+        guard !areCaptureActionsBlocked, stagedCapture.audios.indices.contains(index) else { return }
+        if initialDraftSession != nil { removeInitialDraftItem(stagedCapture.audios[index].id); return }
         revokeAutomaticSubmission()
         let removedAudio = stagedCapture.audios.remove(at: index)
+        clearFieldNotesAfterFinalMediaRemoval()
         resetReviewIfEmpty()
         discardLocalMediaFiles(at: [removedAudio.filePath])
     }
@@ -170,13 +118,13 @@ extension CaptureWorkspaceViewModel {
         text: String,
         pendingDraft: inout ObservationContext
     ) {
-        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !areCaptureActionsBlocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             removeStagedDescription(at: index, pendingDraft: &pendingDraft)
             return
         }
-        if baseRefinementContext != nil,
+        if isReanalyzing,
            stagedCapture.observationContexts[index].isRefinementSupplement {
             pendingDraft = ObservationContext()
         }
@@ -185,11 +133,11 @@ extension CaptureWorkspaceViewModel {
     }
 
     func removeStagedDescription(at index: Int, pendingDraft: inout ObservationContext) {
-        guard !isDraftMutationLocked, stagedCapture.observationContexts.indices.contains(index) else { return }
+        guard !areCaptureActionsBlocked, stagedCapture.observationContexts.indices.contains(index) else { return }
         let removed = stagedCapture.observationContexts.remove(at: index)
         schedulePhotoPreparationPersistence()
         resetReviewIfEmpty()
-        if baseRefinementContext != nil, removed.isRefinementSupplement {
+        if isReanalyzing, removed.isRefinementSupplement {
             pendingDraft = ObservationContext()
         }
     }
@@ -203,22 +151,9 @@ extension CaptureWorkspaceViewModel {
     }
 
     func presentCrop(for index: Int) {
-        guard !isDraftMutationLocked, index < stagedCapture.images.count else { return }
-        if !isRequiredGalleryCrop(stagedCapture.images[index].original.id) {
-            revokeAutomaticSubmission()
-        }
-        self.editingCropIndex = index
-        self.imageToCrop = stagedCapture.images[index].original
-    }
-
-    func presentNextRequiredGalleryCrop() {
-        while let nextImageId = operationState.firstRequiredGalleryCropImageID() {
-            if let nextIndex = stagedCapture.images.firstIndex(where: { $0.original.id == nextImageId }) {
-                presentCrop(for: nextIndex)
-                return
-            }
-            operationState.removeFirstRequiredGalleryCrop()
-        }
+        guard !areCaptureActionsBlocked, stagedCapture.images.indices.contains(index) else { return }
+        revokeAutomaticSubmission()
+        _ = presentMediaReview(nodeID: "img_\(stagedCapture.images[index].original.id)")
     }
 
     func replaceActiveCropTask(with task: Task<Void, Never>) {

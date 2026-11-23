@@ -91,6 +91,14 @@ enum SharedMediaStoragePolicy {
             }
         }
 
+        /// Replace a source-only package's logical reservation with its complete
+        /// final plan. Physical allocations remain charged independently once.
+        mutating func bindCapturePackage(id: UUID, sourceBytes: Int64, planBytes: Int64) throws {
+            guard sourceBytes > 0, packages[id] == sourceBytes, planBytes >= 0,
+                  planBytes <= PhotoPreparationPolicy.package else { throw SharedMediaStorageFailure.capacity }
+            packages[id] = planBytes
+        }
+
         /// Accountless source bytes and reserved copy headroom are temporary,
         /// not synthetic packages. Occupied bytes already reduce free space.
         mutating func includeInboxAcquisition(bytes: Int64, unmaterialized: Int64) throws {

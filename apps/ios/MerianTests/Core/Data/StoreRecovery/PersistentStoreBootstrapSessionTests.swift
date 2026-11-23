@@ -170,6 +170,8 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
 
     func testQualificationLegacyFailurePreservesOriginalStoreWithoutRescue() throws {
         try legacyRescueReplacement(schema: MerianSchemaV68.self, source: .v68, preserveExistingStore: true)
+        try legacyRescueReplacement(schema: MerianSchemaV69.self, source: .v69, preserveExistingStore: true)
+        try legacyRescueReplacement(schema: MerianSchemaV70.self, source: .v70, preserveExistingStore: true)
     }
 
     func testQuarantineReplacementHoldsFenceAndKeepsAdmissionDenied() throws {
@@ -201,6 +203,8 @@ final class PersistentStoreBootstrapSessionTests: XCTestCase {
         try legacyRescueReplacement(schema: MerianSchemaV66.self, source: .v66)
         try legacyRescueReplacement(schema: MerianSchemaV67.self, source: .v67)
         try legacyRescueReplacement(schema: MerianSchemaV68.self, source: .v68)
+        try legacyRescueReplacement(schema: MerianSchemaV69.self, source: .v69)
+        try legacyRescueReplacement(schema: MerianSchemaV70.self, source: .v70)
     }
 
     private func legacyRescueReplacement(

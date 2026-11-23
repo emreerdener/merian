@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="31" height="31" viewBox="0 0 31 31" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Rotate counterclockwise" clip-path="url(#clip0_0_23)">
+<path id="Rotation arrow" d="M30 13V7.58333C30 4.69444 27.9259 3.25 23.7778 3.25H16M20.6667 6.5L16 3.25L20.6667 0" stroke-width="2" stroke-linecap="round" stroke="white"/>
+<mask id="stroke0_0_23" fill="white">
+<path d="M1 12C1 10.8954 1.89543 10 3 10H18C19.1046 10 20 10.8954 20 12V27C20 28.1046 19.1046 29 18 29H3C1.89543 29 1 28.1046 1 27V12Z"/>
+</mask>
+<rect id="Rotation square" x="1" y="10" width="19" height="19" rx="2" stroke-width="4.6" stroke="white" mask="url(#stroke0_0_23)"/>
+</g>
+<defs>
+<clipPath id="clip0_0_23">
+<rect width="31" height="31" fill="white"/>
+</clipPath>
+</defs>
+</svg>

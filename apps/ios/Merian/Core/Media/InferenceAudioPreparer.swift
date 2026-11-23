@@ -113,6 +113,16 @@ enum InferenceAudioPreparer {
         }
     }
 
+    /// The producer owns the private destination and cleanup after actual converter exit.
+    static func prepareProducerOutput(at sourceURL: URL, output: MediaProducerOutput) async throws {
+        try Task.checkCancellation()
+        try validateSourceFile(at: sourceURL)
+        try await transcodeToCanonicalWAV(sourceURL: sourceURL, outputURL: output.outputURL,
+            onOutputCreated: { try await output.pinCreatedOutput() })
+        try Task.checkCancellation()
+        try validatePreparedFile(at: output.outputURL)
+    }
+
     static func isEdgeCompatibleWAV(at url: URL) -> Bool {
         guard let metadata = wavMetadata(at: url) else { return false }
         let isSupportedPCM = metadata.audioFormat == 1
@@ -355,7 +365,8 @@ enum InferenceAudioPreparer {
 
     private static func transcodeToCanonicalWAV(
         sourceURL: URL,
-        outputURL: URL
+        outputURL: URL,
+        onOutputCreated: @Sendable () async throws -> Void = {}
     ) async throws {
         let asset = AVURLAsset(url: sourceURL)
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
@@ -420,6 +431,7 @@ enum InferenceAudioPreparer {
             throw InferenceAudioPreparationError.invalidAudio
         }
         defer { ExtAudioFileDispose(outputFile) }
+        try await onOutputCreated()
         guard ExtAudioFileSetProperty(
             outputFile,
             kExtAudioFileProperty_ClientDataFormat,

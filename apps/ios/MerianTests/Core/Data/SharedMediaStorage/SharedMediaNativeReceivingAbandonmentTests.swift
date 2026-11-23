@@ -9,6 +9,31 @@ struct SharedMediaNativeReceivingAbandonmentTests {
     typealias Fixture = SharedMediaNativeReceivingTestFixture
     typealias Budget = SharedMediaNativeReceivingReservation
 
+    /// Exact serialized field set before the initial-notes successor (ac8f1737).
+    /// Deliberately independent of Abandoned.CodingKeys / synthesized encoding.
+    private struct LegacyAbandoned: Encodable {
+        let format: Intent.Abandoned.Format
+        let version: Int
+        let sourceFormat: Intent.Format
+        let profile: SharedMediaNativeAppProfile
+        let preparedRevision: Int64
+        let revision: Int64
+        let preparedSHA256: String
+        let operationID: UUID, queueID: UUID, observationID: UUID
+        let bindingID: UUID, generation: UUID, eventID: UUID
+        let preHeader: SharedMediaNativeAppEligibility.Header
+        let package: Intent.PackageFence
+        let member: Intent.MemberFence
+
+        init(_ value: Intent.Abandoned) {
+            format = value.format; version = value.version; sourceFormat = value.sourceFormat
+            profile = value.profile; preparedRevision = value.preparedRevision; revision = value.revision
+            preparedSHA256 = value.preparedSHA256; operationID = value.operationID; queueID = value.queueID
+            observationID = value.observationID; bindingID = value.bindingID; generation = value.generation
+            eventID = value.eventID; preHeader = value.preHeader; package = value.package; member = value.member
+        }
+    }
+
     @Test func terminalValuesPreserveSourceVersionAndExactAcknowledgementFence() async throws {
         let f = try await Fixture.load(count: 1), old = try Intent.Prepared(f.request)
         for p in [old, try p2(old, revision: 4)] {
@@ -16,6 +41,9 @@ struct SharedMediaNativeReceivingAbandonmentTests {
             #expect(a.version == p.version && a.sourceFormat == p.format)
             #expect(a.revision == (p.intentRevision ?? 0) + 1)
             #expect(a.preparedSHA256 == SharedMediaAcquisitionEncoding.digest(try p.encoded()))
+            let legacyBytes = try SharedMediaNativeDraftEnvelope.bytes(LegacyAbandoned(a))
+            #expect(try Intent.Abandoned.decode(legacyBytes).encoded() == legacyBytes)
+            #expect(try #require(String(data: legacyBytes, encoding: .utf8)).contains("initialFieldNotes") == false)
             #expect(try Intent.Abandoned.decode(a.encoded()) == a)
             #expect(try a.encoded().count < p.encoded().count)
             let successor = try p.package.successor(p.package.envelope)

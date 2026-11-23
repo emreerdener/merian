@@ -6,6 +6,19 @@ import UIKit
 
 @Suite("StagedCapture")
 struct StagedCaptureTests {
+    @Test func restoredJournalOrderUsesStableIdentitiesInsteadOfTimestamps() {
+        let photoID = UUID(), audioID = UUID(), noteID = UUID()
+        let image = UIImage(), early = Date(timeIntervalSinceReferenceDate: 1)
+        var capture = StagedCapture()
+        capture.images = [.init(compressedData: Data([1]), displayData: Data([1]), uiImage: image,
+            original: IdentifiableImage(image: image, id: photoID), addedAt: early)]
+        capture.audios = [.init(filePath: "synthetic.wav", addedAt: early.addingTimeInterval(20), id: audioID)]
+        capture.observationContexts = [.init(context: ObservationContext(), addedAt: early, id: noteID)]
+        capture.retainedItemOrder = [audioID, photoID, noteID]
+        #expect(capture.orderedNodes.map(\.itemID) == [audioID, photoID, noteID])
+        capture.clearAll()
+        #expect(capture.retainedItemOrder == nil && capture.orderedNodes.isEmpty)
+    }
     // MARK: - isEmpty
 
     @Test func isEmptyWhenAllModalitiesAreEmpty() {
@@ -186,6 +199,22 @@ struct StagedCaptureTests {
         #expect(!capture.isAtCapacity(limit: stagedCaptureCapacity))
     }
 
+    @Test func nodeIdentitySurvivesRemovalAndEqualTimestampOrdering() {
+        var capture = StagedCapture()
+        let timestamp = Date(timeIntervalSince1970: 1)
+        let first = StagedAudio(filePath: "first.wav", addedAt: timestamp)
+        let second = StagedAudio(filePath: "second.wav", addedAt: timestamp)
+        let video = StagedVideo(filePath: "clip.mp4", sampledImages: [], addedAt: timestamp)
+        capture.audios = [first, second]
+        capture.videos = [video]
+        let before = capture.orderedNodes.map(\.id)
+        #expect(before == ["audio_\(first.id)", "audio_\(second.id)", "video_\(video.id)"])
+        capture.audios.removeFirst()
+        #expect(capture.orderedNodes.map(\.id) == Array(before.dropFirst()))
+        capture.audios[0].prefersBoostedPreview = true
+        #expect(capture.orderedNodes.first?.id == before[1])
+    }
+
     @Test func orderedNodesPreserveChronologicalMixedOrderAndCollectionIndexes() {
         var capture = StagedCapture()
 
@@ -213,14 +242,14 @@ struct StagedCaptureTests {
         if case .audio(let index, let audio) = nodes[0] {
             #expect(index == 0)
             #expect(audio.filePath == "call.wav")
-            #expect(nodes[0].id == "audio_0")
+            #expect(nodes[0].id == "audio_\(audio.id)")
         } else {
             Issue.record("First node must preserve the staged audio clip")
         }
 
         if case .image(let index, _) = nodes[1] {
             #expect(index == 0)
-            #expect(nodes[1].id == "img_0")
+            #expect(nodes[1].id == "img_\(image.original.id)")
         } else {
             Issue.record("Second node must preserve the staged image")
         }
@@ -228,7 +257,7 @@ struct StagedCaptureTests {
         if case .description(let index, let description) = nodes[2] {
             #expect(index == 0)
             #expect(description.context.freeText == "Bright yellow body")
-            #expect(nodes[2].id == "desc_0")
+            #expect(nodes[2].id == "desc_\(description.id)")
         } else {
             Issue.record("Third node must preserve the staged description")
         }

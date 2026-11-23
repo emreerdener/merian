@@ -1,3 +1,337 @@
+## November 20 — durable capture source admission
+
+The prepared source collector now has a database admission boundary in
+`begin_scan_ingestion`. Its service-only input may contain version-1 source
+observations alongside sanitized intent schema 3. SQL requires the complete
+ordered image/audio/video inventory, matches each observation to exactly one
+locked staged asset and unretired backend capability, checks kind, MIME and
+actual length limits, and binds the observed checksum atomically. Asset ID,
+session, kind, role and order come from database ownership, not the caller.
+Audio MP4 remains supported through admission and prepared promotion, using the
+audio byte ceiling in both SQL and the byte-transfer adapter. The trusted
+service caller supplies the observed bytes' digest; SQL does not attest a
+network read or accept a client proof.
+
+`internal.capture_source_admissions` retains the canonical request identity,
+observations, proof-bearing payload, upload sessions and checksums independently
+of mutable jobs/intents. Exact retries use that saved document before asset
+normalization; changed or omitted observations/proofs conflict, including after
+mutable-row loss. Existing legacy generations cannot be upgraded in place. The
+transaction writes the existing job before its intent. Both tables guard their
+immutable projection against alternate RPCs and direct service writes. Scheduler
+timestamps/errors remain mutable; non-resumable contraction and terminal
+completion/failure install a separate permanent stop marker. A stopped admission
+cannot restart through `begin_scan_ingestion`; completed-result recovery remains
+the entry point for an already saved result.
+
+Begin holds account-intake, owner and scan fences. Insert guards hold owner and
+scan fences plus a shared seal lock, so account erasure cannot pass an insert
+that has accepted the old recovery document. Existing child-row updates never
+lock the seal or owner in reverse order. The stop table is separate from the
+seal to avoid a job-to-seal versus retirement-to-job deadlock. Inline recovery
+returns `not_applicable` for sealed sources rather than changing their manifest.
+
+Scan tombstones, account-deletion intake and user deletion erase the private
+recovery document while retaining minimal owner/scan no-reuse identity. Settled
+account merge erases the source admission and removes its replay intent before
+the existing metadata reparent operation; only the existing private transaction
+marker permits metadata-only job reparenting. The old seal never gains a new
+owner. Existing active-work merge restrictions remain in force.
+
+This boundary is not installed in a live collector/provider route. Promotion,
+typed finalization, History retention and original-release integration remain
+required; no rollout or native qualification is implied.
+
+## November 20 — prepared authenticated source collector
+
+`_shared/captureSourceCollector.ts` reads the complete staged image/audio/video
+inventory into the private snapshot handle. Its environment-owned factory uses
+`getR2ReadConfig` and requires the existing read-only R2 credentials. Trusted
+server dependencies are captured before any await; caller input contains only
+the authenticated owner and exact key arrays, never credentials, endpoint, MIME,
+byte count or digest. Complete membership is validated before signing or
+fetching: canonical image/audio/video order, owned staging namespace, unique
+keys and existing count limits.
+
+Reads are sequential, with a ten-second per-item deadline inside a sixty-second
+whole-operation deadline, bounded by caller cancellation. Only reconstructed
+signed GETs to the fixed configured backend are allowed; redirects, range
+requests, replacement URLs/methods, extra signer headers and missing signing
+headers fail closed. Responses require HTTP 200, a staging-allowed MIME type, no
+encoding or content range, and a canonical positive content length when present.
+The streamed body is always bounded independently, including remaining aggregate
+image capacity; a declared length must match actual bytes. Audio MP4 and raw
+video MP4 remain supported. The shared stream reader also limits empty chunks
+and total chunks.
+
+Every source must finish before a snapshot escapes. Header failures, stalled or
+late dependencies and failed reads cancel bodies without waiting for an
+unbounded cancellation acknowledgement. Provider inputs later come from those
+retained bytes, with no second GET. This is not MIME sniffing, SQL ownership or
+immutable storage. The collector has no installed route, provider dispatch, SQL
+write, promotion or release capability. Admission sealing, all-writer replay
+protection and finalization remain required before installation.
+
+## November 20 — prepared source byte snapshots
+
+`_shared/captureSourceEvidence.ts` constructs private bounded copies of supplied
+server read bytes before any await. It validates exact owner staging namespace,
+unique keys, current staging MIME allowlists, per-kind size/count caps and the
+aggregate image cap. The complete retained raw-byte ceiling is the image budget
+plus two audio budgets plus one video budget. SHA-256 and byte count come from
+those copies. Image base64, isolated audio-buffer copies and
+`sourceBytes(sourceKey)` expose the same content for later provider preparation
+and retention. The keyed accessor returns a private copy for an exact captured
+key, including raw video; unknown keys fail. These methods never refetch a
+mutable key.
+
+The frozen transient `captureSourceObservations` envelope is version 1. Each
+item contains only `sourceKey`, `backendSHA256`, `contentType`, `byteCount` and
+`sha256`. A process-local handle prevents JSON/HTTP objects from becoming
+collector evidence in `buildScanIngestionIntent`. That builder snapshots the
+complete proof-bearing input before awaiting, requires exact ordered image,
+audio and video membership, rejects inline mixtures and raw HTTP proof-shaped
+fields, and includes no raw bytes. Without the explicit internal handle it
+retains the existing legacy shape, ignoring raw payload proof fields. Intent
+schema 3 is unchanged and does not imply a proof exists.
+
+This is an uninstalled byte-ownership interface. Its factory does not perform
+network reads or attest their origin. The prepared collector below supplies
+actual bounded authenticated reads; the future route must use its retained bytes
+for provider preparation. MIME allowlist validation does not sniff or decode
+content. SQL must independently bind exact locked asset/session,
+kind/role/order, backend authority and retirement state, seal checksum/admission
+atomically, and prevent proof forgery or downgrade through every intent writer.
+Saved replay precedes fresh normalization. No live RPC accepts this as proof, no
+route supplies the handle, and no persistence version or guard changes. Original
+retention, finalization, release and History integration remain open.
+
+## November 20 — prepared promotion service composition
+
+`_shared/capturePromotionDb.ts` now joins complete-cohort registration, fresh
+per-action authorization, actual bounded storage-byte verification and the
+monotonic SQL receipt. A fresh call snapshots the complete ordered bindings,
+cohort/checksums and selected operation, registers the whole inventory before
+object I/O, then transfers only that member. Destination keys must match the SQL
+operation-derived convention. Duplicate identities, foreign members and
+malformed receipts fail closed. This is storage membership, not typed logical
+media disposition or finalizer authority.
+
+The fixed environment-owned service transport exposes only `transfer` and
+`recover`; it has no public attestation method, generic RPC selector or direct
+ledger reads. Each of its four allowlisted RPC calls has a five-second deadline,
+32 KiB request ceiling and actual streamed 8 KiB response ceiling; an enclosing
+60-second operation deadline also bounds storage work. Non-200, encoded,
+non-JSON, oversized, stalled and uncertain replies remain held. Late responses
+are cancelled. All binding/backend values and dependency function references are
+captured before awaiting, including in the storage primitive.
+
+Recovery takes an already saved cohort ID and exact operation binding. It uses
+only retained recovery authorization, destination GET and post-byte receipt;
+there is no fresh registration, staging GET, PUT or delete. An issued operation
+can therefore recover after asset/job/intent loss. Lost receipt replies retain
+the first SQL timestamp/origin; receipt decoding permits that earlier valid
+origin. Retirement between GET and attestation still denies the receipt. An
+incorrect local cohort ID fails the exact receipt comparison; SQL already
+requires actual retained-cohort membership before the read, but does not compare
+the caller's expected cohort ID until the receipt is decoded.
+
+The real-service-role integration test joins the actual adapter and SQL with
+synthetic storage for acknowledged writes, lost write replies, lost receipt
+replies, retirement and byte mismatch after removal of mutable source/job/intent
+rows. Its SQL shim is rollback-bound and does not qualify PostgREST credential
+enforcement, committed crash recovery or hosted conditional writes. The existing
+SQL concurrency tests own transaction/retirement ordering.
+
+No route imports this composition. Actual submission still needs server-verified
+source proofs sealed at existing begin-ingestion admission; fixture-populated
+checksums do not close that gap. Typed final binding versus retirement, physical
+cleanup, original holds/release and full History/mixed-media/selection journeys
+remain open. No runtime gate, deployment or native interface changes.
+
+## November 20 — retained destination verification
+
+The prepared `20261120141905_retain_capture_destination_verification.sql`
+successor adds `authorize_capture_promotion_recovery` and
+`record_capture_promotion_verification`. They require the exact retained
+binding, a consumed write, membership in the saved ordinary-ingestion cohort and
+an unretired operation. Account intake, owner loss and scan tombstones deny both
+recovery and new receipts. Account advisory, owner, scan advisory and operation
+locks preserve retirement ordering without locking mutable assets, jobs, intents
+or source rows after the operation.
+
+Historical verification can therefore outlive source/job/intent loss or peer
+projection changes. This grants only an exact destination GET and a trusted
+service content attestation after actual bounded length/MIME/SHA verification;
+it grants no source read, another PUT, binding, publication or original release.
+Fresh transfer still uses the stricter all-member/source checks. The prepared
+service composition above joins the byte verifier; SQL cannot independently
+prove that a service caller performed its required GET.
+
+The first `destination_verified_at` and `verification_origin` are monotonic.
+Exact retries return the original closed receipt (`operationId`, `cohortId`,
+`verifiedAt`, `origin`), including a retry with another valid origin. Valid
+origins are `write_acknowledged`, `write_precondition_failed` and
+`destination_recovery`. Later retirement preserves the receipt and consumed
+write as historical evidence, but rejects new reads/attestations. An uncertain
+receipt response must remain recoverable and cannot permit another upload.
+Neither a receipt nor a negative object observation proves writer quiescence.
+
+`register_capture_promotion_ingestion` supplies the service adapter's missing
+job identity. It bounds the complete bindings array, resolves the job under the
+existing owner/scan/source fences, then delegates exact registration to the
+cohort owner. Its closed reply is `cohortId`, `jobId`, `cohortSHA256`. There is
+no new direct ledger SELECT privilege or mutating job claim for inspection.
+
+The concurrency harness covers duplicate receipts and both committed orders
+against target, source, account and scan retirement. Pre-scan tombstoning
+returns `55P03 initial_analysis_erasure_busy` while the scan fence is held; the
+harness asserts that denial and retries after receipt commit. Other schedules
+observe actual backend blocking. These synthetic SQL tests do not establish
+backend conditional-write semantics, installed runtime behavior or full
+submission. Typed logical cohort validation, transactional final binding versus
+retirement, bound-object cleanup and original-media release remain separate
+requirements.
+
+## November 20 — prepared immutable promotion cohorts
+
+`register_capture_promotion_cohort` now seals the complete ordered storage
+inventory against the exact ingestion job and intent, their server-owned
+manifest/request checksums, intent schema version, media keys/counts/sessions,
+and asset kind/role/order. Registration is atomic and precedes every member
+write. A partial/reordered manifest or changed request cannot adopt an issued
+operation. The independently retained cohort survives job, intent, asset and
+owner loss; exact retries never reset consumed write authority.
+
+Fresh member authorization locks every member source before checking any peer
+operation. A changed or retired peer therefore denies authorization for the
+whole cohort. The projection is read without a job-row lock: all three current
+projection replacement owners (`begin_scan_ingestion`, legacy
+`claim_scan_ingestion_job`, and legacy `record_scan_ingestion_intent`) lock the
+owner and scan first. Merge holds the owner rows; active ingestion blocks merge,
+and a permitted settled merge retires old-owner source and target authority.
+Unfenced replay/Edge writers change only lifecycle fields and stay within the
+four eligible states. Terminal/completion transitions use fenced routines.
+Catalog, runtime-writer and multi-session tests protect these exclusions; future
+projection writers must use the same serialization.
+
+This seal establishes ordered storage membership and immutable request identity,
+not typed still-photo/video-frame/standalone-audio/companion semantics, verified
+bytes, accepted results, History admission or finalization authority. Fresh I/O
+still needs live staged sources and matching job/intent projection. Durable
+verified outcomes and historical recovery after source/job loss must use the
+retained authority through a separate recovery owner; they cannot reopen writes.
+The finalizer must validate typed logical membership and arbitrate final binding
+versus retirement before any live installation.
+
+## Prepared capture promotion byte transfer
+
+`_shared/capturePromotionStorage.ts` prepares the storage-only part of capture
+promotion. Its complete immutable binding includes operation, owner, scan,
+asset, upload session, exact backend/source/destination and expected
+length/MIME/SHA-256. The caller must supply an actual durable-operation
+authorization read before every GET/PUT; input validation itself grants no
+authority. The prepared SQL implementation is now
+`20261120084313_prepare_capture_promotion_authority.sql`; production composition
+is not installed. Its service-only registration reserves immutable operation and
+destination ownership. Fresh authorization serializes with source/account/scan
+retirement, validates the exact staged asset and checksum, and consumes one
+write authorization permanently. A lost authorization response is not permission
+to retry the write. Independent destination retirement claims retain late-write
+erasure obligations after source/asset/owner rows disappear. These claims do not
+implement physical cleanup. Direct asset deletion/status changes require
+explicit target abandonment by the future draft-clear/failure owner.
+
+The operation binding is storage-content authority only: it does not seal asset
+role, ordinal or logical consumer. Finalization must seal and check those fields
+and arbitrate binding against retirement in one transaction. Fresh action checks
+require a live staged asset even for destination reads. The separate retained
+recovery owner above permits historical verification without weakening those
+fresh write checks. Cleanup adapters must mint a new claim token for every
+invocation, including reacquisition after expiry; caller tokens are not
+generated by SQL.
+
+It reads and hashes a bounded source, privately retains those exact bytes, then
+conditionally writes the snapshot instead of copying a mutable staging key.
+Signer replacement bodies are discarded and only the expected request headers
+plus specific SigV4 transport headers may pass. Source overwrites after the read
+cannot substitute transmitted bytes. A fresh GET verifies exact destination
+bytes. HTTP 200 means acknowledgement, not proof that a new object was created;
+the eventual backend must independently qualify conditional-write semantics.
+
+Unknown PUT outcomes retain both objects without retry/readback/erase in that
+invocation. The separate `verifyCapturePromotionDestination` entry point can
+reauthorize and verify that exact destination in a later invocation, including a
+lost PUT response. It shares the transfer's immutable binding/backend snapshot,
+strict signing and actual bounded length/MIME/SHA-256 checks. It performs only
+`read_destination`; a missing, changed or uncertain object stays held. Its
+`verified` result carries no write acknowledgement, durable outcome, binding,
+publication or release authority. Current SQL denies that read before the first
+write authorization and after staged-source authority is lost. The retained
+recovery/receipt owner above now supplies historical SQL authority; the prepared
+composition above joins that owner with this byte verifier, while route
+installation remains open.
+
+The shared 60-second deadline and per-request 20-second limit bound work;
+cancellation disposes late signer and response bodies. A verified return is
+point-in-time content evidence, not durable scan completion, writer quiescence,
+publication, original release or History proof. The prepared SQL registry
+supplies durable exact-key registration, account/scan/merge retirement
+propagation and target ownership after cascades. Composing it with the storage
+adapter, physical destination cleanup, unknown-outcome recovery and
+transactional finalization remain installation prerequisites. Private scan-media
+finalization and later Explore publication are distinct owners. Existing
+promotion callers and live initial-evidence fences remain unchanged. See the
+[current continuation](../product/capture-review-plan.md#overnight-continuation--destination-only-verification)
+for validation evidence and remaining integration.
+
+## November 20 — validator volatility repair
+
+The forward validator repair preserves V3 provenance normalization as a constant
+JSONB merge, keeping that validator and its metrics caller immutable. The
+private ordinary evidence contract is conservatively STABLE because it calls
+stable JSON construction and encoding helpers. Its function body, accepted
+evidence, artifact inventory, typed digest and access rules are unchanged.
+Neither repair activates a provider or a capture route. SQL/Edge digest parity
+and session rendering variations cover this boundary alongside provenance
+catalogs and the strict database-lint gate.
+
+## November 19 — ordinary initial evidence replay isolation
+
+The local source candidate excludes `initialEvidence` intents and retained
+ordinary-initial evidence identities from both legacy replay claims and retry
+exhaustion. A stale worker refuses payload reconstruction or existing-scan
+completion when the intent key is present, including null/malformed values.
+`heldForInitialRecovery` reports that refusal without altering the job or
+settling funding. An accepted result cannot be reconstructed from mutable scan
+state or treated as permission to invoke inference again.
+
+Legacy intents cannot acquire an initial-evidence contract by in-place update;
+they require a fresh submission identity. The user-first terminal orchestrator
+rechecks evidence ownership while holding the job lock before acting on
+`replay_exhausted` or `media_reconciliation_abandoned`. Explicit deletion and
+cancellation retain their existing owners.
+
+The November 20 source successor adds a separate finalization-only continuation
+for accepted private-origin V9 work. Service-only claims validate the immutable
+admission and retained graph, use separate five-minute scheduling leases, and
+preserve original provider/job/funding state. The worker checks exact sealed
+completion first and otherwise finishes the saved accepted result through the
+existing entitlement finalizer. Missing evidence remains held, without a new
+provider request or terminal settlement. Ordinary pruning now preserves accepted
+unsealed job/intent rows. Explicit retirement, scan deletion and account erasure
+remain authoritative.
+
+Actual owned scan insertion and private completion share the account-retirement
+advisory fence, using try-locks where a caller may already hold an owner lock.
+Deletion beginning after a prior recovery read therefore still prevents a late
+insert or completion. Null-owner scientific retention is unchanged. Private
+originals remain under the evidence erasure owner. Native ownership, mixed
+admission, History hydration and the full app journey still keep
+initial-evidence/selection activation closed. See the dated
+[capture implementation checkpoint](../product/capture-review-plan.md#follow-up--november-19-2026-finalization-recovery-boundary)
+for component evidence and remaining work. No hosted change is implied.
+
 ## November 9 — explicit observation-only status protocol
 
 The source candidate adds an authenticated `observe-v1` branch to
@@ -3761,6 +4095,16 @@ resolve exact target state as `scan_durable`, `media_restage_required`,
 
 Do not manually reparent these rows, clear the handoff, reopen committed quota,
 or accept old source-prefixed staging keys.
+
+Photo (`identify`), audio (`audio-spec`) and mixed-media (`identify-multimodal`)
+handlers run exact-owner completed-result recovery after stranded-attempt
+recovery but before acting on `media_restage_required`. A saved response,
+including a sealed result recovered after job expiry, can therefore replay
+without opening a retired upload. If no result exists, retired-owner keys still
+produce `409 scan_media_restage_required`. Unavailable recovery or an invalid
+sealed owner fails closed instead of falling through to media reads, quota or
+provider work. The current response-reader protocol gate still applies to every
+replayed result. This does not authorize reuse of a former owner's staging keys.
 
 ### Stranded provider attempt
 

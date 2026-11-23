@@ -8,7 +8,7 @@ SELECT extensions.ok(NOT has_function_privilege('anon','public.get_observation_e
 SELECT extensions.ok(NOT has_function_privilege('service_role','internal.dispatch_observation_evidence_erasure()','execute'),'service API cannot dispatch scheduler');
 SELECT extensions.ok(NOT has_table_privilege('service_role','internal.observation_evidence_worker_state','select'),'private telemetry table is not exposed');
 SET LOCAL ROLE service_role;
-SELECT extensions.is((public.get_observation_evidence_erasure_health()->>'schema_version')::INTEGER,1,'service role reads aggregate');
+SELECT extensions.is((public.get_observation_evidence_erasure_health()->>'schema_version')::INTEGER,2,'service role reads typed stage aggregate');
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT extensions.throws_ok('SELECT public.get_observation_evidence_erasure_health()', '42501', NULL, 'authenticated health denied');

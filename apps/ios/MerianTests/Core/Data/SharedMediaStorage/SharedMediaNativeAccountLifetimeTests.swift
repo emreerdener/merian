@@ -1,11 +1,95 @@
 import Foundation
+@testable import Merian
 import SwiftData
 import Testing
-@testable import Merian
 
 @Suite("Native account lifetime", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 struct SharedMediaNativeAccountLifetimeTests {
+    @Test func completedHistoryContinuationJoinsBeforeNativeAccountRelease() async throws {
+        let h = try Fixture(), gate = Gate()
+        _ = try h.discover()
+        var order: [String] = []
+        let history = CaptureCompletedHistoryDrain(dependencies: .init(begin: {
+            .init(ownerID: h.ownerID, isCurrent: { true }, release: { order.append("scope") })
+        }, page: { _, _ in
+            .init(candidates: [.init(scanID: UUID(), generation: UUID(), releaseStarted: true)], nextCursor: nil)
+        }, finish: { _, _ in await gate.pause(); order.append("finish") }))
+        _ = try h.drain.register(account: h.account()) { order.append("native"); return true }
+        _ = try h.drain.borrowLocalFence(for: history, role: .captureHistory, container: h.container,
+            close: { await history.close(); order.append("history"); return !history.isRunning })
+        let running = Task { await history.drain() }
+        await gate.arrived()
+        let closing = Task { await h.drain.shutdown() }
+        while !history.isClosed { await Task.yield() }
+        #expect(order.isEmpty && h.finishes == 0)
+        gate.release()
+        #expect(await closing.value)
+        await running.value
+        #expect(order == ["finish", "scope", "history", "native"] && h.finishes == 1)
+        await h.runtime.awaitAccountWorkDrain()
+    }
+
+    @Test func idleCapturePresentationCleanupFailureRetainsAccountFence() async throws {
+        let h = try Fixture(), capture = CaptureInitialDraftWorkHost(), gate = Gate()
+        _ = try h.discover()
+        var allowCleanup = false, order: [String] = []
+        _ = try h.drain.register(account: h.account()) { order.append("native"); return true }
+        let borrow = try h.drain.borrowLocalFence(for: capture, role: .captureDraftWork, container: h.container,
+            close: { await capture.close() })
+        let lease = try await capture.runRetained(requireCurrent: { _ = try borrow.fence(container: h.container) },
+            operation: { 1 }, cleanup: {
+                if !allowCleanup { await gate.pause() }
+                order.append("cleanup"); return allowCleanup
+            })
+        let closing = Task { await h.drain.shutdown() }
+        await gate.arrived()
+        #expect(h.finishes == 0 && !h.drain.shutdownFinished)
+        gate.release()
+        #expect(await closing.value == false)
+        // Shutdown still joins native work when local cleanup is blocked; the
+        // account fence remains held until every participant can finish.
+        #expect(h.finishes == 0 && order == ["cleanup", "native"])
+        #expect(throws: (any Error).self) { try lease.currentValue() }
+        allowCleanup = true
+        #expect(await h.drain.shutdown())
+        #expect(h.finishes == 1 && order == ["cleanup", "native", "cleanup", "native"])
+        #expect(await lease.release())
+        await h.runtime.awaitAccountWorkDrain()
+    }
+
+    @Test func captureDraftWorkCoexistsWithHistoryAndDrainsBeforeNativeOwner() async throws {
+        let h = try Fixture(), capture = CaptureInitialDraftWorkHost(), history = NSObject(), gate = Gate()
+        _ = try h.discover()
+        var order: [String] = []
+        _ = try h.drain.register(account: h.account()) { order.append("native"); return true }
+        let borrow = try h.drain.borrowLocalFence(for: capture, role: .captureDraftWork, container: h.container,
+            close: { let result = await capture.close(); order.append("capture"); return result })
+        _ = try h.drain.borrowLocalFence(for: history, role: .preparedInputs, container: h.container,
+            close: { order.append("history"); return true })
+        let producers = NSObject()
+        _ = try h.drain.borrowLocalFence(for: producers, role: .captureDraftProducers, container: h.container,
+            close: { order.append("producers"); return true })
+        #expect(throws: (any Error).self) {
+            _ = try h.drain.borrowLocalFence(for: NSObject(), role: .captureDraftWork, container: h.container, close: { true })
+        }
+        let work = Task { @MainActor in
+            await #expect(throws: (any Error).self) {
+                try await capture.run(requireCurrent: { _ = try borrow.fence(container: h.container) },
+                    operation: { await gate.pause(); return 1 }, discard: { _ in order.append("cleanup") })
+            }
+        }
+        await gate.arrived()
+        let shutdown = Task { await h.drain.shutdown() }
+        while !capture.isClosed { await Task.yield() }
+        #expect(order.isEmpty && h.finishes == 0 && !h.drain.shutdownFinished)
+        gate.release()
+        #expect(await shutdown.value)
+        await work.value
+        #expect(order == ["cleanup", "capture", "producers", "history", "native"] && h.finishes == 1)
+        await h.runtime.awaitAccountWorkDrain()
+    }
+
     @Test func configurationIsInertAndUnarmedTransitionIsTerminal() async throws {
         let h = try Fixture()
         #expect(h.begins == 0 && h.finishes == 0)
@@ -192,14 +276,13 @@ struct SharedMediaNativeAccountLifetimeTests {
         #expect(PreparedHistoryReanalysisComposition.appInstallation { invoked = true; preconditionFailure("Gate opened") } == nil)
         #expect(!invoked)
         let h = try Fixture(), dependencies = AppDIContainer.shared
-        try dependencies.configureNativeMediaLifetime(container: h.container, admission: h.admission)
-        try dependencies.configureNativeMediaLifetime(container: h.container, admission: h.admission)
-        #expect(dependencies.nativeMediaLifetime == nil)
+        try dependencies.nativeMediaLifecycle.configureNativeMediaLifetime(container: h.container, admission: h.admission)
+        try dependencies.nativeMediaLifecycle.configureNativeMediaLifetime(container: h.container, admission: h.admission)
+        #expect(dependencies.nativeMediaLifecycle.nativeMediaLifetime == nil)
         #expect(h.begins == 0 && !FileManager.default.fileExists(atPath: h.parent.path))
         let app = try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/App/MerianApp.swift")
-        #expect(app.contains("dependencies.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
+        #expect(app.contains("dependencies.nativeMediaLifecycle.configureNativeMediaLifetime(container: bootstrapOutcome.container,"))
     }
-
 
     @Test func recoveryRegistrationIsBoundedAndExactAfterCleanClose() async throws {
         let h = try Fixture(); _ = try h.discover()

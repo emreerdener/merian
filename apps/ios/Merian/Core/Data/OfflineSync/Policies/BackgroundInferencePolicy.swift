@@ -30,6 +30,11 @@ enum BackgroundInferencePolicy {
     /// A read-only recipient preflight can pause before an inference task exists.
     static func preparationAttention(for error: Error) -> (reason: String, code: String)? {
         switch error {
+        case ExtractedScanData.EvidenceError.invalidVisualDescriptors:
+            return (
+                "The saved photo evidence could not be read. Your draft remains saved and needs attention before identifying.",
+                "invalid_saved_visual_evidence"
+            )
         case MerianError.aiConsentRequired:
             return (requiredConsentAttentionMessage, "ai_consent_required")
         case MerianError.openAIConsentRequired:

@@ -184,7 +184,7 @@ Deno.test("video reconciliation writes only canonical captured media", () => {
   );
 });
 
-Deno.test("reconcileScanMediaAssets repairs an existing scan with a stranded playback video", async () => {
+Deno.test("reconcileScanMediaAssets previews a stranded playback video without repair", async () => {
   const promotedInputs: unknown[] = [];
   const scanUpdates: unknown[] = [];
   const promotedAssets: unknown[] = [];
@@ -222,20 +222,16 @@ Deno.test("reconcileScanMediaAssets repairs an existing scan with a stranded pla
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.promoted, 1);
-  assertEquals(result.repairedVideoScans, 1);
+  assertEquals(result.preview.promoted, 1);
+  assertEquals(result.preview.repairedVideoScans, 1);
   assertEquals(result.errors, []);
-  assertEquals(promotedInputs.length, 1);
-  assertEquals(scanUpdates.length, 1);
-  assertEquals(promotedAssets, [{
-    assetId: "asset-1",
-    scanId: "00000000-0000-0000-0000-000000000001",
-    publicUrl: "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
-  }]);
-  assertEquals(refreshedScans, ["00000000-0000-0000-0000-000000000001"]);
+  assertEquals(promotedInputs.length, 0);
+  assertEquals(scanUpdates.length, 0);
+  assertEquals(promotedAssets, []);
+  assertEquals(refreshedScans, []);
 });
 
-Deno.test("reconcileScanMediaAssets garbage-collects abandoned staged uploads", async () => {
+Deno.test("reconcileScanMediaAssets previews abandoned staged uploads without deletion", async () => {
   const deletedKeys: string[] = [];
   const failedAssets: unknown[] = [];
 
@@ -264,14 +260,10 @@ Deno.test("reconcileScanMediaAssets garbage-collects abandoned staged uploads", 
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.deletedStagingObjects, 1);
-  assertEquals(result.failedAssets, 1);
-  assertEquals(deletedKeys, ["staging/user-1/video.mp4"]);
-  assertEquals(failedAssets, [{
-    assetId: "asset-1",
-    failureReason: "scan_missing_after_ttl",
-    objectDeleted: true,
-  }]);
+  assertEquals(result.preview.deletedStagingObjects, 1);
+  assertEquals(result.preview.failedAssets, 1);
+  assertEquals(deletedKeys, []);
+  assertEquals(failedAssets, []);
 });
 
 Deno.test("reconcileScanMediaAssets leaves recent orphan uploads for client retry", async () => {
@@ -295,7 +287,7 @@ Deno.test("reconcileScanMediaAssets leaves recent orphan uploads for client retr
 
   assertEquals(result.scanned, 1);
   assertEquals(result.stillPending, 1);
-  assertEquals(result.failedAssets, 0);
+  assertEquals(result.preview.failedAssets, 0);
   assert(!headCalled);
 });
 
@@ -333,14 +325,10 @@ Deno.test("reconcileScanMediaAssets retains audio when companion role is unprove
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.deletedStagingObjects, 0);
-  assertEquals(result.failedAssets, 1);
+  assertEquals(result.preview.deletedStagingObjects, 0);
+  assertEquals(result.preview.failedAssets, 1);
   assertEquals(deletedKeys, []);
-  assertEquals(failedAssets, [{
-    assetId: "audio-asset",
-    failureReason: "unproven_audio_role",
-    objectDeleted: false,
-  }]);
+  assertEquals(failedAssets, []);
 });
 
 Deno.test("reconcileScanMediaAssets preserves promoted standalone audio", async () => {
@@ -380,14 +368,10 @@ Deno.test("reconcileScanMediaAssets preserves promoted standalone audio", async 
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.promoted, 1);
-  assertEquals(result.deletedStagingObjects, 0);
+  assertEquals(result.preview.promoted, 1);
+  assertEquals(result.preview.deletedStagingObjects, 0);
   assertEquals(deleteCalled, false);
-  assertEquals(promotedAssets, [{
-    assetId: "standalone-audio-asset",
-    scanId: "00000000-0000-0000-0000-000000000001",
-    promotedUrl: publicUrl,
-  }]);
+  assertEquals(promotedAssets, []);
 });
 
 Deno.test("reconcileScanMediaAssets waits when an ingestion job still owns pending media", async () => {
@@ -421,7 +405,7 @@ Deno.test("reconcileScanMediaAssets waits when an ingestion job still owns pendi
 
   assertEquals(result.scanned, 1);
   assertEquals(result.stillPending, 1);
-  assertEquals(result.failedAssets, 0);
+  assertEquals(result.preview.failedAssets, 0);
   assert(!headCalled);
 });
 
@@ -457,12 +441,13 @@ Deno.test("reconcileScanMediaAssets does not let another user's job hold media",
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.stillPending, 0);
-  assertEquals(result.failedAssets, 1);
+  assertEquals(result.stillPending, 1);
+  assertEquals(result.preview.stillPending, 0);
+  assertEquals(result.preview.failedAssets, 1);
   assert(headCalled);
 });
 
-Deno.test("reconcileScanMediaAssets marks abandoned ingestion jobs terminal", async () => {
+Deno.test("reconcileScanMediaAssets keeps abandoned ingestion jobs unchanged", async () => {
   const failedJobs: unknown[] = [];
 
   const result = await reconcileScanMediaAssets({} as never, {
@@ -487,13 +472,9 @@ Deno.test("reconcileScanMediaAssets marks abandoned ingestion jobs terminal", as
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.failedAssets, 1);
+  assertEquals(result.preview.failedAssets, 1);
   assertEquals(result.missingObjects, 1);
-  assertEquals(failedJobs, [{
-    scanId: "00000000-0000-0000-0000-000000000001",
-    userId: "user-1",
-    failureReason: "scan_missing_after_media_ttl",
-  }]);
+  assertEquals(failedJobs, []);
 });
 
 Deno.test("reconcileScanMediaAssets never rewrites an existing terminal decision", async () => {
@@ -526,12 +507,12 @@ Deno.test("reconcileScanMediaAssets never rewrites an existing terminal decision
     recordRun: noopRecordRun,
   });
 
-  assertEquals(result.failedAssets, 1);
+  assertEquals(result.preview.failedAssets, 1);
   assertEquals(result.missingObjects, 1);
   assertEquals(failedJobs, []);
 });
 
-Deno.test("reconcileScanMediaAssets marks repaired complete jobs complete", async () => {
+Deno.test("reconcileScanMediaAssets keeps previewed complete jobs unchanged", async () => {
   const completedJobs: unknown[] = [];
 
   const result = await reconcileScanMediaAssets({} as never, {
@@ -559,9 +540,131 @@ Deno.test("reconcileScanMediaAssets marks repaired complete jobs complete", asyn
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.repairedVideoScans, 1);
-  assertEquals(completedJobs, [{
-    scanId: "00000000-0000-0000-0000-000000000001",
-    userId: "user-1",
-  }]);
+  assertEquals(result.preview.repairedVideoScans, 1);
+  assertEquals(completedJobs, []);
+});
+
+Deno.test("quarantine cannot be bypassed by request flags or any candidate branch", async (test) => {
+  const cases: Array<{
+    name: string;
+    asset?: Partial<ReconciliationAssetRow>;
+    scan?: Partial<ReconciliationScanRow> | null;
+    job?: Partial<ReconciliationJobRow> | null;
+    exists?: boolean;
+  }> = [
+    { name: "stranded-video" },
+    { name: "missing-video", exists: false },
+    { name: "missing-key", asset: { storage_key: null } },
+    { name: "foreign-owner", scan: { user_id: "user-2" } },
+    { name: "unknown-role", asset: { role: "audio" } },
+    { name: "unmatched-image", asset: { kind: "image" } },
+    { name: "missing-image", asset: { kind: "image" }, exists: false },
+    {
+      name: "matched-image",
+      asset: { kind: "image" },
+      scan: {
+        image_storage_urls: [
+          "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+        ],
+      },
+    },
+    {
+      name: "matched-video",
+      scan: {
+        video_storage_urls: [
+          "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+        ],
+      },
+    },
+    { name: "unproven-audio", asset: { kind: "audio", role: "audio" } },
+    {
+      name: "matched-audio",
+      asset: { kind: "audio", role: "audio" },
+      scan: {
+        audio_storage_urls: [
+          "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+        ],
+      },
+    },
+    { name: "abandoned-without-job", scan: null, job: null },
+    { name: "abandoned-with-job", scan: null },
+    { name: "abandoned-missing-object", scan: null, exists: false },
+    { name: "terminal-job", scan: null, job: { status: "failed_terminal" } },
+    { name: "completed-job", job: { status: "complete" } },
+    {
+      name: "active-job",
+      scan: null,
+      job: {
+        lock_expires_at: "2026-07-05T13:00:00.000Z",
+        status: "finalizing",
+      },
+    },
+  ];
+  for (const dryRun of [undefined, false, true]) {
+    for (const scenario of cases) {
+      await test.step(`${scenario.name}/${dryRun}`, async () => {
+        const effects: string[] = [];
+        const forbidden = (name: string) => (): never => {
+          effects.push(name);
+          throw new Error(`Forbidden effect: ${name}`);
+        };
+        let audited = false;
+        const result = await reconcileScanMediaAssets({} as never, {
+          now: NOW,
+          dryRun,
+        }, {
+          r2Config: R2_CONFIG,
+          fetchAssets: () =>
+            Promise.resolve([stagedAsset({
+              created_at: "2026-07-03T23:00:00.000Z",
+              ...scenario.asset,
+            })]),
+          fetchScans: () =>
+            Promise.resolve(
+              scenario.scan === null ? [] : [scanRow(scenario.scan)],
+            ),
+          fetchJobs: () =>
+            Promise.resolve(
+              scenario.job === null ? [] : [jobRow(scenario.job)],
+            ),
+          headObject: () =>
+            Promise.resolve(
+              new Response(null, {
+                status: scenario.exists === false ? 404 : 200,
+              }),
+            ),
+          deleteObject: forbidden("delete"),
+          promoteMedia: forbidden("copy-or-put"),
+          markPromoted: forbidden("mark-promoted"),
+          markDeleted: forbidden("mark-deleted"),
+          markFailed: forbidden("mark-failed"),
+          updateScanMedia: forbidden("update-scan"),
+          refreshAssets: forbidden("refresh-assets"),
+          markJobComplete: forbidden("complete-job"),
+          markJobFailed: forbidden("fail-job"),
+          recordRun: (row) => {
+            audited = true;
+            assertEquals(row.status, "dry_run");
+            assertEquals(row.promoted_count, 0);
+            assertEquals(row.repaired_video_scan_count, 0);
+            assertEquals(row.deleted_staging_object_count, 0);
+            assertEquals(row.failed_asset_count, 0);
+            assertEquals(row.still_pending_count, 1);
+            return Promise.resolve();
+          },
+        });
+        assertEquals(effects, []);
+        assertEquals(result.errors, []);
+        assertEquals(result.executionMode, "quarantined");
+        assertEquals(result.holdReason, "durable_object_authority_required");
+        assertEquals(result.scanned, 1);
+        assertEquals(result.stillPending, 1);
+        assertEquals(result.promoted, 0);
+        assertEquals(result.repairedVideoScans, 0);
+        assertEquals(result.deletedStagingObjects, 0);
+        assertEquals(result.failedAssets, 0);
+        assertEquals(audited, true);
+      });
+    }
+  }
 });

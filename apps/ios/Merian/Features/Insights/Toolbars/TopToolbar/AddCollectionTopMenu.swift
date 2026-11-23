@@ -16,7 +16,7 @@ struct AddCollectionTopMenu: View {
                 showNewCollectionAlert: $showNewCollectionAlert
             )
         } label: {
-            Label("Add to collection", systemImage: "folder.badge.plus")
+            Label("Add to collection", systemImage: "rectangle.stack")
         }
         .disabled(!hasScanId)
     }

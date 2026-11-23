@@ -194,6 +194,12 @@ for history_path in \
   apps/ios/Merian/Models/Schema/SchemaV64QueueSnapshots.swift \
   apps/ios/Merian/Models/Schema/SchemaV64AcquisitionSnapshots.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaAcquisitionReceiptRecord.swift \
+  apps/ios/Merian/Models/Schema/SchemaV70.swift \
+  apps/ios/Merian/Models/Schema/SchemaV70ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV70QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV70OrdinaryTransferSnapshot.swift \
+  apps/ios/Merian/Models/Schema/SchemaV71.swift \
+  apps/ios/Merian/Models/ActiveSchema/SharedMediaOrdinarySubmissionRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaConsumerRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaAssetReferenceCountRecord.swift \
   apps/ios/Merian/Models/ActiveSchema/SharedMediaMembershipBootstrapRecord.swift \

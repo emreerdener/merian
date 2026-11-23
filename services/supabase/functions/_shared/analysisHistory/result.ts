@@ -1,9 +1,16 @@
+import { parseCompositionManifest } from "./compositionManifest.ts";
+import { createHash } from "node:crypto";
+import {
+  initialEvidenceArtifacts,
+  initialEvidenceCanonicalBytes,
+  parseInitialEvidenceManifest,
+} from "./initialEvidenceManifest.ts";
 import { parsePreparedVideoManifest } from "./videoManifest.ts";
 import { parsePreparedAudioManifest } from "./audioManifest.ts";
 import { parseSavedIdentification } from "./savedIdentification.ts";
 import { parseProtectedEvidenceManifest } from "./protectedManifest.ts";
 import { parseCapturedMediaWireV1 } from "../capturedMediaContract.ts";
-import { parseIdentifySuccessEnvelope } from "../identify/contract.ts";
+import { parseInitialEvidenceEnvelopeV1 } from "../identify/initialEvidenceEnvelopeV1.ts";
 import {
   exactObject,
   HISTORY_MAX_RESULT_BYTES,
@@ -33,7 +40,14 @@ function parseSnapshot(
   allowProtected: boolean,
   allowAudio = false,
   allowVideo = false,
+  allowComposition = false,
+  allowFocusedComposition = false,
+  allowInitial = false,
+  allowRetainedOriginal = false,
+  allowPhotoPreparation = false,
 ) {
+  const isInitial = allowInitial && !!value && typeof value === "object" &&
+    "schema_version" in value && value.schema_version === 8;
   const row = exactObject(value, [
     "schema_version",
     "observation_id",
@@ -44,11 +58,15 @@ function parseSnapshot(
     "completed_at_ms",
     "result",
     "evidence_manifest",
+    ...(isInitial ? ["initial_evidence"] : []),
   ]);
   const version = row.schema_version;
   if (
     version !== 1 && !(allowProtected && version === 2) &&
-    !(allowAudio && version === 4) && !(allowVideo && version === 5)
+    !(allowAudio && version === 4) && !(allowVideo && version === 5) &&
+    !(allowComposition && version === 6) &&
+    !(allowFocusedComposition && version === 7) &&
+    !(allowInitial && version === 8)
   ) {
     return invalidHistory();
   }
@@ -64,13 +82,58 @@ function parseSnapshot(
     !Number.isSafeInteger(row.completed_at_ms) || row.completed_at_ms < 0 ||
     row.completed_at_ms > 8_640_000_000_000_000
   ) return invalidHistory();
-  const result =
-    parseIdentifySuccessEnvelope({ success: true, data: row.result }).data;
+  const envelope = parseInitialEvidenceEnvelopeV1({
+    success: true,
+    data: row.result,
+    ...(isInitial ? { initial_evidence: row.initial_evidence } : {}),
+  });
+  const result = envelope.data;
   if (historyUUID(result.scan_id) !== identity.observation_id) {
     return invalidHistory();
   }
   let evidence;
-  if (version === 5) {
+  if (version === 8) {
+    const proof = envelope.initial_evidence;
+    if (
+      !proof || identity.source_analysis_id !== null || row.ordinal !== 1 ||
+      proof.evidence_digest !== identity.request_digest ||
+      [proof.owner_id, proof.generation].includes(identity.analysis_id)
+    ) return invalidHistory();
+    evidence = parseInitialEvidenceManifest(
+      row.evidence_manifest,
+      identity.observation_id,
+      proof.generation,
+    );
+    if (
+      (evidence.schema_version >= 8 && !allowRetainedOriginal) ||
+      (evidence.schema_version === 9 && !allowPhotoPreparation)
+    ) {
+      return invalidHistory();
+    }
+    if (
+      initialEvidenceArtifacts(evidence).some((x) =>
+        [proof.owner_id, identity.analysis_id].includes(x.media_id)
+      ) ||
+      createHash("sha256").update(
+          initialEvidenceCanonicalBytes(
+            evidence,
+            identity.observation_id,
+            proof.generation,
+          ),
+        ).digest("hex") !== proof.evidence_digest
+    ) return invalidHistory();
+  } else if (version === 6 || version === 7) {
+    if (identity.source_analysis_id === null) return invalidHistory();
+    evidence = parseCompositionManifest(
+      row.evidence_manifest,
+      identity.observation_id,
+      identity.analysis_id,
+      identity.source_analysis_id,
+    );
+    if (evidence.schema_version !== (version === 7 ? 6 : 5)) {
+      return invalidHistory();
+    }
+  } else if (version === 5) {
     if (identity.source_analysis_id === null) return invalidHistory();
     evidence = parsePreparedVideoManifest(
       row.evidence_manifest,
@@ -126,6 +189,7 @@ function parseSnapshot(
     completed_at_ms: row.completed_at_ms,
     result,
     evidence_manifest: evidence,
+    ...(isInitial ? { initial_evidence: envelope.initial_evidence } : {}),
   };
   if (
     new TextEncoder().encode(JSON.stringify(snapshot)).length >
@@ -139,11 +203,12 @@ function parseSnapshot(
 /** Validate read-back bytes. Callers retain the original text for exact replay. */
 export function decodeAnalysisResultSnapshot(
   text: unknown,
-  reader: 7 | 8 | 9 | 10 | 11 | 13 = 7,
+  reader: 7 | 8 | 9 | 10 | 11 | 13 | 14 | 15 | 16 | 17 | 18 = 7,
 ) {
   if (
     (reader !== 7 && reader !== 8 && reader !== 9 && reader !== 10 &&
-      reader !== 11 && reader !== 13) ||
+      reader !== 11 && reader !== 13 && reader !== 14 && reader !== 15 &&
+      reader !== 16 && reader !== 17 && reader !== 18) ||
     typeof text !== "string" ||
     new TextEncoder().encode(text).length > HISTORY_MAX_RESULT_BYTES
   ) {
@@ -152,7 +217,9 @@ export function decodeAnalysisResultSnapshot(
   try {
     const value = JSON.parse(text);
     if (
-      value?.result?.identification_provenance?.version === 3 && reader !== 13
+      value?.result?.identification_provenance?.version === 3 &&
+      reader !== 13 && reader !== 14 && reader !== 15 && reader !== 16 &&
+      reader !== 17 && reader !== 18
     ) return invalidHistory();
     if (reader >= 9 && value?.schema_version === 3) {
       return parseImportedSnapshot(value);
@@ -161,7 +228,13 @@ export function decodeAnalysisResultSnapshot(
       value,
       reader >= 8,
       reader >= 10,
-      reader === 11 || reader === 13,
+      reader === 11 || reader === 13 || reader === 14 || reader === 15 ||
+        reader === 16 || reader === 17 || reader === 18,
+      reader >= 14,
+      reader >= 15,
+      reader >= 16,
+      reader >= 17,
+      reader === 18,
     );
   } catch {
     return invalidHistory();

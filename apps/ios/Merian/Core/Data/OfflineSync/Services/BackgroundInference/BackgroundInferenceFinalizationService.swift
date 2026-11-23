@@ -141,7 +141,7 @@ struct BackgroundInferenceFinalizationService: Sendable {
                 try await account.validate()
                 originalCompletion = try OrdinaryInferenceCompletion.prepare(resultData: resultData,
                     mappedData: preparedResponse.mappedData, scanID: scanId,
-                    generation: ownership.generation, account: account)
+                    generation: ownership.generation, account: account, initialEvidence: preparedResponse.initialEvidence)
             } catch { return .notProcessed }
         } else { originalCompletion = nil }
 

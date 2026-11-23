@@ -87,6 +87,13 @@ export interface CompleteScanIngestionFinalizationInput {
   promotedUrlsByStorageKey: Map<string, string>;
   deletedStorageKeys: string[];
   responseEnvelope?: Record<string, unknown>;
+  /** Immutable identity of the strict evidence accepted with this same job. */
+  initialEvidence?: {
+    generation: string;
+    evidence_digest: string;
+    /** Must synchronously validate the exact sealed response or throw. */
+    verifyResponse: (value: unknown) => true;
+  };
 }
 
 export interface CompleteScanIngestionFinalizationResult {
@@ -448,6 +455,11 @@ export async function completeScanIngestionFinalization(
   input: CompleteScanIngestionFinalizationInput,
   supabaseAdmin: SupabaseClient,
 ): Promise<CompleteScanIngestionFinalizationResult> {
+  const strict = input.initialEvidence !== undefined;
+  const verifyResponse = input.initialEvidence?.verifyResponse;
+  if (strict && typeof verifyResponse !== "function") {
+    throw new Error("initial_evidence_completion_verifier_required");
+  }
   const promotedUrls = Object.fromEntries(
     [...input.promotedUrlsByStorageKey.entries()].sort(([lhs], [rhs]) =>
       lhs.localeCompare(rhs)
@@ -470,7 +482,7 @@ export async function completeScanIngestionFinalization(
     rpcArguments,
   );
   if (
-    error &&
+    error && !strict &&
     (
       error.code === "PGRST202" ||
       (
@@ -529,6 +541,10 @@ export async function completeScanIngestionFinalization(
       }`,
     );
   }
+  if (strict && verifyResponse?.(value.response_envelope) !== true) {
+    throw new Error("initial_evidence_completion_integrity");
+  }
+
   return {
     result: value.result,
     responseEnvelope: value.response_envelope as Record<string, unknown> | null,

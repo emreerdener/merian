@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import SwiftData
 import Testing
-@testable import Merian
 
 @MainActor
 @Suite(.sharedProcessState(.offlineQueueManager))
@@ -28,6 +28,44 @@ struct SharedMediaLegacyQueueAccessTests {
         try c.save()
         #expect(job.status == .pending)
         #expect(SharedMediaLegacyQueueAccess.permitsFresh(c.container, scanID: id))
+    }
+
+    @Test(arguments: ["hold", "submission", "submissionJob", "artifact"], ["reserved", "accepted", "retired", "released", "unknown"])
+    func survivingOrdinaryLiabilityNeverDowngradesToLegacy(_ kind: String, _ phase: String) async throws {
+        for hasQueue in [false, true] {
+            let c = try context(), scan = UUID(), id = scan.uuidString.lowercased()
+            if hasQueue { c.insert(OfflineQueuedScan(id: id)) }
+            if kind == "hold" {
+                let row = SharedMediaOrdinaryTransferRecord(id: UUID(), inventoryID: UUID(),
+                    inventoryGeneration: UUID(), ownerID: UUID(), sourceAssetID: UUID(),
+                    sourceReferenceID: UUID(), recipientScanID: scan, submissionGeneration: UUID(),
+                    writerEpoch: UUID(), requestData: Data(), requestSHA256: "damaged")
+                row.phaseRaw = phase; c.insert(row)
+            } else if kind == "artifact" {
+                let row = SharedMediaOrdinaryArtifactRecord(id: UUID(), inventoryID: UUID(), inventoryGeneration: UUID(),
+                    ownerID: UUID(), recipientScanID: scan, submissionGeneration: UUID(), mediaID: UUID(),
+                    itemIndex: 0, roleRaw: "damaged", frameIndex: nil, allocationID: UUID(), referenceID: UUID(),
+                    leaseID: UUID(), writerEpoch: UUID(), requestData: Data(), requestSHA256: "damaged")
+                row.phaseRaw = phase; c.insert(row)
+            } else {
+                let row = SharedMediaOrdinarySubmissionRecord(inventoryID: UUID(),
+                    inventoryGeneration: UUID(), ownerID: UUID(), recipientScanID: kind == "submissionJob" ? UUID() : scan,
+                    submissionGeneration: UUID(), jobID: "scan-ingestion:" + id,
+                    eventID: UUID(), writerEpoch: UUID(), formatRaw: "damaged",
+                    requestData: Data(), requestSHA256: "damaged", observationSHA256: "damaged")
+                row.phaseRaw = phase; c.insert(row)
+            }
+            #expect(try !SharedMediaLegacyQueueAccess.permits(c, scanID: id))
+            try c.save()
+            #expect(!SharedMediaLegacyQueueAccess.permitsFresh(c.container, scanID: id.uppercased()))
+            #expect(SharedMediaLegacyQueueAccess.permitsFresh(c.container, scanID: UUID().uuidString.lowercased()))
+            let manager = OfflineQueueManager.shared, old = manager.modelContext
+            manager.modelContext = c
+            defer { manager.modelContext = old }
+            #expect(await manager.deleteQueuedScan(scanId: id) == false)
+            #expect(try c.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == (hasQueue ? 1 : 0))
+            #expect(!c.hasChanges)
+        }
     }
 
     @Test(arguments: ["native_receiving_v1", "native_receiving_v2"])

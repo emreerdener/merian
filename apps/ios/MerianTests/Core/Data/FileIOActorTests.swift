@@ -356,6 +356,36 @@ struct FileIOActorTests {
         #expect(try Data(contentsOf: source) == Data([9]))
     }
 
+    @Test func historyAudioStagingAndSnapshotPreserveTheOriginal() async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let bytes = makeInferenceTestPCM16WAVData(sampleRate: 44_100, frameCount: 16, sampleAt: { Int16($0) })
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary)
+        #expect(await actor.stageHistoryAudio(Data([1, 2, 3])) == nil)
+        let path = try #require(await actor.stageHistoryAudio(bytes))
+        let snapshot = try #require(await actor.snapshotAudioFile(path: path))
+        #expect(try Data(contentsOf: snapshot.url) == bytes)
+        #expect(try Data(contentsOf: h.documents.appendingPathComponent(path)) == bytes)
+        #expect(await actor.discardVideoSnapshot(snapshot))
+        #expect(FileManager.default.fileExists(atPath: h.documents.appendingPathComponent(path).path))
+        let link = h.documents.appendingPathComponent("alias.wav")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: h.documents.appendingPathComponent(path))
+        #expect(await actor.snapshotAudioFile(path: link.path) == nil)
+        await actor.deleteFiles(at: [path])
+    }
+
+    @Test func failedHistoryAudioWriteRemovesOnlyItsIncompleteFile() async throws {
+        let h = try LegacyFileFixture(); defer { h.cleanup() }
+        let original = h.documents.appendingPathComponent("original.wav")
+        let bytes = makeInferenceTestPCM16WAVData(sampleRate: 44_100, frameCount: 16, sampleAt: { Int16($0) })
+        try bytes.write(to: original)
+        var io = FileIOActor.CopyIO.live
+        io.write = { _, _ in errno = EIO; return -1 }
+        let actor = FileIOActor(documents: h.documents, temporaryDirectory: h.temporary, copyIO: io)
+        #expect(await actor.stageHistoryAudio(bytes) == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: h.documents.path) == ["original.wav"])
+        #expect(try Data(contentsOf: original) == bytes)
+    }
+
     @Test(arguments: ["replace", "sameSize", "flushMutation", "writeFailure"])
     func chosenVideoSnapshotRefusesMutationAndPreservesSources(mode: String) async throws {
         let h = try LegacyFileFixture(); defer { h.cleanup() }

@@ -319,7 +319,7 @@ Deno.test("multimodal producer reports a rejected post-result proof write", asyn
 
   for (
     const fragment of [
-      "const requiresIdentifySafetyEvaluation = imageBase64s.length > 0 || r2ObjectKeys.length > 0",
+      'const requiresIdentifySafetyEvaluation = (privateAIRequest?.evidence.some((item) => item.kind === "image") ?? false) || imageBase64s.length > 0 || r2ObjectKeys.length > 0',
       "let identifySafetyEvaluationCompleted = !requiresIdentifySafetyEvaluation",
       "identifySafetyEvaluationCompleted = true",
       'const { error: deadLetterError } = await supabaseAdmin .from("failed_scan_ingestions") .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg, quota_reservation_id: quotaLease.reservation.id, quota_request_id: quotaLease.reservation.requestId, failure_kind: "post_result_scan_durability_failure", provider_result_validated: true, identify_safety_evaluation_completed: identifySafetyEvaluationCompleted, })',

@@ -84,10 +84,12 @@ caller claim checks around preparation, Auth and response; automatic transient,
 401 and route replay are disabled. It does not reuse the photo upload parser.
 
 `ObservationAudioReanalysisRequest` separately prepares input 3, entitlement 3,
-identification 6 and history 9 with the fixed `google_gemini` processor. Reader
-10 is a result/action compatibility version, not this input's history protocol.
-The existing strict audio manifest decoder owns description/scalar/UTF-16 limits
-and descriptor validation. The request additionally rejects media equal to the
+identification 7 and history 9 with the fixed `google_gemini` processor. Saved
+protocol-6 and protocol-7 requests retain their original bytes and digest on
+recovery; they are never upgraded by reopening. Reader 14 is the current
+result/action compatibility version, not this input's history protocol. The
+existing strict audio manifest decoder owns description/scalar/UTF-16 limits and
+descriptor validation. The request additionally rejects media equal to the
 source, verifies the native canonical SHA-256, and retains exact saved bytes.
 Current consent and server funding remain required; this value does not grant
 either. Schema-2 photo request parsing and saved replay remain unchanged.

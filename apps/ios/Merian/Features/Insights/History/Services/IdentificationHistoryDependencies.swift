@@ -48,6 +48,7 @@ struct IdentificationHistoryDependencies {
     var pendingReview: () throws -> ObservationAnalysisReviewStatus? = { nil }
     var now: () -> Date = Date.init
     var reanalysis: ((UUID, ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction)?
+    var thumbnail: ((UUID, UUID) async throws -> UIImage)?
 }
 
 /// Retains only account/session values for one sheet. Each Core operation owns
@@ -161,7 +162,15 @@ final class IdentificationHistorySession {
            review: reviewWake.map { reviewAccess(wake: $0, generation: reviewGeneration) },
            publicationConsent: publication.map { publicationAccess($0) },
            pendingReview: { [self] in try pendingReview() },
-           reanalysis: { [self] analysis, context in try reanalysisAction(analysis, context: context) })
+           reanalysis: { [self] analysis, context in try reanalysisAction(analysis, context: context) },
+           thumbnail: { [self] analysis, media in
+               try check()
+               let bytes = try await photos.load(observationID: observation, analysisID: analysis, mediaID: media, container: container)
+               let image = await Self.downsample(bytes, maxSize: 160)
+               try check()
+               guard let image else { throw ObservationHistoryError.unavailable }
+               return UIImage(cgImage: image.cgImage)
+           })
     }
     func reanalysisAction(_ analysis: UUID, context: ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction {
         try check(); try requireNoPendingReview()
@@ -191,7 +200,7 @@ final class IdentificationHistorySession {
     private func requireNoPendingReview() throws {
         guard try pendingReview() == nil else { throw ObservationHistoryError.unavailable }
     }
-    nonisolated private static func downsample(_ data: Data) async -> ImageDownsampler.SendableImage? {
-        ImageDownsampler.downsampledSendableImage(data: data, maxSize: 1_280)
+    nonisolated private static func downsample(_ data: Data, maxSize: CGFloat = 1_280) async -> ImageDownsampler.SendableImage? {
+        ImageDownsampler.downsampledSendableImage(data: data, maxSize: maxSize)
     }
 }

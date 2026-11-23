@@ -35,6 +35,7 @@ struct SharedMediaNativePreparationRecipe: Codable, Equatable, Sendable {
     enum Format: String, Codable, Sendable {
         case stillImage = "nativeStillImageV1"
         case cameraStill = "nativeCameraStillV1"
+        case selectedStillImage = "nativeSelectedStillImageV2"
     }
     let format: Format
     let isPro: Bool
@@ -45,23 +46,33 @@ struct SharedMediaNativePreparationRecipe: Codable, Equatable, Sendable {
     let offsetY: Double
     /// Absent in all legacy recipes, preserving their canonical encoded bytes.
     let cameraVerticalCenter: Double?
+    /// Upright retained-original coordinates, mapped only after the file owner
+    /// verifies and opens the full original. Never derived from preview pixels.
+    let sourceSelection: NormalizedImageFocusRegion?
 
     init(format: Format, isPro: Bool, cropDisplaySize: Double?, quarterTurns: Int,
-         scale: Double, offsetX: Double, offsetY: Double, cameraVerticalCenter: Double? = nil) {
+         scale: Double, offsetX: Double, offsetY: Double, cameraVerticalCenter: Double? = nil,
+         sourceSelection: NormalizedImageFocusRegion? = nil) {
         self.format = format; self.isPro = isPro; self.cropDisplaySize = cropDisplaySize
         self.quarterTurns = quarterTurns; self.scale = scale
         self.offsetX = offsetX; self.offsetY = offsetY; self.cameraVerticalCenter = cameraVerticalCenter
+        self.sourceSelection = sourceSelection
     }
 
     func validate() throws {
         switch format {
         case .cameraStill:
             guard let center = cameraVerticalCenter, center.isFinite, (0...1).contains(center),
-                  cropDisplaySize == nil, quarterTurns == 0, scale == 1, offsetX == 0, offsetY == 0 else {
+                  cropDisplaySize == nil, quarterTurns == 0, scale == 1, offsetX == 0, offsetY == 0,
+                  sourceSelection == nil else {
                 throw SharedMediaStorageFailure.invalid
             }
         case .stillImage:
-            guard cameraVerticalCenter == nil else { throw SharedMediaStorageFailure.invalid }
+            guard cameraVerticalCenter == nil, sourceSelection == nil else { throw SharedMediaStorageFailure.invalid }
+        case .selectedStillImage:
+            guard cameraVerticalCenter == nil,
+                  let sourceSelection, sourceSelection.source == .userSelection,
+                  sourceSelection.isValidEvidence else { throw SharedMediaStorageFailure.invalid }
         }
 
         guard (0...3).contains(quarterTurns), scale.isFinite, scale >= 1,

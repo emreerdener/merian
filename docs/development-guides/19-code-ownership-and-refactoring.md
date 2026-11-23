@@ -44,6 +44,67 @@ or move feature-specific code into `Shared` merely to shorten an import path.
 Line ceilings are review guards, not architecture. Do not widen access, create
 one-value files, or add pass-through wrappers solely to satisfy a number.
 
+### November 19, 2026 receiving-owner review
+
+The source-size policy bounds both
+`SharedMediaNativeOriginalOwner+AppReceiving.swift` (602 lines at review) and
+`SharedMediaNativeAppReceivingOperations.swift` (607 lines) at 610 lines. The
+first privately mints receiving lock grants and verifies application witnesses;
+the second owns one audited save/rollback/readback transaction with file-private
+poststate constructors. Independent review retained these cohesive owners
+because a mechanical split would widen authority or add forwarding wrappers.
+These exceptions do not authorize further responsibility growth.
+
+The same review rejected a permanent exception for
+`OfflineQueueManager+CaptureEnqueue.swift`. Its visual/nonvisual record mapping
+now lives in `CaptureQueueInitialRecords`; that helper constructs uninserted
+models and metadata only. Admission, funding, file effects, insertion, saving,
+rollback and dispatch remain in the manager. This changed the enqueue owner from
+652 to 590 lines and added one 70-line construction owner (net eight production
+lines), without widening private manager methods. It does not implement the
+separate atomic original-hold admission contract.
+
+### November 21, 2026 capture integration review
+
+Capture endpoint execution now lives in `SharedMediaNativeAppCaptureOperations`;
+`SharedMediaNativeOriginalOwner+AppCapture` composes those endpoints. The
+repository still privately mints invocation authority. Callback exit revokes it
+before cancelling and joining the exact registered child operation and releasing
+the held file scope. Escaped endpoint objects retain only a weak borrow;
+concurrent calls reject as busy. Separate receiving and erasure reverse audits
+preserve the original paging and physical-header checks. Recorder original
+custody and funding admission also have dedicated owners; queue admission
+remains below 600 lines.
+
+Hardening reviewed these residual owners. Their exact physical-line ceilings are
+recorded in `scripts/config/ios-source-size-policy.json`; these are stopping
+points after responsibility extraction, not permission for further growth.
+
+| Owner                        | Ceiling | Retained responsibility                                                                  |
+| ---------------------------- | ------: | ---------------------------------------------------------------------------------------- |
+| Native original owner        |     755 | Private grant construction, account/runtime lifetime and typed endpoint composition      |
+| Native storage repository    |     756 | Private application identity and transaction/file invocation authority                   |
+| Native bootstrap files       |    1434 | Private descriptors, physical fences, discovery and erasure/capture handoff capabilities |
+| Photo preparation file store |     606 | Private descriptor/token custody                                                         |
+| Scan repository              |     603 | Purge orchestration including reanalysis erasure                                         |
+| Audio capture manager        |     626 | Recorder orchestration after original custody extraction                                 |
+| Audio playback carousel page |     639 | SwiftUI state, player generations and presentation teardown composition                  |
+| Persistent container factory |     611 | Ordered V69–V73 migration fallback and typed source selection                            |
+| Entitlement manager          |     620 | Account-qualified funding snapshots and restoration                                      |
+| Network client               |     604 | Closed transport factory pairs and private request assembly                              |
+
+The November 22 producer-output review moved legacy directory and exact-file
+retirement constructors to `Core/Data/Database/LegacyMediaFileRetirement.swift`.
+`FileIOActor.swift` is now 469 physical lines and returns to the global 600-line
+limit; its oversized inventory entry and special ceiling are removed. Exact
+inventory equality remains enforced. Private producer output and retained
+cleanup ownership are described in `apps/ios/Merian/Core/Data/README.md`.
+
+The audio page uses a new local presentation lifetime only after the previous
+scope has fully closed. Injected disposable preview lifetimes remain terminal.
+Native and UI validation evidence belongs in the capture plan; source review of
+these boundaries alone is not runtime acceptance.
+
 ## Required pre-change inventory
 
 Before structural edits, record:

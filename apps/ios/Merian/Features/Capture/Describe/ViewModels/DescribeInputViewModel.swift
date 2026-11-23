@@ -15,6 +15,7 @@ final class DescribeInputViewModel {
         let stopDictation: @MainActor () -> Void
         let waitForSubjectInference: @MainActor () async throws -> Void
         let inferSubjectId: @MainActor (_ text: String) -> String?
+        var finishDictation: @MainActor () async -> Bool = { false }
     }
 
     private(set) var isDictationSessionActive = false
@@ -141,6 +142,17 @@ final class DescribeInputViewModel {
             isStarting: isStarting,
             onRequestEnded: onRequestEnded
         )
+    }
+
+    func finishDictation(onRequestEnded: @escaping @MainActor () -> Void) async -> Bool {
+        guard let generation = activeDictationGeneration else { return true }
+        if let dictationStartupTask { await dictationStartupTask.value }
+        guard !Task.isCancelled, activeDictationGeneration == generation else { return false }
+        let succeeded = await dependencies.finishDictation()
+        guard !Task.isCancelled, activeDictationGeneration == generation else { return false }
+        _ = finishDictationSession(generation: generation)
+        onRequestEnded()
+        return succeeded
     }
 
     private func startDictation(

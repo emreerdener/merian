@@ -110,6 +110,30 @@ struct FieldNotesRepositoryTests {
         #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 2)
     }
 
+    @Test func legacyTagMutationCannotMaskRestoredClear() throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let ownerID = try #require(dependencies.ownerID())
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        context.insert(record)
+        try LibraryDetailsSyncService.stage(record, ownerID: ownerID, context: context)
+        let baseline = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        baseline.id = "library-details:baseline:\(record.id)"
+        baseline.status = .complete
+        record.customTags = ["Legacy tag"]
+        try LibraryDetailsSyncService.stage(record, ownerID: ownerID, context: context)
+        let pending = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first { $0.status == .pending })
+        var legacyMutation = try JSONDecoder().decode(LibraryDetailsSyncService.Mutation.self, from: Data(#require(pending.metadataJSON).utf8))
+        legacyMutation.fieldNotesAuthoritative = nil
+        pending.metadataJSON = String(bytes: try JSONEncoder().encode(legacyMutation), encoding: .utf8)
+        try context.save()
+        FieldNotesStore.setFieldNotes("Stale bridge", for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+        try LibraryDetailsSyncService.stageLegacyDetails(context: context, ownerID: ownerID, scanID: record.id)
+        #expect(FieldNotesRepository.fieldNotes(for: record.id, modelContext: context, dependencies: dependencies) == nil)
+        #expect(record.fieldNotes == nil)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 2)
+    }
+
     @Test func clearingUpdatesLocalRecordAndLegacyBridge() async throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
         let record = LocalScanRecord(
@@ -132,6 +156,39 @@ struct FieldNotesRepositoryTests {
 
         #expect(record.fieldNotes == nil)
         #expect(FieldNotesStore.fieldNotes(for: record.id) == nil)
+    }
+
+    @Test(arguments: [OfflineJobStatus.pending, .complete], [false, true])
+    func savedClearSurvivesStaleBridge(status: OfflineJobStatus, laterTagEdit: Bool) async throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: "Seed")
+        context.insert(record)
+        try context.save()
+        let scanID = record.id
+        defer { FieldNotesStore.setFieldNotes(nil, for: scanID) }
+        #expect(FieldNotesRepository.setFieldNotes(nil, for: scanID, modelContext: context, dependencies: dependencies))
+        if laterTagEdit {
+            record.customTags = ["Later tag"]
+            try LibraryDetailsSyncService.stage(record, ownerID: #require(dependencies.ownerID()), context: context)
+        }
+        for job in try context.fetch(FetchDescriptor<OfflineJobRecord>()) { job.status = status }
+        try context.save()
+        // Model a process stopping after its database save but before clearing
+        // the legacy preference, then reopening before any server acknowledgment.
+        FieldNotesStore.setFieldNotes("Stale seed", for: scanID)
+        let reopened = ModelContext(context.container)
+        try LibraryDetailsSyncService.stageLegacyDetails(context: reopened, ownerID: #require(dependencies.ownerID()), scanID: scanID)
+        let restored = try #require(reopened.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(restored.fieldNotes == nil)
+        #expect(FieldNotesRepository.fieldNotes(for: scanID, modelContext: reopened, dependencies: dependencies) == nil)
+        #expect(FieldNotesStore.fieldNotes(for: scanID) == nil)
+        let jobs = try reopened.fetch(FetchDescriptor<OfflineJobRecord>())
+        #expect(jobs.count == (laterTagEdit ? 2 : 1))
+        for job in jobs {
+            let mutation = try JSONDecoder().decode(LibraryDetailsSyncService.Mutation.self, from: Data(#require(job.metadataJSON).utf8))
+            #expect(mutation.fieldNotes == nil)
+            #expect(mutation.fieldNotesAuthoritative == true)
+        }
     }
 
     @Test func unchangedLocalRecordMirrorsIntoLegacyBridge() async throws {

@@ -20,7 +20,7 @@ struct InferenceNetworkArchitectureTests {
         }
         for method in [
             "prewarmInferenceEndpoint", "buildIdentifyRequest", "analyzeSubject",
-            "buildMultiModalRequest", "identifyMultiModal"
+            "buildMultiModalRequest", "identifyMultiModal", "buildPrivateCaptureRequest"
         ] {
             #expect(endpoint.contains("func \(method)("))
             #expect(!client.contains("func \(method)("))
@@ -50,13 +50,18 @@ struct InferenceNetworkArchitectureTests {
             #expect(!endpoint.contains(token), "Inference endpoint must not acquire \(token)")
         }
         #expect(
-            endpoint.components(separatedBy: "DetachedWork.value(").count - 1 == 3
+            endpoint.components(separatedBy: "DetachedWork.value(").count - 1 == 4
         )
         #expect(
             endpoint.components(
                 separatedBy: "category: .inferenceRequestPreparation"
-            ).count - 1 == 3
+            ).count - 1 == 4
         )
+        for name in ["buildIdentifyRequest", "analyzeSubject", "buildMultiModalRequest", "buildPrivateCaptureRequest"] {
+            let preparation = try method(name, in: endpoint)
+            #expect(preparation.components(separatedBy: "try await DetachedWork.value(").count - 1 == 1)
+            #expect(preparation.components(separatedBy: "category: .inferenceRequestPreparation").count - 1 == 1)
+        }
         #expect(!models.contains("var "))
         #expect(!builder.contains("var context"))
         #expect(!media.contains("imageBase64s + audioBase64s"))

@@ -133,6 +133,7 @@ extension BackgroundDatabaseActor {
             guard let queued = try modelContext.fetch(descriptor).first, queued.permitsOrdinaryInference else {
                 return .notProcessed
             }
+            try await validateOrdinaryBackgroundCompletion(originalCompletion, ownership: originalOwnership, scanID: recordId)
             var mappedData = initialMappedData
             let existing = try localScanRecord(id: recordId)
             if let existing {

@@ -9,6 +9,50 @@ import XCTest
 
 enum UITestAppLauncher {
     @MainActor
+    static func openIdentification(_ app: XCUIApplication, history: Bool = false, actions: Bool = false) {
+        let menu = app.buttons["InsightTopMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let entry = app.buttons["IdentificationMenu"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
+        let overflow = app.buttons["IdentificationActionsMenu"]
+        XCTAssertTrue(overflow.waitForExistence(timeout: 5))
+        if history || actions { overflow.tap() }
+        if history {
+            let historyAction = app.buttons["IdentificationHistoryMenu"]
+            XCTAssertTrue(historyAction.waitForExistence(timeout: 5)); historyAction.tap()
+        }
+    }
+
+    @MainActor
+    static func slideIdentificationConfirmation(_ app: XCUIApplication) {
+        let slider = app.buttons["IdentificationConfirm"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        slider.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)))
+    }
+
+    @MainActor
+    static func historyCard(_ app: XCUIApplication, id: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "HistoryRow_" + id).firstMatch
+    }
+
+    @MainActor
+    static func openHistoryActions(_ app: XCUIApplication, id: String) {
+        let menu = app.buttons["HistoryActions_" + id]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        for _ in 0..<3 where !menu.isHittable { app.swipeUp() }
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND hittable == true"), object: menu)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+        menu.tap()
+    }
+
+    @MainActor
+    static func closeHistory(_ app: XCUIApplication) {
+        app.buttons["HistorySheetActions"].tap()
+        app.buttons["HistoryDone"].tap()
+    }
+
+    @MainActor
     static func makeConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITesting"] = "true"
@@ -105,7 +149,7 @@ final class merianUITests: XCTestCase {
         )
 
         // Enter through the visible root when startup has not presented the seeded library.
-        let scansEntry = app.buttons["MainTabBar_Scans"]
+        let scansEntry = app.buttons["MainTabBar_Naturebook"]
         if scansEntry.waitForExistence(timeout: 2), scansEntry.isHittable {
             scansEntry.tap()
         }
@@ -152,7 +196,7 @@ final class merianUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Notifications"].exists)
         XCTAssertFalse(app.buttons["ExploreCloseButton"].exists)
         XCTAssertFalse(
-            app.buttons["MainTabBar_Scans"].isHittable,
+            app.buttons["MainTabBar_Naturebook"].isHittable,
             "The root bottom navigation must remain hidden on Scan map"
         )
 
@@ -383,91 +427,32 @@ final class merianUITests: XCTestCase {
 
     @MainActor
     func testCaptureModeSelectorExposesAccessibleIconsAndTracksPagerSelection() throws {
-        let app = UITestAppLauncher.launchConfiguredApp(
-            extraArguments: ["-captureModeOrder", "visual,audio,describe"]
-        )
-
-        let modeToggle = app.segmentedControls["CaptureModeToggle"]
-        XCTAssertTrue(modeToggle.waitForExistence(timeout: 8.0), "Capture mode selector did not render")
-        XCTAssertLessThanOrEqual(
-            modeToggle.frame.width,
-            app.frame.width - 48,
-            "Capture mode selector no longer retains at least 24 pt side margins"
-        )
-        XCTAssertGreaterThanOrEqual(
-            modeToggle.frame.width,
-            196,
-            "Capture mode selector became narrower than the compact-width contract"
-        )
-        XCTAssertLessThanOrEqual(
-            modeToggle.frame.width,
-            204,
-            "Capture mode selector no longer uses compact horizontal spacing"
-        )
-        XCTAssertGreaterThanOrEqual(
-            modeToggle.frame.height,
-            52,
-            "Capture mode selector became shorter than the compact-height contract"
-        )
-        XCTAssertLessThanOrEqual(
-            modeToggle.frame.height,
-            60,
-            "Capture mode selector grew beyond the compact-height contract"
-        )
-        assertCaptureModeToggleIsCentered(modeToggle, in: app)
-        let scanMode = modeToggle.buttons["Scan"]
-        let recordMode = modeToggle.buttons["Record"]
-        let describeMode = modeToggle.buttons["Describe"]
-        XCTAssertTrue(scanMode.exists, "Scan icon is missing its accessible name")
-        XCTAssertTrue(recordMode.exists, "Record icon is missing its accessible name")
-        XCTAssertTrue(describeMode.exists, "Describe icon is missing its accessible name")
-        XCTAssertGreaterThanOrEqual(
-            scanMode.frame.width,
-            44,
-            "Compact Scan segment no longer meets the minimum touch width"
-        )
-        XCTAssertTrue(scanMode.isSelected, "The default visual mode is not selected")
-        XCTAssertEqual(modeToggle.value as? String, "Scan")
-
-        recordMode.tap()
-        XCTAssertTrue(
-            waitForSelectedState(recordMode),
-            "Tapping the Record icon did not select its capture page; selector value: \(String(describing: modeToggle.value))"
-        )
-        XCTAssertEqual(modeToggle.value as? String, "Record")
-        assertCaptureModeToggleIsCentered(modeToggle, in: app)
-
-        describeMode.tap()
-        XCTAssertTrue(
-            waitForSelectedState(describeMode),
-            "Tapping the Describe icon did not select its capture page"
-        )
-        XCTAssertEqual(modeToggle.value as? String, "Describe")
-        assertCaptureModeToggleIsCentered(modeToggle, in: app)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["DescribeTextArea"].waitForExistence(timeout: 4.0),
-            "Selecting the Describe icon did not reveal the Describe page"
-        )
-
-        app.swipeRight()
-        XCTAssertTrue(
-            waitForSelectedState(recordMode),
-            "Paging from Describe to Record did not update the selected icon"
-        )
-        XCTAssertEqual(modeToggle.value as? String, "Record")
-        assertCaptureModeToggleIsCentered(modeToggle, in: app)
-
-        scanMode.tap()
-        XCTAssertTrue(
-            waitForSelectedState(scanMode),
-            "Tapping the Scan icon did not restore the visual capture page"
-        )
-        XCTAssertEqual(modeToggle.value as? String, "Scan")
-        assertCaptureModeToggleIsCentered(modeToggle, in: app)
-        XCTAssertTrue(
-            app.buttons["PhotoLibraryButton"].waitForExistence(timeout: 4.0),
-            "Selecting the Scan icon did not restore camera controls"
-        )
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-captureModeOrder", "visual,audio"])
+        let modes = app.segmentedControls["CaptureModeToggle"]
+        XCTAssertTrue(modes.waitForExistence(timeout: 8))
+        XCTAssertEqual(modes.frame.width, 144, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(modes.frame.height, 52)
+        assertCaptureModeToggleIsCentered(modes, in: app)
+        XCTAssertFalse(modes.buttons["Describe"].exists)
+        let scan = modes.buttons["Scan"], record = modes.buttons["Record"]
+        XCTAssertTrue(scan.isSelected)
+        for segment in [scan, record] { XCTAssertGreaterThanOrEqual(segment.frame.width, 44) }
+        record.tap()
+        XCTAssertTrue(waitForSelectedState(record))
+        XCTAssertEqual(modes.value as? String, "Record")
+        scan.tap()
+        XCTAssertTrue(waitForSelectedState(scan))
+        XCTAssertEqual(modes.value as? String, "Scan")
+        XCTAssertTrue(app.buttons["PhotoLibraryButton"].waitForExistence(timeout: 4))
+        let pager = app.scrollViews["CaptureWorkspacePager"]
+        pager.swipeUp()
+        XCTAssertTrue(scan.isSelected, "Vertical viewfinder interaction must not change workspaces")
+        pager.swipeLeft()
+        XCTAssertTrue(waitForSelectedState(record))
+        pager.swipeRight()
+        XCTAssertTrue(waitForSelectedState(scan))
+        assertCaptureModeToggleIsCentered(modes, in: app)
     }
 
     @MainActor
@@ -584,9 +569,16 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(openButton.waitForExistence(timeout: 4.0))
         tapCenter(of: openButton)
         XCTAssertTrue(
-            app.buttons["ExploreCloseButton"].waitForExistence(timeout: 8.0),
-            "Tapping the expanded goal content did not open Explore"
+            app.staticTexts["Field trip unavailable"].waitForExistence(timeout: 8.0),
+            "Tapping the expanded goal did not reach the seeded Field trip destination"
         )
+        app.buttons["BackButton"].tap()
+        let closeExplore = app.buttons["ExploreCloseButton"]
+        XCTAssertTrue(closeExplore.waitForExistence(timeout: 4))
+        closeExplore.tap()
+        XCTAssertTrue(waitForDisappearance(closeExplore))
+        XCTAssertTrue(modeToggle.isHittable)
+        XCTAssertTrue(artworkButton.isHittable)
     }
 
     @MainActor
@@ -648,12 +640,24 @@ final class merianUITests: XCTestCase {
             waitForLabelContaining("Start an outing", on: openButton),
             "The introduction incorrectly changed goals after a swipe"
         )
+        XCTAssertFalse(app.staticTexts["Field trip unavailable"].exists, "Swiping the introduction opened its destination")
+        XCTAssertTrue(collapseButton.isHittable)
 
         tapCenter(of: collapseButton)
         XCTAssertTrue(
             waitForDisappearance(openButton),
             "Tapping the introduction up chevron did not restore the compact state"
         )
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(openButton.waitForExistence(timeout: 4))
+        tapCenter(of: openButton)
+        XCTAssertTrue(app.staticTexts["Field trip unavailable"].waitForExistence(timeout: 8))
+        app.buttons["BackButton"].tap()
+        let closeExplore = app.buttons["ExploreCloseButton"]
+        XCTAssertTrue(closeExplore.waitForExistence(timeout: 4))
+        closeExplore.tap()
+        XCTAssertTrue(waitForDisappearance(closeExplore))
+        XCTAssertTrue(artworkButton.isHittable)
     }
 
     @MainActor
@@ -666,6 +670,9 @@ final class merianUITests: XCTestCase {
             ] + (paused ? ["-seedAudioFinishPaused"] : []))
             let finish = app.buttons["Finish recording"]
             XCTAssertTrue(finish.waitForExistence(timeout: 8))
+            XCTAssertTrue(finish.isHittable)
+            XCTAssertGreaterThanOrEqual(finish.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(finish.frame.height, 44)
             XCTAssertFalse(app.buttons["StagedAudioBadge_0"].exists)
             finish.tap()
             let audio = app.buttons["StagedAudioBadge_0"]
@@ -680,7 +687,7 @@ final class merianUITests: XCTestCase {
             audio.tap()
             XCTAssertTrue(app.buttons["Remove audio recording"].waitForExistence(timeout: 8))
             XCTAssertTrue(app.buttons["Turn off audio boost"].waitForExistence(timeout: 8))
-            app.buttons["Close audio preview"].tap()
+            app.buttons["Add media"].tap()
             XCTAssertTrue(audio.waitForExistence(timeout: 4))
             audio.tap()
             app.buttons["Remove audio recording"].tap()
@@ -694,7 +701,7 @@ final class merianUITests: XCTestCase {
     func testStagedAudioBadgeOpensPlaybackReview() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: [
-                "-seedStagedAudioReviewFlow", "-captureModeOrder", "audio,visual,describe",
+                "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-captureModeOrder", "audio,visual,describe",
                 "-hasShownCaptureNoteTip", "YES",
                 "-hasShownCaptureSubmitTip", "NO",
                 "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"
@@ -719,19 +726,19 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(waitForDisappearance(submitTip, timeout: 6))
         let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
         toolbarScreenshot.name = "Compact bordered audio and note review nodes"
-        let note = app.buttons["Add note"]
+        let note = app.buttons["CaptureFieldNotes"], identify = app.buttons["Identify"]
         XCTAssertTrue(note.isHittable)
         XCTAssertEqual(note.frame.midY, stagedAudioBadge.frame.midY, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.midY, note.frame.midY, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.height, 52, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.width, 52, accuracy: 1)
+        XCTAssertEqual(identify.frame.midY, note.frame.midY, accuracy: 1)
+        for control in [note, identify, stagedAudioBadge] {
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+        }
+        XCTAssertGreaterThan(identify.frame.width, identify.frame.height)
         let discard = app.buttons["Discard scan"]
-        XCTAssertEqual(discard.frame.width, 52, accuracy: 1)
-        XCTAssertEqual(discard.frame.height, 52, accuracy: 1)
-        XCTAssertEqual(discard.frame.minY, app.buttons["Identify"].frame.minY, accuracy: 1)
-        XCTAssertEqual(discard.frame.maxY, app.buttons["Identify"].frame.maxY, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.minX - note.frame.maxX, 24, accuracy: 1)
-        XCTAssertGreaterThanOrEqual(note.frame.minX - stagedAudioBadge.frame.maxX, 8)
+        XCTAssertTrue(discard.isHittable)
+        XCTAssertLessThan(discard.frame.maxY, stagedAudioBadge.frame.minY)
+        XCTAssertFalse(app.buttons["Next"].exists)
         toolbarScreenshot.lifetime = .keepAlways
         add(toolbarScreenshot)
         stagedAudioBadge.tap()
@@ -752,7 +759,7 @@ final class merianUITests: XCTestCase {
             "The staged recording did not become playable"
         )
 
-        let closeButton = app.buttons["Close audio preview"]
+        let closeButton = app.buttons["Add media"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 4.0))
         closeButton.tap()
         XCTAssertFalse(preview.waitForExistence(timeout: 4.0))
@@ -804,15 +811,15 @@ final class merianUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let expectedMaxX = max(
-            app.frame.maxX - 32,
-            modeToggle.frame.maxX + artworkButton.frame.width + 8
+        let expectedMinX = min(
+            app.frame.minX + 32,
+            modeToggle.frame.minX - artworkButton.frame.width - 8
         )
         XCTAssertEqual(
-            artworkButton.frame.maxX,
-            expectedMaxX,
+            artworkButton.frame.minX,
+            expectedMinX,
             accuracy: 3,
-            "Compact goal artwork is not trailing-aligned beside the media selector",
+            "Compact goal artwork is not leading-aligned beside the media selector",
             file: file,
             line: line
         )
@@ -825,7 +832,7 @@ final class merianUITests: XCTestCase {
             line: line
         )
         XCTAssertGreaterThanOrEqual(
-            artworkButton.frame.minX - modeToggle.frame.maxX,
+            modeToggle.frame.minX - artworkButton.frame.maxX,
             7,
             "Compact goal artwork overlaps the media selector",
             file: file,
@@ -912,6 +919,9 @@ final class merianUITests: XCTestCase {
         ])
         let finish = app.buttons["Finish recording"]
         XCTAssertTrue(finish.waitForExistence(timeout: 8))
+            XCTAssertTrue(finish.isHittable)
+            XCTAssertGreaterThanOrEqual(finish.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(finish.frame.height, 44)
         finish.tap()
         let upgrade = app.buttons["StagedMediaProPlaceholder"]
         let audio = app.buttons["StagedAudioBadge_0"]
@@ -935,88 +945,75 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(waitForDisappearance(close))
         XCTAssertTrue(audio.isHittable)
         XCTAssertTrue(upgrade.isHittable)
-        XCTAssertTrue(app.buttons["Add note"].isHittable)
+        XCTAssertTrue(app.buttons["CaptureFieldNotes"].isHittable)
         XCTAssertTrue(app.buttons["Identify"].isHittable)
     }
 
     @MainActor
     func testNoteAtMediaCapacityWithLargerText() throws {
+        continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
-            "-seedStagedAudioReviewFlow", "-autoSubmitScans", "NO",
-            "-captureModeOrder", "audio,visual,describe",
-            "-hasShownCaptureNoteTip", "YES", "-themeMode", "Light",
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-autoSubmitScans", "NO",
+            "-captureModeOrder", "audio,visual", "-hasShownCaptureNoteTip", "YES",
+            "-hasShownCaptureSubmitTip", "YES", "-themeMode", "Light",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ])
-        let note = app.buttons["Add note"]
+        let note = app.buttons["CaptureFieldNotes"], identify = app.buttons["Identify"]
         XCTAssertTrue(note.waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["Identify"].isHittable)
-        XCTAssertEqual(app.buttons["Identify"].frame.height, 52, accuracy: 1)
-        XCTAssertEqual(app.buttons["Identify"].frame.width, 52, accuracy: 1)
+        XCTAssertTrue(identify.isHittable)
+        XCTAssertGreaterThanOrEqual(identify.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(note.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(note.frame.height, 44)
+        XCTAssertFalse(app.buttons["Next"].exists)
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
-        XCTAssertFalse(app.scrollViews["StagedMediaRowScroll"].exists)
-        XCTAssertGreaterThanOrEqual(note.frame.width, 48)
-        XCTAssertGreaterThanOrEqual(note.frame.height, 48)
-        XCTAssertEqual(note.frame.midY, app.buttons["Identify"].frame.midY, accuracy: 1)
-        let audio = app.buttons["StagedAudioBadge_0"]
-        XCTAssertTrue(audio.isHittable)
-        XCTAssertTrue(app.buttons["StagedMediaProPlaceholder"].isHittable)
-        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable, "The Free media slot is already full")
-        XCTAssertFalse(app.staticTexts["AudioIdlePrompt"].exists, "A full tray must hide the recording invitation")
-        let modeToggle = app.segmentedControls["CaptureModeToggle"]
-        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4))
-        for mode in ["Scan", "Describe", "Record"] {
-            let segment = modeToggle.buttons[mode]
-            XCTAssertTrue(segment.isHittable, "Mode navigation must remain available at media capacity")
-            segment.tap()
-            XCTAssertTrue(waitForSelectedState(segment))
-            XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
-        }
-        XCTAssertFalse(app.staticTexts["AudioIdlePrompt"].exists, "Returning to Record must keep the full-tray hint hidden")
-        XCTAssertTrue(note.isHittable)
-        let recordScreenshot = XCTAttachment(screenshot: app.screenshot())
-        recordScreenshot.name = "Staged toolbar in Record with empty note"
-        recordScreenshot.lifetime = .keepAlways
-        add(recordScreenshot)
+        XCTAssertFalse(app.segmentedControls["CaptureModeToggle"].buttons["Describe"].exists)
         note.tap()
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 4))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
-        // Fresh earlier-iOS simulators can cover the keyboard with Apple's QuickPath intro.
-        let keyboardIntroduction = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "Speed up your typing")
-        ).firstMatch
-        if keyboardIntroduction.exists {
-            app.buttons["Continue"].tap()
-            XCTAssertTrue(waitForDisappearance(keyboardIntroduction))
-        }
-        input.typeText("Beside a pond")
-        let keyboardScreenshot = XCTAttachment(screenshot: app.screenshot())
-        keyboardScreenshot.name = "Describe keyboard at accessibility text size"
-        keyboardScreenshot.lifetime = .keepAlways
-        add(keyboardScreenshot)
-        app.buttons["DescribeKeyboardDone"].tap()
+        input.tap(); input.typeText("Beside a pond")
+        let title = app.staticTexts["FieldNotesTitle"]
+        XCTAssertTrue(title.isHittable)
+        XCTAssertEqual(title.label, "Field notes")
+        XCTAssertGreaterThan(title.frame.height, 80, "Accessibility heading must wrap rather than truncate")
+        let viewport = app.scrollViews["FieldNotesContent"].frame
+        XCTAssertTrue(input.isHittable)
+        XCTAssertGreaterThanOrEqual(input.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(input.frame.minY, viewport.minY - 1)
+        XCTAssertLessThanOrEqual(input.frame.maxY, viewport.maxY + 1)
+        XCTAssertEqual(input.value as? String, "Beside a pond")
+        XCTAssertTrue(identify.isHittable)
+        XCTAssertLessThanOrEqual(identify.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Field notes and whole-observation action at accessibility text size"
+        attachment.lifetime = .keepAlways; add(attachment)
+        let continuation = "\nSmall green shape beside leaves.\nIt moved slowly."
+        input.typeText(continuation)
+        XCTAssertEqual(input.value as? String, "Beside a pond" + continuation)
+        XCTAssertLessThanOrEqual(input.frame.maxY, app.scrollViews["FieldNotesContent"].frame.maxY + 1)
+        let multiline = XCTAttachment(screenshot: app.screenshot())
+        multiline.name = "Long Field notes retain visible final line and caret at accessibility size"
+        multiline.lifetime = .keepAlways; add(multiline)
+        app.buttons["FieldNotesClose"].tap()
         XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
-        XCTAssertTrue(app.buttons["Edit note"].waitForExistence(timeout: 3))
-        XCTAssertTrue(modeToggle.isHittable, "A full tray including its note must preserve mode navigation")
-        XCTAssertTrue(app.buttons["Identify"].isHittable)
-        XCTAssertTrue(app.buttons["Discard scan"].isHittable)
-        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Note at capacity with accessibility text size"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+        XCTAssertTrue(note.isHittable)
+        note.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "Beside a pond" + continuation)
+        app.buttons["FieldNotesClose"].tap()
+        XCTAssertTrue(identify.isHittable)
     }
 
     @MainActor
     func testWrappedReanalysisTrayKeepsEveryNodeAndActionVisible() throws {
+        continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
-            "-seedStagedAudioReviewFlow", "-seedWrappedStagedReanalysis",
-            "-captureModeOrder", "describe,audio,visual", "-hasShownCaptureNoteTip", "YES"
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-seedWrappedStagedReanalysis",
+            "-captureModeOrder", "audio,visual", "-hasShownCaptureNoteTip", "YES"
         ])
-        let analyze = app.buttons["Analyze"]
+        let analyze = app.buttons["Reanalyze"]
         XCTAssertTrue(analyze.waitForExistence(timeout: 8))
         XCTAssertTrue(analyze.isHittable)
-        let note = app.buttons["Add note"]
+        let note = app.buttons["CaptureFieldNotes"]
         XCTAssertTrue(note.isHittable)
         let first = app.buttons["Edit historical description 1"]
         let last = app.buttons["Edit historical description 7"]
@@ -1028,7 +1025,7 @@ final class merianUITests: XCTestCase {
             XCTAssertLessThanOrEqual(node.frame.maxX, app.frame.width - 16)
         }
         XCTAssertGreaterThan(last.frame.minY, first.frame.minY)
-        XCTAssertGreaterThanOrEqual(analyze.frame.minY - note.frame.maxY, 8)
+        XCTAssertGreaterThanOrEqual(analyze.frame.height, 44)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Wrapped historical evidence above Analyze and Discard"
         screenshot.lifetime = .keepAlways
@@ -1052,146 +1049,105 @@ final class merianUITests: XCTestCase {
             XCTAssertTrue(analyze.isHittable)
             XCTAssertTrue(app.buttons["Discard scan"].isHittable)
         }
-        modeToggle.buttons["Describe"].tap()
-        XCTAssertTrue(waitForSelectedState(modeToggle.buttons["Describe"]))
+        XCTAssertFalse(modeToggle.buttons["Describe"].exists)
         XCTAssertTrue(note.isHittable)
     }
 
     @MainActor
-    func testSharedDescribeReviewAndConfirmedDiscard() throws {
+    func testFieldNotesReviewAndConfirmedDiscard() throws {
+        continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
-            "-captureModeOrder", "describe,visual,audio", "-autoSubmitScans", "NO",
-            "-hasShownCaptureNoteTip", "YES"
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-autoSubmitScans", "NO",
+            "-captureModeOrder", "audio,visual", "-hasShownCaptureNoteTip", "YES",
+            "-seedCaptureGoalIndicatorFlow"
         ])
+        let note = app.buttons["CaptureFieldNotes"], audio = app.buttons["StagedAudioBadge_0"]
+        XCTAssertTrue(note.waitForExistence(timeout: 8))
+        note.tap()
         let input = app.descendants(matching: .any)["DescribeTextInput"]
-        XCTAssertTrue(input.waitForExistence(timeout: 8))
-        input.tap()
-        input.typeText("A small green beetle")
-        XCTAssertFalse(app.buttons["Discard scan"].exists)
-        app.buttons["DescribeKeyboardDone"].tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        input.tap(); input.typeText("A small green beetle")
+        app.buttons["FieldNotesClose"].tap()
         XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
-        let shutter = app.buttons["CaptureShutter"]
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "isHittable == true"), object: shutter
-        )], timeout: 4) == .completed)
-        shutter.tap()
-        let note = app.buttons["Edit note"]
-        XCTAssertTrue(note.waitForExistence(timeout: 4))
-        XCTAssertTrue(app.buttons["StagedMediaPlaceholder_0"].isHittable)
-        XCTAssertFalse(app.buttons["StagedMediaPlaceholder_1"].exists)
-        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
+        XCTAssertTrue(audio.isHittable)
         XCTAssertTrue(app.buttons["Identify"].isEnabled)
         app.buttons["Discard scan"].tap()
-        XCTAssertTrue(app.alerts["Discard this scan?"].waitForExistence(timeout: 2))
-        app.alerts.buttons["Keep editing"].tap()
+        let alert = app.alerts["Discard observation?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 3))
+        alert.buttons["Keep editing"].tap()
         note.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
         XCTAssertEqual(input.value as? String, "A small green beetle")
-        app.buttons["DescribeKeyboardDone"].tap()
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Shared Describe staged review"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+        app.buttons["FieldNotesClose"].tap()
+        XCTAssertTrue(waitForDisappearance(app.buttons["FieldNotesClose"]))
         app.buttons["Discard scan"].tap()
-        app.alerts.buttons["Discard scan"].tap()
-        XCTAssertTrue(app.buttons["CaptureShutter"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["Edit note"].exists)
-        XCTAssertFalse((input.value as? String ?? "").contains("small green beetle"))
+        XCTAssertTrue(alert.waitForExistence(timeout: 3))
+        alert.buttons["Discard"].tap()
+        XCTAssertTrue(waitForDisappearance(audio))
+        XCTAssertFalse(note.exists)
+        XCTAssertFalse(app.buttons["Identify"].exists)
+        XCTAssertFalse(app.buttons["Discard scan"].exists)
+        XCTAssertTrue(app.buttons["Record audio"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["activeCaptureGoalArtworkToggle"].waitForExistence(timeout: 4))
+        app.segmentedControls["CaptureModeToggle"].buttons["Scan"].tap()
+        XCTAssertTrue(app.buttons["activeCaptureGoalArtworkToggle"].waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["Discard scan"].exists)
     }
 
     @MainActor
-    func testDescribeTextAreaFocusesFromLowerRegion() throws {
-        let app = UITestAppLauncher.launchConfiguredApp(
-            extraArguments: ["-captureModeOrder", "describe,visual,audio"]
-        )
-
+    func testFieldNotesTextAreaFocusesFromLowerRegion() throws {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-hasShownCaptureNoteTip", "YES"
+        ])
+        let notes = app.buttons["CaptureFieldNotes"]
+        XCTAssertTrue(notes.waitForExistence(timeout: 8)); notes.tap()
         let textArea = app.descendants(matching: .any)["DescribeTextArea"]
-        // A multiline SwiftUI TextField may bridge to either a TextField or
-        // TextView accessibility role depending on the simulator runtime.
-        let textInput = app.descendants(matching: .any)["DescribeTextInput"]
-        XCTAssertTrue(textArea.waitForExistence(timeout: 8.0), "Describe text area did not render")
-        XCTAssertTrue(textInput.waitForExistence(timeout: 4.0), "Describe text input did not render")
-
-        let relativeInputBottom = (textInput.frame.maxY - textArea.frame.minY) / textArea.frame.height
-        XCTAssertLessThan(
-            relativeInputBottom,
-            0.8,
-            "The lower-region tap no longer lands below the intrinsic text input"
-        )
-
-        textArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
-        XCTAssertTrue(
-            app.keyboards.firstMatch.waitForExistence(timeout: 4),
-            "Tapping the lower editor region did not focus the input"
-        )
-
-        let enteredText = "Small green shape"
-        textInput.typeText(enteredText)
-        let enteredValue = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", enteredText), object: textInput
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [enteredValue], timeout: 3), .completed)
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        XCTAssertTrue(textArea.waitForExistence(timeout: 4))
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        // The editor scrolls at compact heights. Tap its visible lower region,
+        // rather than a clipped portion of its full accessibility frame.
+        let visibleArea = textArea.frame.intersection(app.scrollViews["FieldNotesContent"].frame)
+        XCTAssertGreaterThanOrEqual(visibleArea.height, 44)
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: visibleArea.midX, dy: visibleArea.minY + visibleArea.height * 0.8
+        )).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
+        input.typeText("Small green shape")
+        expectation(for: NSPredicate(format: "value == %@", "Small green shape"), evaluatedWith: input)
+        waitForExpectations(timeout: 3)
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
     }
 
     @MainActor
-    func testDescribeFirstLaunchRendersAndOpensPrompts() throws {
-        let app = UITestAppLauncher.launchConfiguredApp(
-            extraArguments: ["-captureModeOrder", "describe,visual,audio"]
-        )
-
-        let describeMode = app.segmentedControls.buttons["Describe"]
-        XCTAssertTrue(describeMode.waitForExistence(timeout: 8.0), "Describe mode did not render")
-        XCTAssertTrue(describeMode.isSelected, "The configured Description-first order did not open Describe")
-
-        let textArea = app.descendants(matching: .any)["DescribeTextArea"]
-        XCTAssertTrue(textArea.waitForExistence(timeout: 4.0), "Describe text area did not render")
-        let promptsButton = app.buttons["DescribePrompts"]
-        let captureButton = app.buttons["CaptureShutter"]
-        let dictationButton = app.buttons["DescribeDictation"]
-        let modeToggle = app.segmentedControls["CaptureModeToggle"]
-        let questionNavigation = app.descendants(matching: .any)["DescribeQuestionNavigation"]
-        XCTAssertTrue(promptsButton.waitForExistence(timeout: 4.0), "Describe prompt control did not render")
-        XCTAssertTrue(captureButton.waitForExistence(timeout: 4.0), "Describe capture control did not render")
-        XCTAssertTrue(dictationButton.waitForExistence(timeout: 4.0), "Describe dictation control did not render")
-        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4.0), "Capture mode toggle did not render")
-        XCTAssertTrue(questionNavigation.waitForExistence(timeout: 4.0), "Describe question navigation did not render")
-        XCTAssertEqual(promptsButton.frame.midY, captureButton.frame.midY, accuracy: 1)
-        XCTAssertEqual(dictationButton.frame.midY, captureButton.frame.midY, accuracy: 1)
-
-        let renderedTopGap = questionNavigation.frame.minY - modeToggle.frame.maxY
-        XCTAssertGreaterThanOrEqual(
-            renderedTopGap,
-            8,
-            "Describe question content overlaps the mode toggle; rendered gap was \(renderedTopGap) pt"
-        )
-        XCTAssertLessThanOrEqual(
-            renderedTopGap,
-            32,
-            "Describe question content has unintended top padding; rendered gap was \(renderedTopGap) pt"
-        )
-
-        let controlRowTop = min(
-            promptsButton.frame.minY,
-            captureButton.frame.minY,
-            dictationButton.frame.minY
-        )
-        let renderedGap = controlRowTop - textArea.frame.maxY
-        XCTAssertGreaterThanOrEqual(
-            renderedGap,
-            8,
-            "Describe controls overlap the text area; rendered gap was \(renderedGap) pt"
-        )
-        XCTAssertLessThanOrEqual(
-            renderedGap,
-            32,
-            "Describe text area does not fill the space above the controls; rendered gap was \(renderedGap) pt"
-        )
-
-        promptsButton.tap()
-        XCTAssertTrue(
-            app.navigationBars["Prompts"].waitForExistence(timeout: 4.0),
-            "The workspace-owned Describe prompt sheet did not open"
-        )
+    func testFieldNotesOpensPromptsWithoutDescribeWorkspace() throws {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation",
+            "-captureModeOrder", "describe,visual,audio", "-hasShownCaptureNoteTip", "YES"
+        ])
+        let notes = app.buttons["CaptureFieldNotes"]
+        XCTAssertTrue(notes.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.segmentedControls["CaptureModeToggle"].buttons["Describe"].exists)
+        notes.tap()
+        let prompts = app.buttons["FieldNotesPrompts"], dictation = app.buttons["FieldNotesDictation"]
+        XCTAssertTrue(prompts.waitForExistence(timeout: 4))
+        XCTAssertTrue(dictation.isHittable)
+        XCTAssertEqual(prompts.frame.midY, dictation.frame.midY, accuracy: 1)
+        // AX converts screen coordinates through floating-point transforms.
+        // Tolerate only arithmetic noise, never a visibly smaller target.
+        for control in [prompts, dictation, app.buttons["FieldNotesClose"]] {
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44 - 1e-6)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 - 1e-6)
+        }
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
+        prompts.tap()
+        XCTAssertTrue(app.navigationBars["Prompts"].waitForExistence(timeout: 4))
+        app.navigationBars["Prompts"].buttons.firstMatch.tap()
+        XCTAssertTrue(prompts.waitForExistence(timeout: 4))
+        XCTAssertTrue(dictation.isHittable)
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
     }
 
     @MainActor
@@ -1537,7 +1493,7 @@ final class merianUITests: XCTestCase {
             "The live Insight did not dismiss after its queued handoff"
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
         XCTAssertTrue(
@@ -1554,7 +1510,7 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedQueuedRetryPresentationFlow"]
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
         scansButton.tap()
 
@@ -1601,7 +1557,7 @@ final class merianUITests: XCTestCase {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-seedQueuedRetryPresentationFlow", "-seedOpenAIPermissionFlow"]
         )
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8))
         scansButton.tap()
         let tile = app.buttons["QueuedScanTile_ui_test_queued_retry_attention"]
@@ -1627,7 +1583,7 @@ final class merianUITests: XCTestCase {
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
         scansButton.tap()
 
@@ -1722,7 +1678,7 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedMissingVideoFallbackFlow"]
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
         scansButton.tap()
 
@@ -1760,7 +1716,7 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedMissingVideoFallbackFlow"]
         )
 
-        let scansButton = app.buttons["MainTabBar_Scans"]
+        let scansButton = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
         scansButton.tap()
 
@@ -1800,7 +1756,7 @@ final class merianUITests: XCTestCase {
     func testBackgroundInterruptionPreservesQueuedAudioInsight() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
         defer { app.terminate() }
-        let scans = app.buttons["MainTabBar_Scans"]
+        let scans = app.buttons["MainTabBar_Naturebook"]
         XCTAssertTrue(scans.waitForExistence(timeout: 8))
         scans.tap()
         let tile = app.buttons["QueuedScanTile_ui_test_queued_audio_handoff"]

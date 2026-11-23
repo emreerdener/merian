@@ -6,6 +6,8 @@ struct IncorrectIdentificationView: View {
     var onUndo: (() -> Void)?
     var onConfirm: (() -> Void)?
     var unavailableReason: String?
+    var undoEnabled = true
+    var undoIdentifier = "IncorrectIdentificationUndoButton"
 
     private var color: Color { review.state == .aiRejected && !review.needsAttention ? .red : .orange }
 
@@ -23,7 +25,8 @@ struct IncorrectIdentificationView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(color)
                         .buttonStyle(.plain)
-                        .accessibilityIdentifier("IncorrectIdentificationUndoButton")
+                        .disabled(!undoEnabled)
+                        .accessibilityIdentifier(undoIdentifier)
                 }
             }
 

@@ -4,6 +4,8 @@ import SwiftUI
 struct ConfirmedView: View {
     var onReset: (() -> Void)?
     var unavailableReason: String?
+    var undoEnabled = true
+    var undoIdentifier = "ConfidenceUndoConfirmation"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -19,7 +21,8 @@ struct ConfirmedView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.green)
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("ConfidenceUndoConfirmation")
+                    .disabled(!undoEnabled)
+                    .accessibilityIdentifier(undoIdentifier)
                 }
             }
 

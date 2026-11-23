@@ -56,6 +56,56 @@ struct ObservationHistorySelectionIntentTests {
         try #require(try Intent.load(observation, context: ModelContext(container)))
     }
 
+    func evidenceResponse(version: Int, revision: Int, selected: String? = nil) throws -> Data {
+        var snapshot = try ObservationInitialEvidenceTests().fixture().snapshot
+        snapshot["analysis_id"] = version == 8 ? support.support.analysisID : support.otherID
+        if version == 7 {
+            let manifest = try #require(snapshot["evidence_manifest"] as? [String: Any])
+            let image = try #require((manifest["items"] as? [[String: Any]])?.first)
+            snapshot["schema_version"] = 7; snapshot["ordinal"] = 2
+            snapshot["source_analysis_id"] = support.support.analysisID
+            snapshot.removeValue(forKey: "initial_evidence")
+            snapshot["evidence_manifest"] = ["schema_version": 6, "items": [["kind": "image",
+                "artifact": image["prepared"]!, "focus_region": image["focus_region"]!]]]
+        }
+        var state = try ObservationHistoryStateTests().fixture()
+        state["state_revision"] = revision
+        state["selected_analysis_id"] = selected ?? snapshot["analysis_id"]
+        var item = try #require(state["analysis"] as? [String: Any])
+        item["snapshot"] = String(decoding: try JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys]), as: UTF8.self)
+        state["analysis"] = item
+        return try JSONSerialization.data(withJSONObject: state)
+    }
+
+    @Test func initialAndFocusedSelectionRetryAndUndoKeepBothImmutableResults() async throws {
+        let container = try support.support.container()
+        _ = try await support.support.service(data: evidenceResponse(version: 8, revision: 10))
+            .syncSelected(observationID: observation, container: container)
+        var cloud = support.support.support.client(fetch: { _ in Data() })
+        cloud.fetchState = { _ in try evidenceResponse(version: 7, revision: 10, selected: support.support.analysisID) }
+        _ = try await ObservationHistoryPreviewService(cloud: cloud).preview(observationID: observation, analysisID: target, container: container)
+        let original = try ModelContext(container).fetch(FetchDescriptor<LocalAnalysisRecord>()).map(\.resultSnapshotData)
+        let request = try prepare(container)
+        var seen: [ObservationHistorySelectionRequest] = []
+        await #expect(throws: ObservationHistoryError.unavailable) {
+            try await service(duringSelect: { seen.append($0); throw ObservationHistoryError.unavailable })
+                .sendPending(observationID: observation, container: container)
+        }
+        _ = try await service(state: evidenceResponse(version: 7, revision: 11), duringSelect: { seen.append($0) })
+            .sendPending(observationID: observation, container: container)
+        #expect(seen == [request, request])
+        #expect(try support.parent(container).selectedAnalysisID == support.otherID)
+        let undo = try service().prepareUndo(observationID: observation, operationID: UUID(uuidString: request.operation_id)!,
+            ownerID: owner, container: container)
+        #expect(undo.analysis_id == support.support.analysisID)
+        var back = service(state: try evidenceResponse(version: 8, revision: 12))
+        back.cloud.select = { request in try receipt(request, previous: support.otherID) }
+        _ = try await back.sendPending(observationID: observation, container: container)
+        #expect(try support.parent(container).selectedAnalysisID == support.support.analysisID)
+        #expect(try support.parent(container).fieldNotes == "Preserved private note")
+        #expect(Set(try ModelContext(container).fetch(FetchDescriptor<LocalAnalysisRecord>()).map(\.resultSnapshotData)) == Set(original))
+    }
+
     @Test func sharedSelectionReceiptRejectsUnknownMismatchedAndNonIntegerFields() throws {
         let text = try DatabaseActorTestSupport.loadRepositorySource(at: "services/supabase/functions/_shared/analysisHistory/fixtures/selection-v1.json")
         let fixture = try JSONSerialization.jsonObject(with: Data(text.utf8)) as! [String: Any]

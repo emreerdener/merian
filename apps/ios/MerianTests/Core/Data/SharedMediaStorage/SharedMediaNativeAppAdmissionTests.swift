@@ -1,25 +1,25 @@
 import Foundation
+@testable import Merian
 import SwiftData
 import Testing
-@testable import Merian
 
 @Suite("Deferred native app admission", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 struct SharedMediaNativeAppAdmissionTests {
     @Test func bootstrapAndSignedOutRefusalStayInertUntilStableAdmission() async throws {
         let h = try Fixture()
-        #expect(h.di.nativeMediaLifetime == nil && h.di.nativeMediaOwner == nil)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaLifetime == nil && h.di.nativeMediaLifecycle.nativeMediaOwner == nil)
         h.ready = false
         await #expect(throws: (any Error).self) { _ = try await h.open() }
         #expect(h.installs == 0 && !FileManager.default.fileExists(atPath: h.parent.path))
         h.ready = true
         let owner = try await h.open()
-        #expect(owner === h.di.nativeMediaOwner && owner.isReadyForAppDispatch)
+        #expect(owner === h.di.nativeMediaLifecycle.nativeMediaOwner && owner.isReadyForAppDispatch)
         #expect(h.installs == 1)
         await #expect(throws: SharedMediaStorageFailure.closed) { _ = try await owner.appInitializationSnapshot() }
         #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
         try #require(await h.shutdown())
-        #expect(h.di.nativeMediaOwner == nil && h.di.nativeMediaLifetime != nil)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner == nil && h.di.nativeMediaLifecycle.nativeMediaLifetime != nil)
         _ = try h.admission.acquireFence(container: h.container)
         await #expect(throws: (any Error).self) { _ = try await h.open() }
         #expect(h.installs == 1 && h.begins == h.finishes)
@@ -29,7 +29,7 @@ struct SharedMediaNativeAppAdmissionTests {
         let h = try Fixture()
         h.installFails = true
         await #expect(throws: (any Error).self) { _ = try await h.open() }
-        #expect(h.di.nativeMediaLifetime == nil && h.begins == h.finishes)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaLifetime == nil && h.begins == h.finishes)
         #expect(!FileManager.default.fileExists(atPath: h.parent.path))
         h.installFails = false
         _ = try await h.open()
@@ -41,7 +41,7 @@ struct SharedMediaNativeAppAdmissionTests {
         let h = try Fixture(), gate = Gate()
         let first = Task { try await h.open { try $0.configureAppOpeningForTesting(pause: { await gate.pause() }) } }
         await gate.arrived()
-        let retained = try #require(h.di.nativeMediaOwner)
+        let retained = try #require(h.di.nativeMediaLifecycle.nativeMediaOwner)
         #expect(!retained.isReadyForAppDispatch && h.installs == 1)
         first.cancel()
         let second = Task { try await h.open() }
@@ -58,17 +58,17 @@ struct SharedMediaNativeAppAdmissionTests {
         let h = try Fixture(), gate = Gate()
         let opening = Task { try await h.open { try $0.configureAppOpeningForTesting(pause: { await gate.pause() }) } }
         await gate.arrived()
-        let retained = try #require(h.di.nativeMediaOwner)
+        let retained = try #require(h.di.nativeMediaLifecycle.nativeMediaOwner)
         #expect(!retained.isReadyForAppDispatch)
         if stale { h.current = false }
         let shutdown: Task<Bool, Never>? = stale ? nil : Task { await h.shutdown() }
         await Task.yield()
-        #expect(h.di.nativeMediaOwner === retained)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner === retained)
         #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
         gate.release()
         await #expect(throws: (any Error).self) { _ = try await opening.value }
         if let shutdown { try #require(await shutdown.value) }
-        #expect(h.di.nativeMediaOwner == nil && !retained.isReadyForAppDispatch)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner == nil && !retained.isReadyForAppDispatch)
         #expect(h.begins == h.finishes)
         _ = try h.admission.acquireFence(container: h.container)
     }
@@ -79,7 +79,7 @@ struct SharedMediaNativeAppAdmissionTests {
         await gate.arrived()
         let account = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: other)
         await #expect(throws: (any Error).self) {
-            _ = try await h.di.nativeMediaOwnerForTesting(account: account, support: h.support, install: { _ in Issue.record("Duplicate install") })
+            _ = try await h.di.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: account, support: h.support, install: { _ in Issue.record("Duplicate install") })
         }
         await other.awaitAccountWorkDrain()
         gate.release()
@@ -92,15 +92,59 @@ struct SharedMediaNativeAppAdmissionTests {
         await #expect(throws: (any Error).self) {
             _ = try await h.open { try $0.configureAppOpeningForTesting(fault: { if $0 == .afterSave { throw SharedMediaStorageFailure.unavailable } }) }
         }
-        #expect(h.di.nativeMediaOwner == nil && h.di.nativeMediaLifetime != nil)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner == nil && h.di.nativeMediaLifecycle.nativeMediaLifetime != nil)
         let rows = try ModelContext(h.container).fetch(FetchDescriptor<SharedMediaInventoryRecord>())
         #expect(rows.count == 1)
         let next = AppDIContainer.preview
-        try next.configureNativeMediaForTesting(container: h.container, admission: h.admission)
-        let owner = try await next.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in })
+        try next.nativeMediaLifecycle.configureNativeMediaForTesting(container: h.container, admission: h.admission)
+        let owner = try await next.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in })
         #expect(owner.isReadyForAppDispatch)
         #expect(try ModelContext(h.container).fetch(FetchDescriptor<SharedMediaInventoryRecord>()).map(\.id) == rows.map(\.id))
-        try #require(await next.nativeMediaLifetime?.shutdown() == true)
+        try #require(await next.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
+        #expect(h.begins == h.finishes)
+    }
+
+    @Test(arguments: [false, true])
+    func explicitFeatureAdmissionRecoversExistingCaptureRoot(interrupted: Bool) async throws {
+        let h = try Fixture(), owner = try await h.open()
+        if interrupted {
+            try owner.configureCaptureRootRecoveryForTesting { if $0 == .afterRootReceipt { throw SharedMediaStorageFailure.unavailable } }
+            await #expect(throws: (any Error).self) { _ = try await owner.recoverAppCaptureRoot() }
+        } else { _ = try await owner.recoverAppCaptureRoot() }
+        try #require(await h.shutdown())
+        let next = AppDIContainer.preview
+        try next.nativeMediaLifecycle.configureNativeMediaForTesting(container: h.container, admission: h.admission)
+        let reopened = try await next.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in })
+        #expect(reopened === next.nativeMediaLifecycle.nativeMediaOwner && reopened.isReadyForAppDispatch)
+        _ = try await reopened.inspectApp()
+        try #require(await next.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
+        #expect(h.begins == h.finishes)
+    }
+
+    @Test func acceptedCaptureColdOpenPublishesOnlyCaptureRoleAndReusesLifetime() async throws {
+        let h = try Fixture(), owner = try await h.open()
+        let bytes = Data(repeating: 12, count: 96)
+        let plan = try CaptureInitialEvidencePlan(ownerID: h.ownerID, scanID: UUID(), generation: UUID(),
+            items: [.audio(.init(source: .init(mediaID: UUID(), contentType: "audio/wav", byteCount: bytes.count,
+                sha256: SharedMediaAcquisitionEncoding.digest(bytes)), preparedMediaID: UUID()))])
+        let parent = try await owner.reserveAppCaptureSubmission(plan, context: SharedMediaCaptureSubmissionContextTests.context(plan))
+        for member in parent.submission.members {
+            _ = try await owner.materializeAppCaptureArtifact(parent.submission.artifact(mediaID: member.mediaID), bytes: bytes)
+        }
+        _ = try await owner.acceptAppCaptureSubmission(scanID: plan.scanID, generation: plan.generation)
+        try #require(await h.shutdown())
+        let next = AppDIContainer.preview
+        try next.nativeMediaLifecycle.configureNativeMediaForTesting(container: h.container, admission: h.admission)
+        var installs = 0
+        await #expect(throws: (any Error).self) {
+            _ = try await next.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in installs += 1 })
+        }
+        let reopened = try await next.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: h.account(), support: h.support,
+            install: { _ in installs += 1 }, captureResume: true)
+        #expect(reopened === next.nativeMediaLifecycle.nativeMediaOwner && reopened.isReadyForCaptureDispatch && !reopened.isReadyForAppDispatch)
+        #expect(installs == 1)
+        await #expect(throws: (any Error).self) { try await reopened.inspectApp() }
+        try #require(await next.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
         #expect(h.begins == h.finishes)
     }
 
@@ -111,7 +155,7 @@ struct SharedMediaNativeAppAdmissionTests {
         let bytes = PhotoPreparationTestHarness.image()
         await #expect(throws: (any Error).self) { _ = try await owner.acquireAppOriginal(request) { bytes } }
         #expect(!(await h.shutdown()))
-        #expect(h.di.nativeMediaOwner === owner && !owner.isReadyForAppDispatch)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner === owner && !owner.isReadyForAppDispatch)
         #expect(throws: (any Error).self) { _ = try h.admission.acquireFence(container: h.container) }
         await #expect(throws: (any Error).self) { _ = try await h.open() }
         var boundaries: [String] = []
@@ -122,7 +166,7 @@ struct SharedMediaNativeAppAdmissionTests {
         let label = (failure as? SharedMediaStorageFailure).map { String(describing: $0) }
             ?? (failure as? PhotoPreparationFailure).map { String(describing: $0) } ?? "unclassified"
         try #require(retried, "Settlement retry: \(label); boundaries: \(boundaries); phases: \(Array(owner.settlementTraceForTesting.dropFirst(previousTraceCount)))")
-        #expect(h.di.nativeMediaOwner == nil && h.begins == h.finishes)
+        #expect(h.di.nativeMediaLifecycle.nativeMediaOwner == nil && h.begins == h.finishes)
         _ = try h.admission.acquireFence(container: h.container)
     }
 
@@ -158,11 +202,11 @@ struct SharedMediaNativeAppAdmissionTests {
         try #require(await h.shutdown())
         phase("shutdown")
         let next = AppDIContainer.preview
-        try next.configureNativeMediaForTesting(container: h.container, admission: h.admission)
+        try next.nativeMediaLifecycle.configureNativeMediaForTesting(container: h.container, admission: h.admission)
         let trace = SharedMediaNativeDebugHooks.InspectionTrace { value in
             print("NATIVE_ADMISSION_AUDIT \(value.phase.rawValue) completed=\(value.completed) elapsed=\(value.elapsed) checkpoints=\(value.checkpointCount) checkpointTime=\(value.checkpointTime) saturated=\(value.saturated)")
         }
-        let reopened = try await next.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in },
+        let reopened = try await next.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: h.account(), support: h.support, install: { _ in },
             configure: { try $0.configureAppOpeningForTesting(trace: trace) })
         trace.finish()
         phase("reopened")
@@ -170,7 +214,7 @@ struct SharedMediaNativeAppAdmissionTests {
         phase("reopened-slot-verified")
         #expect(try await reopened.receiveAppPrepared(prepared) == received)
         phase("replayed")
-        try #require(await next.nativeMediaLifetime?.shutdown() == true)
+        try #require(await next.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() == true)
         #expect(h.begins == h.finishes)
     }
 
@@ -192,7 +236,7 @@ struct SharedMediaNativeAppAdmissionTests {
         let consumer = NSObject()
         var input: ObservationReanalysisLocalVideoInput?
         if nativeFirst { _ = try await h.open() }
-        let borrow = try h.di.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
+        let borrow = try h.di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
             install: { _ in h.installs += 1 }, close: {
                 guard let input else { return true }
                 _ = await input.discardCopiedInput()
@@ -208,7 +252,7 @@ struct SharedMediaNativeAppAdmissionTests {
             startup: h.admission, borrowing: borrow, store: ObservationReanalysisFileStore(documents: documents),
             ownership: .init(), owning: { input = $0 }, isCurrent: { true })
         if !nativeFirst { _ = try await h.open() }
-        #expect(h.installs == 1 && h.di.nativeMediaOwner?.isReadyForAppDispatch == true)
+        #expect(h.installs == 1 && h.di.nativeMediaLifecycle.nativeMediaOwner?.isReadyForAppDispatch == true)
         let retained = try #require(input)
         let receipt = try #require(try ObservationReanalysisInputPersistence.read(child: retained.analysisID, container: h.container))
         #expect(try Data(contentsOf: documents.appendingPathComponent("ReanalysisInputs/\(receipt.slot)/input.mp4")) == bytes)
@@ -222,16 +266,16 @@ struct SharedMediaNativeAppAdmissionTests {
     @Test func borrowerOnlyLifetimeRejectsForeignAccountWithoutClosingOriginal() async throws {
         let h = try Fixture(), consumer = NSObject()
         var closed = false
-        let borrow = try h.di.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
+        let borrow = try h.di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: h.container, account: h.account(), consumer: consumer,
             install: { _ in h.installs += 1 }, close: { closed = true; return true })
         let foreign = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: h.ownerID, runtime: AuthRuntimeState())
         await #expect(throws: PhotoPreparationFailure.accountChanged) {
-            _ = try await h.di.nativeMediaOwnerForTesting(account: foreign, support: h.support, install: { _ in Issue.record("Reinstalled") })
+            _ = try await h.di.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: foreign, support: h.support, install: { _ in Issue.record("Reinstalled") })
         }
-        #expect(!closed && h.di.nativeMediaOwner == nil)
+        #expect(!closed && h.di.nativeMediaLifecycle.nativeMediaOwner == nil)
         _ = try borrow.fence(container: h.container)
         #expect(throws: (any Error).self) {
-            _ = try h.di.preparedInputBorrowForTesting(container: h.container, account: foreign, consumer: consumer,
+            _ = try h.di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: h.container, account: foreign, consumer: consumer,
                 install: { _ in Issue.record("Reinstalled") }, close: { Issue.record("Replaced callback"); return true })
         }
         try #require(await h.shutdown())
@@ -250,7 +294,7 @@ struct SharedMediaNativeAppAdmissionTests {
             let store = try SharedMediaNativeAppBootstrapTests.Store(startupEligible: true)
             support = store.parent.deletingLastPathComponent(); self.ownerID = ownerID ?? store.ownerID
             let startup = try store.startup(); container = startup.0; admission = startup.1
-            try di.configureNativeMediaForTesting(container: container, admission: admission)
+            try di.nativeMediaLifecycle.configureNativeMediaForTesting(container: container, admission: admission)
         }
         func account() -> PhotoOriginalPreparationOwner.AccountAccess {
             let session = AuthTransitionSession(userID: ownerID, isAnonymous: false)
@@ -261,12 +305,12 @@ struct SharedMediaNativeAppAdmissionTests {
             finish: { #expect(self.runtime.finishAccountWork($0)); self.finishes += 1 })
         }
         func open(configure: (SharedMediaNativeOriginalOwner) throws -> Void = { _ in }) async throws -> SharedMediaNativeOriginalOwner {
-            try await di.nativeMediaOwnerForTesting(account: account(), support: support, install: { _ in
+            try await di.nativeMediaLifecycle.nativeMediaOwnerForTesting(account: account(), support: support, install: { _ in
                 if self.installFails { throw SharedMediaStorageFailure.closed }
                 self.installs += 1
             }, configure: configure)
         }
-        func shutdown() async -> Bool { await di.nativeMediaLifetime?.shutdown() ?? true }
+        func shutdown() async -> Bool { await di.nativeMediaLifecycle.nativeMediaLifetime?.shutdown() ?? true }
     }
 
     @MainActor private final class Gate {

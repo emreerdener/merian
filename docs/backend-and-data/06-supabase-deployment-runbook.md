@@ -1,3 +1,14 @@
+## Prepared composition release compatibility — November 14
+
+Mixed-media reanalysis is implemented locally behind new default-off composition
+gates. Release preparation must bind the migrations, analyze/recovery/upload
+routes, result-6 reader14 and native delivery together. Selection enablement is
+also required: successful completion atomically makes the new version current.
+Old readers refuse affected histories rather than projecting partial media. No
+local build or migration replay authorizes deployment or activation. See the
+[composition contract](05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14)
+and retained candidate evidence before preparing an exact release request.
+
 ## Gemini activation as the final backend release step
 
 Follow the [Gemini activation contract](./22-gemini-generation3-release.md) for
@@ -8912,6 +8923,28 @@ prepared behind the disabled App installation gate. Unknown-admission sealing
 and remaining device/hosted/privacy qualifications remain separate. A timeout or
 absent status cannot authorize a successor or refund; only exact permanent
 retirement proof can establish this admitted-only terminal outcome.
+
+## Prepared mixed-media cleanup cutover
+
+The local `20261114214815_integrate_composition_evidence_cleanup.sql` and
+`erase-observation-evidence` successor add composition retirement and strict V3
+worker receipts. This is not yet deployed. Before changing either component,
+obtain explicit operation/target approval, pause the existing worker and prove
+that its current invocation and capable SQL transactions have drained. Preserve
+any held unknown request; neither timeout nor the migration authorizes clearing
+it. Apply the reviewed SQL/Edge candidate while paused. Confirm V3 validator,
+composition dispatch facade, worker version and aggregate health generation,
+then resume only within the approved operation and observe a correlated V3
+receipt. V2 receipts remain compatible after migration, but do not certify
+composition cleanup. An old database cannot consume the new V3 worker receipt,
+so worker-first rollout with active dispatch is not supported. No schedule,
+credential, gate or held request is changed by this migration itself.
+
+The request/claim/storage budgets remain 90/60/25 seconds, with a 50-second
+pre-claim reserve and at most one permanent marker per invocation. Three
+retirement opportunities each have a 12-second deadline; lack of remaining
+budget declines a new claim. Do not use V2 heartbeat success as mixed-media
+qualification. The prior rollout below records the deployed predecessor.
 
 ## Private cleanup dispatch correlation rollout
 

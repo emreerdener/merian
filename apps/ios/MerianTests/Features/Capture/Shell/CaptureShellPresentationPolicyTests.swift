@@ -66,7 +66,7 @@ final class CaptureShellPresentationPolicyTests: XCTestCase {
             CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
                 containerWidth: 280
             ),
-            0
+            10
         )
         XCTAssertEqual(
             CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
@@ -101,7 +101,7 @@ final class CaptureShellPresentationPolicyTests: XCTestCase {
             ActiveCaptureGoalPresentationPolicy.shouldShow(
                 goalsEnabled: true,
                 isUserVisible: true,
-                isVisualMode: true,
+                isCaptureMode: true,
                 hasPresentation: true,
                 stagedCaptureIsEmpty: true,
                 isRefining: false,
@@ -112,7 +112,7 @@ final class CaptureShellPresentationPolicyTests: XCTestCase {
             ActiveCaptureGoalPresentationPolicy.shouldShow(
                 goalsEnabled: true,
                 isUserVisible: true,
-                isVisualMode: true,
+                isCaptureMode: true,
                 hasPresentation: true,
                 stagedCaptureIsEmpty: false,
                 isRefining: false,
@@ -123,7 +123,7 @@ final class CaptureShellPresentationPolicyTests: XCTestCase {
             ActiveCaptureGoalPresentationPolicy.shouldShow(
                 goalsEnabled: true,
                 isUserVisible: true,
-                isVisualMode: true,
+                isCaptureMode: true,
                 hasPresentation: true,
                 stagedCaptureIsEmpty: true,
                 isRefining: true,

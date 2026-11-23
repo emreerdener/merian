@@ -1,3 +1,7 @@
+import {
+  type InitialEvidenceEnvelopeV1,
+  parseInitialEvidenceEnvelopeV1,
+} from "./initialEvidenceEnvelopeV1.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   identificationProvenanceContract,
@@ -117,7 +121,7 @@ export interface CompletedSpeciesResponseRow {
 }
 
 export interface CompletedIdentifyResponse {
-  envelope: IdentifySuccessEnvelope;
+  envelope: InitialEvidenceEnvelopeV1;
   source: "stored" | "reconstructed";
 }
 
@@ -634,7 +638,9 @@ export async function fetchCompletedIdentifyResponse(
     .from("scan_ingestion_jobs")
     // The database migration precedes this bundle. Required snapshot loss must
     // not be hidden by an otherwise parseable legacy stored envelope.
-    .select("status,identification_provenance,primary_identification")
+    .select(
+      "status,identification_provenance,primary_identification,initial_evidence_generation",
+    )
     .eq("scan_id", scanId)
     .eq("user_id", userId)
     .abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS))
@@ -645,7 +651,36 @@ export async function fetchCompletedIdentifyResponse(
     );
   }
 
-  let job = jobData as (PrimaryReplayMetadata & { status?: unknown }) | null;
+  let job = jobData as
+    | (PrimaryReplayMetadata & {
+      status?: unknown;
+      initial_evidence_generation?: unknown;
+    })
+    | null;
+  if (!job || job.initial_evidence_generation != null) {
+    // The sealed ordinary proof survives the transient ingestion ledger. Strict
+    // work must never enter the legacy mutable-row reconstruction below, even
+    // after a lost finalization response or when its original job has expired.
+    const { data, error } = await supabaseAdmin.rpc(
+      "recover_owned_initial_completion",
+      { p_owner: userId, p_scan: scanId },
+    ).abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS));
+    if (error) throw new Error("initial_evidence_completion_unavailable");
+    if (data === null) {
+      if (job?.initial_evidence_generation != null) {
+        throw new Error("initial_evidence_completion_integrity");
+      }
+      return null;
+    }
+    const envelope = parseInitialEvidenceEnvelopeV1(data);
+    const proof = envelope.initial_evidence;
+    if (
+      !proof || proof.owner_id !== userId || proof.scan_id !== scanId ||
+      (job?.initial_evidence_generation != null &&
+        proof.generation !== job.initial_evidence_generation)
+    ) throw new Error("initial_evidence_completion_integrity");
+    return { envelope, source: "stored" };
+  }
   if (
     job?.status === "failed_retryable" &&
     await recoverStrandedInlineCompletion(
@@ -679,7 +714,7 @@ export async function fetchCompletedIdentifyResponse(
     )?.response_envelope;
     if (storedResponse != null) {
       try {
-        const envelope = parseIdentifySuccessEnvelope(storedResponse);
+        const envelope = parseInitialEvidenceEnvelopeV1(storedResponse);
         if (envelope.data.scan_id === scanId) {
           assertPrimaryReplayMetadata(job, envelope.data);
           return { envelope, source: "stored" };

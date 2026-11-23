@@ -43,7 +43,8 @@ struct ObservationHistoryBaselineRecovery {
         }
         let baseline = try ObservationHistoryPage.uuid(row["baseline_analysis_id"])
         let result = try ObservationHistoryPage.snapshot(Data(text.utf8), observationID: observationID.uuidString.lowercased(), ordinal: 1)
-        guard baseline != observationID, baseline != ownerID, result.version == 3, result.analysisID == baseline else {
+        guard baseline != observationID, baseline != ownerID, [3, 8].contains(result.version), result.analysisID == baseline,
+              result.initialEvidence.map({ $0.ownerID == ownerID }) ?? true else {
             throw ObservationHistoryError.invalidPage
         }
         return Self(enrollment: .init(baselineAnalysisID: baseline), result: result, snapshotSHA256: hash)

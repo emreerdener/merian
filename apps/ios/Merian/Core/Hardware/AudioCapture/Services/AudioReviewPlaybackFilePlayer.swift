@@ -63,5 +63,8 @@ actor AudioReviewPlaybackFilePlayer: AudioReviewPlaybackPlayer {
         return player?.play() ?? false
     }
 
-    func stop() { player?.stop() }
+    func stop() {
+        player?.stop()
+        player = nil
+    }
 }

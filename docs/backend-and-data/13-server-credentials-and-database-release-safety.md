@@ -1,3 +1,81 @@
+## November 20 — prepared capture promotion authority
+
+The prepared promotion registry separately reserves exact destination ownership
+before any write. Its service-only, exact-signature RPCs validate the complete
+binding against the locked staged asset and source authority. One durable write
+authorization cannot be reset by registration replay, claim expiry or a lost
+response. Account/scan/source retirement propagates to the destination in the
+same transaction; target-only abandonment preserves the source's separate
+obligation. Destination claims retain permanent late-write cleanup state without
+cascade deletion or a final-erasure claim. Direct asset deletion still requires
+explicit target abandonment. No runtime signer, destination reaper, final
+binding or worker schedule is installed by this migration. See the canonical
+[database authority contract](04-database-schema.md) and
+[promotion integration contract](16-scan-ingestion-reliability-and-recovery.md#prepared-capture-promotion-byte-transfer).
+
+The subsequent prepared cohort RPC seals the whole ordered inventory before
+member writes. It and its private helpers retain exact-signature privileges,
+empty search paths and no direct API/service table access. The cohort has no
+cascading identity dependency; losing an ingestion job or intent prevents fresh
+authorization without discarding the retained obligation. The registration and
+all-member freshness checks are described in the
+[cohort contract](16-scan-ingestion-reliability-and-recovery.md#november-20--prepared-immutable-promotion-cohorts).
+This remains inactive preparation, with no finalizer, worker or hosted cutover.
+
+The retained verification successor grants only exact service-role RPCs for
+historical destination GET authority, monotonic content receipts and complete
+cohort registration from server-owned job identity. No ledger/table SELECT grant
+is added. Receipts do not authorize binding, cleanup, release or publication;
+retired operations reject late attestations. See the
+[recovery boundary](16-scan-ingestion-reliability-and-recovery.md#november-20--retained-destination-verification).
+
+## November 19 — prepared capture staging retirement
+
+The local capture signer candidate records each newly issued staging PUT in a
+private exact-object registry before returning its URL. The registry retains
+backend identity, object key, owner/scan/asset/session identity and the actual
+signed expiry, without storing the URL, credentials or source content. Its
+service-only wrappers use an empty search path, bounded batch sizes and explicit
+privileged-routine grants. Direct table access is denied to application and
+service roles.
+
+Registration and account-deletion intake share a per-owner advisory fence;
+registration then uses the existing owner/scan locks. A separate advisory fence
+avoids reversing account cleanup's job/owner lock order. Deletion permanently
+retires keys and the independent worker retains their exact cleanup obligations
+after row cascades. Absence observations and renewable worker leases never
+certify final physical erasure. Retained private identifiers have the narrow
+purpose of unresolved late-write erasure and preventing key reuse.
+
+The existing private account-merge reparent boundary is the sole metadata-owner
+exception. Its ungranted transaction marker matches the current transaction and
+exact source/target owners, and permits no other row change except the update
+timestamp. Moved old-owner capabilities retire in the same transaction. API
+roles cannot create markers or invoke either the wrapper or its private base.
+Source reclassification and key movement cannot bypass the registry fence.
+
+This is newly registered staging PUT containment only. Legacy capabilities,
+promotion/COPY destinations, publication ownership, and abandoned drafts remain
+separate qualification obligations. No hosted migration, deployment, schedule
+change, credential change or feature activation was authorized or performed.
+
+## November 14 — prepared composition cleanup cutover
+
+The local mixed-media successor adds receipt schema3 to
+`erase-observation-evidence`. SQL accepts the old correlated schema2 and new
+schema3, and health records the observed receipt generation. The new worker's
+seven counts include one complete composition retirement (up to eight objects);
+marker count, timeout and original-claim protections are unchanged. No migration
+enables a gate, schedules transport or changes credentials.
+
+The coordinated deployment packet must explicitly pause cleanup and positively
+drain known in-flight work before replacing SQL/Edge code, then verify the new
+receipt support before authorized resumption. An old database cannot reconcile a
+V3 receipt; deploying the worker first with scheduling active can hold the
+pending slot. Unknown requests remain preserved for the existing proof-based
+recovery procedure. A V2 heartbeat is not mixed-lane readiness. This local
+preparation is not authority to pause, deploy or resume the hosted worker.
+
 ## November 9 — prepared original recovery service reads
 
 The local `20261109154413_prepare_initial_completion_recovery_reads.sql`

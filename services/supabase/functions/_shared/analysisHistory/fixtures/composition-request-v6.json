@@ -1,0 +1,495 @@
+[
+  {
+    "name": "manual-photo-audio",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "d00a938e091d508167eb33f5f87d3048b9f10f25bb649b96cd171f270365b1ce",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "d00a938e091d508167eb33f5f87d3048b9f10f25bb649b96cd171f270365b1ce",
+    "fingerprint": "8915f742172d61518340821a118259108778943789f20537d46ba21ee198aa0e"
+  },
+  {
+    "name": "automatic",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "28ae60c8823d2981204b977d5aaccff77c7b335ab3ea97febb6e68dff29b97d3",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4,
+              "source": "vision_objectness"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "28ae60c8823d2981204b977d5aaccff77c7b335ab3ea97febb6e68dff29b97d3",
+    "fingerprint": "402359dee6fca55dbe8c224854fee91be2e3cc177649b1fe07102b669a687dea"
+  },
+  {
+    "name": "full-image",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "6cbc2d17457fd64c86fe3d41c8616ff605d0dd9f7a06125260b05a98f812d465",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "6cbc2d17457fd64c86fe3d41c8616ff605d0dd9f7a06125260b05a98f812d465",
+    "fingerprint": "882ec1b7c49919e37e2c41141c0eb44a28abff6b949ee29fc5a45a689fe3cec4"
+  },
+  {
+    "name": "negative-zero",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "6cbc2d17457fd64c86fe3d41c8616ff605d0dd9f7a06125260b05a98f812d465",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": -0.0,
+              "y": -0.0,
+              "width": 1,
+              "height": 1,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "6cbc2d17457fd64c86fe3d41c8616ff605d0dd9f7a06125260b05a98f812d465",
+    "fingerprint": "882ec1b7c49919e37e2c41141c0eb44a28abff6b949ee29fc5a45a689fe3cec4"
+  },
+  {
+    "name": "one-ulp",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "76001e8a9b85e8b7cceaa37c30fc395812451965e5782cf5d9e31698f2805ec9",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0.10000000000000002,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "76001e8a9b85e8b7cceaa37c30fc395812451965e5782cf5d9e31698f2805ec9",
+    "fingerprint": "e740443225842b36583e5e7f4b21ba42f7e5a2494b14f31f44b7931b6a246350"
+  },
+  {
+    "name": "edge-sum",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "74908d3a19bc600ad21e6d659a0e562194355da50f46eebfc96cce2badd05367",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.9,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "74908d3a19bc600ad21e6d659a0e562194355da50f46eebfc96cce2badd05367",
+    "fingerprint": "17f67a9efcb5225d8046692fd7d39c1a15fff80c9c7c72c0db631075fbb51c43"
+  },
+  {
+    "name": "subnormal",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "46579faab26b6d4268094a24dda0efb3675db9e5af0de41e322d82825bbf3186",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 5e-324,
+              "y": 0.2,
+              "width": 5e-324,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "46579faab26b6d4268094a24dda0efb3675db9e5af0de41e322d82825bbf3186",
+    "fingerprint": "ccf8942a936418ba565eb75254e54119f8c9815964cb49539f3e924553b5e4f5"
+  },
+  {
+    "name": "absent",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "73bb4b991fdb291e77d0491e2a22d0fd4fe36d836d736186cdea318deb67eeca",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "73bb4b991fdb291e77d0491e2a22d0fd4fe36d836d736186cdea318deb67eeca",
+    "fingerprint": "adfb464841bd292ef3aac154b68a68918cac539210ef8057e010117ae944bfc4"
+  },
+  {
+    "name": "reordered",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "489877956fd66bba64a58b2005bb06894392287bf2e36e5962c6cb843a4c2bb5",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "focus_region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "489877956fd66bba64a58b2005bb06894392287bf2e36e5962c6cb843a4c2bb5",
+    "fingerprint": "6b1fa6e9f5d9a8d252fff3eb9c3e55a23b41f4d3292c1f83ef391b58683004f8"
+  },
+  {
+    "name": "changed-artifact",
+    "input": {
+      "schema_version": 6,
+      "observation_id": "00000000-0000-4000-8000-000000000001",
+      "analysis_id": "00000000-0000-4000-8000-000000000002",
+      "source_analysis_id": "00000000-0000-4000-8000-000000000003",
+      "request_digest": "308705956fdee849beb56251cc431a52574b5434ed6da0feae4e849962dd2535",
+      "evidence_manifest": {
+        "schema_version": 6,
+        "items": [
+          {
+            "kind": "image",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000010",
+              "content_type": "image/jpeg",
+              "byte_count": 100,
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            },
+            "focus_region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4,
+              "source": "user_selection"
+            }
+          },
+          {
+            "kind": "description",
+            "text": "  submitted \ud83e\udd8b e\u0301  "
+          },
+          {
+            "kind": "audio",
+            "artifact": {
+              "media_id": "00000000-0000-4000-8000-000000000020",
+              "content_type": "audio/wav",
+              "byte_count": 100,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "entitlement_protocol": 3,
+      "identification_protocol": 7,
+      "history_protocol": 10,
+      "expected_processor_permission": "google_gemini"
+    },
+    "request_digest": "308705956fdee849beb56251cc431a52574b5434ed6da0feae4e849962dd2535",
+    "fingerprint": "9c8a19e2e86b615804f0cd179ec7973ec44653fe62fadcade45052c7a83d8685"
+  }
+]

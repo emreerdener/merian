@@ -1,9 +1,32 @@
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 @Suite("Native preparation codecs")
 struct SharedMediaNativePreparationCodecTests {
+    @Test func sourceSelectionHasAnExplicitRecipeVersionAndPreservesLegacyBytes() throws {
+        let selection = NormalizedImageFocusRegion(x: 0.2, y: 0.3, width: 0.4, height: 0.2, source: .userSelection)
+        func recipe(_ format: SharedMediaNativePreparationRecipe.Format,
+                    _ focus: NormalizedImageFocusRegion?) -> SharedMediaNativePreparationRecipe {
+            .init(format: format, isPro: false, cropDisplaySize: 320, quarterTurns: 1,
+                  scale: 1.5, offsetX: 4, offsetY: -3, sourceSelection: focus)
+        }
+        let legacy = recipe(.stillImage, nil)
+        let legacyBytes = try JSONEncoder().encode(legacy)
+        let object = try #require(JSONSerialization.jsonObject(with: legacyBytes) as? [String: Any])
+        #expect(object["sourceSelection"] == nil)
+        #expect(try JSONDecoder().decode(SharedMediaNativePreparationRecipe.self, from: legacyBytes) == legacy)
+        let selected = recipe(.selectedStillImage, selection)
+        try selected.validate()
+        #expect(try JSONDecoder().decode(SharedMediaNativePreparationRecipe.self,
+            from: JSONEncoder().encode(selected)) == selected)
+        #expect(throws: (any Error).self) { try recipe(.stillImage, selection).validate() }
+        #expect(throws: (any Error).self) { try recipe(.selectedStillImage, nil).validate() }
+        #expect(throws: (any Error).self) {
+            try recipe(.selectedStillImage, .init(x: 0.2, y: 0.3, width: 0.4, height: 0.2)).validate()
+        }
+    }
+
     @Test func nativeEnvelopeRejectsUnknownFieldsAndLegacyReaderRejectsV2() throws {
         let value = try envelope(), bytes = try value.encoded()
         #expect(try SharedMediaNativeDraftEnvelope.V2.decode(bytes).encoded() == bytes)
@@ -12,7 +35,8 @@ struct SharedMediaNativePreparationCodecTests {
         json["unrecognized"] = true
         let extra = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
         #expect(throws: (any Error).self) { try SharedMediaNativeDraftEnvelope.V2.decode(extra) }
-        let duplicate = Data(("{\"sequence\":1," + String(decoding: bytes.dropFirst(), as: UTF8.self)).utf8)
+        let body = try #require(String(bytes: bytes.dropFirst(), encoding: .utf8))
+        let duplicate = Data(("{\"sequence\":1," + body).utf8)
         #expect(throws: (any Error).self) { try SharedMediaNativeDraftEnvelope.V2.decode(duplicate) }
     }
 

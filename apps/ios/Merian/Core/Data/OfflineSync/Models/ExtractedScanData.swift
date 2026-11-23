@@ -8,6 +8,9 @@ import SwiftData
 /// Passed across the actor boundary into `dispatchInferenceDownloadTask` so that
 /// background inference can proceed without touching the main-actor-bound `ModelContext`.
 struct ExtractedScanData: Sendable {
+    enum EvidenceError: Error {
+        case invalidVisualDescriptors
+    }
     /// Environmental and capture telemetry for the scan, used as Gemini inference context.
     let telemetry: CaptureTelemetry
     /// Confirmed R2 object keys stored at upload time.
@@ -81,6 +84,19 @@ struct ExtractedScanData: Sendable {
             return nil
         }
         return decoded
+    }
+
+    /// Dispatch must distinguish absent historical metadata from saved evidence
+    /// that cannot be interpreted. Never turn the latter into an unfocused scan.
+    func validatedVisualMediaItems() throws -> [IdentifyVisualMediaItem]? {
+        guard let visualMediaItemsJSON else { return nil }
+        guard let data = visualMediaItemsJSON.data(using: .utf8),
+              let items = try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data),
+              items.count == localImagePaths.count,
+              items.allSatisfy(\.isValidEvidence) else {
+            throw EvidenceError.invalidVisualDescriptors
+        }
+        return items
     }
 
     var audioMediaItems: [IdentifyAudioMediaItem]? {

@@ -665,7 +665,7 @@ import SwiftData
         guard recoveryAuthority?.isCurrent ?? true else { return false }
         await OfflineQueueManager.shared
             .awaitRetainedSyncQuiescenceForAuthTransition()
-        guard await AppDIContainer.shared.awaitPreparedReanalysisHostDrain(for: self, recoveryAuthority: recoveryAuthority) else { return false }
+        guard await AppDIContainer.shared.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: self, recoveryAuthority: recoveryAuthority) else { return false }
         guard await Self.drainPhotoPreparationBeforeAccountWork(
             preparation: photoPreparationAccountTransitionDrain,
             native: nativeMediaAccountTransitionDrain,
@@ -1034,7 +1034,7 @@ import SwiftData
             ),
             renewMediaLifetime: { [weak self] session, generation in
                 guard let self, let sdkUser, transitionSession(from: sdkUser) == session else { return false }
-                return await AppDIContainer.shared.renewNativeMediaLifetime(for: self) { [weak self] in
+                return await AppDIContainer.shared.nativeMediaLifecycle.renewNativeMediaLifetime(for: self) { [weak self] in
                     self?.hasCurrentPublishedSession(sdkUser, expectedAuthGeneration: generation) ?? false
                 }
             },
@@ -1591,7 +1591,7 @@ import SwiftData
 
     private func accountDeletionDependencies()
         -> AccountDeletionCoordinationDependencies {
-        let libraryContext = AppDIContainer.shared.accountDeletionLibraryContext(for: self)
+        let libraryContext = AppDIContainer.shared.nativeMediaLifecycle.libraryCleanup.accountDeletionLibraryContext(for: self)
         let localState = AccountDeletionLocalStateBoundary(
             state: {
                 AccountDeletionLocalCleanupStore.state()
@@ -1623,7 +1623,9 @@ import SwiftData
             },
             resolve: {
                 AccountDeletionLocalCleanupStore.resolve()
-            }
+            },
+            cleanupMarker: { AccountDeletionLocalCleanupStore.marker() },
+            prepareCleanupMarker: { AccountDeletionLocalCleanupStore.prepareAcceptedMarker(expected: $0) }
         )
         let session = AccountDeletionSessionBoundary(
             beginTransition: { kind in
@@ -1729,7 +1731,7 @@ import SwiftData
         )
         return AccountDeletionCoordinationDependencies(
             validateLibrary: libraryContext,
-            acknowledgeLibraryPurge: { AppDIContainer.shared.acknowledgeDeletionPurge(for: self, scope: $0) },
+            acknowledgeLibraryPurge: { AppDIContainer.shared.nativeMediaLifecycle.libraryCleanup.acknowledgeDeletionPurge(for: self, scope: $0) },
             hasPendingPurchaseIdentityHandoff: {
                 self.hasPendingPurchaseIdentityHandoffFailClosed()
             },
@@ -1828,11 +1830,11 @@ import SwiftData
             dependencies: .init(
                 currentSession: { [self] in transitionSession(from: client.auth.currentSession?.user) },
                 clearSourceSession: { [self] journal in
-                    guard let scope = AppDIContainer.shared.librarySignOutScope(manager: self, transition: transition, journal: journal) else { return false }
+                    guard let scope = AppDIContainer.shared.nativeMediaLifecycle.libraryCleanup.librarySignOutScope(manager: self, transition: transition, journal: journal) else { return false }
                     return await performVerifiedLocalSignOut(ownedBy: transition, recoveryAuthority: .librarySignOut(scope))
                 },
                 clearLibrary: { [self] journal in
-                    await AppDIContainer.shared.purgeLibraryForSignOut(manager: self, transition: transition, journal: journal,
+                    await AppDIContainer.shared.nativeMediaLifecycle.libraryCleanup.purgeLibraryForSignOut(manager: self, transition: transition, journal: journal,
                         drain: { await self.awaitAccountBoundWorkQuiescenceForAuthTransition(recoveryAuthority: .librarySignOut($0)) })
                 },
                 createDestination: { [self] in
@@ -2383,22 +2385,16 @@ import SwiftData
             ]
         }
 
-        var token: String
-        do {
-            token = try await self.getActiveJWT()
-        } catch {
-            let hasAuthenticated = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
-            if !hasAuthenticated {
-                guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
-                    throw SupabaseAuthTransitionError
-                        .signOutPurchaseContinuityPending
+        let token = try await AuthenticatedHeaderTokenLoader.load(expectedUserID: expectedUserID,
+            load: { try await self.getActiveJWT() }, bootstrap: {
+                let hasAuthenticated = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
+                guard !hasAuthenticated else { return false }
+                guard !self.hasPendingPurchaseIdentityHandoffFailClosed() else {
+                    throw SupabaseAuthTransitionError.signOutPurchaseContinuityPending
                 }
                 _ = await self.initializeGhostSession(ownedBy: transition)
-                token = try await self.getActiveJWT()
-            } else {
-                throw error
-            }
-        }
+                return true
+            })
 
         guard !isSigningOut,
               AuthTransitionPolicy.allowsAuthenticatedRequest(

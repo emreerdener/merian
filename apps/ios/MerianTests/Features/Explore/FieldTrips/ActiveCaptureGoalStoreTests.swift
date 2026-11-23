@@ -471,7 +471,7 @@ struct ActiveCaptureGoalStoreTests {
         let visible = ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
@@ -482,7 +482,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: false,
             stagedCaptureIsEmpty: true,
             isRefining: false,
@@ -491,7 +491,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: false,
+            isCaptureMode: false,
             hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
@@ -500,7 +500,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: true,
             stagedCaptureIsEmpty: false,
             isRefining: false,
@@ -509,7 +509,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: true,
@@ -518,7 +518,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: true,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
@@ -527,7 +527,7 @@ struct ActiveCaptureGoalStoreTests {
         #expect(!ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
             isUserVisible: false,
-            isVisualMode: true,
+            isCaptureMode: true,
             hasPresentation: true,
             stagedCaptureIsEmpty: true,
             isRefining: false,
@@ -569,7 +569,7 @@ struct ActiveCaptureGoalStoreTests {
         )
     }
 
-    @Test func captureIndicatorPlacementUsesTrailingCompactSelectorRow() {
+    @Test func captureIndicatorPlacementPreservesCompactSelectorGap() {
         #expect(CaptureGoalIndicatorLayoutPolicy.compactSize == 50)
         #expect(CaptureGoalIndicatorLayoutPolicy.expandedSize == 56)
         #expect(CaptureGoalIndicatorLayoutPolicy.compactArtworkSize == 42)
@@ -601,11 +601,11 @@ struct ActiveCaptureGoalStoreTests {
         )
         let narrowTrailingMargin =
             CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
-                containerWidth: 375
+                containerWidth: 280
             )
-        #expect(narrowTrailingMargin == 29.5)
+        #expect(narrowTrailingMargin == 10)
         #expect(
-            ((375 - CaptureModeSelectorStyle.controlWidth) / 2)
+            ((280 - CaptureModeSelectorStyle.controlWidth) / 2)
                 - narrowTrailingMargin
                 - CaptureGoalIndicatorLayoutPolicy.compactSize == 8
         )

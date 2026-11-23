@@ -194,3 +194,28 @@ Deno.test("validateStagingObjectKey catches traversal and user-boundary drift", 
     "wrong_user",
   );
 });
+
+Deno.test("header budget rejection cancels unread transport even when cancellation fails", async () => {
+  for (const fails of [false, true]) {
+    let cancelled = 0;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        pull() {
+          throw new Error("oversized body must not be read");
+        },
+        cancel() {
+          cancelled++;
+          if (fails) throw new Error("synthetic disconnect");
+        },
+      }, { highWaterMark: 0 }),
+      { headers: { "content-length": "11" } },
+    );
+    const result = await readResponseArrayBufferWithinBudget(
+      response,
+      10,
+      "too large",
+    );
+    assertEquals(result.error, { status: 413, message: "too large" });
+    assertEquals(cancelled, 1);
+  }
+});

@@ -60,6 +60,7 @@ extension OfflineQueueManager {
     func reconcileDeferredFundingReservations(
         accountWorkLease providedLease: AccountBoundWorkLease? = nil
     ) async {
+        guard allowsAutomaticNetworkWorkOnCurrentPath else { return }
         let accountWorkLease: AccountBoundWorkLease
         let ownsAccountWorkLease: Bool
         if let providedLease {
@@ -83,7 +84,7 @@ extension OfflineQueueManager {
             }
         }
         await reconcileLegacyFunding(
-            isCurrent: { self.fundingAccountWorkIsCurrent(accountWorkLease) },
+            isCurrent: { self.allowsAutomaticNetworkWorkOnCurrentPath && self.fundingAccountWorkIsCurrent(accountWorkLease) },
             lookup: { try await MerianNetworkClient.shared.checkScanStatuses($0) },
             refresh: { await EntitlementManager.shared.refreshCurrentSession() }
         )

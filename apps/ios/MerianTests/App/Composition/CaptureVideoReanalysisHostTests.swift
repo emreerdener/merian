@@ -13,16 +13,16 @@ struct CaptureVideoReanalysisHostTests {
         let seed = try ObservationReanalysisLocalVideoInputTests().seed(); defer { seed.remove() }
         let di = AppDIContainer.preview, manager = di.supabaseManager
         di.offlineQueueManager.modelContext = ModelContext(seed.container)
-        try di.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
-        let prepared = di.preparedReanalysisHostOwner, cleanup = di.offlineQueueManager.reanalysisErasureOwner
+        try di.nativeMediaLifecycle.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
+        let prepared = di.nativeMediaLifecycle.preparedReanalysisHostOwner, cleanup = di.offlineQueueManager.reanalysisErasureOwner
         let account = PhotoOriginalPreparationOwner.syntheticAccount(ownerID: seed.source.ownerID, runtime: AuthRuntimeState())
         var quiet = false
-        _ = try di.preparedInputBorrowForTesting(container: seed.container, account: account, consumer: prepared,
+        _ = try di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: seed.container, account: account, consumer: prepared,
             install: manager.installNativeMediaAccountTransitionDrain, close: { quiet })
-        let original = try #require(di.nativeMediaLifetime)
+        let original = try #require(di.nativeMediaLifecycle.nativeMediaLifetime)
         #expect(await original.shutdown() == false)
-        #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
-        #expect(di.preparedReanalysisHostOwner === prepared && di.offlineQueueManager.reanalysisErasureOwner === cleanup)
+        #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
+        #expect(di.nativeMediaLifecycle.preparedReanalysisHostOwner === prepared && di.offlineQueueManager.reanalysisErasureOwner === cleanup)
         quiet = true
         #expect(await original.shutdown())
         #expect(throws: SharedMediaStorageFailure.closed) {
@@ -30,23 +30,23 @@ struct CaptureVideoReanalysisHostTests {
         }
         for permittedChecks in 1...2 {
             var validations = 0
-            #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { validations += 1; return validations <= permittedChecks }) == false)
-            #expect(di.nativeMediaLifetime === original && di.preparedReanalysisHostOwner === prepared)
+            #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { validations += 1; return validations <= permittedChecks }) == false)
+            #expect(di.nativeMediaLifecycle.nativeMediaLifetime === original && di.nativeMediaLifecycle.preparedReanalysisHostOwner === prepared)
             #expect(di.offlineQueueManager.reanalysisErasureOwner === cleanup)
         }
-        #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { true }))
-        #expect(di.nativeMediaLifetime == nil && di.preparedReanalysisHostOwner !== prepared)
+        #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { true }))
+        #expect(di.nativeMediaLifecycle.nativeMediaLifetime == nil && di.nativeMediaLifecycle.preparedReanalysisHostOwner !== prepared)
         #expect(di.offlineQueueManager.reanalysisErasureOwner !== cleanup)
         #expect(throws: (any Error).self) { try prepared.armAccountLifetime(manager: manager) }
         #expect(throws: (any Error).self) {
             _ = try original.borrowLocalFence(for: prepared, role: .preparedInputs, container: seed.container, close: { true })
         }
-        let replacement = di.preparedReanalysisHostOwner
+        let replacement = di.nativeMediaLifecycle.preparedReanalysisHostOwner
         try replacement.armAccountLifetime(manager: manager)
-        let borrow = try di.preparedInputBorrowForTesting(container: seed.container, account: account, consumer: replacement,
+        let borrow = try di.nativeMediaLifecycle.preparedInputBorrowForTesting(container: seed.container, account: account, consumer: replacement,
             install: manager.installNativeMediaAccountTransitionDrain, close: { await replacement.retireAccountLifetime(manager: manager) })
         _ = try borrow.fence(container: seed.container)
-        let renewed = try #require(di.nativeMediaLifetime)
+        let renewed = try #require(di.nativeMediaLifecycle.nativeMediaLifetime)
         #expect(renewed !== original && !renewed.isClosed)
         #expect(await renewed.shutdown())
         try manager.retireNativeMediaAccountTransitionDrain(renewed)
@@ -110,8 +110,8 @@ struct CaptureVideoReanalysisHostTests {
             currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in true },
             containerIsCurrent: { _ in true }, documents: { seed.documents })
         let di = AppDIContainer.preview
-        let owner = di.preparedReanalysisHostOwner, manager = di.supabaseManager
-        try di.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
+        let owner = di.nativeMediaLifecycle.preparedReanalysisHostOwner, manager = di.supabaseManager
+        try di.nativeMediaLifecycle.configureNativeMediaForTesting(container: seed.container, admission: seed.startup)
         try owner.armAccountLifetime(manager: manager)
         let target = HistoricalReanalysisTarget(observationID: seed.source.observationID,
             analysisID: seed.source.analysisID, ownerID: seed.source.ownerID)
@@ -143,26 +143,26 @@ struct CaptureVideoReanalysisHostTests {
         var data: Data? = try JSONEncoder().encode(journal)
         let store = LibrarySignOutJournalStore(dependencies: .init(read: { data }, write: { data = $0; return true }, remove: { data = nil }))
         let scope = try #require(store.recoveryScope(expected: journal, validateContext: { true }))
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager) == false)
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .librarySignOut(scope)))
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager) == false)
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .librarySignOut(scope)))
         #expect(try Data(contentsOf: copied) == Data([9]))
         data = nil
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .librarySignOut(scope)) == false)
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .librarySignOut(scope)) == false)
         #expect(await owner.drainAccountLifetimeDisposition(manager: manager) == .retainedStorage)
         let other = try ObservationReanalysisLocalVideoInputTests().seed(); defer { other.remove() }
         #expect(!owner.acknowledgeLibraryPurge(container: other.container, manager: manager))
         #expect(!owner.acknowledgeLibraryPurge(container: seed.container, manager: NSObject()))
         di.offlineQueueManager.modelContext = ModelContext(seed.container)
-        #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
-        #expect(di.preparedReanalysisHostOwner === owner)
-        let libraryContext = di.accountDeletionLibraryContext(for: manager)
+        #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
+        #expect(di.nativeMediaLifecycle.preparedReanalysisHostOwner === owner)
+        let libraryContext = di.nativeMediaLifecycle.libraryCleanup.accountDeletionLibraryContext(for: manager)
         var deletionState: AccountDeletionLocalRecoveryState?
         let proofStore = AccountDeletionSecureStoreStub().makeCapabilityStore()
         let intake = AccountDeletionLocalCleanupStore.RecoveryScope(expectedState: nil, expectedCapability: nil,
             capabilityStore: proofStore, readState: { deletionState }, validateSession: { true }, validateLibrary: libraryContext)
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(intake)))
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(intake)))
         #expect(!intake.permitsLibraryPurge(in: seed.container))
-        #expect(!di.acknowledgeDeletionPurge(for: manager, scope: intake))
+        #expect(!di.nativeMediaLifecycle.libraryCleanup.acknowledgeDeletionPurge(for: manager, scope: intake))
         deletionState = .cleanupPending
         #expect(!intake.isCurrent)
         let cleanup = AccountDeletionLocalCleanupStore.RecoveryScope(expectedState: .cleanupPending, expectedCapability: nil,
@@ -170,13 +170,13 @@ struct CaptureVideoReanalysisHostTests {
         #expect(cleanup.permitsLibraryPurge(in: seed.container))
         #expect(!cleanup.permitsLibraryPurge(in: other.container))
         di.offlineQueueManager.modelContext = ModelContext(other.container)
-        #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
-        #expect(di.preparedReanalysisHostOwner === owner)
+        #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { true }) == false)
+        #expect(di.nativeMediaLifecycle.preparedReanalysisHostOwner === owner)
         #expect(!cleanup.isCurrent)
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(cleanup)) == false)
-        #expect(!di.acknowledgeDeletionPurge(for: manager, scope: cleanup))
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(cleanup)) == false)
+        #expect(!di.nativeMediaLifecycle.libraryCleanup.acknowledgeDeletionPurge(for: manager, scope: cleanup))
         di.offlineQueueManager.modelContext = ModelContext(seed.container)
-        #expect(await di.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(cleanup)))
+        #expect(await di.nativeMediaLifecycle.awaitPreparedReanalysisHostDrain(for: manager, recoveryAuthority: .accountDeletion(cleanup)))
         let suite = "merian.tests.host-purge." + UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suite)); defer { defaults.removePersistentDomain(forName: suite) }
         var resets = 0
@@ -185,10 +185,10 @@ struct CaptureVideoReanalysisHostTests {
                 try await ObservationReanalysisFileStore(documents: seed.documents).purgeNamespace()
             }))
         #expect(resets == 1 && !FileManager.default.fileExists(atPath: copied.path))
-        #expect(di.acknowledgeDeletionPurge(for: manager, scope: cleanup))
+        #expect(di.nativeMediaLifecycle.libraryCleanup.acknowledgeDeletionPurge(for: manager, scope: cleanup))
         #expect(await owner.drainAccountLifetime(manager: manager))
-        #expect(await di.renewNativeMediaLifetime(for: manager, isCurrent: { true }))
-        #expect(di.preparedReanalysisHostOwner !== owner)
+        #expect(await di.nativeMediaLifecycle.renewNativeMediaLifetime(for: manager, isCurrent: { true }))
+        #expect(di.nativeMediaLifecycle.preparedReanalysisHostOwner !== owner)
         #expect(throws: (any Error).self) { try owner.armAccountLifetime(manager: manager) }
         #expect(!host.present())
     }

@@ -165,6 +165,7 @@ struct StagedPreviewAudioBoostTests {
         #expect(abs(playback.player.currentTime().seconds - 0.4) < 0.05)
         playback.stop()
         #expect(playback.player.currentItem == nil)
+        await playback.close()
         #expect(!FileManager.default.fileExists(atPath: boosted.url.path))
         #expect(FileManager.default.fileExists(atPath: audio.fileURL.path))
     }
@@ -261,9 +262,14 @@ struct StagedPreviewAudioBoostTests {
         try await waitUntil { continuation != nil }
         let result = try await source.prepare(source: audio.fileURL.path)
         playback.stop()
+        var closed = false
+        let closing = Task { await playback.close(); closed = true }
+        await Task.yield()
+        #expect(!closed && FileManager.default.fileExists(atPath: result.url.path))
         continuation?.resume(returning: AVPlayerItem(url: fixture.videoURL))
         await preparation.value
-        #expect(playback.player.currentItem == nil)
+        await closing.value
+        #expect(closed && playback.player.currentItem == nil)
         // With no current item, AVPlayer's rate is not a playback-ownership
         // signal. Check that the completed stale task issued no play request.
         #expect(playRequestCount == 1)
@@ -312,6 +318,61 @@ struct StagedPreviewAudioBoostTests {
         #expect(playbackCommands == ["play", "pause", "pause"])
     }
 
+    @Test func reviewStartsPausedAndScrubbingNeverResumesPlayback() async throws {
+        let fixture = try await VideoAudioFixture(channels: nil)
+        defer { fixture.remove() }
+        var plays = 0
+        let playback = StagedVideoPreviewPlayback(
+            video: .init(filePath: fixture.videoURL.path, sampledImages: []), session: makeSession(),
+            dependencies: .init(play: { player in plays += 1; player.play() }))
+        defer { playback.stop() }
+        await playback.start(autoplay: false)
+        try await waitUntil { playback.player.currentItem?.status == .readyToPlay }
+        playback.refreshProgress()
+        #expect(plays == 0 && !playback.isPlaying && playback.duration > 0)
+        playback.toggleMute()
+        #expect(playback.player.isMuted && playback.isMuted)
+        playback.seek(to: 0.4)
+        try await waitUntil { abs(playback.player.currentTime().seconds - 0.4) < 0.05 }
+        #expect(plays == 0 && playback.player.rate == 0)
+        playback.togglePlayback()
+        try await waitUntil { plays == 1 }
+        playback.pauseForEditing()
+        #expect(playback.player.rate == 0 && !playback.isStartingPlayback)
+        playback.pauseForBackground()
+        #expect(plays == 1 && playback.player.rate == 0)
+    }
+
+    @Test(arguments: ["pause", "background", "dismiss"])
+    func stalePlayActivationCannotResumeAfterRetirement(action: String) async throws {
+        let fixture = try await VideoAudioFixture(channels: nil)
+        defer { fixture.remove() }
+        let gate = ReviewPlaybackActivationGate()
+        var plays = 0
+        let coordinator = AudioSessionCoordinator(operations: .init(configureAndActivate: { _ in }, deactivate: {}))
+        let session = AudioPlaybackSessionController(dependencies: .init(activate: { request in
+            await gate.wait()
+            return try await coordinator.activate(request)
+        }, deactivate: { await coordinator.deactivate(ifCurrent: $0) }, isCurrent: { await coordinator.isCurrent($0) }))
+        let playback = StagedVideoPreviewPlayback(video: .init(filePath: fixture.videoURL.path, sampledImages: []),
+            session: session, dependencies: .init(play: { _ in plays += 1 }))
+        defer { playback.stop() }
+        await playback.start(autoplay: false)
+        // Release the first audio lease so the next play must reacquire it.
+        session.deactivate()
+        playback.togglePlayback()
+        try await waitUntil { gate.isWaiting }
+        #expect(playback.isStartingPlayback)
+        switch action {
+        case "pause": playback.togglePlayback()
+        case "background": playback.pauseForBackground()
+        default: playback.stop()
+        }
+        gate.release()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(plays == 0 && !playback.isStartingPlayback)
+    }
+
     private func makeSession() -> AudioPlaybackSessionController {
         let coordinator = AudioSessionCoordinator(operations: .init(configureAndActivate: { _ in }, deactivate: {}))
         return AudioPlaybackSessionController(dependencies: .init(
@@ -336,4 +397,16 @@ private final class StagedBoostProbe {
     func prepare(_ source: URL) async throws -> AudioBoostResult {
         try await withCheckedThrowingContinuation { continuation = $0 }
     }
+}
+
+@MainActor
+private final class ReviewPlaybackActivationGate {
+    private var count = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+    var isWaiting: Bool { continuation != nil }
+    func wait() async {
+        count += 1
+        if count > 1 { await withCheckedContinuation { continuation = $0 } }
+    }
+    func release() { continuation?.resume(); continuation = nil }
 }

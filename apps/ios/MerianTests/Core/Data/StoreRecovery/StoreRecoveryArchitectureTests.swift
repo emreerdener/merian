@@ -224,16 +224,19 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
     private func assertFilesStayWithinReviewGuard(
         _ sourceURLs: [URL]
     ) throws {
+        let root = try DatabaseActorTestSupport.repositoryRoot()
+        let policy = try IOSSourceSizePolicy.load(root: root)
+        let productionRoot = root.appendingPathComponent(policy.productionRoot).path + "/"
         for sourceURL in sourceURLs {
             let source = try String(contentsOf: sourceURL, encoding: .utf8)
-            let lineCount = source.split(
-                separator: "\n",
-                omittingEmptySubsequences: false
-            ).count
+            let rule = sourceURL.path.hasPrefix(productionRoot)
+                ? policy.productionRule(for: String(sourceURL.path.dropFirst(productionRoot.count)))
+                : IOSSourceSizePolicy.Rule(counter: .segments, ceiling: 600)
+            let lineCount = rule.count(source)
 
             XCTAssertLessThanOrEqual(
                 lineCount,
-                600,
+                rule.ceiling,
                 "\(sourceURL.lastPathComponent) has \(lineCount) lines."
             )
         }

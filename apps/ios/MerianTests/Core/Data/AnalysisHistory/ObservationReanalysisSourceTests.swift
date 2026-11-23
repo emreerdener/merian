@@ -16,10 +16,13 @@ struct ObservationReanalysisSourceTests {
 
     func seed(version: Int = 2, url: URL? = nil, in target: ModelContainer? = nil) throws -> Seed {
         let file = try DatabaseActorTestSupport.loadRepositorySource(at:
-            "services/supabase/functions/_shared/analysisHistory/fixtures/page-v\(version == 4 ? 2 : version).json")
+            "services/supabase/functions/_shared/analysisHistory/fixtures/page-v\(version >= 4 ? 2 : version).json")
         let page = try #require(JSONSerialization.jsonObject(with: Data(file.utf8)) as? [String: Any])
         let item = try #require((page["items"] as? [[String: Any]])?.first)
-        let bytes = try version == 4 ? JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().audioSnapshot()) : Data(#require(item["snapshot"] as? String).utf8)
+        let bytes: Data
+        if version == 4 { bytes = try JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().audioSnapshot()) } else if version == 5 {
+            bytes = try JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().videoSnapshot())
+        } else { bytes = try Data(#require(item["snapshot"] as? String).utf8) }
         let snapshot = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
         let observation = try #require(snapshot["observation_id"] as? String)
         let result = try ObservationHistoryPage.snapshot(bytes, observationID: observation,
@@ -36,7 +39,7 @@ struct ObservationReanalysisSourceTests {
         return Seed(container: container, result: result, observationID: try #require(UUID(uuidString: observation)))
     }
 
-    @Test(arguments: [1, 2, 3])
+    @Test(arguments: [1, 2, 3, 4, 5])
     func frozenSourceSurvivesSelectionAndReviewRevisionChanges(version: Int) throws {
         let seed = try seed(version: version)
         let source = try ObservationReanalysisSource.capture(observationID: seed.observationID, ownerID: fixture.owner, container: seed.container)
@@ -80,7 +83,7 @@ struct ObservationReanalysisSourceTests {
         }
     }
 
-    @Test(arguments: ["owner", "deleted-parent", "deleted-source", "pending-delete", "enrollment", "changed-bytes"], [2, 4])
+    @Test(arguments: ["owner", "deleted-parent", "deleted-source", "pending-delete", "enrollment", "changed-bytes"], [2, 4, 5])
     func frozenSourceFailsClosedAfterInvalidation(reason: String, version: Int) throws {
         let seed = try seed(version: version)
         let source = try ObservationReanalysisSource.captureForAudio(observationID: seed.observationID, ownerID: fixture.owner, container: seed.container)
@@ -106,18 +109,18 @@ struct ObservationReanalysisSourceTests {
         try context.save()
         #expect(throws: (any Error).self) { try source.validate(container: seed.container) }
     }
-    @Test func audioSourceRetainsAuthorityWithoutBecomingAnEmptyPhotoSource() throws {
+    @Test func audioSourceRequiresExplicitNewPhotosAndNeverReinterpretsItsAudio() throws {
         let seed = try seed(version: 4)
-        #expect(throws: (any Error).self) {
-            try ObservationReanalysisSource.capture(observationID: seed.observationID, ownerID: fixture.owner, container: seed.container)
-        }
         let source = try ObservationReanalysisSource.captureForAudio(observationID: seed.observationID,
             ownerID: fixture.owner, container: seed.container)
         #expect(source.audio == seed.result.audio && source.audio != nil)
         #expect(source.snapshot == seed.result.bytes && source.photos.isEmpty && source.evidence.isEmpty)
         #expect(throws: (any Error).self) { try CaptureReanalysisEvidenceSelection(source: source, selectedPhotoIDs: []) }
+        let photoPlan = try ObservationReanalysisPreparationPlan(source: source, choices: [.photo(.added(Data([1])))])
+        #expect(photoPlan.source == source && photoPlan.items.count == 1)
         #expect(throws: (any Error).self) {
-            try ObservationReanalysisPreparationPlan(source: source, choices: [.photo(.added(Data([1])))])
+            try ObservationReanalysisPreparationPlan(source: source, choices: [.photo(.added(Data([1])))],
+                makeMediaID: { source.audio!.mediaID })
         }
         let context = ModelContext(seed.container)
         let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)

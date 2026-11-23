@@ -56,7 +56,14 @@ final class AccountDeletionCoordinatorHarness {
     )
 
     var events: [String] = []
-    var recoveryState: AccountDeletionLocalRecoveryState?
+    var recoveryState: AccountDeletionLocalRecoveryState? {
+        didSet {
+            cleanupMarker = recoveryState.map {
+                AccountDeletionCleanupMarker(phase: $0, operationID: cleanupMarker?.operationID ?? UUID())
+            }
+        }
+    }
+    var cleanupMarker: AccountDeletionCleanupMarker?
     var hasPendingPurchaseIdentityHandoff = false
     var transitionCanBegin = true
     var transitionIsOwned = false
@@ -131,7 +138,9 @@ final class AccountDeletionCoordinatorHarness {
                     guard self.resolutionSucceeds else { return false }
                     self.recoveryState = nil
                     return true
-                }
+                },
+                cleanupMarker: { self.cleanupMarker },
+                prepareCleanupMarker: { self.cleanupMarker?.phase == $0 }
             ),
             session: AccountDeletionSessionBoundary(
                 beginTransition: { kind in

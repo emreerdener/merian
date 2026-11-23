@@ -22,6 +22,9 @@ extension DescribeInputViewModel.Dependencies {
             },
             inferSubjectId: { text in
                 SubjectKeywordMatcher.infer(from: text)
+            },
+            finishDictation: {
+                await speechManager.finishDictation()
             }
         )
     }

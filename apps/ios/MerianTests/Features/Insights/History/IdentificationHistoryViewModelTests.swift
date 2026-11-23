@@ -292,4 +292,104 @@ struct IdentificationHistoryViewModelTests {
         model.validate()
         #expect(model.isClosed && model.rows.isEmpty && model.detail == nil)
     }
+    @Test func cardsPinCurrentOutsideThePageAndPreserveCursorOrder() async throws {
+        let fixture = Fixture()
+        let newest = (0..<20).map { _ in UUID() }
+        var dependencies = fixture.dependencies
+        dependencies.page = { _ in .init(rows: newest.map(fixture.row), nextBeforeOrdinal: 7, context: fixture.context) }
+        let model = IdentificationHistoryViewModel(dependencies: dependencies)
+        model.openCards()
+        await waitForCard(model, id: fixture.a)
+        #expect(model.cardRows.map(\.id) == [fixture.a] + newest)
+        #expect(model.rows.count == 20 && model.nextBeforeOrdinal == 7)
+        #expect(fixture.prepares == 0 && fixture.sends == 0)
+        model.close()
+        #expect(model.pinnedCurrent == nil && model.cardRows.isEmpty)
+    }
+
+    @Test func cardChoiceMovesExpandedIdentityOnlyAfterAcknowledgement() async {
+        let fixture = Fixture(), model = fixture.model()
+        model.openCards(); await waitForCard(model, id: fixture.a)
+        _ = await model.performCardAction(.use, id: fixture.b)
+        await waitForCard(model, id: fixture.b)
+        #expect(model.cardRows.map(\.id) == [fixture.b, fixture.a])
+        #expect(fixture.prepares == 1 && fixture.sends == 1)
+        await model.perform(.undo); await waitForCard(model, id: fixture.a)
+        #expect(model.cardRows.map(\.id) == [fixture.a, fixture.b])
+        model.close()
+    }
+
+    @Test func currentCardDoesNotPreventLibraryRefresh() async {
+        let fixture = Fixture(), model = fixture.model()
+        model.openCards(); await waitForCard(model, id: fixture.a)
+        let reads = fixture.reads
+        model.refreshForLibraryChange()
+        await waitForCard(model, id: fixture.a)
+        #expect(fixture.reads == reads + 1)
+        #expect(fixture.prepares == 0 && fixture.sends == 0)
+        model.close()
+    }
+
+    @Test func cardActionCannotSurviveAccountChangeDuringAuthorityRead() async {
+        let fixture = Fixture()
+        var dependencies = fixture.dependencies
+        let preview = dependencies.preview
+        dependencies.preview = { id in
+            let result = try await preview(id)
+            if id == fixture.b { fixture.current = false }
+            return result
+        }
+        let model = IdentificationHistoryViewModel(dependencies: dependencies)
+        model.openCards(); await waitForCard(model, id: fixture.a)
+        _ = await model.performCardAction(.use, id: fixture.b)
+        #expect(model.isClosed && fixture.prepares == 0 && fixture.sends == 0)
+    }
+
+    @Test func cardThumbnailsAreSerializedAndClearedOnClose() async {
+        let fixture = Fixture()
+        var dependencies = fixture.dependencies
+        let media = UUID()
+        dependencies.page = { _ in
+            var first = fixture.row(fixture.a), second = fixture.row(fixture.b)
+            first.thumbnailMediaID = media; second.thumbnailMediaID = media
+            return .init(rows: [first, second], nextBeforeOrdinal: nil, context: fixture.context)
+        }
+        var inFlight = 0, maximum = 0
+        dependencies.thumbnail = { _, _ in
+            inFlight += 1; maximum = max(maximum, inFlight)
+            defer { inFlight -= 1 }
+            try await Task.sleep(for: .milliseconds(5))
+            return UIImage()
+        }
+        let model = IdentificationHistoryViewModel(dependencies: dependencies)
+        model.openCards(); await waitForCard(model, id: fixture.a)
+        #expect(model.thumbnails.isEmpty && maximum == 0)
+        model.requestCardThumbnail(fixture.a); model.requestCardThumbnail(fixture.b)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.thumbnails.count < 2 && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        #expect(model.thumbnails.count == 2 && maximum == 1)
+        model.close(); #expect(model.thumbnails.isEmpty)
+    }
+
+    @Test func cardActionFailsClosedWhenPendingReviewCannotBeChecked() async {
+        let fixture = Fixture()
+        var dependencies = fixture.dependencies
+        dependencies.pendingReview = { throw ObservationHistoryError.unavailable }
+        let model = IdentificationHistoryViewModel(dependencies: dependencies)
+        model.openCards(); await waitForCard(model, id: fixture.a)
+        _ = await model.performCardAction(.use, id: fixture.b)
+        #expect(fixture.prepares == 0 && fixture.sends == 0 && model.selected == fixture.a)
+        #expect(model.message == "Review status is unavailable. Refresh history before making a change.")
+        model.close()
+    }
+
+    private func waitForCard(_ model: IdentificationHistoryViewModel, id: UUID) async {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while ContinuousClock.now < deadline {
+            if !model.isBusy && model.detail?.row.id == id { await Task.yield(); return }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("Expected exact current card did not become ready")
+    }
+
 }

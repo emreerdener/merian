@@ -55,7 +55,7 @@ struct CaptureDraftSessionTests {
         }
     }
 
-    @Test func sharedNoteDoesNotRevealTrayUntilStagedAndSurvivesMediaRemoval() {
+    @Test func sharedNoteDoesNotRevealTrayUntilStagedAndClearsWithFinalMedia() {
         let vm = makeViewModel()
         vm.updateDescriptionDraft(ObservationContext(freeText: "On a leaf"))
         #expect(vm.stagedCapture.isEmpty)
@@ -65,10 +65,10 @@ struct CaptureDraftSessionTests {
         vm.synchronizeSharedDescription()
         #expect(vm.stagedCapture.observationContexts.count == 1)
         vm.removeStagedAudio(at: 0)
-        #expect(vm.shouldPresentActiveScanToolbar)
-        #expect(vm.descriptionDraft.freeText == "On a leaf")
-        vm.updateDescriptionDraft(ObservationContext())
         #expect(!vm.shouldPresentActiveScanToolbar)
+        #expect(vm.descriptionDraft.isEmpty)
+        #expect(vm.stagedCapture.observationContexts.isEmpty)
+        #expect(!vm.isReviewActive)
     }
 
     @Test func removingLastMediaReturnsDescribeToUnstagedEntry() {
@@ -96,7 +96,9 @@ struct CaptureDraftSessionTests {
         vm.discardConfirmationGeneration = nil
         #expect(vm.descriptionDraft.freeText == "A call in reeds")
         vm.completeDraftOperation(operation, succeeded: false)
-        #expect(vm.canSubmitDraft)
+        #expect(vm.isDraftReadyForSubmission)
+        #expect(!vm.draftSession.hasUnresolvedWork)
+        #expect(!vm.canSubmitDraft)
         vm.requestDraftDiscard()
         #expect(vm.confirmDraftDiscard(generation: generation))
         #expect(vm.descriptionDraft.isEmpty)
@@ -161,7 +163,8 @@ struct CaptureDraftSessionTests {
         #expect(vm.draftSession.hasUnresolvedWork)
         vm.reconcileEndedAudioOperation(isRecording: false, hasPendingReview: false, hasSubmittedAudio: false)
         #expect(!vm.draftSession.hasUnresolvedWork)
-        #expect(vm.canSubmitDraft)
+        #expect(vm.isDraftReadyForSubmission)
+        #expect(!vm.canSubmitDraft)
         #expect(vm.descriptionDraft.freeText == "Existing context")
     }
 
@@ -274,7 +277,7 @@ struct CaptureDraftSessionTests {
         }
     }
 
-    @Test func staleAudioCompletionCannotEnterAnotherDraft() throws {
+    @Test func staleAudioCompletionCannotEnterAnotherDraft() async throws {
         let vm = makeViewModel()
         let old = try #require(vm.beginDraftOperation())
         let manager = AudioCaptureManager()
@@ -290,11 +293,12 @@ struct CaptureDraftSessionTests {
         #expect(vm.stagedCapture.isEmpty)
         #expect(vm.audioDraftOperation == current)
         #expect(vm.draftSession.contains(current))
+        #expect(await manager.drainOriginalRetirements())
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(manager.pendingPlaybackPath == nil)
     }
 
-    @Test func failedAudioFinishReleasesOperationWithoutChangingExistingText() throws {
+    @Test func failedAudioFinishReleasesOperationWithoutChangingExistingText() async throws {
         let vm = makeViewModel()
         vm.updateDescriptionDraft(ObservationContext(freeText: "Existing note"))
         vm.isReviewActive = true
@@ -317,7 +321,10 @@ struct CaptureDraftSessionTests {
         #expect(manager.audioFilePath == nil)
         #expect(vm.stagedCapture.audios.isEmpty)
         #expect(vm.descriptionDraft.freeText == "Existing note")
-        #expect(vm.canSubmitDraft)
+        #expect(vm.isDraftReadyForSubmission)
+        #expect(!vm.draftSession.hasUnresolvedWork)
+        #expect(!vm.canSubmitDraft)
+        #expect(await manager.drainOriginalRetirements())
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 

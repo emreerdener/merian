@@ -14,6 +14,8 @@ struct ReanalysisStatusAccess {
             try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         }
     }
+    typealias CompositionContinuation = (OfflineQueueWork.Reanalysis, Bool, ModelContainer,
+        @escaping @MainActor @Sendable () -> Bool) async throws -> Bool
     var available: (String, ModelContainer) -> Bool
     var open: (String, ModelContainer) throws -> ReanalysisStatusDependencies
 
@@ -22,14 +24,14 @@ struct ReanalysisStatusAccess {
         prepared(session: { try IdentificationHistorySession(observation: $0, container: $1) })
     }
     static func prepared(session: @escaping (String, ModelContainer) throws -> IdentificationHistorySession,
-                         retirement: RetirementConfiguration? = nil) -> Self {
+                         retirement: RetirementConfiguration? = nil, composition: CompositionContinuation? = nil) -> Self {
         Self(available: { id, container in
             guard let session = try? session(id, container) else { return false }
             defer { session.close() }
             guard let page = try? session.operationStatusPage(after: nil) else { return false }
             return offersPage(page)
         }, open: { id, container in
-            try session(id, container).operationStatusDependencies(retirement: retirement)
+            try session(id, container).operationStatusDependencies(retirement: retirement, composition: composition)
         })
     }
     static func offersPage(_ page: ObservationReanalysisOperationStatus.Page) -> Bool {
@@ -45,6 +47,7 @@ struct ReanalysisStatusDependencies {
     var isCurrent: () -> Bool
     var close: () -> Void
     var generation: () -> UInt64 = { 0 }
+    var continueComposition: ((ObservationReanalysisOperationStatus.Summary) async throws -> Bool)?
     var recovery: ((ObservationReanalysisOperationStatus.Summary) throws -> AnalysisRecoveryCheckingModel.Access)?
     var photo: ((ObservationReanalysisOperationStatus.Summary, Int, @escaping @MainActor @Sendable () -> Bool) async throws -> ReanalysisSavedPhotoAccess.Preview)?
     var retire: ((ObservationReanalysisOperationStatus.Summary, UUID) async throws -> ObservationReanalysisRetirementAction.Outcome)?
@@ -61,9 +64,19 @@ extension IdentificationHistorySession {
     }
     var operationStatusDependencies: ReanalysisStatusDependencies { operationStatusDependencies(retirement: nil) }
 
-    func operationStatusDependencies(retirement: ReanalysisStatusAccess.RetirementConfiguration?) -> ReanalysisStatusDependencies {
+    func operationStatusDependencies(retirement: ReanalysisStatusAccess.RetirementConfiguration?,
+                                     composition: ReanalysisStatusAccess.CompositionContinuation? = nil) -> ReanalysisStatusDependencies {
         var dependencies = ReanalysisStatusDependencies(page: { [self] cursor in try operationStatusPage(after: cursor) },
             validate: { [self] in try check() }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() })
+        if let composition {
+            dependencies.continueComposition = { [self] row in
+                try check()
+                guard row.isComposition, row.canContinue || row.canCheckOutcome else { throw ObservationHistoryError.unavailable }
+                let identity = OfflineQueueWork.Reanalysis(observationID: try ObservationHistoryPage.uuid(observation),
+                    sourceAnalysisID: row.sourceAnalysisID, analysisID: row.id, ownerID: session.userID)
+                return try await composition(identity, row.canCheckOutcome, container, { [self] in commonEnvironmentIsCurrent() })
+            }
+        }
         if let retirement {
             dependencies.generation = retirement.generation
             dependencies.photo = { [self] row, index, presented in

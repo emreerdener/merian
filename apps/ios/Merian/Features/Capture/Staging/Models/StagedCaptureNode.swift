@@ -9,14 +9,14 @@ enum StagedCaptureNode: Identifiable {
 
     var id: String {
         switch self {
-        case .image(let index, _):
-            return "img_\(index)"
-        case .audio(let index, _):
-            return "audio_\(index)"
-        case .video(let index, _):
-            return "video_\(index)"
-        case .description(let index, _):
-            return "desc_\(index)"
+        case .image(_, let image):
+            return "img_\(image.original.id)"
+        case .audio(_, let audio):
+            return "audio_\(audio.id)"
+        case .video(_, let video):
+            return "video_\(video.id)"
+        case .description(_, let context):
+            return "desc_\(context.id)"
         }
     }
 
@@ -30,6 +30,15 @@ enum StagedCaptureNode: Identifiable {
             return stagedVideo.addedAt
         case .description(_, let stagedObservationContext):
             return stagedObservationContext.addedAt
+        }
+    }
+
+    var itemID: UUID {
+        switch self {
+        case .image(_, let value): value.original.id
+        case .audio(_, let value): value.id
+        case .video(_, let value): value.id
+        case .description(_, let value): value.id
         }
     }
 }
@@ -52,6 +61,16 @@ extension StagedCapture {
             .description(index: index, stagedObservationContext: context)
         })
 
-        return nodes.sorted { $0.addedAt < $1.addedAt }
+        // Equal historical timestamps retain the established collection order.
+        // Identity is independent of this tie policy and of mutable indexes.
+        return nodes.enumerated().sorted {
+            if let retainedItemOrder {
+                let lhs = retainedItemOrder.firstIndex(of: $0.element.itemID) ?? retainedItemOrder.count
+                let rhs = retainedItemOrder.firstIndex(of: $1.element.itemID) ?? retainedItemOrder.count
+                if lhs != rhs { return lhs < rhs }
+            }
+            if $0.element.addedAt == $1.element.addedAt { return $0.offset < $1.offset }
+            return $0.element.addedAt < $1.element.addedAt
+        }.map(\.element)
     }
 }

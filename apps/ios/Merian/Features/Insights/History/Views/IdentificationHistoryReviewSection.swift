@@ -3,20 +3,81 @@ import SwiftUI
 struct IdentificationHistoryReviewSection: View {
     @Bindable var model: IdentificationHistoryReviewModel
     var onReviewCandidates: (() -> Void)?
+    var cardStyle = false
+    var onCommunity: (() -> Void)?
+    var onReanalysis: (() -> Void)?
+    var communityTitle = "Ask the community"
+    var reanalysisTitle = "Reanalyze species"
+    var feedback = IdentificationReviewFeedbackDependencies()
     @State private var scientificName = ""
     @State private var pendingConfirmationUndo: (() -> Void)?
 
     var body: some View {
-        Section {
+        Group {
+            if cardStyle { controls } else {
+                Section { controls } header: { Text("Review this identification") } footer: {
+                    Text("A review applies only to this result. It does not select it or confirm another identification in the history.")
+                }
+            }
+        }
+        .task { model.open() }
+        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
+    }
+
+    private var hasReviewBanner: Bool {
+        model.ticket.rejectionOperationID != nil || model.ticket.reviewState == .aiConfirmed
+            || (model.ticket.reviewState == .userOverridden && model.ticket.correctionName != nil)
+    }
+
+    private var undoConfirmation: (() -> Void)? {
+        guard let undo = model.confirmationUndo else { return nil }
+        return {
+            let action = { model.submit(.undoConfirmation(confirmationOperationID: undo.operationID)) }
+            if undo.action == .name { pendingConfirmationUndo = action } else { action() }
+        }
+    }
+
+    private var undoRejection: (() -> Void)? {
+        guard let operation = model.undoOperation else { return nil }
+        return { model.submit(.undo(rejectionOperationID: operation)) }
+    }
+
+    @ViewBuilder private var reviewBanner: some View {
+        if let operation = model.ticket.rejectionOperationID {
+            IncorrectIdentificationView(
+                review: .init(authority: .init(revision: model.ticket.reviewRevision, state: .aiRejected,
+                    originScanID: nil, originIdentification: nil, operationID: operation.uuidString.lowercased())),
+                onUndo: undoRejection, unavailableReason: model.rejectionUndoMessage,
+                undoEnabled: model.canSubmit, undoIdentifier: "HistoryUndoReview")
+            IdentificationRecoveryActions(communityTitle: communityTitle, reanalysisTitle: reanalysisTitle,
+                onCommunity: onCommunity, onReanalysis: onReanalysis)
+                .disabled(!model.canSubmit)
+        } else if model.ticket.reviewState == .userOverridden, let name = model.ticket.correctionName {
+            OverriddenView(overrideName: name, aiScientificName: model.ticket.primaryScientificName ?? "Unknown",
+                onUndo: undoConfirmation, unavailableReason: model.confirmationUndoMessage, undoIdentifier: "HistoryUndoConfirmation")
+                .disabled(!model.canSubmit)
+        } else if model.ticket.reviewState == .aiConfirmed {
+            ConfirmedView(onReset: undoConfirmation, unavailableReason: model.confirmationUndoMessage,
+                undoEnabled: model.canSubmit, undoIdentifier: "HistoryUndoConfirmation")
+        }
+    }
+
+    @ViewBuilder private var controls: some View {
+        if cardStyle && hasReviewBanner { reviewBanner }
+        if !cardStyle || !hasReviewBanner {
             if let onReviewCandidates, !model.ticket.candidateChoices.isEmpty {
                 Button("Review alternatives", action: onReviewCandidates)
                     .disabled(!model.canSubmit)
                     .accessibilityIdentifier("HistoryReviewCandidates")
             }
             if model.ticket.canConfirmPrimary, let name = model.ticket.primaryScientificName {
-                Button("Confirm \(name)") { model.submit(.confirmPrimary) }
-                    .disabled(!model.canSubmit)
-                    .accessibilityIdentifier("HistoryConfirmPrimary")
+                if cardStyle {
+                    SlideToConfirm(label: "Confirm identification", onConfirm: { model.submit(.confirmPrimary) }, feedback: feedback)
+                        .disabled(!model.canSubmit).accessibilityIdentifier("HistoryConfirmPrimary")
+                } else {
+                    Button("Confirm \(name)") { model.submit(.confirmPrimary) }
+                        .disabled(!model.canSubmit).accessibilityIdentifier("HistoryConfirmPrimary")
+                }
             }
             if model.ticket.canConfirmName {
                 TextField("Scientific species name", text: $scientificName)
@@ -29,9 +90,13 @@ struct IdentificationHistoryReviewSection: View {
                     .accessibilityIdentifier("HistoryConfirmName")
             }
             if model.ticket.canReject {
-                Button("Mark this identification incorrect", role: .destructive) { model.submit(.reject) }
-                    .disabled(!model.canSubmit)
-                    .accessibilityIdentifier("HistoryReject")
+                if cardStyle {
+                    SlideToConfirm(label: "Mark as incorrect", onConfirm: { model.submit(.reject) }, feedback: feedback, color: .red)
+                        .disabled(!model.canSubmit).accessibilityIdentifier("HistoryReject")
+                } else {
+                    Button("Mark this identification incorrect", role: .destructive) { model.submit(.reject) }
+                        .disabled(!model.canSubmit).accessibilityIdentifier("HistoryReject")
+                }
             }
             if let undo = model.confirmationUndo {
                 Button("Undo confirmation") {
@@ -48,16 +113,12 @@ struct IdentificationHistoryReviewSection: View {
                     .disabled(!model.canSubmit)
                     .accessibilityIdentifier("HistoryUndoReview")
             }
+        }
             if let message = model.message { Text(message).font(.callout).accessibilityIdentifier("HistoryReviewMessage") }
             if model.canRetrySave {
                 Button("Retry saving this review") { model.retrySave() }
                     .accessibilityIdentifier("HistoryRetryReviewSave")
             }
-        } header: { Text("Review this identification") } footer: {
-            Text("A review applies only to this result. It does not select it or confirm another identification in the history.")
-        }
-        .task { model.open() }
-        .confirmationUndoPrompt(action: $pendingConfirmationUndo)
     }
     private var validName: Bool {
         (try? model.ticket.request(.confirmName(scientificName), operationID: model.ticket.analysisID)) != nil

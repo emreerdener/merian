@@ -11,14 +11,21 @@ struct LibrarySignOutJournal: Codable, Equatable {
     }
 
     let version: Int
+    let cleanupOperationID: UUID?
     let sourceUserID: UUID
     var phase: Phase
     var destinationUserID: UUID?
 
     init(sourceUserID: UUID) {
-        version = 1
+        version = 2
+        cleanupOperationID = UUID()
         self.sourceUserID = sourceUserID
         phase = .committed
+    }
+    fileprivate init(upgrading legacy: Self) {
+        version = 2; cleanupOperationID = UUID()
+        sourceUserID = legacy.sourceUserID; phase = legacy.phase
+        destinationUserID = legacy.destinationUserID
     }
 }
 
@@ -44,13 +51,25 @@ struct LibrarySignOutJournalStore {
 
     func load() throws -> LibrarySignOutJournal? {
         guard let data = try dependencies.read() else { return nil }
+        guard data.count <= 4096 else { throw KeychainManager.AccessError.verificationFailed }
         let journal = try JSONDecoder().decode(LibrarySignOutJournal.self, from: data)
-        guard journal.version == 1,
+        guard (journal.version == 1 && journal.cleanupOperationID == nil) ||
+                (journal.version == 2 && journal.cleanupOperationID != nil),
               journal.destinationUserID != journal.sourceUserID,
               (journal.phase == .destinationCreated) == (journal.destinationUserID != nil) else {
             throw KeychainManager.AccessError.verificationFailed
         }
         return journal
+    }
+
+    /// Explicit verified upgrade; decoding and failed retries never mint an ID.
+    func upgradeForCleanup(_ expected: LibrarySignOutJournal) throws -> LibrarySignOutJournal {
+        guard try load() == expected else { throw KeychainManager.AccessError.verificationFailed }
+        if expected.version == 2 { return expected }
+        let upgraded = LibrarySignOutJournal(upgrading: expected)
+        try save(upgraded)
+        guard try load() == upgraded else { throw KeychainManager.AccessError.verificationFailed }
+        return upgraded
     }
 
     func save(_ journal: LibrarySignOutJournal) throws {

@@ -68,6 +68,9 @@ import SwiftData
     nonisolated static let backgroundTerminalWorkTracker =
         BackgroundURLSessionTerminalWorkTracker()
 
+    /// Serializes fresh initial admission across media file writes, before ID-keyed funding is claimed.
+    @ObservationIgnored var inFlightInitialCaptureIDs: Set<String> = []
+
     // MARK: - State
 
     /// Whether the device currently has a satisfied network path.
@@ -96,6 +99,11 @@ import SwiftData
     /// Both checks run on MainActor: before media staging and immediately
     /// before persistence. The latter verifies the funding owner as well.
     @ObservationIgnored var captureLibraryAdmission: @MainActor (UUID?) -> Bool = OfflineQueueManager.liveCaptureLibraryAdmission
+    /// Installed only by the qualified native-media lifetime; recovery is local
+    /// and does not re-enter ordinary upload or provider dispatch.
+    @ObservationIgnored var captureExecutionRecovery: (@MainActor () -> Void)?
+    @ObservationIgnored var captureFundingRecovery: (@MainActor () async -> Void)?
+    @ObservationIgnored var captureHistoryRecovery: (@MainActor () -> Void)?
 
     static func liveCaptureLibraryAdmission(expectedOwner: UUID?) -> Bool {
         let manager = SupabaseManager.shared
@@ -132,6 +140,9 @@ import SwiftData
     @ObservationIgnored let videoUploadOwner = ObservationVideoUploadOwner()
     @ObservationIgnored let audioExecutionOwner = ObservationAudioExecutionOwner()
     @ObservationIgnored let videoExecutionOwner = ObservationVideoExecutionOwner()
+    @ObservationIgnored let compositionReservationOwner = ObservationCompositionReservationOwner()
+    @ObservationIgnored let compositionUploadOwner = ObservationCompositionUploadOwner()
+    @ObservationIgnored let compositionExecutionOwner = ObservationCompositionExecutionOwner()
     @ObservationIgnored let audioStatusOwner = ObservationAudioStatusOwner()
     private(set) var reanalysisExecutionGeneration: UInt64 = 0
     func reanalysisExecutionDidFinish(ownerID: UUID, context: ModelContext, currentOwnerID: UUID?) {
@@ -199,12 +210,6 @@ import SwiftData
     /// `.staged`. Each callback owns one token, so finishing an older callback
     /// removes only its own membership and cannot hide a newer callback.
     @ObservationIgnored var uploadCompletionTokens: [String: Set<UUID>] = [:]
-
-    var uploadCompletionScanIds: Set<String> {
-        Set<String>(uploadCompletionTokens.compactMap { key, tokens -> String? in
-            tokens.isEmpty ? nil : key
-        })
-    }
 
     /// Successful members observed for the current logical upload manifest.
     ///
@@ -395,63 +400,6 @@ import SwiftData
         let shouldReplay = inferenceReplayRequestedWhileReconciling
         inferenceReplayRequestedWhileReconciling = false
         return shouldReplay
-    }
-
-    func beginUploadCompletion(scanId: String) -> UUID {
-        let token = UUID()
-        uploadCompletionTokens[scanId, default: []].insert(token)
-        return token
-    }
-
-    @discardableResult
-    func finishUploadCompletion(
-        scanId: String,
-        token: UUID
-    ) -> Bool {
-        guard uploadCompletionTokens[scanId]?.remove(token) != nil else {
-            return false
-        }
-        if uploadCompletionTokens[scanId]?.isEmpty == true {
-            uploadCompletionTokens[scanId] = nil
-        }
-        return true
-    }
-
-    func recordSuccessfulUploadMember(
-        scanId: String,
-        generation: UUID?,
-        objectKey: String
-    ) {
-        var state = uploadCompletionStates[scanId]
-        if state == nil || state?.generation != generation {
-            state = MediaStagingUploadCompletionState(generation: generation)
-        }
-        guard var state else { return }
-        state.recordSuccess(objectKey: objectKey)
-        uploadCompletionStates[scanId] = state
-    }
-
-    func hasConfirmedSuccessfulUploadManifest(
-        scanId: String,
-        generation: UUID?,
-        expectedObjectKeys: [String]
-    ) -> Bool {
-        guard let state = uploadCompletionStates[scanId],
-              state.generation == generation else {
-            return false
-        }
-        return state.matchesExactly(expectedObjectKeys: expectedObjectKeys)
-    }
-
-    func clearUploadCompletionState(
-        scanId: String,
-        generation: UUID?
-    ) {
-        guard let state = uploadCompletionStates[scanId],
-              state.generation == generation else {
-            return
-        }
-        uploadCompletionStates[scanId] = nil
     }
 
     /// Returns the shared queue actor, creating it if the container changed or the actor

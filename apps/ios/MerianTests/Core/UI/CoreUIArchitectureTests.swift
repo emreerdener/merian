@@ -5,11 +5,15 @@ import Testing
 struct CoreUIArchitectureTests {
     @Test("Core UI contains only bounded production owners")
     func productionFilesStayBounded() throws {
+        let root = try repositoryRoot()
+        let policy = try IOSSourceSizePolicy.load(root: root)
+        let productionRoot = root.appendingPathComponent(policy.productionRoot).path + "/"
         for file in try swiftFiles(in: coreUIRoot()) {
             let source = try contents(of: file)
+            let rule = policy.productionRule(for: String(file.path.dropFirst(productionRoot.count)))
             #expect(
-                lineCount(source) <= 600,
-                "\(file.lastPathComponent) exceeds 600 lines"
+                rule.count(source) <= rule.ceiling,
+                "\(file.lastPathComponent) exceeds its \(rule.ceiling)-line review ceiling"
             )
         }
     }
@@ -258,13 +262,6 @@ struct CoreUIArchitectureTests {
 
     private func contents(of file: URL) throws -> String {
         try String(contentsOf: file, encoding: .utf8)
-    }
-
-    private func lineCount(_ source: String) -> Int {
-        source.split(
-            separator: "\n",
-            omittingEmptySubsequences: false
-        ).count
     }
 
     private static let asyncLocalImageDependenciesPath =

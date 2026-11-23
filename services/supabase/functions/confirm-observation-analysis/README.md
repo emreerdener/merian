@@ -1,3 +1,11 @@
+## Preparation geometry reader
+
+The fixed prepare and complete RPC adapters advertise reader18, matching the
+native action transports and V9 initial-evidence preparation geometry. This
+retains exact saved receipt replay and the existing authorization gates. It adds
+no provider, publication, original-file release or deployment authority. The
+older reader11 checkpoint below records its historical qualification.
+
 # Confirm observation analysis
 
 Prepared authenticated POST endpoint for confirming an exact private history

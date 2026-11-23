@@ -65,11 +65,34 @@ struct SharedMediaNativeReceivingPhaseOwnerTests {
         #expect(await cold.invalidateAndAwaitForAccountTransition())
     }
 
-    @Test func abandonmentPreservesDraftThenExplicitRestageRecoversOneSavedSuccessor() async throws {
+    @Test(arguments: [SharedMediaNativeFrozenCohort.Format.cohort, .initialNotes], [false, true])
+    func abandonmentPreservesDraftThenExplicitRestageRecoversOneSavedSuccessor(
+        _ format: SharedMediaNativeFrozenCohort.Format, emptyNotes: Bool
+    ) async throws {
         let (h, owner, request) = try await SharedMediaNativeAppReceivingTests().fixture()
         let ids = try checks.pairIDs(request)
-        let p = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids)
+        let originalContexts: [ObservationContext] = emptyNotes ? [] : [.init(freeText: "Exact submitted supporting description")]
+        let initialMetadata = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft,
+            contexts: originalContexts)
+        _ = try await owner.saveAppMetadata(initialMetadata)
+        let accounting = try SharedMediaNativeReceivingTestFixture.capture(h, request: request)
+        let p = try await owner.stageAppReceiving(packageID: h.packageID, draftGeneration: h.draft, pairIDs: ids, cohortFormat: format)
+        let metadata = try accounting.metadata()
+        let budget = try SharedMediaNativeReceivingReservation.maximum(p, currentMetadata: metadata, pairStates: accounting.states)
+        let atCapacity = metadata + PhotoPreparationPolicy.metadata - budget.charged
+        #expect(try SharedMediaNativeReceivingReservation.maximum(p, currentMetadata: atCapacity,
+            pairStates: accounting.states).charged == PhotoPreparationPolicy.metadata)
+        #expect(throws: SharedMediaStorageFailure.capacity) {
+            _ = try SharedMediaNativeReceivingReservation.maximum(p, currentMetadata: atCapacity + 1, pairStates: accounting.states)
+        }
         let a = try await owner.abandonAppReceiving(p)
+        #expect(try SharedMediaNativeReceivingReservation.materializedAbandoned(p, header: request.header,
+            currentMetadata: metadata, pairStates: accounting.states, reservation: budget) <= budget.maximumSuccessor)
+        if format == .initialNotes {
+            let seed = InitialFieldNotesSeed.make(contexts: originalContexts)
+            #expect(a.initialFieldNotesSHA256 == SharedMediaAcquisitionEncoding.digest(try SharedMediaNativeDraftEnvelope.bytes(seed)))
+            #expect(try #require(String(data: a.encoded(), encoding: .utf8)).contains("Exact submitted supporting description") == false)
+        }
         #expect(try h.package().supportingContextData == p.package.envelope)
         try checks.noReceivingRows(h)
         #expect(try await owner.abandonAppReceiving(p) == a)
@@ -77,6 +100,14 @@ struct SharedMediaNativeReceivingPhaseOwnerTests {
             contexts: [.init(freeText: "explicit replacement supporting description")])
         _ = try await owner.saveAppMetadata(edit)
         await #expect(throws: (any Error).self) { _ = try await owner.abandonAppReceiving(p) }
+        if format == .initialNotes {
+            await #expect(throws: (any Error).self) {
+                _ = try await owner.restageAppReceiving(a, draftGeneration: h.draft, pairIDs: ids)
+            }
+            let restore = try await owner.prepareAppMetadata(packageID: h.packageID, draftGeneration: h.draft,
+                contexts: originalContexts)
+            _ = try await owner.saveAppMetadata(restore)
+        }
         var saved = false, saves = 0
         try owner.setMetadataFault {
             if $0 == .beforeSave { saves += 1 }
@@ -91,6 +122,8 @@ struct SharedMediaNativeReceivingPhaseOwnerTests {
         let cold = try await checks.reopen(h)
         try cold.setMetadataFault { if $0 == .beforeSave { throw SharedMediaStorageFailure.closed } }
         let replacement = try await cold.restageAppReceiving(a, draftGeneration: h.draft, pairIDs: ids)
+        #expect(try SharedMediaNativeFrozenCohort.decode(replacement.cohort.bytes).format == format)
+        #expect(a.frozenCohortFormat == format)
         #expect(replacement.intentRevision == a.revision + 1)
         #expect(replacement.restagedFromSHA256 == (try SharedMediaAcquisitionEncoding.digest(a.encoded())))
         #expect(replacement.operationID != p.operationID && replacement.queueID != p.queueID)

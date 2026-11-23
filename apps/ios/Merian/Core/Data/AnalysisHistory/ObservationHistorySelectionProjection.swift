@@ -45,7 +45,8 @@ enum ObservationHistorySelectionProjection {
         let envelope = try JSONSerialization.jsonObject(with: result.resultSnapshotData) as? [String: Any]
         let ordinal = try ObservationHistoryPage.integer(envelope?["ordinal"])
         let saved = try ObservationHistoryPage.snapshot(result.resultSnapshotData, observationID: scan.id.lowercased(), ordinal: ordinal)
-        guard saved.analysisID == id, saved.version == result.snapshotVersion, saved.completedAt == result.completedAt else {
+        guard saved.analysisID == id, saved.version == result.snapshotVersion, saved.completedAt == result.completedAt,
+              saved.initialEvidence.map({ $0.ownerID.uuidString.lowercased() == result.ownerAccountID }) ?? true else {
             throw ObservationHistoryError.resultConflict
         }
         let projected = try ObservationHistoryDisplayProjection.restore(display, matching: saved)

@@ -15,8 +15,8 @@ final class SharedMediaNativeOriginalDrain {
         fileprivate init() {}
     }
 
-    /// Two bounded local consumers, independent of native profile/account grants.
-    enum LocalConsumer: Hashable { case preparedInputs, inputRecovery }
+    /// Bounded local consumers; registration alone never grants native dispatch.
+    enum LocalConsumer: Hashable { case preparedInputs, inputRecovery, captureFunding, captureExecution, captureDraftWork, captureDraftProducers, captureHistory }
 
     @MainActor final class LocalBorrow {
         fileprivate let id = UUID()
@@ -232,7 +232,7 @@ final class SharedMediaNativeOriginalDrain {
             let presentation = recoveryPresentation
             await presentation?.close()
             var localResult = true
-            for role in [LocalConsumer.preparedInputs, .inputRecovery] {
+            for role in [LocalConsumer.captureDraftWork, .captureDraftProducers, .captureExecution, .captureFunding, .captureHistory, .preparedInputs, .inputRecovery] {
                 guard let consumer = localConsumers[role] else { continue }
                 if await consumer.close() { localConsumers.removeValue(forKey: role) } else { localResult = false }
             }

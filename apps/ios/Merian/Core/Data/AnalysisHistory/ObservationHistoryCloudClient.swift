@@ -11,12 +11,15 @@ struct ObservationHistoryCloudClient {
         throw ObservationHistoryError.unavailable
     }
 
-    // Explicit protocol-11 mutation. Server rollout gates remain closed.
+    // Reader18 understands original ordinary evidence with preparation geometry and completed compositions; deployment must precede this app candidate.
     var select: (ObservationHistorySelectionRequest) async throws -> Data = { _ in
         throw ObservationHistoryError.unavailable
     }
 
     var enroll: (UUID) async throws -> Data = { _ in
+        throw ObservationHistoryError.unavailable
+    }
+    var enrollInitial: (UUID) async throws -> Data = { _ in
         throw ObservationHistoryError.unavailable
     }
 
@@ -25,6 +28,9 @@ struct ObservationHistoryCloudClient {
     }
 
     var reconcileEnrollment: (UUID) async throws -> Data = { _ in
+        throw ObservationHistoryEnrollmentService.AdmissionError.reconciliationRequired
+    }
+    var reconcileInitialEnrollment: (UUID) async throws -> Data = { _ in
         throw ObservationHistoryEnrollmentService.AdmissionError.reconciliationRequired
     }
 
@@ -42,7 +48,7 @@ struct ObservationHistoryCloudClient {
             fetch: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryPageRequest
-                    let p_reader = 13
+                    let p_reader = 18
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_page", params: Parameters(p_request: request))
@@ -51,7 +57,7 @@ struct ObservationHistoryCloudClient {
             fetchState: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistoryStateRequest
-                    let p_reader = 13
+                    let p_reader = 18
                 }
                 return try await manager.client
                     .rpc("get_owned_observation_analysis_state", params: Parameters(p_request: request))
@@ -60,7 +66,7 @@ struct ObservationHistoryCloudClient {
             select: { request in
                 struct Parameters: Encodable {
                     let p_request: ObservationHistorySelectionRequest
-                    let p_reader = 11
+                    let p_reader = 18
                 }
                 return try await manager.client
                     .rpc("select_owned_observation_analysis", params: Parameters(p_request: request))
@@ -74,6 +80,14 @@ struct ObservationHistoryCloudClient {
                 return try await manager.client
                     .rpc("enroll_owned_observation_history", params: Parameters(p_observation: observationID.uuidString.lowercased()))
                     .execute().data
+            },
+            enrollInitial: { observationID in
+                struct Parameters: Encodable {
+                    let p_observation: String
+                    let p_reader = 18
+                }
+                return try await manager.client.rpc("enroll_owned_observation_history",
+                    params: Parameters(p_observation: observationID.uuidString.lowercased())).execute().data
             },
             recoverBaseline: { observationID in
                 struct Request: Encodable {
@@ -95,11 +109,23 @@ struct ObservationHistoryCloudClient {
                 }
                 struct Parameters: Encodable {
                     let p_request: Request
-                    let p_reader = 11
+                    let p_reader = 15
                 }
                 return try await manager.client.rpc("get_owned_observation_enrollment_selection",
                     params: Parameters(p_request: Request(observation_id: observationID.uuidString.lowercased())))
                     .execute().data
+            },
+            reconcileInitialEnrollment: { observationID in
+                struct Request: Encodable {
+                    let schema_version = 1
+                    let observation_id: String
+                }
+                struct Parameters: Encodable {
+                    let p_request: Request
+                    let p_reader = 18
+                }
+                return try await manager.client.rpc("get_owned_observation_enrollment_selection",
+                    params: Parameters(p_request: Request(observation_id: observationID.uuidString.lowercased()))).execute().data
             },
             resolvePhoto: { request in
                 try await manager.client.functions.invoke("resolve-history-photo", options: .init(body: request))

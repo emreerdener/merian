@@ -4,16 +4,27 @@ import {
 } from "../_shared/analysisHistory/contract.ts";
 import { publicationAbortable } from "../_shared/analysisHistory/publicationDeadline.ts";
 
+export interface PrivateErasureTarget {
+  readonly namespace: "history" | "capture_stage";
+  readonly backend_sha256: string | null;
+}
+
 export interface EvidenceErasureDependencies {
   retire(signal: AbortSignal): Promise<unknown>;
   retireVideo(signal: AbortSignal): Promise<unknown>;
+  retireComposition(signal: AbortSignal): Promise<unknown>;
   claim(signal: AbortSignal): Promise<unknown>;
-  erase(object: string, signal: AbortSignal): Promise<void>;
+  erase(
+    object: string,
+    signal: AbortSignal,
+    target: PrivateErasureTarget,
+  ): Promise<void>;
   finish(
     object: string,
     token: string,
     success: boolean,
     signal: AbortSignal,
+    target: PrivateErasureTarget,
   ): Promise<boolean>;
   now?: () => number;
   wallNow?: () => number;
@@ -42,6 +53,7 @@ export async function eraseObservationEvidence(
   const counts = {
     retired: 0,
     video_retired: 0,
+    composition_retired: 0,
     retirement_failures: 0,
     claimed: 0,
     marked: 0,
@@ -54,6 +66,7 @@ export async function eraseObservationEvidence(
     const lane of [
       { key: "retired", maximum: 5, run: deps.retire },
       { key: "video_retired", maximum: 7, run: deps.retireVideo },
+      { key: "composition_retired", maximum: 8, run: deps.retireComposition },
     ] as const
   ) {
     overall.throwIfAborted();
@@ -92,9 +105,15 @@ export async function eraseObservationEvidence(
   }
   const row = value as Record<string, unknown>;
   if (
-    Object.keys(row).length !== 3 || !Object.hasOwn(row, "object_id") ||
+    Object.keys(row).length !== 5 || !Object.hasOwn(row, "object_id") ||
     !Object.hasOwn(row, "claim_token") ||
     !Object.hasOwn(row, "claim_expires_at") ||
+    !Object.hasOwn(row, "namespace") || !Object.hasOwn(row, "backend_sha256") ||
+    (row.namespace !== "history" && row.namespace !== "capture_stage") ||
+    (row.namespace === "history" && row.backend_sha256 !== null) ||
+    (row.namespace === "capture_stage" &&
+      (typeof row.backend_sha256 !== "string" ||
+        !/^[0-9a-f]{64}$/.test(row.backend_sha256))) ||
     typeof row.claim_expires_at !== "string" ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/
       .test(row.claim_expires_at) ||
@@ -103,6 +122,10 @@ export async function eraseObservationEvidence(
   // Own primitive identities across awaits, even if the repository mutates its row.
   const object = historyUUID(row.object_id),
     token = historyUUID(row.claim_token);
+  const target: PrivateErasureTarget = Object.freeze({
+    namespace: row.namespace,
+    backend_sha256: row.backend_sha256 as string | null,
+  });
   const claimEnd = Math.min(
     requestEnd,
     claimStart + 60_000,
@@ -116,7 +139,7 @@ export async function eraseObservationEvidence(
       const storageSignal = stage(25_000, claimEnd - 13_000);
       await publicationAbortable(
         storageSignal,
-        () => deps.erase(object, storageSignal),
+        () => deps.erase(object, storageSignal, target),
       );
       storageSignal.throwIfAborted();
       counts.marked = 1;
@@ -125,7 +148,13 @@ export async function eraseObservationEvidence(
   try {
     const finishSignal = stage(12_000, claimEnd);
     counts.acknowledged = await publicationAbortable(finishSignal, () =>
-        deps.finish(object, token, counts.marked === 1, finishSignal)) === true
+        deps.finish(
+          object,
+          token,
+          counts.marked === 1,
+          finishSignal,
+          target,
+        )) === true
       ? 1
       : 0;
   } catch { /* Expiry recovers unknown acknowledgement; never retry here. */ }

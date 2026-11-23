@@ -51,21 +51,7 @@ final class CaptureWorkspaceOperationStateTests: XCTestCase {
         XCTAssertNil(state.takePendingLocalSheet())
     }
 
-    func testRequiredGalleryCropStateIsEncapsulatedAndOrdered() {
-        let state = CaptureWorkspaceOperationState()
-        let first = UUID()
-        let second = UUID()
-        state.appendRequiredGalleryCrop(imageID: first)
-        state.appendRequiredGalleryCrop(imageID: second)
 
-        XCTAssertEqual(state.firstRequiredGalleryCropImageID(), first)
-        XCTAssertTrue(state.containsRequiredGalleryCrop(imageID: second))
-
-        state.removeRequiredGalleryCrop(imageID: first)
-        XCTAssertEqual(state.firstRequiredGalleryCropImageID(), second)
-        state.removeAllRequiredGalleryCrops()
-        XCTAssertNil(state.firstRequiredGalleryCropImageID())
-    }
 
     func testOverlappingExternalImportRequestsCoalesceIntoRetry() async {
         let state = CaptureWorkspaceOperationState()

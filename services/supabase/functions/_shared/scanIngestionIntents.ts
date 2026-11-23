@@ -1,4 +1,13 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import {
+  captureSourceObservationsForIntent,
+  type CaptureSourceSnapshots,
+} from "./captureSourceEvidence.ts";
+import { parseImageFocusRegion } from "./identify/imageFocus.ts";
+import {
+  type InitialRetentionRequest,
+  initialRetentionRequest,
+} from "./analysisHistory/initialEvidenceRetention.ts";
 
 import type {
   AudioMediaItemDTO,
@@ -33,6 +42,9 @@ export interface BuildScanIngestionIntentInput {
   audioMediaItems?: AudioMediaItemDTO[];
   ownerMediaTimeline?: OwnerMediaTimelineItemDTO[];
   normalizedTelemetry?: Record<string, unknown>;
+  initialEvidence?: InitialRetentionRequest;
+  /** Server-only retained bytes; never accepted from MultimodalPayload/HTTP. */
+  captureSources?: CaptureSourceSnapshots;
 }
 
 export interface RecordScanIngestionIntentInput {
@@ -142,6 +154,11 @@ function sanitizeFocusRegion(
     return undefined;
   }
   const region = value as Record<string, unknown>;
+  if (region.source === "user_selection") {
+    const manual = parseImageFocusRegion(region);
+    if (!manual) throw new Error("invalid_image_focus");
+    return { ...manual };
+  }
   const x = cleanNumber(region.x);
   const y = cleanNumber(region.y);
   const width = cleanNumber(region.width);
@@ -240,6 +257,41 @@ async function sha256Hex(value: unknown): Promise<string> {
 export async function buildScanIngestionIntent(
   input: BuildScanIngestionIntentInput,
 ): Promise<SanitizedScanIngestionIntent> {
+  // Freeze the complete caller-owned intent before initial-evidence validation
+  // can yield. Membership validated against snapshots must remain the exact
+  // membership serialized and hashed below.
+  if (input.captureSources !== undefined) {
+    if (
+      ["captureSourceObservations", "captureSourceProofs", "captureSources"]
+        .some((key) => Object.hasOwn(input.payload, key))
+    ) {
+      throw new Error("invalid_capture_source_evidence");
+    }
+    const captureSources = input.captureSources;
+    input = {
+      ...structuredClone({ ...input, captureSources: undefined }),
+      captureSources,
+    };
+  }
+  const captureSourceObservations = input.captureSources === undefined
+    ? undefined
+    : captureSourceObservationsForIntent(
+      input.captureSources,
+      input.mediaObjectKeys,
+    );
+  if (
+    captureSourceObservations &&
+    ((input.payload.imageBase64s?.length ?? 0) > 0 ||
+      (input.payload.audioBase64s?.length ?? 0) > 0)
+  ) {
+    throw new Error("invalid_capture_source_evidence");
+  }
+  const initialEvidence = input.initialEvidence === undefined
+    ? undefined
+    : await initialRetentionRequest(input.initialEvidence);
+  if (initialEvidence && initialEvidence.scan_id !== input.scanId) {
+    throw new Error("invalid_initial_evidence");
+  }
   const payload = input.payload;
   const inlineImageCount = Array.isArray(payload.imageBase64s)
     ? payload.imageBase64s.length
@@ -324,6 +376,8 @@ export async function buildScanIngestionIntent(
     schemaVersion: SCAN_INGESTION_INTENT_SCHEMA_VERSION,
     clientScanId: input.scanId,
     endpoint: "identify-multimodal",
+    initialEvidence,
+    captureSourceObservations,
     media: stripUndefined({
       r2ObjectKeys: cleanStringArray(input.mediaObjectKeys.image),
       audioR2ObjectKeys: cleanStringArray(input.mediaObjectKeys.audio),

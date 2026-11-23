@@ -104,7 +104,7 @@ struct AuthenticatedTransportDispatcherTests {
             bodyData: body, expectedAuthUserID: userID,
             identificationAuthorization: authorization)
         #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
-        #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "6")
+        #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "7")
         #expect(request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "3")
         allowed.value = false
         await #expect(throws: MerianError.openAIConsentRequired) {

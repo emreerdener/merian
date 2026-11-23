@@ -241,8 +241,23 @@ receipts recheck their captured marker and proof before classification or phase
 advancement. If that context changes, later effects stop and remaining
 proof/markers stay available for recovery.
 
-`AccountDeletionLocalCleanupStore.RecoveryScope` carries the exact stage and
-proof plus an owned-session predicate and the original library-container
+The local cleanup marker now stores a strict version-2 dictionary containing
+phase and a durable operation UUID. Phase changes preserve the UUID, including
+`capabilityRetirementPending` after the recovery capability has been removed.
+Accepted legacy string/Boolean markers are explicitly upgraded with verified
+write/readback before native cleanup; reads never mint an identity. Malformed or
+unknown dictionaries remain pending and cannot grant purge authority. Resolution
+removes the entire marker together. These are local bookkeeping changes; server
+protocol versions and recovery/acknowledgement capability bytes are unchanged.
+Native39 passed marker-storage checks but exposed accepted cleanup scopes
+captured before the phase transition. The successor records and verifies the
+accepted phase before constructing the exact marker scope; native40 passed that
+correction. Native42 also passed same-phase replacement-operation denial across
+server response awaits. Aggregate native erasure is still not implemented or
+enabled.
+
+`AccountDeletionLocalCleanupStore.RecoveryScope` carries the exact marker, stage
+and proof plus an owned-session predicate and the original library-container
 predicate captured by App composition before suspension. `AuthRecoveryAuthority`
 preserves separate library-sign-out and deletion variants through the nested
 drain and SDK sign-out checks. Intake may join active runtime work despite

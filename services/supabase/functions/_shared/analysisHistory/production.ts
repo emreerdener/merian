@@ -42,7 +42,8 @@ export async function historyWorkerRPC(
     // instead mean an expired claim, whose saved work remains recoverable.
     if (
       (name === "begin_owned_observation_analysis" ||
-        name === "begin_owned_observation_video_analysis") &&
+        name === "begin_owned_observation_video_analysis" ||
+        name === "begin_owned_observation_composition_analysis") &&
       error.message === "analysis_history_operation_conflict"
     ) {
       throw new HistoryError("analysis_history_operation_conflict");

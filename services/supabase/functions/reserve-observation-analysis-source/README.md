@@ -53,3 +53,15 @@ remain disabled. The video repository also prepares mutation-free exact status
 recovery through `get_owned_observation_video_source`; this method has no HTTP
 or native caller yet. Recovery never proves vacancy or release. No retirement,
 provider execution, upload permission or native composition is introduced here.
+
+## Prepared composition source support
+
+Schema3 uses `compositionSourceReservationRepository` and the dedicated
+`reserve_owned_observation_composition_source` RPC with reader14. The full V5
+composition is frozen and fingerprint-checked before constructing the privileged
+client. The same authentication, body/reply/deadline bounds and closed response
+semantics apply. There is no downgrade to photo/audio/video or reader13.
+Composition SQL gates default closed. The adapter's exact `recover` operation
+remains unexposed by HTTP and grants no inferred absence or release proof.
+`composition_route_test.ts` exercises real bounded SDK transport with synthetic
+responses, including lost answers, overflow cancellation and owner mismatch.

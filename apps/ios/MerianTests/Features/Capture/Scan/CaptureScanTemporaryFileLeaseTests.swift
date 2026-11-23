@@ -39,8 +39,7 @@ final class CaptureScanTemporaryFileLeaseTests: XCTestCase {
         try await lease.discard()
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         try await lease.discard()
-        do { _ = try await lease.relinquishOwnership(); XCTFail("Discarded lease was accepted") }
-        catch { XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile) }
+        do { _ = try await lease.relinquishOwnership(); XCTFail("Discarded lease was accepted") } catch { XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile) }
     }
 
     func testDiscardAfterAcceptancePreservesTransferredFile() async throws {
@@ -56,8 +55,29 @@ final class CaptureScanTemporaryFileLeaseTests: XCTestCase {
     func testDiscardOfMissingFileIsClosed() async throws {
         let lease = CaptureScanTemporaryFileLease(fileURL: makeTemporaryFileURL())
         try await lease.discard()
-        do { _ = try await lease.relinquishOwnership(); XCTFail("Absent file was accepted") }
-        catch { XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile) }
+        do { _ = try await lease.relinquishOwnership(); XCTFail("Absent file was accepted") } catch { XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile) }
+    }
+
+    func testReplacementNeverInheritsTemporaryLeaseDeletion() async throws {
+        let url = makeTemporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data([1]).write(to: url)
+        var lease: CaptureScanTemporaryFileLease? = .init(fileURL: url)
+        try Data([2, 3]).write(to: url, options: .atomic)
+        do { try await lease?.discard(); XCTFail("Replaced file was accepted for deletion") } catch {}
+        XCTAssertEqual(try Data(contentsOf: url), Data([2, 3]))
+        lease = nil
+        XCTAssertEqual(try Data(contentsOf: url), Data([2, 3]))
+    }
+
+    func testMissingLeaseCannotDeleteLaterFile() async throws {
+        let url = makeTemporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        var lease: CaptureScanTemporaryFileLease? = .init(fileURL: url)
+        try Data([3]).write(to: url)
+        do { try await lease?.discard(); XCTFail("Later file was accepted for deletion") } catch {}
+        lease = nil
+        XCTAssertEqual(try Data(contentsOf: url), Data([3]))
     }
 
     private func makeTemporaryFileURL() -> URL {

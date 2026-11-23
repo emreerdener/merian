@@ -1,3 +1,4 @@
+import { validateCompositionRequest } from "../_shared/analysisHistory/compositionFingerprint.ts";
 import { parseExecutableAnalysisInput } from "../_shared/analysisHistory/analysisInput.ts";
 import {
   HistoryError,
@@ -16,7 +17,11 @@ export async function analyzeObservation(
   deps: AnalyzeObservationDependencies,
 ): Promise<Response> {
   try {
-    const input = parseExecutableAnalysisInput(body);
+    const input =
+      body !== null && typeof body === "object" && "schema_version" in body &&
+        (body.schema_version === 5 || body.schema_version === 6)
+        ? await validateCompositionRequest(body)
+        : parseExecutableAnalysisInput(body);
     const state = await deps.run(historyUUID(verifiedOwner), input);
     return jsonResponse(
       {

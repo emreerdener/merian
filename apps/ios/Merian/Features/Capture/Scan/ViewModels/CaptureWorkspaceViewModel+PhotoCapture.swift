@@ -15,15 +15,21 @@ extension CaptureWorkspaceViewModel {
 
     func executeCapture(emitHaptic: Bool = true) {
         guard activeSheet == nil,
+              !areCaptureActionsBlocked,
+              mediaReviewPresentationID == nil, !isFeaturePresentationAwaitingDismissal,
               !isCapturing,
               hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
 
+        if usesInitialDraftComposition {
+            captureInitialCameraPhoto(emitHaptic: emitHaptic)
+            return
+        }
         if usesNativePhotoComposition {
             captureNativeCameraPhoto(emitHaptic: emitHaptic)
             return
         }
-        if let access = dependencies.photoOriginalPreparation {
+        if let access = activePhotoOriginalPreparation {
             capturePhotoPreparation(access)
             return
         }
@@ -90,14 +96,16 @@ extension CaptureWorkspaceViewModel {
                     let identifiable = IdentifiableImage(
                         image: previewImage,
                         environmentContext: nil,
-                        isFromGallery: false
+                        isFromGallery: false,
+                        initialCameraVerticalCenter: composingCenter
                     )
                     self.stagedCapture.images.append(StagedImage(
                         compressedData: preparedCapture.inferenceData,
                         displayData: preparedCapture.displayData,
                         uiImage: previewImage,
                         original: identifiable,
-                        focusRegion: preparedCapture.focusRegion
+                        focusRegion: preparedCapture.focusRegion,
+                        reviewBasis: .squareCropSource
                     ))
                     succeeded = true
                 }

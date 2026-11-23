@@ -91,6 +91,9 @@ Deno.test("video recovery admits at most32 and never prepares unclaimed or initi
         let claims = 0;
         globalThis.fetch = (url) => {
           const path = String(url);
+          if (
+            path.endsWith("/rpc/list_observation_composition_analysis_recovery")
+          ) return Promise.resolve(new Response("[]"));
           if (path.endsWith("/rpc/list_observation_video_analysis_recovery")) {
             return Promise.resolve(
               new Response(
@@ -148,6 +151,9 @@ Deno.test("video recovery settles saved refusal without storage provider or fres
     const original = globalThis.fetch, calls: string[] = [];
     globalThis.fetch = (url, init) => {
       const path = String(url);
+      if (
+        path.endsWith("/rpc/list_observation_composition_analysis_recovery")
+      ) return Promise.resolve(new Response("[]"));
       if (path.endsWith("/rpc/list_observation_video_analysis_recovery")) {
         return Promise.resolve(
           new Response(

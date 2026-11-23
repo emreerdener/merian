@@ -241,9 +241,119 @@ final class SharedMediaNativeStorageRepository {
         return try .init(app: container, control: .init(existingParent: parent, inventoryID: inventoryID,
             storeIdentity: SharedMediaNativeAppEligibility.storeIdentity(container: container), container: container, grant: grant), discovery: discovery)
     }
-    private func requireApp(_ grant: SharedMediaNativeAppDispatchGrant) throws {
+    var captureRootNeedsRecovery: Bool { files.captureRootNeedsRecovery }
+    /// A fresh feature admission distinguishes an empty additive root from
+    /// accepted capture work. Neither branch relaxes ordinary inspection.
+    func resumeAppCaptureRoot(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeAppOpenResult {
+        try grant.validate(); try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+        let context = ModelContext(container); context.autosaveEnabled = false
+        let format = SharedMediaCaptureSubmission.Format.v1.rawValue
+        let authority = SharedMediaCaptureAcceptance.mediaAuthority
+        if try context.fetchCount(FetchDescriptor<SharedMediaCaptureDraftJournalRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaOrdinaryArtifactRecord>()) > 0
+            || context.fetchCount(FetchDescriptor<SharedMediaOrdinarySubmissionRecord>(predicate: #Predicate { $0.formatRaw == format })) > 0
+            || context.fetchCount(FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.mediaAuthorityRaw == authority })) > 0 {
+            let inspected = try await inspectAppCaptureArtifacts(grant: grant, qualify: true)
+            return inspected.pending.isEmpty ? .captureDispatch(inspected.snapshot) : .capturePending(inspected.snapshot)
+        }
+        try recoverAppCaptureRoot(grant: grant)
+        return .dispatch(try await inspectApp(grant: grant))
+    }
+    func recoverAppCaptureRoot(grant: SharedMediaNativeAppDispatchGrant) throws {
         try grant.validate()
         try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+        let before = try appHeader()
+        let authority = SharedMediaNativeBootstrapAuthority(existingParent: grant.parent,
+            inventoryID: inventoryID, storeIdentity: storeIdentity, container: container, grant: grant)
+        try files.recoverCaptureRoot(authority: authority)
+        try requireApp(grant)
+        guard try appHeader() == before else { throw SharedMediaStorageFailure.conflict }
+    }
+    private func requireApp(_ grant: SharedMediaNativeAppDispatchGrant) throws {
+        guard !files.captureRootNeedsRecovery else { throw SharedMediaStorageFailure.closed }
+        try grant.validate()
+        try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+    }
+    /// The typed endpoints borrow the namespace and authority for this one
+    /// callback. Even an escaped endpoint object rejects after the callback exits.
+    func appCaptureWorkflow<T: Sendable>(
+        grant: SharedMediaNativeAppDispatchGrant,
+        body: @MainActor (SharedMediaNativeAppCaptureOperations) async throws -> T
+    ) async throws -> T {
+        try grant.validate(); try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+        let bootstrap = SharedMediaNativeBootstrapAuthority(existingParent: grant.parent,
+            inventoryID: inventoryID, storeIdentity: storeIdentity, container: container, grant: grant)
+        return try await files.withCaptureArtifactFiles(authority: bootstrap) { capture in
+            var active = true
+            defer { active = false }
+            let authority = SharedMediaNativeAppOperationAuthority(container: self.container,
+                profile: grant.profile, writerEpoch: grant.writerEpoch) {
+                guard active else { throw SharedMediaStorageFailure.closed }
+                try grant.validate(); try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+                return try self.appHeader()
+            }
+            var hooks = SharedMediaNativeAppCaptureOperations.Hooks()
+            #if DEBUG
+            hooks.debug = self.debug
+            #endif
+            return try await SharedMediaNativeAppCaptureOperations.withValidatedFiles(
+                container: self.container, capture: capture, authority: authority,
+                availableBytes: { try self.files.availableBytes() }, qualifyRoot: {
+                    _ = try authority.header(self.container)
+                    _ = try await self.inspectCaptureFiles(capture, grant: grant, qualify: true)
+                    _ = try authority.header(self.container)
+                }, hooks: hooks, revoke: { active = false }, body: body)
+        }
+    }
+    /// Explicit artifact accounting under one current dispatch operation. The
+    /// file owner cannot escape into the repository or qualify ordinary writes.
+    func inspectAppCaptureArtifacts(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
+        try await inspectAppCaptureArtifacts(grant: grant, qualify: false).snapshot
+    }
+    private func inspectAppCaptureArtifacts(grant: SharedMediaNativeAppDispatchGrant, qualify: Bool) async throws
+        -> (snapshot: SharedMediaNativeScopedSnapshot, pending: Set<UUID>) {
+        try grant.validate()
+        try requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+        let authority = SharedMediaNativeBootstrapAuthority(existingParent: grant.parent,
+            inventoryID: inventoryID, storeIdentity: storeIdentity, container: container, grant: grant)
+        return try await files.withCaptureArtifactFiles(authority: authority) { captureFiles in
+            try await self.inspectCaptureFiles(captureFiles, grant: grant, qualify: qualify)
+        }
+    }
+    /// Full native graph and physical-root proof stays inside the same held
+    /// capture namespace as the target operation; budget checks cannot replace it.
+    private func inspectCaptureFiles(_ captureFiles: SharedMediaCaptureArtifactFiles,
+                                     grant: SharedMediaNativeAppDispatchGrant, qualify: Bool) async throws
+        -> (snapshot: SharedMediaNativeScopedSnapshot, pending: Set<UUID>) {
+        let before = try self.appHeader()
+        let check = {
+            try grant.validate()
+            guard try self.appHeader() == before else { throw SharedMediaStorageFailure.stale }
+        }
+        let pending = qualify ? try SharedMediaCaptureDispatchQualification.pendingGenerations(
+            container: self.container, profile: grant.profile,
+            rootBindingSHA256: captureFiles.rootBindingSHA256, checkpoint: check) : []
+        let result = try await SharedMediaNativeScopedAudit.runAppCapture(container: self.container, profile: grant.profile,
+            files: captureFiles, header: {
+                try grant.validate()
+                try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch)
+                return try self.appHeader()
+            }, readCheckpoint: {
+                try grant.validate()
+                try self.requireAppIdentity(profile: grant.profile, epoch: grant.writerEpoch, databaseReadOnly: true)
+                return try self.appHeader()
+            }, betweenPages: {
+                #if DEBUG
+                await self.debug?.scopedPagePause?()
+                #endif
+                await Task.yield()
+            }, configure: { grant.configureInspection(&$0) })
+        if qualify {
+            guard try SharedMediaCaptureDispatchQualification.pendingGenerations(container: self.container, profile: grant.profile,
+                rootBindingSHA256: captureFiles.rootBindingSHA256, checkpoint: check) == pending else { throw SharedMediaStorageFailure.stale }
+        }
+        try check()
+        return (result, pending)
     }
     private func requireAppIdentity(profile: SharedMediaNativeAppProfile, epoch: UUID, databaseReadOnly: Bool = false) throws {
         guard openKind == .appDispatch, expectedOwnerID == profile.ownerID,
@@ -256,7 +366,7 @@ final class SharedMediaNativeStorageRepository {
     }
     private func appHeader() throws -> SharedMediaNativeAppEligibility.Header { try measuredInspection(.databaseHeader) { try SharedMediaNativeRepositoryFacts.app(container, scope: scopedIdentity) } }
     func inspectApp(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaNativeScopedSnapshot {
-        try await SharedMediaNativeScopedAudit.runApp(container: container,
+        try await SharedMediaNativeScopedAudit.runAppAcceptedOrdinary(container: container,
             profile: { try self.files.bootstrapProfile() },
             header: { try self.requireApp(grant); return try self.appHeader() },
             readCheckpoint: {
@@ -307,6 +417,28 @@ final class SharedMediaNativeStorageRepository {
         try requireApp(grant)
         let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) { try self.requireApp(grant); return try self.appHeader() }
         return try await .audited(container: container, authority: authority, io: originalIO, binding: nativeBinding, files: photos,
+            availableBytes: {
+                let bytes = try self.files.availableBytes()
+                #if DEBUG
+                if let limit = self.debug?.lifecycleAvailableBytes { return min(bytes, limit) }
+                #endif
+                return bytes
+            }, boundary: { point in
+                #if DEBUG
+                try self.debug?.lifecycleFault?(point)
+                #endif
+            })
+    }
+    func appOrdinaryAcceptance(grant: SharedMediaNativeAppDispatchGrant) async throws -> SharedMediaOrdinaryAcceptanceOperations {
+        try requireApp(grant)
+        let before = try appHeader()
+        _ = try await inspectApp(grant: grant)
+        try requireApp(grant)
+        guard try appHeader() == before else { throw SharedMediaStorageFailure.stale }
+        let authority = SharedMediaNativeAppOperationAuthority(container: container, profile: grant.profile, writerEpoch: grant.writerEpoch) {
+            try self.requireApp(grant); return try self.appHeader()
+        }
+        return .init(container: container, authority: authority, io: originalIO, binding: nativeBinding, files: photos,
             availableBytes: {
                 let bytes = try self.files.availableBytes()
                 #if DEBUG
@@ -559,6 +691,12 @@ final class SharedMediaNativeBootstrapAuthority {
         try validate()
         #if DEBUG
         try grant?.debug.bootstrapFault?(value)
+        #endif
+    }
+    func captureBoundary(_ value: SharedMediaCaptureRootBoundary) throws {
+        try validate()
+        #if DEBUG
+        try existingGrant?.debug.captureRootFault?(value)
         #endif
     }
     func isCommitted() throws -> Bool {

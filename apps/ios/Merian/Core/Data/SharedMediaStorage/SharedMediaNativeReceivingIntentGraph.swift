@@ -157,40 +157,11 @@ enum SharedMediaNativeReceivingIntentGraph {
         guard prepared.profile == (try SharedMediaNativeAppEligibility.profile(inventory)),
               SharedMediaNativeAppMetadataFacts.Package(package) == prepared.package,
               SharedMediaNativeAppMetadataFacts.Member(member) == prepared.member,
-              case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData),
-              try context.fetchCount(FetchDescriptor<PhotoPreparationLease>(predicate: #Predicate { $0.packageID == id })) == 0 else {
+              case .preparation = try SharedMediaNativeDraftEnvelope.decode(package.supportingContextData) else {
             throw SharedMediaStorageFailure.conflict
         }
-        let frozen = try SharedMediaNativeFrozenCohort.decode(prepared.cohort.bytes)
-        var originals = Set<UUID>(), states: [SharedMediaNativePairFileState] = []
-        for entry in frozen.entries {
-            let intent = try SharedMediaNativeDerivativeIntent.decode(entry.intent.bytes)
-            guard originals.insert(intent.preparation.original.reference.referenceID).inserted else {
-                throw SharedMediaStorageFailure.conflict
-            }
-            try SharedMediaNativePairPlanGraph.validateReadyForMembership(envelope, pairID: intent.pairID,
-                package: package, inventory: inventory, context: context)
-            let state = try SharedMediaNativePairFileGraph.state(context: context, inventory: inventory,
-                package: package, member: member, pairID: intent.pairID)
-            guard state.phase == "ready", state.plan.intent == entry.intent else { throw SharedMediaStorageFailure.conflict }
-            for (input, revision, identity) in [(intent.ai, entry.aiReferenceRevision, entry.aiDescriptor),
-                                               (intent.display, entry.displayReferenceRevision, entry.displayDescriptor)] {
-                let refID = input.referenceID
-                let ref = try SharedMediaNativePairPlanGraph.one(context,
-                    FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.id == refID }))
-                let work = try state.selected(input.id).0
-                guard ref.revision == revision, work.phase == "completed", work.writerState == "closed",
-                      work.finalIdentity == identity.file else { throw SharedMediaStorageFailure.conflict }
-            }
-            states.append(state)
-        }
-        var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.packageID == id && $0.roleRaw == "original" })
-        query.fetchLimit = 3; query.includePendingChanges = true
-        let refs = try context.fetch(query)
-        guard refs.count == states.count, Set(refs.map(\.id)) == originals, refs.allSatisfy(\.isLive) else {
-            throw SharedMediaStorageFailure.conflict
-        }
-        return states
+        return try SharedMediaNativeReadyPhotoCohort.read(prepared.cohort, package: package,
+            member: member, inventory: inventory, context: context)
     }
 
     /// Codec support does not admit a new format into the existing owner graph.

@@ -4,6 +4,7 @@ import SwiftUI
 struct ConfidenceBadge: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openIdentification) private var openIdentification
 
     let confidenceScore: Double?
     let inferenceTier: String?
@@ -92,27 +93,10 @@ struct ConfidenceBadge: View {
         )
     }
 
-    private func color(
-        for style: ConfidenceBadgePresentation.Style
-    ) -> Color {
-        switch style {
-        case .analyzing:
-            return .blue
-        case .confirmed, .strong:
-            return .green
-        case .incorrect:
-            return .red
-        case .possible, .awaitingReview:
-            return .orange
-        case .weak, .unknown:
-            return .gray
-        }
-    }
-    
     var body: some View {
         if presentation.isVisible {
             let data = presentation
-            let dataColor = color(for: data.style)
+            let dataColor = data.style.color
             let isAnalyzing = data.isAnalyzing
             let presentedScanId = inferenceEngine.speciesData?.scanId
             let presentedGeneration = inferenceEngine.scanPresentationGeneration
@@ -122,6 +106,7 @@ struct ConfidenceBadge: View {
                     onAnalyzingTap?()
                     return
                 }
+                if let openIdentification { openIdentification(); return }
                 guard let presentedScanId,
                       viewModel.presentExplanation(
                           subject: IdentificationReviewSubject(
@@ -250,6 +235,7 @@ struct ConfidenceBadge: View {
                 onDismiss: resumePendingExplanationDismissalAction
             ) {
                 if let subject = viewModel.explanationSubject {
+                    NavigationStack {
                     ConfidenceExplanationSheet(
                         scanId: subject.scanId,
                         presentationGeneration: subject.presentationGeneration,
@@ -291,6 +277,7 @@ struct ConfidenceBadge: View {
                         },
                         dependencies: viewModel.childDependencies
                     )
+                    }
                     .presentationDetents(allowedDetents, selection: $activeDetent)
                         .presentationCornerRadius(32)
                         .presentationBackground(.ultraThinMaterial)

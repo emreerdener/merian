@@ -147,6 +147,31 @@ struct PinnedNetworkTaskTerminationTests {
         #expect(returned.withLock { $0 })
     }
 
+    @Test(arguments: [false, true])
+    func receivedBoundedReplySettlesOnlyWhenExplicitlyPreserved(preserve: Bool) async throws {
+        let pause = CompletionPause(), mock = ScopedMockTransport(), session = mock.makeSession()
+        let collector = PinnedBoundedJSONDataTask(maximumBytes: 8192, afterCompletion: { pause.wait() })
+        let returned = OSAllocatedUnfairLock(initialState: false)
+        defer { pause.release(); session.invalidateAndCancel() }
+        mock.register(path: "/local-termination") { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!, Data("{}".utf8))
+        }
+        let call = Task {
+            defer { returned.withLock { $0 = true } }
+            return try await collector.joinedResponse(using: session, request: request(), timeout: 10,
+                preserveReceivedResponse: preserve)
+        }
+        try await waitUntil { pause.entered }
+        call.cancel()
+        #expect(!returned.withLock { $0 })
+        pause.release()
+        switch await call.result {
+        case .success(let result): #expect(preserve && result.0 == Data("{}".utf8))
+        case .failure(let error): #expect(!preserve && error is CancellationError)
+        }
+    }
+
     @Test func boundedCollectorRemainsAliveUntilCallbackAfterCallerDropsIt() async throws {
         let pause = CompletionPause(), session = hangingSession()
         var collector: PinnedBoundedJSONDataTask? = .init(maximumBytes: 8192, completionPause: { pause.wait() })

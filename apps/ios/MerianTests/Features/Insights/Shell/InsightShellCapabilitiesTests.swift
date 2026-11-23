@@ -34,7 +34,7 @@ struct InsightShellCapabilitiesTests {
         #expect(viewModel.canUndoIncorrect)
     }
 
-    @Test func testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates() {
+    @Test func strongPrimaryCanBeConfirmedWithoutShowingNonCompetitiveAlternatives() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
@@ -62,9 +62,23 @@ struct InsightShellCapabilitiesTests {
             scanId: "strong_hidden_candidates"
         )
 
-        #expect(viewModel.canConfirm == false)
+        #expect(viewModel.canConfirm)
         #expect(viewModel.canReviewAlternatives == false)
         #expect(viewModel.canReanalyze == true)
+
+        engine.speciesData?.candidates = []
+        #expect(viewModel.canConfirm, "Confirmation must also work when no alternatives were saved.")
+        engine.speciesData?.userConfirmedIdentification = true
+        #expect(!viewModel.canConfirm)
+        engine.speciesData?.userConfirmedIdentification = false
+        engine.speciesData?.userIdentificationOverride = "Pieris rapae"
+        #expect(!viewModel.canConfirm)
+        engine.speciesData?.userIdentificationOverride = nil
+        engine.speciesData?.aiReview.needsAttention = true
+        #expect(!viewModel.canConfirm)
+        engine.speciesData?.aiReview.needsAttention = false
+        engine.speciesData?.aiReview.optimisticState = .aiRejected
+        #expect(!viewModel.canConfirm)
     }
 
     @Test func testUnresolvedAudioKeepsReanalysisWithoutSpeciesActions() {
@@ -183,7 +197,7 @@ struct InsightShellCapabilitiesTests {
         #expect(viewModel.candidateSwipeCandidates.map(\.scientificName) == ["Pieris rapae"])
         #expect(engine.speciesData?.alternativesExhausted == true)
         #expect(viewModel.reviewAlternativeCandidates.isEmpty)
-        #expect(!viewModel.canConfirm)
+        #expect(viewModel.canConfirm, "Reviewing every alternative does not confirm or reject the primary result.")
     }
 
     @Test func testShareRecommendationUsesFlashStrongThreshold() {

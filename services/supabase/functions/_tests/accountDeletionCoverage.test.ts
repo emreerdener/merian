@@ -703,8 +703,10 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     "recoveryCapabilityStore.prepare()",
     ".performPreparedIntake(",
     "prepareDeletionV2(",
-    "recordCapabilityPreparedPending: dependencies.localState.recordCapabilityPreparedPending",
-    "recordIntakePending: dependencies.localState.recordIntakePending",
+    "recordCapabilityPreparedPending: {",
+    "markerMatches(.capabilityPreparationPending) && dependencies.localState.recordCapabilityPreparedPending() && markerMatches(.capabilityPreparedPending)",
+    "recordIntakePending: {",
+    "markerMatches(.capabilityPreparedPending) && dependencies.localState.recordIntakePending() && markerMatches(.capabilityIntakePending)",
     "commitDeletionV2(",
   ].map((fragment) => swiftDeletionCoordinator.indexOf(fragment));
   assert(

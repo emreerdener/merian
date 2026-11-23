@@ -8,6 +8,25 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testUnvisitedImportedPhotoGetsSquareArtifactsAndUncroppedEditorSource() async throws {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 180, height: 80)).pngData { context in
+            UIColor.green.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 180, height: 80))
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("capture-default-" + UUID().uuidString + ".png")
+        try source.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let result = try await CaptureWorkspaceDependencies.livePreparedImageLoader(
+            .init(fileURL: url, isPro: false, historicalContext: nil))
+        let prepared = try XCTUnwrap(result)
+        let ai = try XCTUnwrap(UIImage(data: prepared.compressedData))
+        let display = try XCTUnwrap(UIImage(data: prepared.displayData))
+        XCTAssertEqual(ai.size.width, ai.size.height)
+        XCTAssertEqual(display.size.width, display.size.height)
+        XCTAssertGreaterThan(prepared.previewCGImage.image.width, prepared.previewCGImage.image.height)
+        XCTAssertTrue(try XCTUnwrap(prepared.metrics).isWithinImageBudgets)
+    }
+
     func testCaptureControlClearancesPreserveOverlayPositions() {
         XCTAssertEqual(CaptureControlBarLayout.reservedHeight, 204)
         XCTAssertEqual(CaptureControlBarLayout.fullScreenOverlayClearance, 250)
@@ -137,24 +156,22 @@ extension CaptureWorkspaceViewModelRefinementTests {
         )
     }
 
-    func testPhotoLibraryPreparedImageRequiresCropAndPresentsCropSheet() {
+    func testPhotoLibraryPreparedImagePresentsOptionalReview() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { _ in nil },
             prewarmHeadersOnInit: false
         )
 
-        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], presentsReview: true)
 
         let stagedImage = viewModel.stagedCapture.images.first
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
-        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertEqual(viewModel.imageToCrop?.id, stagedImage?.original.id)
-        XCTAssertTrue(viewModel.isRequiredGalleryCrop(stagedImage?.original.id ?? UUID()))
         XCTAssertTrue(viewModel.shouldSuppressCaptureChromeForCrop)
     }
 
-    func testPreparedImageWithoutRequiredCropDoesNotPresentCropSheet() {
+    func testPreparedImageWithoutReviewPresentationCanSubmit() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { _ in nil },
@@ -164,8 +181,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
         viewModel.commitPreparedStagedImages([makePreparedStagedImage()])
 
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
-        XCTAssertFalse(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertNil(viewModel.imageToCrop)
+        XCTAssertTrue(viewModel.canSubmitDraft)
     }
 
     func testPendingExternalImageImportStagesThroughGalleryCropFlowAndCleansInbox() async throws {
@@ -191,9 +208,12 @@ extension CaptureWorkspaceViewModelRefinementTests {
         )
 
         viewModel.importPendingExternalImageIfPossible()
-        try await waitUntil { viewModel.stagedCapture.images.count == 1 }
+        // Staging precedes the awaited inbox removal. Review is presented only
+        // when that operation finishes, so observe the completed draft boundary.
+        try await waitUntil {
+            viewModel.stagedCapture.images.count == 1 && !viewModel.draftSession.hasUnresolvedWork
+        }
 
-        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertEqual(viewModel.imageToCrop?.id, viewModel.stagedCapture.images.first?.original.id)
         let remainingImports = await store.pendingImports()
         XCTAssertTrue(remainingImports.isEmpty)
@@ -238,7 +258,6 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 viewModel.imageToCrop != nil
         }
 
-        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
         let remainingImports = await store.pendingImports()
         XCTAssertTrue(remainingImports.isEmpty)
     }
@@ -422,7 +441,6 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 viewModel.imageToCrop != nil
         }
 
-        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertEqual(
             viewModel.imageToCrop?.id,
             viewModel.stagedCapture.images.first?.original.id
@@ -431,57 +449,39 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertTrue(remainingImports.isEmpty)
     }
 
-    func testCancelingRequiredGalleryCropRemovesImageAndClearsCropState() {
+    func testRemovingReviewedImageClearsCropState() throws {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { _ in nil },
             prewarmHeadersOnInit: false
         )
-        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
-        let imageId = try! XCTUnwrap(viewModel.stagedCapture.images.first?.original.id)
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], presentsReview: true)
 
-        viewModel.cancelRequiredGalleryCrop(for: imageId)
+        viewModel.removeReviewedMedia(session: try XCTUnwrap(viewModel.mediaReviewSession))
 
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
-        XCTAssertFalse(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertNil(viewModel.imageToCrop)
         XCTAssertNil(viewModel.editingCropIndex)
     }
 
-    func testCompletingRequiredGalleryCropAllowsAutoSubmitOnlyWhenExistingRulesAllow() {
-        let autoSubmitContainer = AppDIContainer.preview
-        autoSubmitContainer.appSettings.autoSubmitScans = true
-        let autoSubmitViewModel = CaptureWorkspaceViewModel(
-            diContainer: autoSubmitContainer,
-            preparedImageLoader: { _ in nil },
-            prewarmHeadersOnInit: false
-        )
-        let attempt = autoSubmitViewModel.beginDraftOperation()!
-        autoSubmitViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
-        autoSubmitViewModel.completeDraftOperation(attempt, succeeded: true)
-        let autoSubmitImageId = try! XCTUnwrap(autoSubmitViewModel.stagedCapture.images.first?.original.id)
-
-        autoSubmitViewModel.imageToCrop = nil
-        XCTAssertTrue(autoSubmitViewModel.completeRequiredGalleryCrop(for: autoSubmitImageId))
-        XCTAssertTrue(autoSubmitViewModel.isAutomaticStagedSubmissionPending)
-        XCTAssertFalse(autoSubmitViewModel.shouldPresentActiveScanToolbar)
-        XCTAssertFalse(autoSubmitViewModel.shouldSuppressCaptureChromeForCrop)
-
-        let confirmationContainer = AppDIContainer.preview
-        confirmationContainer.appSettings.autoSubmitScans = false
-        let confirmationViewModel = CaptureWorkspaceViewModel(
-            diContainer: confirmationContainer,
-            preparedImageLoader: { _ in nil },
-            prewarmHeadersOnInit: false
-        )
-        confirmationViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
-        let confirmationImageId = try! XCTUnwrap(confirmationViewModel.stagedCapture.images.first?.original.id)
-
-        confirmationViewModel.imageToCrop = nil
-        XCTAssertFalse(confirmationViewModel.completeRequiredGalleryCrop(for: confirmationImageId))
-        XCTAssertFalse(confirmationViewModel.isAutomaticStagedSubmissionPending)
-        XCTAssertTrue(confirmationViewModel.shouldPresentActiveScanToolbar)
-        XCTAssertFalse(confirmationViewModel.shouldSuppressCaptureChromeForCrop)
+    func testImportedObservationRemainsManualAfterOptionalReview() throws {
+        for autoSubmit in [false, true] {
+            let container = AppDIContainer.preview
+            container.appSettings.autoSubmitScans = autoSubmit
+            let model = CaptureWorkspaceViewModel(diContainer: container,
+                preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+            let operation = try XCTUnwrap(model.beginDraftOperation())
+            model.commitPreparedStagedImages([makePreparedStagedImage()], presentsReview: true)
+            model.completeDraftOperation(operation, succeeded: true)
+            let imageID = try XCTUnwrap(model.stagedCapture.images.first?.original.id)
+            let commit = try XCTUnwrap(model.beginPhotoReviewCommit(imageID: imageID))
+            XCTAssertTrue(model.finishPhotoReviewCommit(commit, succeeded: true))
+            XCTAssertTrue(model.canSubmitDraft)
+            XCTAssertFalse(model.isAutomaticSubmissionArmed)
+            XCTAssertFalse(model.isAutomaticStagedSubmissionPending)
+            // Outer presentation still owns hardware until its matching dismissal.
+            XCTAssertTrue(model.shouldSuppressCaptureChromeForCrop)
+        }
     }
 
 }

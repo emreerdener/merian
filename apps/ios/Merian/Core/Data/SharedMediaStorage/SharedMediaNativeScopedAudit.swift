@@ -18,6 +18,8 @@ struct SharedMediaNativeScopedAudit {
     private typealias ProjectionMemo = SharedMediaNativeReleaseSurvivorProjection.Memo
     let container: ModelContainer
     private let appHeader: SharedMediaNativeAppEligibility.Header?
+    private var ordinary: SharedMediaOrdinaryInspection?
+    private var initialErasure = false
     private let format: SharedMediaNativeScopedFormat
     let scope: SharedMediaNativeScopeIdentity
     let expected: SharedMediaStorageSnapshot
@@ -73,6 +75,53 @@ struct SharedMediaNativeScopedAudit {
                        readCheckpoint: (() throws -> SharedMediaNativeAppEligibility.Header)? = nil,
                        betweenPages: @escaping () async throws -> Void,
                        configure: (inout Self) -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        try await runAppRead(container: container, profile: profile, header: header,
+            readCheckpoint: readCheckpoint, betweenPages: betweenPages, configure: configure, ordinary: nil)
+    }
+
+    /// Dedicated read-only app route. Mutation and recovery owners continue to
+    /// enter runApp without ordinary scope and retain their strict barriers.
+    static func runAppAcceptedOrdinary(container: ModelContainer, profile: () throws -> SharedMediaNativeAppProfile,
+                                       header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                                       readCheckpoint: (() throws -> SharedMediaNativeAppEligibility.Header)? = nil,
+                                       betweenPages: @escaping () async throws -> Void,
+                                       configure: (inout Self) -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        let expected = try header(), value = try profile()
+        return try await SharedMediaOrdinaryInspection.withVerified(container: container, profile: value, checkpoint: {
+            guard try header() == expected else { throw SharedMediaStorageFailure.stale }
+        }) { ordinary in
+            try await runAppRead(container: container, profile: { value }, header: header,
+                readCheckpoint: readCheckpoint, betweenPages: betweenPages, configure: configure, ordinary: ordinary)
+        }
+    }
+
+    /// Capture accounting is opt-in and remains nested inside both physical
+    /// and ordinary whole-store audits. It does not authorize a writer.
+    static func runAppCapture(container: ModelContainer, profile: SharedMediaNativeAppProfile,
+                              files: SharedMediaCaptureArtifactFiles, cleanupTarget: UUID? = nil,
+                              header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                              readCheckpoint: (() throws -> SharedMediaNativeAppEligibility.Header)? = nil,
+                              betweenPages: @escaping () async throws -> Void,
+                              configure: (inout Self) -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        let expected = try header()
+        return try await SharedMediaCaptureArtifactInspection.withVerified(container: container, profile: profile,
+            files: files, cleanupTarget: cleanupTarget, checkpoint: {
+                guard try header() == expected else { throw SharedMediaStorageFailure.stale }
+            }) { capture in
+                try await SharedMediaOrdinaryInspection.withVerifiedCapture(container: container, profile: profile,
+                    capture: capture, checkpoint: { guard try header() == expected else { throw SharedMediaStorageFailure.stale } }) { ordinary in
+                        try await runAppRead(container: container, profile: { profile }, header: header,
+                            readCheckpoint: readCheckpoint, betweenPages: betweenPages, configure: configure, ordinary: ordinary)
+                    }
+            }
+    }
+
+    private static func runAppRead(container: ModelContainer, profile: () throws -> SharedMediaNativeAppProfile,
+                                   header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                                   readCheckpoint: (() throws -> SharedMediaNativeAppEligibility.Header)? = nil,
+                                   betweenPages: @escaping () async throws -> Void,
+                                   configure: (inout Self) -> Void, ordinary: SharedMediaOrdinaryInspection?,
+                                   initialErasure: Bool = false) async throws -> SharedMediaNativeScopedSnapshot {
         let expected = try header(), profile = try profile()
         let read = readCheckpoint ?? header
         let boundary: (() throws -> Void)? = readCheckpoint.map { _ in
@@ -97,6 +146,8 @@ struct SharedMediaNativeScopedAudit {
             #endif
             try await betweenPages()
         }, fullBoundaryCheck: boundary)
+        audit.ordinary = ordinary
+        audit.initialErasure = initialErasure
         configure(&audit)
         #if DEBUG
         trace = audit.inspectionTrace; readFault = audit.inspectionReadFault; pageFault = audit.inspectionPageFault
@@ -104,6 +155,30 @@ struct SharedMediaNativeScopedAudit {
         let result = try await audit.run()
         guard try header() == expected else { throw SharedMediaStorageFailure.conflict }
         return result
+    }
+
+    /// The complete ready-only semantic audit precedes the erasure journal.
+    /// Neither this route nor its internal inspection yields a mutation grant.
+    static func runAppErasureInitial(container: ModelContainer, profile: SharedMediaNativeAppProfile,
+                                     files: SharedMediaCaptureArtifactFiles?,
+                                     header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                                     betweenPages: @escaping () async throws -> Void) async throws -> SharedMediaNativeScopedSnapshot {
+        if let files {
+            return try await SharedMediaCaptureArtifactInspection.auditInitialErasure(container: container, profile: profile,
+                files: files, header: header, betweenPages: betweenPages)
+        }
+        return try await SharedMediaOrdinaryInspection.auditInitialErasure(container: container, profile: profile,
+            capture: nil, header: header, betweenPages: betweenPages)
+    }
+
+    /// Sibling implementation entry; the inspection's special purpose cannot
+    /// escape its private factory. All page walkers and budgets remain shared.
+    static func runInitialErasureRead(container: ModelContainer, profile: SharedMediaNativeAppProfile,
+                                      header: @escaping () throws -> SharedMediaNativeAppEligibility.Header,
+                                      betweenPages: @escaping () async throws -> Void,
+                                      ordinary: SharedMediaOrdinaryInspection) async throws -> SharedMediaNativeScopedSnapshot {
+        try await runAppRead(container: container, profile: { profile }, header: header,
+            betweenPages: betweenPages, configure: { _ in }, ordinary: ordinary, initialErasure: true)
     }
 
     /// Read-only construction for the allocation owner's retained operation.
@@ -148,6 +223,11 @@ struct SharedMediaNativeScopedAudit {
 
     func run() async throws -> SharedMediaNativeScopedSnapshot {
         try fullBoundaryCheck?()
+        if initialErasure { try requireErasurePartition() }
+        let transferContext = ModelContext(container); transferContext.autosaveEnabled = false
+        if let ordinary { try ordinary.requireCurrent(transferContext) } else {
+            try SharedMediaStorageLookup.requireNoUnqualifiedOrdinaryTransfers(transferContext)
+        }
         #if DEBUG
         inspectionTrace?.enter(.pending)
         #endif
@@ -161,7 +241,7 @@ struct SharedMediaNativeScopedAudit {
         let receipts = try await page(FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
             guard row.ownerID == scope.ownerID, row.inventoryGeneration == scope.generation else { throw SharedMediaStorageFailure.conflict }
-            switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: format, checkpoint: check) {
+            switch try SharedMediaNativeAcquisitionGraph.scopedReceipt(row, inventory: inventory, context: context, format: format, ordinary: ordinary, checkpoint: check) {
             case .reserved(let request), .held(let request):
                 _ = try package(request.packageID, context: context, inventory: inventory, projectionMemo: projectionMemo)
                 guard futureReferences.insert(request.referenceID).inserted,
@@ -195,7 +275,7 @@ struct SharedMediaNativeScopedAudit {
             } else if let applied = try applied(row.packageID, context: context, inventory: inventory) {
                 try applied.requireConsumerLink(row, context: context)
             } else {
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, checkpoint: check)
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(row, context: context, format: format, ordinary: ordinary, checkpoint: check)
             }
         }
         #if DEBUG
@@ -210,6 +290,13 @@ struct SharedMediaNativeScopedAudit {
         #endif
         let allocations = try await page(FetchDescriptor<SharedMediaAllocationRecord>(
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { row, context, inventory, projectionMemo in
+            if row.namespaceRaw == SharedMediaCaptureRootJournal.namespace {
+                guard format == .appV2, row.accountID == scope.ownerID, let ordinary else {
+                    throw SharedMediaStorageFailure.closed
+                }
+                try ordinary.captureAllocation(row.id, context: context)
+                return
+            }
             guard row.accountID == scope.ownerID, row.namespaceRaw == SharedMediaPhotoLedger.namespace else { throw SharedMediaStorageFailure.conflict }
             try asset(row.id, context: context, inventory: inventory, projectionMemo: projectionMemo)
         }
@@ -229,6 +316,7 @@ struct SharedMediaNativeScopedAudit {
             predicate: #Predicate { $0.inventoryID == id }, sortBy: [SortDescriptor(\.id)])) { _, _, _, _ in
             throw SharedMediaStorageFailure.closed
         }
+        if initialErasure { try await auditErasureReverseRows() }
         #if DEBUG
         inspectionTrace?.enter(.finalHeader)
         #endif
@@ -237,73 +325,37 @@ struct SharedMediaNativeScopedAudit {
             receipts: receipts, allocations: allocations)
     }
 
-    private func receivingPages() async throws {
-        var offset = 0
-        while true {
-            try Task.checkCancellation(); try checkBoundary()
-            let count = try receivingPage(offset: offset)
-            // The synchronous page releases its context/models/snapshots first.
-            try fullBoundaryCheck?()
-            try await betweenPages(); try Task.checkCancellation(); try checkBoundary()
-            _ = try header(freshContext())
-            if count < SharedMediaStoragePolicy.pageSize { return }
-            let (next, overflow) = offset.addingReportingOverflow(count)
-            guard !overflow else { throw SharedMediaStorageFailure.capacity }; offset = next
-        }
+    /// Whole-library deletion cannot inherit the normal reader's deliberate
+    /// tolerance for unrelated, unanchored rows. Every source table must join
+    /// this one inventory before it can enter the immutable erasure manifest.
+    private func requireErasurePartition() throws {
+        guard format == .appV2, ordinary != nil else { throw SharedMediaStorageFailure.conflict }
+        try SharedMediaNativeErasureReverseAudit.requirePartition(container: container, scope: scope)
     }
 
-    private func receivingPage(offset: Int) throws -> Int {
+    private func auditErasureReverseRows() async throws {
+        let reverse = SharedMediaNativeErasureReverseAudit(scope: scope, ordinary: ordinary,
+            package: { try package($0, context: $1, inventory: $2, projectionMemo: $3) },
+            asset: { try asset($0, context: $1, inventory: $2, projectionMemo: $3) },
+            pair: { try pair($0, context: $1, inventory: $2, projectionMemo: $3) })
+        _ = try await page(FetchDescriptor<PhotoPreparationRecord>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<PhotoPreparationAsset>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<PhotoPreparationLease>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<PhotoPreparationReference>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<SharedMediaDerivativeWorkRecord>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<SharedMediaLeaseRecord>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        _ = try await page(FetchDescriptor<SharedMediaReferenceRecord>(sortBy: [SortDescriptor(\.id)]), body: reverse.audit)
+        try requireErasurePartition()
+    }
+
+    private func receivingPages() async throws {
+        var reverse = SharedMediaNativeReceivingReverseAudit(container: container, appHeader: appHeader,
+            check: check, betweenPages: betweenPages, fullBoundaryCheck: fullBoundaryCheck,
+            header: { try header($0, projectionMemo: $1) })
         #if DEBUG
-        inspectionTrace?.enter(.receivingRoots)
+        reverse.inspectionTrace = inspectionTrace
         #endif
-        let projectionMemo = ProjectionMemo()
-        let context = freshContext(), inventory = try header(context, projectionMemo: projectionMemo)
-        let roots = try SharedMediaNativeReceivingCleanGraph.pending(context, inventory: inventory,
-            projectionMemo: projectionMemo, checkpoint: check)
-        // No inventory predicate: foreign/orphan raw rows must fail closed.
-        var query = FetchDescriptor<SharedMediaReceivingIntentRecord>(sortBy: [SortDescriptor(\.cursorKey)])
-        query.fetchOffset = offset; query.fetchLimit = SharedMediaStoragePolicy.pageSize
-        let rows = try context.fetch(query)
-        var terminals: [SharedMediaNativeReceivingTerminal.Snapshot] = []
-        var retained: [SharedMediaNativePhotoAllocationSnapshot.Applied] = []
-        #if DEBUG
-        inspectionTrace?.enter(.receivingLeaves)
-        #endif
-        for row in rows {
-            try Task.checkCancellation(); try check()
-            if row.phaseRaw == "released" {
-                terminals.append(try SharedMediaNativeReceivingTerminal.read(row, context: context,
-                    inventory: inventory, checkpoint: check))
-            } else if let witness = roots[row.id] {
-                let saved: SharedMediaNativeReceivingIntentGraph.Row
-                switch witness {
-                case .allocating(let value), .initial(let value): saved = value.row
-                case .generic(let value): saved = value.row
-                case .releasing(let value): saved = value.release.slot
-                case .staged(let value): saved = value.origin.row
-                }
-                guard saved == SharedMediaNativeReceivingIntentGraph.Row(row) else { throw SharedMediaStorageFailure.stale }
-            } else {
-                // Missing roots are not sufficient: the explicit reader must
-                // establish the complete retained original and reverse links.
-                retained.append(try SharedMediaNativePhotoAllocationSnapshot.Applied.read(row,
-                    inventory: inventory, context: context, checkpoint: check))
-            }
-        }
-        #if DEBUG
-        inspectionTrace?.enter(.receivingIdentities)
-        #endif
-        try SharedMediaNativeTerminalIdentity.auditPage(terminals, live: roots, context: context,
-            expectedHeader: appHeader, checkpoint: check)
-        try SharedMediaNativeTerminalIdentity.auditAppliedPage(retained, live: roots, context: context,
-            expectedHeader: appHeader, checkpoint: check)
-        // Fresh full pending-root/runway validation, not a header-only fence or
-        // reuse of the page's projection memo, before any page suspension.
-        #if DEBUG
-        inspectionTrace?.enter(.receivingBoundary)
-        #endif
-        try check(); _ = try header(freshContext())
-        return rows.count
+        try await reverse.run()
     }
 
     private func pending() throws -> Int {
@@ -327,7 +379,7 @@ struct SharedMediaNativeScopedAudit {
         }
         active += graph.pairs.filter { $0.phaseRaw != "ready" && !releasePairs.contains($0.id) }.count
         guard active <= 1 else { throw SharedMediaStorageFailure.conflict }
-        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, format: format, projectionMemo: projectionMemo, checkpoint: check)
+        _ = try SharedMediaNativeAcquisitionBudget.evaluateScoped(context: context, inventory: inventory, ownerID: scope.ownerID, format: format, ordinary: ordinary, projectionMemo: projectionMemo, checkpoint: check)
         try check(); _ = try header(context, projectionMemo: projectionMemo)
         return graph.packages.count
     }
@@ -362,14 +414,14 @@ struct SharedMediaNativeScopedAudit {
             }
             if let consumer {
                 guard consumer.kindRaw == "queue" else { throw SharedMediaStorageFailure.conflict }
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, ordinary: ordinary, checkpoint: check)
             }
         } else {
             guard row.accountingTierRaw == "retained", let consumer, consumer.kindRaw != "queue" else { throw SharedMediaStorageFailure.conflict }
             if let applied = try applied(id, context: context, inventory: inventory) {
                 try applied.requireConsumerLink(consumer, context: context)
             } else {
-                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, checkpoint: check)
+                _ = try SharedMediaNativeConsumerGraph.validateScoped(consumer, context: context, format: format, ordinary: ordinary, checkpoint: check)
             }
         }
         if let consumer {
@@ -395,6 +447,12 @@ struct SharedMediaNativeScopedAudit {
         }
         guard case .preparation(let envelope) = try SharedMediaNativeDraftEnvelope.decode(owner.supportingContextData),
               try SharedMediaNativePairPlanGraph.select(envelope, pairID: row.id) != nil else { throw SharedMediaStorageFailure.conflict }
+        if initialErasure, let applied = try applied(row.packageID, context: context, inventory: inventory) {
+            // Applied packages have no pending membership. Validate the saved
+            // historical membership and every current output/work/lease join.
+            _ = try SharedMediaNativePairFileGraph.retainedState(applied, pairID: row.id,
+                context: context, inventory: inventory, package: owner)
+        }
     }
 
     private func asset(_ id: UUID, context: ModelContext, inventory: SharedMediaInventoryRecord, projectionMemo: ProjectionMemo) throws {
@@ -406,10 +464,11 @@ struct SharedMediaNativeScopedAudit {
         }
         let receipt = try one(context, FetchDescriptor<SharedMediaAcquisitionReceiptRecord>(predicate: #Predicate { $0.assetID == id }))
         guard receipt.inventoryID == scope.inventoryID, receipt.ownerID == scope.ownerID else { throw SharedMediaStorageFailure.conflict }
-        let value = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt, inventory: inventory, context: context, format: format, checkpoint: check)
+        let value = try SharedMediaNativeAcquisitionGraph.scopedReceipt(receipt, inventory: inventory, context: context, format: format, ordinary: ordinary, checkpoint: check)
         if case .completed = value {
             // The complete bidirectional audit validates every original edge.
-            _ = try SharedMediaNativeOriginalAccounting.audit(assetID: id, inventoryID: inventory.id, context: context, checkpoint: check)
+            _ = try ordinary?.original(id, inventoryID: inventory.id, context: context, checkpoint: check)
+                ?? SharedMediaNativeOriginalAccounting.audit(assetID: id, inventoryID: inventory.id, context: context, checkpoint: check)
             var query = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == id }, sortBy: [SortDescriptor(\.id)])
             query.fetchLimit = SharedMediaStoragePolicy.pageSize
             var offset = 0
@@ -485,6 +544,7 @@ struct SharedMediaNativeScopedAudit {
     }
     private func header(_ context: ModelContext, projectionMemo: ProjectionMemo? = nil) throws -> SharedMediaInventoryRecord {
         guard !container.mainContext.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        try ordinary?.requireCurrent(context)
         let row = try format.header(context: context, scope: scope)
         // Bounded pending slots at every boundary; all raw slots receive a
         // separate paged reverse audit in run(). No retained-library count cap.

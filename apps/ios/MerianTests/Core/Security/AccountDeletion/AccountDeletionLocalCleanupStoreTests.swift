@@ -27,6 +27,72 @@ struct AccountDeletionLocalCleanupStoreTests {
         }
     }
 
+    @Test func cleanupIdentitySurvivesCapabilityRetirementAndPreferencePurge() throws {
+        let suite = "merian.tests.cleanup-identity.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(AccountDeletionLocalCleanupStore.recordCapabilityPreparationPending(userDefaults: defaults))
+        let original = try #require(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults))
+        #expect(AccountDeletionLocalCleanupStore.recordCleanupPending(userDefaults: defaults))
+        #expect(AccountDeletionLocalCleanupStore.recordCapabilityRetirementPending(userDefaults: defaults))
+        let saved = try #require(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults))
+        #expect(saved.operationID == original.operationID && saved.phase == .capabilityRetirementPending)
+        defaults.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+        #expect(AccountScopedPreferences.purgeAndVerify(userDefaults: defaults))
+        let cold = try #require(UserDefaults(suiteName: suite))
+        #expect(AccountDeletionLocalCleanupStore.marker(userDefaults: cold) == saved)
+        let store = AccountDeletionSecureStoreStub().makeCapabilityStore()
+        let container = NSObject()
+        let scope = AccountDeletionLocalCleanupStore.RecoveryScope(expectedState: saved.phase, expectedCapability: nil,
+            capabilityStore: store, readState: { AccountDeletionLocalCleanupStore.state(userDefaults: cold) },
+            validateSession: { true }, validateLibrary: { $0 == nil || $0 === container },
+            expectedMarker: saved, readMarker: { AccountDeletionLocalCleanupStore.marker(userDefaults: cold) })
+        #expect(scope.permitsLibraryPurge(in: container) && scope.cleanupOperationID == original.operationID)
+        #expect(AccountDeletionLocalCleanupStore.resolve(userDefaults: defaults, emitEvent: false))
+        #expect(AccountDeletionLocalCleanupStore.recordCapabilityRetirementPending(userDefaults: defaults))
+        let next = try #require(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults))
+        #expect(next.operationID != original.operationID && !scope.isCurrent)
+    }
+
+    @Test func acceptedLegacyMarkerUpgradesOnceAndReadsNeverMint() throws {
+        let suite = "merian.tests.cleanup-upgrade.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for legacy: Any in [true, "cleanup_pending", "capability_retirement_pending"] {
+            defaults.set(legacy, forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+            let phase = try #require(AccountDeletionLocalCleanupStore.state(userDefaults: defaults))
+            #expect(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults) == nil)
+            #expect(AccountDeletionLocalCleanupStore.prepareAcceptedMarker(expected: phase, userDefaults: defaults))
+            let first = try #require(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults))
+            #expect(first.phase == phase)
+            #expect(AccountDeletionLocalCleanupStore.prepareAcceptedMarker(expected: phase, userDefaults: defaults))
+            #expect(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults) == first)
+        }
+        defaults.set("intake_pending", forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+        #expect(!AccountDeletionLocalCleanupStore.prepareAcceptedMarker(expected: .intakePending, userDefaults: defaults))
+        #expect(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults) == nil)
+    }
+
+    @Test func malformedMarkerNeverGainsAcceptedAuthorityOrGetsOverwritten() throws {
+        let suite = "merian.tests.cleanup-malformed.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let valid = AccountDeletionCleanupMarker(phase: .cleanupPending, operationID: UUID()).storedValue
+        var samples: [[String: Any]] = []
+        for (key, value): (String, Any) in [("version", true), ("version", 3), ("version", 2.5),
+            ("phase", "future"), ("operationID", "invalid"), ("extra", "unrecognized")] {
+            var changed = valid; changed[key] = value; samples.append(changed)
+        }
+        for sample in samples {
+            defaults.set(sample, forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+            #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults) == .intakePending)
+            #expect(AccountDeletionLocalCleanupStore.marker(userDefaults: defaults) == nil)
+            #expect(!AccountDeletionLocalCleanupStore.prepareAcceptedMarker(expected: .cleanupPending, userDefaults: defaults))
+            #expect(!AccountDeletionLocalCleanupStore.recordCleanupPending(userDefaults: defaults))
+            #expect((defaults.dictionary(forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup) as NSDictionary?) == sample as NSDictionary)
+        }
+    }
+
     @Test func persistenceContractValuesRemainStable() {
         #expect(
             UserDefaultsKeys.pendingManualAppleRevocationNotice ==

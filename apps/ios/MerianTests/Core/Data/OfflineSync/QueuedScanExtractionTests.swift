@@ -5,6 +5,44 @@ import Testing
 @Suite("Queued Scan Extraction")
 @MainActor
 struct QueuedScanExtractionTests {
+    @Test(arguments: ["not JSON", "[]", "[{\"kind\":\"future_image\"}]",
+                      "[{\"kind\":\"image\",\"sourceIndex\":0,\"focusRegion\":{\"x\":0.9,\"y\":0,\"width\":0.2,\"height\":1,\"source\":\"user_selection\"}}"])
+    func malformedSavedVisualEvidenceCannotBecomeDescriptorlessDispatch(_ saved: String) throws {
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try encodedJSONString([SerializedMediaItem.image(.documents("photo.webp"))]),
+            visualMediaItemsJSON: saved
+        )
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan, container: context.container
+        )
+        #expect(throws: ExtractedScanData.EvidenceError.self) {
+            try extracted.validatedVisualMediaItems()
+        }
+        #expect(scan.visualMediaItemsJSON == saved)
+        let attention = BackgroundInferencePolicy.preparationAttention(
+            for: ExtractedScanData.EvidenceError.invalidVisualDescriptors
+        )
+        #expect(attention?.code == "invalid_saved_visual_evidence")
+    }
+
+    @Test func savedManualSelectionSurvivesDispatchValidation() throws {
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let items = [IdentifyVisualMediaItem.image(sourceIndex: 0, focusRegion: .init(
+            x: 0.25, y: 0.125, width: 0.5, height: 0.75, source: .userSelection
+        ))]
+        let saved = try encodedJSONString(items)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: try encodedJSONString([SerializedMediaItem.image(.documents("photo.webp"))]),
+            visualMediaItemsJSON: saved
+        )
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan, container: context.container
+        )
+        #expect(try extracted.validatedVisualMediaItems() == items)
+        #expect(scan.visualMediaItemsJSON == saved)
+    }
+
     private struct QueueReplayScenario {
         let items: [SerializedMediaItem]
         let paths: [String]
@@ -158,6 +196,7 @@ struct QueuedScanExtractionTests {
 
         #expect(extracted.localImagePaths == ["legacy-image.webp"])
         #expect(extracted.visualMediaItems == nil)
+        #expect(try extracted.validatedVisualMediaItems() == nil)
         #expect(extracted.ownerMediaTimeline == nil)
     }
 

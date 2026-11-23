@@ -58,19 +58,21 @@ extension SharedMediaNativeOriginalOwner {
     /// when its source files are currently unavailable.
     func stageAppReceiving(packageID: UUID, draftGeneration: UUID, pairIDs: [UUID],
                            expectedMetadata: SharedMediaNativeAppMetadataRequest? = nil,
+                           cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort,
                            photoAdmission: SharedMediaNativePhotoAdmission? = nil) async throws -> SharedMediaNativeReceivingIntent.Prepared {
         let saved = try await discoverAppReceivingIntent(packageID: packageID)
         let identity = try SharedMediaNativeReceivingStageIdentity(saved: saved)
         return try await withReceivingLocks(queueID: identity.queueID.uuidString, observationID: identity.observationID.uuidString) { lock in
             try await self.appReceivingWorkflow(lock: lock) {
                 try await $0.stage(packageID: packageID, draftGeneration: draftGeneration, pairIDs: pairIDs,
-                                   identity: identity, expectedMetadata: expectedMetadata, photoAdmission: photoAdmission)
+                                   identity: identity, cohortFormat: cohortFormat, expectedMetadata: expectedMetadata, photoAdmission: photoAdmission)
             }
         }
     }
     /// Called only inside the existing retained dispatch operation. Preflight is
     /// outside receiving locks, but account shutdown still cancels and drains it.
     func stageAppReceivingWithAdmission(metadata: SharedMediaNativeAppMetadataRequest, pairIDs: [UUID],
+                                        cohortFormat: SharedMediaNativeFrozenCohort.Format = .cohort,
                                         authorize: @escaping @MainActor (UUID) async throws -> IdentificationDispatchAuthorization,
                                         storage: SharedMediaNativeStorageRepository, grant: SharedMediaNativeAppDispatchGrant,
                                         releaseStage: SharedMediaNativeReleaseStageSettlement) async throws -> SharedMediaNativeReceivingIntent.Prepared {
@@ -99,7 +101,7 @@ extension SharedMediaNativeOriginalOwner {
             let operation = try await storage.appReceiving(grant: grant, lock: lock, releaseStage: releaseStage)
             try lock.validate(); try grant.validate(); try authorization?.validate()
             return try await operation.stage(packageID: packageID, draftGeneration: draft, pairIDs: pairIDs,
-                identity: identity, expectedMetadata: metadata, photoAdmission: admission,
+                identity: identity, cohortFormat: cohortFormat, expectedMetadata: metadata, photoAdmission: admission,
                 beforeImmutableSave: { try authorization?.validate() })
         }
     }
@@ -226,14 +228,12 @@ extension SharedMediaNativeOriginalOwner {
             try await transport.recoverCompletion(admission, validate: validate)
         })
     }
-
     func recoverAppInitialAdmission(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                     readOriginal: @escaping @MainActor (SharedMediaNativePhotoAllocation, @escaping @MainActor @Sendable () throws -> Void) async throws -> Data?) async throws -> InitialCompletionDocuments.CpmAdmission? {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
             try await self.appPhotoAllocationWorkflow(lock: lock) { try await $0().recoverInitialAdmission(prepared, readOriginal: readOriginal) }
         }
     }
-
     func recoverAppInitialCompletion(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                      readOriginal: @escaping @MainActor (InitialCompletionDocuments.CpmAdmission, @escaping @MainActor @Sendable () throws -> Void) async throws -> InitialCompletionDocuments.CpmAcquisition?) async throws -> InitialCompletionDocuments.CpmRecoveryRecord? {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
@@ -250,7 +250,6 @@ extension SharedMediaNativeOriginalOwner {
             }
         }
     }
-
     private func withPhotoTransfer<T: Sendable>(_ prepared: SharedMediaNativeReceivingIntent.Prepared,
                                                 perform: @escaping @MainActor (NativeAppPhotoAllocationOperations) async throws -> T) async throws -> T {
         try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
@@ -470,8 +469,19 @@ extension SharedMediaNativeOriginalOwner {
         }
         return applied.map { .init(owner: self, prepared: prepared, cohort: $0) }
     }
-    func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
-                                         body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
+    /// Preview stays inside receiving locks and the original accounting owner.
+    func previewReceivedAppOriginal(_ prepared: SharedMediaNativeReceivingIntent.Prepared, index: Int) async throws -> SharedMediaNativeOriginalPreview {
+        let read = try await withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+            try await self.appReceivingWorkflow(lock: lock) { try await $0.originalPreviewAccess(prepared).read(index: index) }
+        }
+        return .init(image: read.image, index: read.index, count: read.proofs.count, validate: {
+            try await self.withReceivingLocks(queueID: prepared.queueID.uuidString, observationID: prepared.observationID.uuidString) { lock in
+                try await self.appReceivingWorkflow(lock: lock) { try $0.originalPreviewAccess(prepared).validate(read) }
+            }
+        })
+    }
+    private func withReceivingLocks<T: Sendable>(queueID: String, observationID: String,
+                                                 body: @MainActor (SharedMediaNativeReceivingLockGrant) async throws -> T) async throws -> T {
         let coordinator = ScanInferencePersistenceCoordinator.shared
         let held = await coordinator.acquireAll(scanIds: [queueID, observationID])
         let lock = SharedMediaNativeReceivingLockGrant()

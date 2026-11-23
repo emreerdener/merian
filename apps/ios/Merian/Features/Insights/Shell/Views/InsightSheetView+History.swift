@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetView {
-    func historyAction(scanId: String?, generation: UInt64) -> (() -> Void)? {
+    func historyAction(scanId: String?, generation: UInt64, embedded: Bool = false) -> (() -> Void)? {
         _ = historyAvailabilityRevision
         guard let scanId, let access = dependencies.historyAccess,
               access.hasMultiple(scanId, modelContext.container) else { return nil }
@@ -25,14 +25,15 @@ extension InsightSheetView {
                         container: modelContext.container, inferenceEngine: inferenceEngine)
                 }, handoffReanalysis: access.requestReanalysis.map { dispatch in { action in
                     guard viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation),
-                          case .identificationHistory(let activeID, let activeGeneration)? = activeShellPresentation,
-                          activeID == scanId, activeGeneration == generation,
+                          activeShellPresentation == (embedded ? .identification(scanId: scanId, generation: generation) : .identificationHistory(scanId: scanId, generation: generation)),
                           pendingHistoryReanalysis == nil else { return false }
                     pendingHistoryReanalysis = .init(scanID: scanId, generation: generation, action: action, dispatch: dispatch)
                     dismissActiveShellPresentation()
                     return true
                 } }, publicationContinuation: publicationContinuation)
-                if !requestShellPresentation(.identificationHistory(scanId: scanId, generation: generation)) {
+                if embedded {
+                    identificationHistoryVisible = true
+                } else if !requestShellPresentation(.identificationHistory(scanId: scanId, generation: generation)) {
                     historyModel?.close(); historyModel = nil
                 }
             } catch { viewModel.state.toastMessage = .error("Identification history is unavailable right now.") }

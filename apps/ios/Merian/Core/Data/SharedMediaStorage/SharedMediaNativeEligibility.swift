@@ -37,6 +37,7 @@ enum SharedMediaNativeEligibility {
     }
 
     static func requireOriginalAccount(_ context: ModelContext, ownerID: UUID) throws {
+        try SharedMediaStorageLookup.requireNoUnqualifiedOrdinaryTransfers(context)
         // Full and stripped terminal receipts both retain their account identity.
         // Package ownership also covers empty drafts without an acquisition row.
         guard try context.fetchCount(FetchDescriptor<SharedMediaReceivingIntentRecord>()) == 0 else { throw SharedMediaStorageFailure.closed }

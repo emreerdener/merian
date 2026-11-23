@@ -1,3 +1,14 @@
+## Prepared mixed-media cleanup successor
+
+The local `20261114214815` migration and worker add dispatch-bound composition
+retirement and strict V3 receipts with seven counters. V2 receipts remain
+readable but cannot certify mixed cleanup. Before this SQL/Edge cutover, pause
+and positively drain the existing worker; preserve any unknown request. Resume
+requires explicit target authorization and verified V3 compatibility. This
+preparation changes no hosted state. See the
+[worker contract](functions/erase-observation-evidence/README.md) and
+[release procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#prepared-mixed-media-cleanup-cutover).
+
 ## Private cleanup dispatch correlation
 
 The local `20261111200839` migration and compatible worker bind each new
@@ -3668,6 +3679,16 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 canonical/independent post readers and reused reference media without changing
 moderation statuses. The authenticated `species-dictionary-for-viewer` endpoint
 complements the preserved anonymous dictionary route.
+
+Current composition integration uses input5/result6 and reader14 for native
+page/state, selection, review/Undo and enrollment reconciliation. The dedicated
+analyze/recovery routes and native retained owners are connected locally; all
+new runtime gates remain default-off and undeployed. Completion selects the new
+version atomically, with immutable private operation proof and replay safety.
+See the
+[composition contract](../../docs/backend-and-data/05-api-contracts.md#prepared-shared-toolbar-composition-contract--november-14).
+The following earlier-generation notes describe their original preparation
+boundary, not the current reader14 implementation.
 
 The prepared history owner now also contains private-bucket evidence storage,
 owner receipt resolution and an erasure worker seam. Its media gates remain

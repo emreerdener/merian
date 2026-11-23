@@ -1,0 +1,163 @@
+[
+  {
+    "name": "photo",
+    "request": {
+      "task": "identify",
+      "variant": "multimodal",
+      "evidence": [
+        {
+          "kind": "image",
+          "order": 0,
+          "inputIndex": 0,
+          "data": "AQ==",
+          "mimeType": "image/jpeg",
+          "lineage": null
+        },
+        {
+          "kind": "text",
+          "order": 1,
+          "text": "Synthetic observation",
+          "source": "observation_context"
+        }
+      ],
+      "capture": {
+        "hasVideo": false,
+        "videoClipCount": 0,
+        "declaredVideoFrameCount": 0,
+        "videoInferenceFrameCount": 0
+      }
+    },
+    "snapshot": {
+      "provider": "gemini",
+      "binding": "gemini_baseline_v1",
+      "task": "identify",
+      "variant": "multimodal",
+      "model": "gemini-2.5-flash",
+      "contextKind": "user_request",
+      "operation": "scan_identification",
+      "policyVersion": 7,
+      "permission": "google_gemini",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "diagnosticTrigger": 0.99,
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "seed": 42,
+        "maxOutputTokens": 8192
+      }
+    },
+    "sha256": "4f95036cb075f8c17ac1dacd5bedf4237fc2d7cd8dccd2e65a38294e33144d16"
+  },
+  {
+    "name": "audio",
+    "request": {
+      "task": "identify",
+      "variant": "multimodal",
+      "evidence": [
+        {
+          "kind": "audio",
+          "order": 0,
+          "inputIndex": 0,
+          "data": "Ag==",
+          "mimeType": "audio/wav",
+          "lineage": null
+        },
+        {
+          "kind": "text",
+          "order": 1,
+          "text": "Synthetic observation",
+          "source": "observation_context"
+        }
+      ],
+      "capture": {
+        "hasVideo": false,
+        "videoClipCount": 0,
+        "declaredVideoFrameCount": 0,
+        "videoInferenceFrameCount": 0
+      }
+    },
+    "snapshot": {
+      "provider": "gemini",
+      "binding": "gemini_baseline_v1",
+      "task": "identify",
+      "variant": "multimodal",
+      "model": "gemini-2.5-flash",
+      "contextKind": "user_request",
+      "operation": "scan_identification",
+      "policyVersion": 7,
+      "permission": "google_gemini",
+      "prompt": "identify_audio_v2",
+      "schema": "merian_audio_v2",
+      "confidence": "gemini_audio_v2",
+      "diagnosticTrigger": 0.99,
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "seed": 42,
+        "maxOutputTokens": 8192
+      }
+    },
+    "sha256": "46c9bb9cb2042e70f48d131a97b57cf140c719daded2f38da439760bd8d44318"
+  },
+  {
+    "name": "mixed",
+    "request": {
+      "task": "identify",
+      "variant": "multimodal",
+      "evidence": [
+        {
+          "kind": "text",
+          "order": 0,
+          "text": "Synthetic observation",
+          "source": "observation_context"
+        },
+        {
+          "kind": "image",
+          "order": 1,
+          "inputIndex": 0,
+          "data": "AQ==",
+          "mimeType": "image/jpeg",
+          "lineage": null
+        },
+        {
+          "kind": "audio",
+          "order": 2,
+          "inputIndex": 0,
+          "data": "Ag==",
+          "mimeType": "audio/wav",
+          "lineage": null
+        }
+      ],
+      "capture": {
+        "hasVideo": false,
+        "videoClipCount": 0,
+        "declaredVideoFrameCount": 0,
+        "videoInferenceFrameCount": 0
+      }
+    },
+    "snapshot": {
+      "provider": "gemini",
+      "binding": "gemini_baseline_v1",
+      "task": "identify",
+      "variant": "multimodal",
+      "model": "gemini-2.5-flash",
+      "contextKind": "user_request",
+      "operation": "scan_identification",
+      "policyVersion": 7,
+      "permission": "google_gemini",
+      "prompt": "identify_blended_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "diagnosticTrigger": 0.99,
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "seed": 42,
+        "maxOutputTokens": 8192
+      }
+    },
+    "sha256": "b0b6113d03c644db8e360dc6e8e69126dd6ef857b5cd3368be5c264ac8ecfecb"
+  }
+]

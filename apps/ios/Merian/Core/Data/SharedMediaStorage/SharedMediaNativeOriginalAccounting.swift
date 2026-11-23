@@ -29,8 +29,53 @@ enum SharedMediaNativeOriginalAccounting {
     /// No partial success escapes: both directions must reach exhaustion under
     /// the same fence. A saved counter is never created, repaired or trusted alone.
     static func audit(assetID: UUID, inventoryID: UUID, context: ModelContext, checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        try auditOriginal(assetID: assetID, inventoryID: inventoryID, context: context, ordinary: false, checkpoint: checkpoint)
+    }
+
+    /// Explicit ordinary accounting reader. Accepted holds must join their entire
+    /// immutable submission; no caller may substitute a stored counter or a
+    /// per-source receipt alone. This grants no save, upload or deletion authority.
+    /// The normal P1 reader above deliberately continues rejecting V70/V71 rows.
+    static func auditAcceptedOrdinary(assetID: UUID, inventoryID: UUID, context: ModelContext,
+                                      capture: SharedMediaCaptureArtifactInspection? = nil,
+                                      checkpoint: () throws -> Void = {}) throws -> Snapshot {
+        try auditOriginal(assetID: assetID, inventoryID: inventoryID, context: context, ordinary: true,
+            capture: capture.map(SharedMediaCaptureAuditEvidence.ready), checkpoint: checkpoint)
+    }
+
+    static func auditAccountingEvidence(assetID: UUID, inventoryID: UUID, context: ModelContext,
+                                        capture: SharedMediaCaptureAuditEvidence?, checkpoint: () throws -> Void) throws -> Snapshot {
+        try auditOriginal(assetID: assetID, inventoryID: inventoryID, context: context, ordinary: true,
+            capture: capture, checkpoint: checkpoint)
+    }
+
+    static func auditInspectedOrdinary(assetID: UUID, inventoryID: UUID, context: ModelContext,
+                                       inspection: SharedMediaOrdinaryInspection,
+                                       checkpoint: () throws -> Void) throws -> Snapshot {
+        try inspection.requireCurrent(context)
+        guard inspection.profile.inventoryID == inventoryID else { throw SharedMediaStorageFailure.conflict }
+        let held = try context.fetchCount(FetchDescriptor<SharedMediaOrdinaryTransferRecord>(
+            predicate: #Predicate { $0.sourceAssetID == assetID })) > 0
+        return try auditOriginal(assetID: assetID, inventoryID: inventoryID, context: context,
+            ordinary: held, inspected: inspection, checkpoint: checkpoint)
+    }
+
+    private static func auditOriginal(assetID: UUID, inventoryID: UUID, context: ModelContext, ordinary: Bool, inspected: SharedMediaOrdinaryInspection? = nil,
+                                      capture: SharedMediaCaptureAuditEvidence? = nil,
+                                      checkpoint: () throws -> Void) throws -> Snapshot {
         try checkpoint()
         guard !context.hasChanges else { throw SharedMediaStorageFailure.conflict }
+        if let inspected { try inspected.requireCurrent(context) } else if let capture {
+            guard capture.profile.inventoryID == inventoryID else { throw SharedMediaStorageFailure.conflict }
+            try capture.requireCurrent(context)
+        } else { try SharedMediaStorageLookup.requireNoUnqualifiedCaptureArtifacts(context) }
+        // Until the typed transfer lifecycle is qualified, no caller may
+        // retire or reinterpret an original that has any transfer liability.
+        if !ordinary && inspected == nil {
+            guard try context.fetchCount(FetchDescriptor<SharedMediaOrdinarySubmissionRecord>()) == 0,
+                  try context.fetchCount(FetchDescriptor<SharedMediaOrdinaryTransferRecord>(
+                predicate: #Predicate { $0.sourceAssetID == assetID })) == 0 else { throw SharedMediaStorageFailure.inUse }
+        }
         let inventory = try one(context, FetchDescriptor<SharedMediaInventoryRecord>(predicate: #Predicate { $0.id == inventoryID }))
         let generation = inventory.generation, revision = inventory.revision
         let asset = try one(context, FetchDescriptor<PhotoPreparationAsset>(predicate: #Predicate { $0.id == assetID }))
@@ -77,7 +122,13 @@ enum SharedMediaNativeOriginalAccounting {
         }
         let liveP1 = try context.fetchCount(FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == assetID && $0.isLive }))
         let liveShared = try context.fetchCount(FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.allocationID == assetID && $0.stateRaw == "live" }))
-        guard Int64(liveP1) == counter.liveCount, liveP1 == liveShared else { throw SharedMediaStorageFailure.conflict }
+        let held = ordinary ? try SharedMediaOrdinaryOriginalHolds.count(context: context, inventory: inventory,
+            asset: asset, allocation: allocation, counter: counter, lease: lease, checkpoint: checkpoint) : 0
+        // Ordinary final retirement needs a distinct persisted authority. This
+        // reader currently accepts only materialized originals with live holds.
+        guard !ordinary || (held > 0 && retirement == nil),
+              try SharedMediaStoragePolicy.add(Int64(liveP1), held) == counter.liveCount,
+              liveP1 == liveShared else { throw SharedMediaStorageFailure.conflict }
         var references = FetchDescriptor<PhotoPreparationReference>(predicate: #Predicate { $0.assetID == assetID }, sortBy: [SortDescriptor(\.id)])
         var edges = FetchDescriptor<SharedMediaReferenceRecord>(predicate: #Predicate { $0.allocationID == assetID }, sortBy: [SortDescriptor(\.id)])
         references.fetchLimit = SharedMediaStoragePolicy.pageSize
@@ -94,7 +145,7 @@ enum SharedMediaNativeOriginalAccounting {
         }
         // Non-last retirement deletes the pair. Only the final retired pair
         // survives until physical absence is acknowledged by the native owner.
-        guard totalP1 == totalShared, totalP1 == (retirement == nil ? counter.liveCount : 1),
+        guard totalP1 == totalShared, totalP1 == (retirement == nil ? Int64(liveP1) : 1),
               inventory.generation == generation, inventory.revision == revision, !context.hasChanges else {
             throw SharedMediaStorageFailure.conflict
         }

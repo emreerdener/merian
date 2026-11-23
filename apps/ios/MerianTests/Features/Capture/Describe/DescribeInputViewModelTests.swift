@@ -6,6 +6,29 @@ import Testing
 @Suite("DescribeInputViewModel")
 @MainActor
 struct DescribeInputViewModelTests {
+    @Test("Identify waits for startup and preserves final text before reporting finalization", arguments: [false, true])
+    func finalizationPreservesLastTranscript(succeeds: Bool) async {
+        var sink: DescribeInputViewModel.DictationResultSink?
+        var transcript = ""
+        var ended = 0
+        let viewModel = DescribeInputViewModel(dependencies: .init(
+            startDictation: { sink = $0; return true }, stopDictation: {},
+            waitForSubjectInference: {}, inferSubjectId: { _ in nil },
+            finishDictation: {
+                sink?.yield("calling from reeds")
+                return succeeds
+            }))
+        viewModel.dictationRequestDidChange(isRequested: true, baseText: "",
+            onTranscript: { transcript = $0 }, onRequestEnded: { ended += 1 })
+        let result = await viewModel.finishDictation { ended += 1 }
+        #expect(result == succeeds)
+        #expect(transcript == "calling from reeds")
+        #expect(ended == 1)
+        #expect(!viewModel.isDictationSessionActive)
+        sink?.yield("late callback")
+        #expect(transcript == "calling from reeds")
+    }
+
     @Test("A newer description fences a stale subject inference")
     func newerDescriptionFencesStaleInference() async {
         let waiter = SubjectInferenceWaiter()

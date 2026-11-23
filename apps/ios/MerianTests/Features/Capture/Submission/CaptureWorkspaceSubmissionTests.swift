@@ -159,7 +159,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         container.appSettings.autoSubmitScans = true
         let vm = CaptureWorkspaceViewModel(diContainer: container, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
         let attempt = try XCTUnwrap(vm.beginDraftOperation())
-        vm.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: false)
+        vm.commitPreparedStagedImages([makePreparedStagedImage()], presentsReview: false)
         vm.completeDraftOperation(attempt, succeeded: true)
         let queue = OfflineQueueManager.shared
         let wasOnline = queue.isOnline

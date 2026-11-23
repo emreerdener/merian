@@ -1,3 +1,5 @@
+import CryptoKit
+import Darwin
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -167,6 +169,76 @@ actor ExternalImageImportStore {
         defer { withExtendedLifetime(rootFence) {} }
         let url = fileURL(for: pendingImport, rootURL: rootURL)
         return fileManager.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Transfer completion is separate from legacy discard. Keep the manifest
+    /// entry until the exact, digest-verified file has been unlinked and its
+    /// directory synchronized. No failure falls back to a pathname deletion.
+    func retireVerified(_ item: PendingExternalImageImport, byteCount: Int64, sha256: String) throws {
+        guard let rootURL, byteCount > 0, byteCount <= PhotoPreparationPolicy.original,
+              SharedMediaAcquisitionEncoding.isHash(sha256),
+              item.storedFilename == URL(fileURLWithPath: item.storedFilename).lastPathComponent,
+              URL(fileURLWithPath: item.storedFilename).deletingPathExtension().lastPathComponent == item.id.uuidString else {
+            throw SharedMediaStorageFailure.invalid
+        }
+        let fence = try SharedMediaInboxLegacyFence(root: rootURL, createIfMissing: false)
+        defer { withExtendedLifetime(fence) {} }
+        let root = open(rootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        defer { Darwin.close(root) }
+        var rootInfo = stat()
+        guard fstat(root, &rootInfo) == 0 else { throw SharedMediaStorageFailure.unavailable }
+        func checkRoot() throws {
+            var named = stat()
+            guard lstat(rootURL.path, &named) == 0, named.st_mode & S_IFMT == S_IFDIR,
+                  named.st_dev == rootInfo.st_dev, named.st_ino == rootInfo.st_ino else {
+                throw SharedMediaStorageFailure.conflict
+            }
+        }
+        // A missing manifest is not permission to remove an arbitrary file.
+        let manifest = snapshotURL(rootURL: rootURL)
+        var snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: manifest))
+        guard snapshot.imports.contains(item) else { throw SharedMediaStorageFailure.stale }
+        let fd = openat(root, item.storedFilename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        if fd >= 0 {
+            defer { Darwin.close(fd) }
+            var before = stat(), after = stat(), named = stat()
+            guard fstat(fd, &before) == 0, before.st_mode & S_IFMT == S_IFREG,
+                  before.st_nlink == 1, before.st_size == byteCount else { throw SharedMediaStorageFailure.conflict }
+            var digest = SHA256(), remaining = byteCount
+            var buffer = [UInt8](repeating: 0, count: 65_536)
+            while remaining > 0 {
+                let count = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, min($0.count, Int(remaining))) }
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { throw SharedMediaStorageFailure.unavailable }
+                digest.update(data: Data(buffer.prefix(count))); remaining -= Int64(count)
+            }
+            try checkRoot()
+            guard digest.finalize().map({ String(format: "%02x", $0) }).joined() == sha256,
+                  fstat(fd, &after) == 0,
+                  fstatat(root, item.storedFilename, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
+                  before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+                  before.st_size == after.st_size,
+                  before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+                  before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+                  before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
+                  before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
+                  named.st_dev == after.st_dev, named.st_ino == after.st_ino,
+                  unlinkat(root, item.storedFilename, 0) == 0 else { throw SharedMediaStorageFailure.conflict }
+        } else {
+            // A prior successful unlink may have lost its manifest update.
+            guard errno == ENOENT else { throw SharedMediaStorageFailure.conflict }
+        }
+        try checkRoot()
+        guard fsync(root) == 0 else { throw SharedMediaStorageFailure.unavailable }
+        snapshot.imports.removeAll { $0.id == item.id }
+        try writeSnapshot(snapshot, rootURL: rootURL)
+        try checkRoot()
+        let manifestFD = openat(root, snapshotFilename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        guard manifestFD >= 0 else { throw SharedMediaStorageFailure.unavailable }
+        defer { Darwin.close(manifestFD) }
+        guard fsync(manifestFD) == 0, fsync(root) == 0 else { throw SharedMediaStorageFailure.unavailable }
     }
 
     func remove(_ pendingImport: PendingExternalImageImport) {

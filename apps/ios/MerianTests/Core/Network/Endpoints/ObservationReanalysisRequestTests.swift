@@ -26,6 +26,48 @@ struct ObservationReanalysisRequestTests {
         return try rows.map { (try #require($0["text"] as? String), try #require($0["valid"] as? Bool)) }
     }
 
+    @Test func savedProtocolSixRemainsByteExact() throws {
+        // Frozen protocol-6 fixture and independently computed digest; never rewrite saved work.
+        let bytes = Data(#"""
+        {
+          "analysis_id": "00000000-0000-4000-8000-000000000003",
+          "entitlement_protocol": 3,
+          "evidence_manifest": {
+            "items": [
+              {
+                "kind": "description",
+                "text": "leaf / café 🌱"
+              },
+              {
+                "byte_count": 3,
+                "content_type": "image/jpeg",
+                "kind": "image",
+                "media_id": "00000000-0000-4000-8000-000000000005",
+                "sha256": "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"
+              },
+              {
+                "kind": "description",
+                "text": "after"
+              }
+            ],
+            "schema_version": 2
+          },
+          "expected_processor_permission": "google_gemini",
+          "history_protocol": 8,
+          "identification_protocol": 6,
+          "observation_id": "00000000-0000-4000-8000-000000000002",
+          "request_digest": "7648c02e6a299aeaf2fe22582cfd67e085d896ecba841a485fee637597394098",
+          "schema_version": 2,
+          "source_analysis_id": "00000000-0000-4000-8000-000000000004"
+        }
+        """#.utf8)
+        let row = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        #expect(row["identification_protocol"] as? Int == 6)
+        let restored = try ObservationReanalysisRequest(savedBody: bytes)
+        #expect(restored.body == bytes)
+        #expect(restored.requestDigest == "7648c02e6a299aeaf2fe22582cfd67e085d896ecba841a485fee637597394098")
+    }
+
     @Test func sharedDescriptionWhitespacePreservesExactRequestAndRestoration() throws {
         for (text, valid) in try Self.descriptionVectors() {
             if !valid {
@@ -49,7 +91,8 @@ struct ObservationReanalysisRequestTests {
                                   "identification_protocol", "history_protocol", "expected_processor_permission"])
         #expect(row["source_analysis_id"] as? String == Self.source.uuidString.lowercased())
         #expect(row["history_protocol"] as? Int == 8)
-        #expect(row["request_digest"] as? String == "7648c02e6a299aeaf2fe22582cfd67e085d896ecba841a485fee637597394098")
+        #expect(row["identification_protocol"] as? Int == 7)
+        #expect(row["request_digest"] as? String == "c921ce0029f87520fd4c3cf80dc29e72cc5d2f13228df53fb4b19894a2bb3d4e")
         #expect(input.body == (try Self.request(input.evidence).body))
         // Recovered bytes are not reserialized, even if an older writer formatted them differently.
         let formatted = try JSONSerialization.data(withJSONObject: row, options: [.prettyPrinted, .sortedKeys])

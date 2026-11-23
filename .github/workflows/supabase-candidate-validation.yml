@@ -161,6 +161,28 @@ jobs:
             supabase/functions/check-scan-status/status_test.ts \
             supabase/functions/check-scan-status/initialRecovery_test.ts \
             supabase/functions/_shared/initialAnalysis/transport_test.ts \
+            supabase/functions/_shared/captureSourceCollector_test.ts \
+            supabase/functions/_shared/captureSourceEvidence_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceStaging_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRetention_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRecovery_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceCapturePlan_test.ts \
+            supabase/functions/_shared/analysisHistory/capturePlanParity_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureAudioStaging_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureAudioStageRepository_test.ts \
+            supabase/functions/_tests/initialPhotoPreparationMigration.test.ts \
+            supabase/functions/_tests/initialCaptureStagingPlanMigration.test.ts \
+            supabase/functions/_tests/initialCaptureAudioStagesMigration.test.ts \
+            supabase/functions/_tests/initialCaptureAudioAdoptionDb.test.ts \
+            supabase/functions/_tests/initialCaptureClientStageDb.test.ts \
+            supabase/functions/_tests/privateCaptureAdmissionDb.test.ts \
+            supabase/functions/_tests/privateCaptureRetentionDb.test.ts \
+            supabase/functions/_tests/scanAccountRetirementDb.test.ts \
+            supabase/functions/_shared/analysisHistory/privateCaptureIntent_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureClientStaging_test.ts \
+            supabase/functions/upload-capture-stage/route_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
             supabase/functions/_shared/analysisHistory/reader_test.ts \
@@ -173,6 +195,11 @@ jobs:
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceReservationRepository_test.ts \
             supabase/functions/reserve-observation-analysis-source/route_test.ts \
+            supabase/functions/reserve-observation-analysis-source/composition_route_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionUpload_test.ts \
+            supabase/functions/upload-observation-composition/handler_test.ts \
+            supabase/functions/upload-observation-composition/route_test.ts \
             supabase/functions/retire-observation-analysis-source/route_test.ts \
             supabase/functions/retire-observation-analysis-source/request_test.ts \
             supabase/functions/_shared/analysisHistory/execution_test.ts \
@@ -183,6 +210,11 @@ jobs:
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionMaterialization_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionExecution_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionResult_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionSourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/_shared/analysisHistory/videoManifest_test.ts \
             supabase/functions/_shared/analysisHistory/videoReader_test.ts \
@@ -211,7 +243,15 @@ jobs:
             supabase/functions/_tests/observationVideoEvidenceMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
+            supabase/functions/_tests/observationCompositionMigrationContract.test.ts \
+            supabase/functions/_tests/observationCompositionContractDb.test.ts \
+            supabase/functions/_tests/observationCompositionOwnershipContract.test.ts \
+            supabase/functions/_tests/observationCompositionSourceDb.test.ts \
+            supabase/functions/_tests/observationCompositionStorageDb.test.ts \
+            supabase/functions/_tests/observationCompositionEvidenceDb.test.ts \
+            supabase/functions/_tests/observationCompositionExecutionDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
+            supabase/functions/resolve-history-media/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/moderate-publication-photos/handler_test.ts \
@@ -220,6 +260,8 @@ jobs:
             supabase/functions/copy-publication-photos/db_test.ts \
             supabase/functions/erase-observation-evidence/handler_test.ts \
             supabase/functions/erase-observation-evidence/db_test.ts \
+            supabase/functions/erase-observation-evidence/receipt_test.ts \
+            supabase/functions/erase-observation-evidence/storage_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
@@ -324,6 +366,7 @@ jobs:
             supabase/functions/species-dictionary-chat/index.ts \
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/replay-scan-ingestion/privateFinalization_test.ts \
             supabase/functions/send-push-notification/delivery_test.ts \
             supabase/functions/revenuecat-webhook/index.ts \
             supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
@@ -372,7 +415,7 @@ jobs:
         run: |
           deno test --frozen --config supabase/functions/deno.json \
             --allow-env \
-            --allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql,supabase/migrations/20261010150954_prepare_private_video_outcome_recovery.sql,supabase/migrations/20261010161048_prepare_private_video_draft_persistence.sql,supabase/migrations/20261010162902_prepare_private_video_accounting.sql,supabase/migrations/20261010164735_prepare_private_video_terminal_settlement.sql,supabase/migrations/20261010170334_prepare_private_video_completion.sql,supabase/migrations/20261010173424_prepare_video_history_reader.sql,supabase/migrations/20261011070945_prepare_initial_analysis_admission.sql \
+            --allow-read=supabase/functions,../apps/web,supabase/migrations/20261010005747_prepare_video_source_fingerprint_parity.sql,supabase/migrations/20261010015758_prepare_video_cohort_inventory.sql,supabase/migrations/20261010024956_prepare_video_cohort_storage.sql,supabase/migrations/20261010040600_prepare_video_source_reservation.sql,supabase/migrations/20261010054046_prepare_video_evidence_allocation.sql,supabase/migrations/20261010135143_prepare_video_execution_evidence_guard.sql,supabase/migrations/20261010142136_prepare_video_initial_admission.sql,supabase/migrations/20261010144617_prepare_private_video_dispatch.sql,supabase/migrations/20261010150954_prepare_private_video_outcome_recovery.sql,supabase/migrations/20261010161048_prepare_private_video_draft_persistence.sql,supabase/migrations/20261010162902_prepare_private_video_accounting.sql,supabase/migrations/20261010164735_prepare_private_video_terminal_settlement.sql,supabase/migrations/20261010170334_prepare_private_video_completion.sql,supabase/migrations/20261010173424_prepare_video_history_reader.sql,supabase/migrations/20261011070945_prepare_initial_analysis_admission.sql,supabase/migrations/20261114192749_prepare_composition_source_contract.sql,supabase/migrations/20261114212929_prepare_composition_source_ownership.sql,supabase/migrations/20261114221256_prepare_composition_execution_evidence_guard.sql \
             supabase/functions/_shared/http_test.ts \
             supabase/functions/_shared/outbound_test.ts \
             supabase/functions/_shared/posthog_test.ts \
@@ -398,6 +441,28 @@ jobs:
             supabase/functions/check-scan-status/status_test.ts \
             supabase/functions/check-scan-status/initialRecovery_test.ts \
             supabase/functions/_shared/initialAnalysis/transport_test.ts \
+            supabase/functions/_shared/captureSourceCollector_test.ts \
+            supabase/functions/_shared/captureSourceEvidence_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceStaging_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRetention_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRecovery_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/initialEvidenceCapturePlan_test.ts \
+            supabase/functions/_shared/analysisHistory/capturePlanParity_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureAudioStaging_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureAudioStageRepository_test.ts \
+            supabase/functions/_tests/initialPhotoPreparationMigration.test.ts \
+            supabase/functions/_tests/initialCaptureStagingPlanMigration.test.ts \
+            supabase/functions/_tests/initialCaptureAudioStagesMigration.test.ts \
+            supabase/functions/_tests/initialCaptureAudioAdoptionDb.test.ts \
+            supabase/functions/_tests/initialCaptureClientStageDb.test.ts \
+            supabase/functions/_tests/privateCaptureAdmissionDb.test.ts \
+            supabase/functions/_tests/privateCaptureRetentionDb.test.ts \
+            supabase/functions/_tests/scanAccountRetirementDb.test.ts \
+            supabase/functions/_shared/analysisHistory/privateCaptureIntent_test.ts \
+            supabase/functions/_shared/analysisHistory/initialCaptureClientStaging_test.ts \
+            supabase/functions/upload-capture-stage/route_test.ts \
             supabase/functions/_shared/analysisHistory/history_test.ts \
             supabase/functions/_shared/analysisHistory/authority_test.ts \
             supabase/functions/_shared/analysisHistory/reader_test.ts \
@@ -410,6 +475,11 @@ jobs:
             supabase/functions/_shared/analysisHistory/sourceReservationRepository_test.ts \
             supabase/functions/_shared/analysisHistory/videoSourceReservationRepository_test.ts \
             supabase/functions/reserve-observation-analysis-source/route_test.ts \
+            supabase/functions/reserve-observation-analysis-source/composition_route_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionUpload_test.ts \
+            supabase/functions/upload-observation-composition/handler_test.ts \
+            supabase/functions/upload-observation-composition/route_test.ts \
             supabase/functions/retire-observation-analysis-source/route_test.ts \
             supabase/functions/retire-observation-analysis-source/request_test.ts \
             supabase/functions/_shared/analysisHistory/execution_test.ts \
@@ -420,6 +490,11 @@ jobs:
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionManifest_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionMaterialization_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionExecution_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionResult_test.ts \
+            supabase/functions/_shared/analysisHistory/compositionSourceReservation_test.ts \
             supabase/functions/_shared/analysisHistory/videoProvenance_test.ts \
             supabase/functions/_shared/analysisHistory/videoManifest_test.ts \
             supabase/functions/_shared/analysisHistory/videoReader_test.ts \
@@ -448,7 +523,15 @@ jobs:
             supabase/functions/_tests/observationVideoEvidenceMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintMigrationContract.test.ts \
             supabase/functions/_tests/observationVideoFingerprintDb.test.ts \
+            supabase/functions/_tests/observationCompositionMigrationContract.test.ts \
+            supabase/functions/_tests/observationCompositionContractDb.test.ts \
+            supabase/functions/_tests/observationCompositionOwnershipContract.test.ts \
+            supabase/functions/_tests/observationCompositionSourceDb.test.ts \
+            supabase/functions/_tests/observationCompositionStorageDb.test.ts \
+            supabase/functions/_tests/observationCompositionEvidenceDb.test.ts \
+            supabase/functions/_tests/observationCompositionExecutionDb.test.ts \
             supabase/functions/resolve-history-photo/handler_test.ts \
+            supabase/functions/resolve-history-media/handler_test.ts \
             supabase/functions/analyze-observation/handler_test.ts \
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/moderate-publication-photos/handler_test.ts \
@@ -457,6 +540,8 @@ jobs:
             supabase/functions/copy-publication-photos/db_test.ts \
             supabase/functions/erase-observation-evidence/handler_test.ts \
             supabase/functions/erase-observation-evidence/db_test.ts \
+            supabase/functions/erase-observation-evidence/receipt_test.ts \
+            supabase/functions/erase-observation-evidence/storage_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
@@ -480,6 +565,7 @@ jobs:
             supabase/functions/identify-multimodal/comparison/assignment_test.ts \
             supabase/functions/identify-multimodal/comparison/promptAssignment_test.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/replay-scan-ingestion/privateFinalization_test.ts \
             supabase/functions/send-push-notification/delivery_test.ts \
             supabase/functions/search-community-taxa/gbif.test.ts \
             supabase/functions/sync-community-taxonomy-index/gbif.test.ts \

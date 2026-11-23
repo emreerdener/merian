@@ -12,6 +12,7 @@ private final class AudioReviewPlaybackPlayerSpy: AudioReviewPlaybackPlayer {
     private(set) var stopCount = 0
     private let playsSuccessfully: Bool
     var beforePlay: (@MainActor @Sendable () async -> Void)?
+    var beforeSeek: (@MainActor @Sendable () async -> Void)?
     var preparationFails = false
 
     init(
@@ -33,8 +34,9 @@ private final class AudioReviewPlaybackPlayerSpy: AudioReviewPlaybackPlayer {
         return duration
     }
     func playbackTime() -> TimeInterval { currentTime }
-    func seek(to time: TimeInterval) {
+    func seek(to time: TimeInterval) async {
         guard !Task.isCancelled else { return }
+        await beforeSeek?()
         currentTime = time
     }
 
@@ -108,6 +110,38 @@ private struct AudioReviewPlaybackWaitFailure: Error {}
 @Suite("Audio review playback controller")
 @MainActor
 struct AudioReviewPlaybackControllerTests {
+    @Test("Retirement joins overwritten cancellation-ignoring seeks before stopping the player")
+    func retirementJoinsReplacedSeeks() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        let gate = AudioReviewPlaybackWaitGate()
+        let session = makeSessionCoordinator()
+        let controller = AudioReviewPlaybackController(dependencies: .init(
+            makePlayer: { _ in player }, activateSession: { try await session.activate(.playback) },
+            deactivateSession: { await session.deactivate(ifCurrent: $0) },
+            waitForProgressTick: { try await Task.sleep(for: .seconds(60)) },
+            waitForCompletion: { _ in try await Task.sleep(for: .seconds(60)) }
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0, onProgress: { _ in }, onCompletion: {})
+        try await waitUntil { player.playCount == 1 }
+        player.beforeSeek = { await gate.wait() }
+        controller.seek(to: 0.2)
+        try await waitUntil { await gate.waiterCount == 1 }
+        controller.seek(to: 0.8)
+        try await waitUntil { await gate.waiterCount == 2 }
+        var retired = false
+        let retirement = Task { await controller.drain(); retired = true }
+        await Task.yield()
+        #expect(!retired)
+        #expect(player.stopCount == 0)
+        await gate.releaseFirst()
+        await Task.yield()
+        #expect(!retired)
+        await gate.releaseFirst()
+        await retirement.value
+        #expect(retired)
+        #expect(player.stopCount == 1)
+    }
+
     @Test("Live player file construction is off the main thread")
     func livePlayerConstructionRunsOffMainThread() async throws {
         let url = temporaryAudioURL()

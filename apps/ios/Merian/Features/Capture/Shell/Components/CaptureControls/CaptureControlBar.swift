@@ -24,7 +24,7 @@ struct CaptureControlBar: View {
     @State private var audioDiscardConfirmationPath: String?
 
     private var isRefining: Bool {
-        viewModel.baseRefinementContext != nil
+        viewModel.isReanalyzing
     }
 
     private var presentation: CaptureControlBarPresentation {
@@ -135,72 +135,86 @@ struct CaptureControlBar: View {
         )
         .opacity(isSuppressed ? 0 : 1)
         .allowsHitTesting(!isSuppressed)
+        .accessibilityHidden(isSuppressed)
     }
 
     private func leadingControls(
         _ presentation: CaptureControlBarPresentation
     ) -> some View {
         ZStack(alignment: .leading) {
-            PhotoLibraryButton(
-                selectedPhotoItems: $viewModel.selectedPhotoItems,
-                latestThumbnail: photoLibraryManager.latestThumbnail,
-                maxSelectionCount: viewModel.photoPickerSelectionLimit,
-                isAvailable: presentation.isPhotoLibraryAvailable,
-                onRequestPickerPresentation: {
-                    await viewModel.requestPhotoPickerEntryAdmission(
-                        maximumSelectionCount: viewModel.photoPickerSelectionLimit
-                    )
-                },
-                onPresentationChange: { viewModel.isPhotoLibraryPresented = $0 }
-            )
-            .opacity(
-                presentation.showsPhotoLibrary
-                    ? (presentation.isAtCapacity ? 0.5 : 1)
-                    : 0
-            )
-            .allowsHitTesting(presentation.isPhotoLibraryAvailable)
-
-            CaptureVideoCancelButton(onTap: cancelVideoCapture)
-                .opacity(presentation.showsVideoCancel ? 1 : 0)
-                .allowsHitTesting(presentation.showsVideoCancel)
-
-            CapturePromptListButton(onTap: showPromptList)
-                .opacity(presentation.showsPromptList ? 1 : 0)
-                .allowsHitTesting(presentation.showsPromptList)
-
-            CaptureAudioDeleteButton(
-                isRecording: audioCaptureManager.isRecording,
-                onTap: deleteAudioRecording
-            )
-            .confirmationDialog(
-                "Discard this recording?",
-                isPresented: Binding(
-                    get: { audioDiscardConfirmationPath != nil },
-                    set: { if !$0 { audioDiscardConfirmationPath = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: audioDiscardConfirmationPath
-            ) { recordingPath in
-                Button("Discard Recording", role: .destructive) {
-                    guard captureMode == .audio,
-                          !isSuppressed,
-                          scenePhase == .active,
-                          !audioCaptureManager.isRecording,
-                          audioCaptureManager.pendingPlaybackPath == recordingPath
-                    else { return }
-                    if let operation = viewModel.audioDraftOperation {
-                        viewModel.completeDraftOperation(operation, succeeded: false)
-                        viewModel.audioDraftOperation = nil
-                    }
-                    audioCaptureManager.discardPending()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("This recording will be permanently deleted.")
+            if presentation.showsPhotoLibrary {
+                PhotoLibraryButton(
+                    selectedPhotoItems: $viewModel.selectedPhotoItems,
+                    latestThumbnail: photoLibraryManager.latestThumbnail,
+                    maxSelectionCount: viewModel.photoPickerSelectionLimit,
+                    isAvailable: presentation.isPhotoLibraryAvailable,
+                    onRequestPickerPresentation: {
+                        await viewModel.requestPhotoPickerEntryAdmission(
+                            maximumSelectionCount: viewModel.photoPickerSelectionLimit
+                        )
+                    },
+                    onPresentationChange: { viewModel.isPhotoLibraryPresented = $0 }
+                )
+                .opacity(
+                    presentation.showsPhotoLibrary
+                        ? (presentation.isAtCapacity ? 0.5 : 1)
+                        : 0
+                )
+                .allowsHitTesting(presentation.isPhotoLibraryAvailable)
+                .accessibilityHidden(!presentation.showsPhotoLibrary)
             }
-            .opacity(presentation.showsAudioDelete ? 1 : 0)
-            .allowsHitTesting(presentation.showsAudioDelete)
+
+            if presentation.showsVideoCancel {
+                CaptureVideoCancelButton(onTap: cancelVideoCapture)
+                    .opacity(presentation.showsVideoCancel ? 1 : 0)
+                    .allowsHitTesting(presentation.showsVideoCancel)
+                    .accessibilityHidden(!presentation.showsVideoCancel)
+            }
+
+            if presentation.showsPromptList {
+                CapturePromptListButton(onTap: showPromptList)
+                    .opacity(presentation.showsPromptList ? 1 : 0)
+                    .allowsHitTesting(presentation.showsPromptList)
+                    .accessibilityHidden(!presentation.showsPromptList)
+            }
+
+            if presentation.showsAudioDelete {
+                CaptureAudioDeleteButton(
+                    isRecording: audioCaptureManager.isRecording,
+                    onTap: deleteAudioRecording
+                )
+                .confirmationDialog(
+                    "Discard this recording?",
+                    isPresented: Binding(
+                        get: { audioDiscardConfirmationPath != nil },
+                        set: { if !$0 { audioDiscardConfirmationPath = nil } }
+                    ),
+                    titleVisibility: .visible,
+                    presenting: audioDiscardConfirmationPath
+                ) { recordingPath in
+                    Button("Discard Recording", role: .destructive) {
+                        guard captureMode == .audio,
+                              !isSuppressed,
+                              scenePhase == .active,
+                              !audioCaptureManager.isRecording,
+                              audioCaptureManager.pendingPlaybackPath == recordingPath
+                        else { return }
+                        if let operation = viewModel.audioDraftOperation {
+                            viewModel.completeDraftOperation(operation, succeeded: false)
+                            viewModel.audioDraftOperation = nil
+                        }
+                        audioCaptureManager.discardPending()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: { _ in
+                    Text("This recording will be permanently deleted.")
+                }
+                .opacity(presentation.showsAudioDelete ? 1 : 0)
+                .allowsHitTesting(presentation.showsAudioDelete)
+                .accessibilityHidden(!presentation.showsAudioDelete)
+            }
         }
+        .frame(width: 82, height: 50)
         .animation(.easeInOut(duration: 0.2), value: captureMode)
         .animation(
             .easeInOut(duration: 0.2),
@@ -238,36 +252,43 @@ struct CaptureControlBar: View {
         _ presentation: CaptureControlBarPresentation
     ) -> some View {
         ZStack {
-            CaptureFlashButton(
-                isFlashEnabled: cameraManager.isFlashEnabled,
-                onToggleFlash: toggleFlash
-            )
-            .opacity(
-                presentation.showsFlash
-                    ? (presentation.isAtCapacity ? 0.5 : 1)
-                    : 0
-            )
-            .allowsHitTesting(presentation.isFlashAvailable)
+            if presentation.showsFlash {
+                CaptureFlashButton(
+                    isFlashEnabled: cameraManager.isFlashEnabled,
+                    onToggleFlash: toggleFlash
+                )
+                .opacity(
+                    presentation.showsFlash
+                        ? (presentation.isAtCapacity ? 0.5 : 1)
+                        : 0
+                )
+                .allowsHitTesting(presentation.isFlashAvailable)
+                .accessibilityHidden(!presentation.showsFlash)
+            }
 
-            CaptureDescribeDictationButton(
-                isRecording: coordinator.isDictationRequested,
-                audioLevel: speechManager.audioLevel,
-                onTap: toggleDictation
-            )
-            .opacity(presentation.showsDictation ? 1 : 0)
-            .allowsHitTesting(presentation.showsDictation)
+            if presentation.showsDictation {
+                CaptureDescribeDictationButton(
+                    isRecording: coordinator.isDictationRequested,
+                    audioLevel: speechManager.audioLevel,
+                    onTap: toggleDictation
+                )
+                .opacity(presentation.showsDictation ? 1 : 0)
+                .allowsHitTesting(presentation.showsDictation)
+                .accessibilityHidden(!presentation.showsDictation)
+            }
 
-            CaptureAudioDoneButton(onTap: finishAudioRecording)
-                .opacity(presentation.showsAudioDone ? 1 : 0)
-                .allowsHitTesting(presentation.showsAudioDone)
-
-            CaptureAudioReviewPlayButton(
-                isPlaying: audioCaptureManager.isPlaying,
-                onTap: toggleAudioReviewPlayback
-            )
-            .opacity(presentation.showsAudioReview ? 1 : 0)
-            .allowsHitTesting(presentation.showsAudioReview)
+            // Mount only the active audio action. An invisible playback button
+            // must not share Finish recording's hit/accessibility target.
+            if presentation.showsAudioDone {
+                CaptureAudioDoneButton(onTap: finishAudioRecording)
+            } else if presentation.showsAudioReview {
+                CaptureAudioReviewPlayButton(
+                    isPlaying: audioCaptureManager.isPlaying,
+                    onTap: toggleAudioReviewPlayback
+                )
+            }
         }
+        .frame(width: 82, height: 50)
         .animation(.easeInOut(duration: 0.2), value: captureMode)
         .animation(
             .easeInOut(duration: 0.2),
@@ -359,11 +380,15 @@ struct CaptureControlBar: View {
                 await cameraManager.stopSessionAndWait()
                 try Task.checkCancellation()
                 guard scenePhase == .active, viewModel.draftSession.contains(operation) else { return }
-                try await audioCaptureManager.startRecording(
-                    recordingID: operation.id,
-                    boostRecordingPreview:
-                        appSettings.boostRecordingPreviewsEnabled
-                )
+                if viewModel.usesInitialDraftComposition {
+                    try await viewModel.startInitialRecording(audioCaptureManager, operation: operation,
+                        boostPreview: appSettings.boostRecordingPreviewsEnabled)
+                } else {
+                    try await audioCaptureManager.startRecording(
+                        recordingID: operation.id,
+                        boostRecordingPreview: appSettings.boostRecordingPreviewsEnabled
+                    )
+                }
                 started = true
             } catch is CancellationError {
                 // Expected when the user leaves audio mode during startup.

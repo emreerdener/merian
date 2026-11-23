@@ -250,15 +250,15 @@ final class InsightMediaCarouselArchitectureTests: XCTestCase {
             )
         }
 
+        let policy = try IOSSourceSizePolicy.load(root: repositoryRoot)
+        let productionRoot = repositoryRoot.appendingPathComponent(policy.productionRoot).path + "/"
         for file in try swiftFiles(in: coreRoot) {
             let source = try contents(of: file)
-            let lineCount = source.split(
-                separator: "\n",
-                omittingEmptySubsequences: false
-            ).count
+            let rule = policy.productionRule(for: String(file.path.dropFirst(productionRoot.count)))
+            let lineCount = rule.count(source)
             XCTAssertLessThanOrEqual(
                 lineCount,
-                600,
+                rule.ceiling,
                 "\(file.lastPathComponent) has \(lineCount) lines"
             )
             XCTAssertFalse(

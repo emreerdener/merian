@@ -52,7 +52,7 @@ struct ObservationHistorySelectionService {
                 }
                 guard analysis != previous, analysis != UUID(uuidString: scan.id) else { throw ObservationHistoryError.invalidPage }
                 let targetCache = try ObservationHistorySelectionProjection.retained(analysis, scan: scan, context: context)
-                guard [1, 2, 3, 4, 5].contains(targetCache.snapshotVersion), [1, 2, 3, 4, 5].contains(previousCache.snapshotVersion) else {
+                guard (1...8).contains(targetCache.snapshotVersion), (1...8).contains(previousCache.snapshotVersion) else {
                     throw ObservationHistoryError.unavailable
                 }
                 if let undoReview {
@@ -162,7 +162,7 @@ struct ObservationHistorySelectionService {
         }
         let target = try ObservationHistorySelectionProjection.retained(ObservationHistoryPage.uuid(entry.request.analysis_id), scan: scan, context: context)
         let previous = try ObservationHistorySelectionProjection.retained(ObservationHistoryPage.uuid(entry.previous), scan: scan, context: context)
-        guard [1, 2, 3, 4, 5].contains(target.snapshotVersion), [1, 2, 3, 4, 5].contains(previous.snapshotVersion) else { throw ObservationHistoryError.unavailable }
+        guard (1...8).contains(target.snapshotVersion), (1...8).contains(previous.snapshotVersion) else { throw ObservationHistoryError.unavailable }
         guard target.reviewRevision == entry.request.expected_review_revision else { throw Sync.AdmissionError.conflictingRevision }
         try Sync.requireRepresentableAuthority(target.authority)
         return scan

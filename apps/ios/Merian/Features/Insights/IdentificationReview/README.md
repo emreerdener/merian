@@ -25,10 +25,16 @@ completed biological Insight. The canonical product behavior remains
   and haptic adapter used across both areas.
 - `Confidence/ViewModels` owns explanation-sheet identity, nested candidate
   action staging, route resumption, and generation-fenced refinement loading.
-- `Confidence/Views` composes the badge and explanation sheet. Detents, shimmer,
-  icon rotation, paywall visibility, and actual SwiftUI dismissal stay in the
-  views; `Confidence/Components/{Guidance,ReviewState,Scale}` renders the
-  subordinate sections.
+- `Confidence/Views` composes the badge and Identification sheet (the retained
+  `ConfidenceExplanationSheet` implementation). Its SwiftUI environment action
+  shares the Shell-owned destination; `IdentificationSummaryCard` and
+  `IdentificationSheetToolbar` render the injected summary and actions. The
+  summary embeds the existing confirmed/incorrect banners and their guarded Undo
+  callbacks; History reuses these same banner components with its own review
+  model. Detents, shimmer, icon rotation, paywall visibility, and actual SwiftUI
+  dismissal stay in the views;
+  `Confidence/Components/{Guidance,ReviewState,Scale}` renders the subordinate
+  sections.
 
 Platform-neutral Models import no SwiftUI, UIKit, or SwiftData. Views and
 Components perform no networking, persistence fetches, singleton lookup, or
@@ -38,6 +44,13 @@ previews; existing public feature-view initializers explicitly default to
 otherwise plain dependency value resolve global services.
 
 ## Confidence display boundary
+
+The Identification summary offers both confirmation and incorrect-review sliders
+for an eligible unreviewed species-level result. Confirming the primary result
+does not depend on alternative-candidate visibility or confidence. Shell still
+supplies guarded review callbacks; enrolled results retain exact-version review
+capabilities, and pending or unavailable review actions are not synthesized by
+the card.
 
 `InferenceConfidencePolicy.displayBands` supplies the existing Strong / Possible
 / Weak labels. Recognized Gemini profiles keep their tier-specific thresholds.
@@ -73,8 +86,21 @@ The Insight content host wraps that request in
 candidate feature retains its review policy and UI. This boundary prevents the
 Shell from absorbing candidate-domain behavior merely because it owns the modal.
 
-Confidence explanation follows the same rule for community and refinement
-handoffs. Nested candidate actions resolve first; actions leaving the
+Identification follows the same rule for community, refinement and candidate
+review handoffs. A broader-taxon confirmation opens the existing species-name
+form only after Identification dismisses; primary confirmation stays in place.
+Candidate review may prepare an exact ticket from the matching Identification
+sheet, but presentation still requires the sheet to have actually dismissed.
+Inside Insights, Shell owns the single sheet and pushes History in its
+NavigationStack. Prepared actions are consumed after actual dismissal and are
+cancelled only if abandoned or stale, never after transferring ownership to a
+resumed operation. Same-scan engine refresh recreates the Identification content
+without ejecting History; account, container and scan changes invalidate the
+outer presentation. Outside this Shell, the badge retains its existing
+`ConfidencePresentationViewModel` fallback and action block.
+
+The fallback confidence explanation follows the same rule for community and
+refinement handoffs. Nested candidate actions resolve first; actions leaving the
 explanation are staged as `ConfidenceExplanationDismissalAction` and consumed by
 `ConfidencePresentationViewModel` only after the outer sheet dismisses. Never
 mutate the engine, request a sibling route, or sleep for an assumed dismissal
@@ -124,17 +150,14 @@ ceiling.
 
 ## Identification rejection menu action
 
-**Mark as incorrect** is the last action in the scan menu’s Identification
-section and appears below Ask the community in the confidence sheet’s button
-stack. Both actions are red and show a confirmation alert with a destructive
-Mark as incorrect action and Cancel before saving. Confirmation calls the
-retained `InferenceEngine.markIdentificationIncorrect` workflow for the captured
-scan. Already rejected, pending, and ineligible identifications do not offer the
-action. The original identification names, reasoning, and reference content
-remain visible. The confidence badge turns red and reads **Incorrect**, and the
-confidence sheet heading reflects that state. A red **Marked as incorrect** card
-above the candidates mirrors the Match confirmed layout, with an inline **Undo**
-action.
+In the redesigned Identification sheet, **Confirm identification** and **Mark as
+incorrect** use the existing slide-to-confirm control and retained review
+callbacks. The main Insights menu links to Identification instead of duplicating
+review controls. Existing incorrect, confirmed and corrected cards, Undo
+behavior, alternatives, confidence/model explanations, plan content and tips
+remain available. The fallback confidence presentation outside Shell retains its
+original action block and destructive confirmation. Already rejected, pending
+and ineligible identifications do not offer an invalid review action.
 
 Saved review decisions and queued operations remain intact. A presentation-only
 copy restores the original AI result and confidence without restoring species
@@ -145,14 +168,14 @@ candidate swipe deck hide the green original-identification confirmation slider.
 Alternative candidate selection remains available.
 
 After a rejection is saved locally, a brief **Marked as incorrect** toast offers
-**Undo**. The menu offers **Undo incorrect** while the original rejection
-remains reversible. The confidence sheet offers **Undo** in the incorrect-state
-card; the completed candidate-review screen retains its neutral gray Undo
-button. The menu shows **Incorrect mark undone** after Undo is saved locally.
-Undo needs no confirmation, restores the confidence presentation and candidate
-confirmation controls, and does not confirm the species. It uses the durable
-review queue, including when the rejection has not yet synced. Reanalysis
-proposals awaiting acceptance and conflicts do not offer rejection Undo.
+**Undo**. The Identification sheet offers **Undo** while the original rejection
+remains reversible in the incorrect-state card; the completed candidate-review
+screen retains its neutral gray Undo button. The menu shows **Incorrect mark
+undone** after Undo is saved locally. Undo needs no confirmation, restores the
+confidence presentation and candidate confirmation controls, and does not
+confirm the species. It uses the durable review queue, including when the
+rejection has not yet synced. Reanalysis proposals awaiting acceptance and
+conflicts do not offer rejection Undo.
 
 After Undo, **Mark as incorrect** is available immediately, including while Undo
 is waiting to sync. Repeated rejection and Undo operations remain ordered in the
@@ -164,12 +187,12 @@ mark directly, without an additional dialog, and shows the immediate Undo toast.
 A reversible rejection replaces that action with **Undo incorrect**. The
 completion screen scrolls when its content exceeds the available height.
 
-**Review alternatives** remains in the scan menu after all candidates have been
-reviewed. It reopens the stored candidate list without clearing saved completion
-state or resurfacing the inline candidate card.
+The retained alternatives/completed-review content in Identification can reopen
+the stored candidate list without clearing saved completion state or resurfacing
+the inline candidate card.
 
 In the confidence sheet, the incorrect-state card replaces the standalone gray
-Undo button. Menu and completed candidate-review Undo actions remain available.
+Undo button. Completed candidate-review Undo actions remain available.
 
 Confirmation sliders await their action, show progress while it runs, and reset
 when the action returns instead of permanently displaying a success checkmark.

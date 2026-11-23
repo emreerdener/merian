@@ -75,6 +75,19 @@ preparation and discard share an explicitly injected FileIO owner; ordinary
 callers retain the live owner. A fixture directory does not expand the live
 actor's cleanup authority.
 
+`LegacyMediaFileRetirement.swift` contains the immutable legacy-root descriptor
+and exact-file retirement capability shared by FileIO and private producer
+promotion. `MediaProducerOutput` exclusively creates one private temporary
+encoder directory, pins created output and freezes the receipt after actual
+producer exit. Its bounded exclusive copy mints destination authority from the
+creation descriptor. Existing-file temporary leases still refuse a missing file
+that later appears. Destination rollback never remints a failed receipt, and
+empty-directory removal records unlink before retrying parent synchronization.
+FileIO retains failed, already-drained producer cleanup until successful retry;
+Capture account-host close requires this cleanup drain after joining its work.
+The private path-only export assumes one writer until its first descriptor pin;
+it does not attest pre-pin replacement or provide crash-persistent ownership.
+
 Audio/video persistence adopts permitted Documents files or copies permitted
 temporary bytes in bounded chunks. An absolute source cannot be replaced by an
 unrelated Documents basename. A bare source uses Documents first, then temporary
@@ -130,26 +143,42 @@ instead of independently coordinating the two stores. See the
 [Core Field Notes README](FieldNotes/README.md).
 
 Accepted account deletion and library-clearing sign-out await
-`ScanRepository.purgeAllData`, which resets derived state and delegates to
-`ScanLibraryPurgeService`. Under the existing Auth transition/recovery barrier,
-the service suspends and drains local reanalysis receipt cleanup, deletes every
-supported library row after checking media liabilities, then awaits erasure of
-the private `ReanalysisQueue` and `ReanalysisInputs` namespaces. The file owner
-takes the exclusive Documents root lock shared by writers, recovery and child
-cleanup, and removes orphaned files without following symlinks or touching other
-Documents content. A failed file erasure retains the account cleanup barrier;
-preferences, runtime reset and recovery-marker retirement do not advance. Retry
-repeats the idempotent purge. Only after database and file erasure succeed does
-verified `Core/Preferences/AccountScopedPreferences` cleanup run, followed by
-the injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps
-row erasure exhaustive; purge tests cover file failure and ordering. This does
-not replace the SQLite store file or authorize broad erasure of other
-unreferenced media. Scoped sign-out additionally revalidates its exact journal
-authority around cleanup suspension and at the repository completion boundary,
-before derived-state/restoration reset. The Auth composition acknowledges
-terminal held hosts only after that complete success. See the
+`NativeMediaLifetimeCoordinator`, which first retires a qualified native media
+library under the accepted operation and joined runtime. Its completion retains
+and rechecks the exact store/parent, physical absence and zero native rows
+across the generic cleanup below. Empty native libraries use the same
+authorization and completion fences. Cold accepted-deletion recovery does not
+require a surviving signed-in session. The legacy composition retains its
+native-liability rejection. See the
+[storage owner contract](SharedMediaStorage/README.md).
+
+The coordinator then awaits `ScanRepository.purgeAllData`, which resets derived
+state and delegates to `ScanLibraryPurgeService`. Under the existing Auth
+transition/recovery barrier, the service suspends and drains local reanalysis
+receipt cleanup, deletes every supported library row after checking media
+liabilities, then awaits erasure of the private `ReanalysisQueue` and
+`ReanalysisInputs` namespaces. The file owner takes the exclusive Documents root
+lock shared by writers, recovery and child cleanup, and removes orphaned files
+without following symlinks or touching other Documents content. A failed file
+erasure retains the account cleanup barrier; preferences, runtime reset and
+recovery-marker retirement do not advance. Retry repeats the idempotent purge.
+Only after database and file erasure succeed does verified
+`Core/Preferences/AccountScopedPreferences` cleanup run, followed by the
+injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps row
+erasure exhaustive; purge tests cover file failure and ordering. This does not
+replace the SQLite store file or authorize broad erasure of other unreferenced
+media. Scoped sign-out additionally revalidates its exact journal authority
+around cleanup suspension and at the repository completion boundary, before
+derived-state/restoration reset. The Auth composition acknowledges terminal held
+hosts only after that complete success. See the
 [guest transition contract](../../../../../docs/backend-and-data/21-guest-library-transitions.md)
 and `ScanRepositoryPurgeTests` for the scope-loss/retry regression.
+`NativeErasureParentTests` additionally exercises the public deletion adapter,
+consumer-exit blocking, native-terminal plus History-file failure, fresh
+coordinator retry, and parent changes across awaited cleanup. The repository
+forwards the file-erasure dependency to the service; its live default remains
+the real History namespace owner. Isolated adapter qualification is DEBUG and
+test-execution gated and does not enable native feature installation.
 
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
@@ -1029,8 +1058,8 @@ persistence.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
-  diagnostics, quarantine, and rescue. Fresh and V69 stores open as current;
-  known V42...V68 sources use finite, source-isolated plans; only unknown older
+  diagnostics, quarantine, and rescue. Fresh and V74 stores open as current;
+  known V42...V73 sources use finite, source-isolated plans; only unknown older
   stores use the full historical plan.
 - The current automatic App Group location is a shipped-store compatibility
   constraint, not an extension data-sharing contract. Extensions never open the
@@ -1041,13 +1070,13 @@ persistence.
   `MerianRecentV50MigrationPlan` for the original frozen graph or
   `MerianReleasedActiveV50MigrationPlan` for the processed release's
   `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
-  account-partition stage and the shared lightweight tail through V69; unknown
+  account-partition stage and the shared lightweight tail through V72; unknown
   V50 signatures are preserved through rescue instead of guessed. Released V49
-  stores prepend V49→V50. V68 stores use only the immediate V68→V69 stage;
-  V51...V67 retain their source-isolated forward stages. The full historical
-  plan remains linear through V42→V49→V50→V51 and onward to V69; V43...V48 use
+  stores prepend V49→V50. V71 stores use only the immediate V71→V72 stage;
+  V51...V70 retain their source-isolated forward stages. The full historical
+  plan remains linear through V42→V49→V50→V51 and onward to V72; V43...V48 use
   their source-isolated plans. The duplicate-checksum retry ladder is ordered
-  current store, V68 through V51, both V50 graphs, then V49 down through V42.
+  current store, V71 through V51, both V50 graphs, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same
