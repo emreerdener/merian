@@ -277,17 +277,25 @@ def main():
             for table in ["initial_preparation_source_fences","initial_analysis_operation_fences","initial_analysis_preparation_intents"]:
                 assert admin.run(f"SELECT count(*) FROM internal.{table} WHERE scan_id={literal(scan)};")==["0"]
             print("PASS valid writer-first durable conflict and no partial allocation",name,flush=True)
-        # Existing same-identity settlement remains legal at repeatable read;
-        # its unconditional durable row still excludes fresh preparation.
+        # Same-identity quota writes require a current snapshot. A rejected
+        # stale write leaves the durable row unchanged; a current-snapshot
+        # write remains legal and still excludes fresh preparation.
         scan=str(uuid.uuid4())
         admin.run(roots[4][1](scan))
-        first.run("BEGIN ISOLATION LEVEL REPEATABLE READ;"+f"UPDATE internal.ai_quota_reservations SET lease_token=gen_random_uuid() WHERE original_analysis_id={literal(scan)};")
+        quota_token=f"SELECT lease_token FROM internal.ai_quota_reservations WHERE original_analysis_id={literal(scan)};"
+        original_token=admin.run(quota_token)
+        quota_update=f"UPDATE internal.ai_quota_reservations SET lease_token=gen_random_uuid() WHERE original_analysis_id={literal(scan)};"
+        first.run("BEGIN ISOLATION LEVEL REPEATABLE READ;"+quota_update,error="analysis_history_current_snapshot_required")
+        first.run("ROLLBACK;")
+        assert admin.run(quota_token)==original_token
+        first.run("BEGIN ISOLATION LEVEL READ COMMITTED;"+quota_update)
         second.run(allocate(scan),error="initial_analysis_identity_conflict")
         first.run("COMMIT;")
+        assert admin.run(quota_token)!=original_token
         second.run(allocate(scan),error="initial_analysis_identity_conflict")
         for table in ["initial_preparation_source_fences","initial_analysis_operation_fences","initial_analysis_preparation_intents"]:
             assert admin.run(f"SELECT count(*) FROM internal.{table} WHERE scan_id={literal(scan)};")==["0"]
-        print("PASS unchanged-identity settlement preserves durable allocation exclusion",flush=True)
+        print("PASS stale quota write denied and current-snapshot write preserves durable allocation exclusion",flush=True)
         # A valid old row cannot be retargeted into a fresh or retired barrier.
         for relation,key,insert in [
             ("internal.complimentary_scan_usage","client_scan_id",roots[0][1]),

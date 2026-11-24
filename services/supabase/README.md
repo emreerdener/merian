@@ -414,6 +414,12 @@ In-flight allocation still requires the preparation scope-busy error; stale
 snapshots still require the isolation error. Production trigger order and guards
 remain intact.
 
+The same-identity quota probe rejects a repeatable-read lease-token update and
+verifies that rollback preserves the token. It then performs the same update
+under read committed, verifies the committed token change, and retains both
+concurrent and post-commit preparation-allocation denials. This follows the
+current-snapshot guard without weakening durable identity exclusion.
+
 `test_initial_atomic_admission_c1.py` prepares a synthetic complete committed
 admission and exercises actual service-role C1 cancellation, proof/role
 boundaries and terminal replay. Its `explicit`, `terminal`, `terminal-held`,
