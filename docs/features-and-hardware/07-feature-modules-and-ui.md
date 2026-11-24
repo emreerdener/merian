@@ -564,7 +564,7 @@ production Shell and Library file remains below the 600-line review guard.
 
 ### Main Tab Bar
 
-- **Bottom Position Alignment**: The `Explore`, `Book`, and `Profile` actions
+- **Bottom Position Alignment**: The `Explore`, `Library`, and `Profile` actions
   are hosted in a custom floating liquid glass capsule component (`MainTabBar`)
   overlaid at the bottom of the camera feed. `Explore` now opens a real
   sheet-backed feature rather than a placeholder tooltip.
@@ -575,13 +575,14 @@ production Shell and Library file remains below the 600-line review guard.
   structures (`SettingsView`, `ProfileView`, etc.) that slide over the camera
   interface without re-routing the global hierarchy or interrupting the
   `.isCapturing` hardware state.
-- **Book Navigation**: Book uses the filled open-book symbol `book.fill` and the
-  accessibility label “Book”. It retains the existing Scans destination and
-  stable `MainTabBar_Scans` accessibility identifier.
+- **Library Navigation**: Library uses the filled open-book symbol `book.fill`
+  and the accessibility label “Library”. It retains the existing Scans
+  destination and stable `MainTabBar_Naturebook` accessibility identifier for
+  UI-test compatibility.
 - **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and
-  passes it to the Book `FloatingNavigationMenuButton`. When `true`, a red 8pt
-  `Circle` is overlaid on the top-right of the book icon. Explore combines the
-  external-post setting with unread-notification state loaded through the
+  passes it to the Library `FloatingNavigationMenuButton`. When `true`, a red
+  8pt `Circle` is overlaid on the top-right of the book icon. Explore combines
+  the external-post setting with unread-notification state loaded through the
   generation-fenced `CaptureNavigationViewModel`; the corresponding Shell
   service owns its network, app-badge, settings, and haptic effects. The Scan
   flag is set to `true` through `diContainer.appSettings` in

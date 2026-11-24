@@ -55,7 +55,7 @@ struct MainTabBar: View {
 
             FloatingNavigationMenuButton(
                 iconName: "book.fill",
-                title: "Naturebook",
+                title: "Library",
                 accessibilityIdentifier: "MainTabBar_Naturebook",
                 action: {
                     navigationViewModel.performRouteFeedback()
@@ -63,7 +63,7 @@ struct MainTabBar: View {
                 },
                 showBadge: appSettings.hasUnseenScan
             )
-            .accessibilityLabel("Naturebook")
+            .accessibilityLabel("Library")
 
             FloatingNavigationMenuButton(
                 iconName: "person.fill",

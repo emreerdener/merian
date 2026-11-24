@@ -430,10 +430,10 @@ surface, not a trigger for a separate filter or pop-up menu.
 
 `MainTabBar` is Capture-workspace navigation chrome rather than a Core UI route
 owner. Its Capture-only `FloatingNavigationMenu` layout is co-located in
-`Components/Navigation`; its visible labels are Explore, Naturebook, and
-Profile. Naturebook uses `book.fill` and the accessibility label “Naturebook”,
-retaining the existing Scans route, unread badge and bindings. Its current
-UI-test identifier is `MainTabBar_Naturebook`. The injected navigation view
+`Components/Navigation`; its visible labels are Explore, Library, and Profile.
+Library uses `book.fill` and the accessibility label “Library”, retaining the
+existing Scans route, unread badge and bindings. Its current UI-test identifier
+remains `MainTabBar_Naturebook` for compatibility. The injected navigation view
 model refreshes Explore badge sources on mount, foreground return, and Explore
 dismissal. A UUID generation fence rejects an older overlapping result or a
 completion after disappearance. An unavailable notification count preserves the
