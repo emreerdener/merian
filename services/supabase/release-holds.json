@@ -72,10 +72,10 @@
     },
     {
       "id": "identification_history_integration_hold",
-      "active": true,
+      "active": false,
       "scope": "supabase_production",
       "owner": "History release owner",
-      "reason": "The November 23 unified development baseline adds locally preserved History, Capture and guarded Gemini work beyond the separately approved PR152 source. Production deployment remains held until the integrated exact source passes all required checks and its reviewed release packet explicitly authorizes the target operation. PR152 evidence and approval do not qualify this broader candidate. PR150 remains excluded.",
+      "reason": "This release candidate proposes resolving the integration hold for the reviewed beta backend and Naturebook sites operation. The inactive flag enables automatic production deployment after merge; it must not reach main before exact-source validation, explicit exact-SHA target-operation approval, and the reviewed cleanup pause/drain procedure. See docs/release-evidence/unified-beta-release-candidate-2026-11-24.md. Feature activation, TestFlight distribution and PR150 remain excluded.",
       "exit_criteria": [
         {
           "id": "history_exact_target_release_approval",

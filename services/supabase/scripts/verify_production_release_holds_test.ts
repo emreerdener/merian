@@ -80,31 +80,33 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
 
-Deno.test("unified development keeps the history source freeze active", async () => {
+Deno.test("the beta release candidate marks its source holds clear", async () => {
   const decision = await evaluateProductionReleaseHolds(
     new URL("../release-holds.json", import.meta.url),
   );
-  assertEquals(decision.allowed, false);
+  assertEquals(decision.allowed, true);
   assertEquals(decision.manifestValid, true);
-  assertEquals(productionSourceStatus(decision), "held");
-  assertEquals(decision.activeHoldIds, [
+  assertEquals(productionSourceStatus(decision), "clear");
+  assertEquals(decision.activeHoldIds, []);
+  assertEquals(decision.inactiveHoldIds, [
+    holdId,
     "identification_history_integration_hold",
   ]);
-  assertEquals(decision.inactiveHoldIds, [holdId]);
   assertEquals(productionHoldCommandSucceeds("source-status", decision), true);
-  assertEquals(productionHoldCommandSucceeds("source-gate", decision), false);
+  assertEquals(productionHoldCommandSucceeds("source-gate", decision), true);
 });
 
 Deno.test("an active history hold denies automatic release before live control access", async () => {
   const source = JSON.parse(
     await Deno.readTextFile(new URL("../release-holds.json", import.meta.url)),
   );
-  assertEquals(
-    source.holds.find((hold: { id: string }) =>
-      hold.id === "identification_history_integration_hold"
-    ).active,
-    true,
+  // The active-state denial remains covered independently of this candidate's
+  // proposed inactive policy. Do not weaken the verifier when clearing a hold.
+  const historyHold = source.holds.find((hold: { id: string }) =>
+    hold.id === "identification_history_integration_hold"
   );
+  if (!historyHold) throw new Error("Missing required history hold fixture");
+  historyHold.active = true;
   let called = false;
   const result = await evaluateAutomaticProductionRelease(
     new URL("../release-holds.json", import.meta.url),

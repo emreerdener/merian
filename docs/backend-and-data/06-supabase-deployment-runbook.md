@@ -1,12 +1,27 @@
-## November 23 unified baseline remains held
+## November 24 proposed beta source-hold clearance
 
-The locally consolidated baseline retains the active
-`identification_history_integration_hold`. It includes History, Capture and
+The local release-candidate proposal sets the History integration source hold
+inactive so its final commit can be validated before the release decision. That
+flag would permit automatic production deployment after merge; it is not an
+approval or a record of completed validation. Keep the candidate off `main`
+until the approved merge packet, exact-target release decision and cleanup
+pause/drain prerequisites pass. The
+[November 24 candidate record](../release-evidence/unified-beta-release-candidate-2026-11-24.md)
+defines the proposed scope and distinguishes backend C1/handoff evidence from
+separate app activation/distribution acceptance. Earlier held-state descriptions
+below record the preceding preparation stage. No activation or deployment is
+performed by preparing this proposal.
+
+## Historical November 23 baseline before the clearance candidate
+
+The pre-clearance baseline through `67ae9e327` retained the active
+`identification_history_integration_hold`. It included History, Capture and
 guarded Gemini work beyond the independently validated PR152 source. Neither
-PR152 approval nor its passing jobs qualify this broader source. The automatic
-release verifier must continue returning `deploy_allowed=false` while this hold
-is active. An exact-source release decision and every applicable prerequisite
-are required before clearing it; feature flags are not substitutes.
+PR152 approval nor its passing jobs qualify this broader source. For that held
+source, the automatic release verifier returns `deploy_allowed=false`. The
+proposed inactive successor above still requires an exact-source release
+decision and every applicable prerequisite before reaching main; feature flags
+are not substitutes.
 
 See the
 [unified baseline preparation record](../release-evidence/unified-development-baseline-2026-11-23.md)

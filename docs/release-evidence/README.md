@@ -11,6 +11,17 @@
 > activation remain required. This exception does not authorize iOS
 > distribution.
 
+## November 24 local beta release proposal
+
+The
+[unified beta release candidate](unified-beta-release-candidate-2026-11-24.md)
+prepares an inactive History integration source hold for final validation. It is
+not an approved release decision. Merging that source can enable automatic
+production deployment, so exact-SHA target approval, the approved merge gates,
+full backend candidate evidence and the reviewed cleanup pause/drain sequence
+must precede the main merge. Feature activation and app distribution remain
+separate. The deployed/main hold remains authoritative until an approved merge.
+
 ## Automatic deployment policy
 
 Every push to protected `main` triggers `deploy.yml` and runs complete Candidate
