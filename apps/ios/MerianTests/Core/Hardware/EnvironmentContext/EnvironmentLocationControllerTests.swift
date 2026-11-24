@@ -13,8 +13,7 @@ struct EnvironmentLocationControllerTests {
         let probe = EnvironmentLocationHardwareProbe(authorizationStatus: .notDetermined)
         let hardware = EnvironmentLocationHardware.debugHardware(
             isRunningUnitTests: false,
-            environment: ["UITesting": "true"],
-            arguments: ["-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation"],
+            isCaptureReviewFixture: true,
             live: { liveConstructionCount += 1; return probe.hardware() }
         )
         #expect(liveConstructionCount == 0)
@@ -37,7 +36,10 @@ struct EnvironmentLocationControllerTests {
             var liveConstructionCount = 0
             let probe = EnvironmentLocationHardwareProbe(authorizationStatus: .notDetermined)
             let hardware = EnvironmentLocationHardware.debugHardware(
-                isRunningUnitTests: false, environment: environment, arguments: arguments,
+                isRunningUnitTests: false,
+                isCaptureReviewFixture: TestExecutionCoordinator.isCaptureReviewLocationFixture(
+                    environment: environment, arguments: arguments
+                ),
                 live: { liveConstructionCount += 1; return probe.hardware() }
             )
             #expect(liveConstructionCount == 1)

@@ -76,7 +76,10 @@ asserts that the final built test host retains its source identity.
   reading those process signals directly; the cloud-image repair live adapter is
   one such consumer. Its narrow `isXCTestRuntimeLoaded` proof also serves the
   recovery-presentation fixture gate, which still rejects environment markers
-  alone and requires an eligible temporary on-disk store.
+  alone and requires an eligible temporary on-disk store. The Debug
+  capture-review location policy also lives here and requires the UI marker plus
+  both staging and mock-location arguments. The location hardware factory
+  consumes the resulting decision without reading raw process signals.
 - `FeatureFlags.swift` is the single registry for app-wide client-build flags:
   product release gates plus the advisory local scan-meter bypass. Each
   `FeatureFlag.defaultValue` is the value shipped by Release builds. DEBUG

@@ -53,13 +53,9 @@ struct EnvironmentLocationHardware {
     #if DEBUG
     @MainActor static func debugHardware(
         isRunningUnitTests: Bool,
-        environment: [String: String],
-        arguments: [String],
+        isCaptureReviewFixture: Bool,
         live: @MainActor () -> EnvironmentLocationHardware
     ) -> EnvironmentLocationHardware {
-        let isCaptureReviewFixture = environment["UITesting"] == "true"
-            && arguments.contains("-seedStagedAudioReviewFlow")
-            && arguments.contains("-mockCaptureReviewLocation")
         return isRunningUnitTests || isCaptureReviewFixture ? .unitTesting : live()
     }
     #endif

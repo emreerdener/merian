@@ -3,6 +3,25 @@ import Testing
 
 @Suite("Test execution coordinator")
 struct TestExecutionCoordinatorTests {
+    #if DEBUG
+    @Test func captureReviewLocationRequiresAllExplicitOptIns() {
+        let arguments = ["-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation"]
+        #expect(TestExecutionCoordinator.isCaptureReviewLocationFixture(
+            environment: ["UITesting": "true"], arguments: arguments
+        ))
+        for environment in [[:], ["UITesting": "false"]] {
+            #expect(!TestExecutionCoordinator.isCaptureReviewLocationFixture(
+                environment: environment, arguments: arguments
+            ))
+        }
+        for partialArguments in [[], [arguments[0]], [arguments[1]]] {
+            #expect(!TestExecutionCoordinator.isCaptureReviewLocationFixture(
+                environment: ["UITesting": "true"], arguments: partialArguments
+            ))
+        }
+    }
+    #endif
+
     @Test func unitTestDetectionExcludesUIProcessesEvenWithXCTestLoaded() {
         for loaded in [false, true] {
             #expect(!TestExecutionCoordinator.isRunningUnitTests(

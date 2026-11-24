@@ -15,8 +15,7 @@ final class EnvironmentLocationController: NSObject,
             #if DEBUG
             let hardware = EnvironmentLocationHardware.debugHardware(
                 isRunningUnitTests: TestExecutionCoordinator.isRunningUnitTests,
-                environment: ProcessInfo.processInfo.environment,
-                arguments: ProcessInfo.processInfo.arguments,
+                isCaptureReviewFixture: TestExecutionCoordinator.isCaptureReviewLocationFixture,
                 live: { .live }
             )
             #else

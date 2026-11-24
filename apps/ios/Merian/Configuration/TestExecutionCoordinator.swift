@@ -25,6 +25,23 @@ enum TestExecutionCoordinator {
                            isXCTestRuntimeLoaded: isXCTestRuntimeLoaded)
     }
 
+    #if DEBUG
+    static var isCaptureReviewLocationFixture: Bool {
+        isCaptureReviewLocationFixture(
+            environment: ProcessInfo.processInfo.environment,
+            arguments: ProcessInfo.processInfo.arguments
+        )
+    }
+
+    static func isCaptureReviewLocationFixture(
+        environment: [String: String], arguments: [String]
+    ) -> Bool {
+        isRunningUITests(environment: environment) &&
+            arguments.contains("-seedStagedAudioReviewFlow") &&
+            arguments.contains("-mockCaptureReviewLocation")
+    }
+    #endif
+
     static func isRunningUnitTests(environment: [String: String], isXCTestRuntimeLoaded: Bool) -> Bool {
         !isRunningUITests(environment: environment) &&
             isRunningTests(environment: environment, isXCTestRuntimeLoaded: isXCTestRuntimeLoaded)
