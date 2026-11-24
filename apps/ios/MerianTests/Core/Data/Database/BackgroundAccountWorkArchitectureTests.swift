@@ -235,7 +235,6 @@ struct BackgroundAccountWorkArchitectureTests {
         (
             ".activateBackgroundAccountWork(",
             [
-                "App/UITesting/InitialMediaHistoryUISubmission.swift",
                 "Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift",
                 "Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift",
                 "Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadDispatch.swift"

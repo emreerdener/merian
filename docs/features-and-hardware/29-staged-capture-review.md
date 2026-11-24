@@ -348,7 +348,10 @@ content; submission and composition mutations remain blocked while it is open.
 Confirmed discard clears draft media, shared text, editor, and refinement state;
 it stops dictation, invalidates pending callbacks, and retires only draft-owned
 files through their lifecycle owners. Removing one item preserves the remaining
-media and notes; removing the final item clears supplementary notes.
+media and notes; removing the final item clears supplementary notes. Shell's
+operation state retains an awaitable completion for ordered staged-file cleanup
+batches. Draft and review state transitions remain synchronous; callers that
+need physical deletion evidence join cleanup before inspecting files.
 Enqueue-pending work cannot be discarded.
 
 ## Readiness and automatic capture attempts

@@ -264,14 +264,17 @@ files:
   extensions cover routing, imports, staging, refinement, and lifecycle. The
   `CaptureWorkspaceOperationState` contains private mutable tasks, route
   handoffs, import coalescing, timeout fences, and ordered crop requests so the
-  underlying storage is not widened to the module. Its external-import task owns
-  the retry loop, keeping the final retry check and task-handle release in one
-  MainActor turn so an overlapping request cannot be stranded at completion. A
-  sheet deferral still stops that iteration until the exact dismissal callback;
-  if dismissal wins the final handoff race, its resume request becomes the next
-  iteration before the handle is released. `CaptureNavigationViewModel` owns the
-  workspace badge state and fences overlapping refreshes so only the latest
-  request may publish.
+  underlying storage is not widened to the module. Staged-media cleanup retains
+  an ordered task chain; its awaitable completion joins every batch already
+  submitted, without blocking synchronous draft/review transitions. File-removal
+  tests await that completion instead of assuming unlink finishes within one
+  second. Its external-import task owns the retry loop, keeping the final retry
+  check and task-handle release in one MainActor turn so an overlapping request
+  cannot be stranded at completion. A sheet deferral still stops that iteration
+  until the exact dismissal callback; if dismissal wins the final handoff race,
+  its resume request becomes the next iteration before the handle is released.
+  `CaptureNavigationViewModel` owns the workspace badge state and fences
+  overlapping refreshes so only the latest request may publish.
 - `Modifiers/` composes root routing, lifecycle observation, presentation,
   binding adapters, and external-import retry triggers. The mounted
   orchestration modifier delivers the keyboard service's publishers on the main

@@ -12917,6 +12917,13 @@ the removed fixture encoder's ownership and append-deadline helper. All product
 extraction, transcoding, retention, frame and cancellation assertions remain in
 their owning suites.
 
+`CaptureVideoSavedModelTests` seeds its real pagination case at the persisted
+pending-preparation boundary using the existing rekeyed video request fixture.
+It still exercises SwiftData, the production status reader, twenty omitted
+invalid children, opaque cursors, selection reset and the pending-files phase.
+It does not transcode a video merely to test metadata paging; actual retention,
+codec and staged/reservation behavior remain covered by their owning suites.
+
 To author replacement inputs deliberately on a Mac, compile
 `scripts/generate-ios-video-fixtures.swift` with
 `xcrun swiftc -parse-as-library` and a disposable `-module-cache-path`, then

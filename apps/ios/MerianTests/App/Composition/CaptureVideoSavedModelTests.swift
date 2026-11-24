@@ -81,24 +81,32 @@ struct CaptureVideoSavedModelTests {
         #expect(model.isClosed && model.rows.isEmpty && model.message == nil)
     }
     @Test func realPagesReplaceAndForwardOpaqueCursorWithoutAutomaticSelection() async throws {
-        let seed = try await ObservationVideoResumeStoreTests().seed("staged")
-        defer { seed.remove() }
-        let context = ModelContext(seed.container)
+        // Paging validates persisted metadata, not codec preparation. Keep the
+        // real store/status readers while seeding their metadata-only boundary.
+        let binding = ObservationVideoSourceBindingTests()
+        let history = try binding.fixture.seed(version: 3)
+        let source = try ObservationReanalysisSource.captureForVideo(observationID: history.observationID,
+            ownerID: binding.fixture.fixture.owner, container: history.container)
+        let preparation = try ObservationVideoPreparation(request: binding.request(source), source: source)
+        _ = try ObservationVideoPreparationStore.begin(preparation.verified(source: source),
+            container: history.container, isCurrent: { true })
+        let context = ModelContext(history.container)
         for index in 1...20 {
             let child = try #require(UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index + 100)))
-            try ObservationReanalysisPersistence.insert(.init(observationID: seed.source.observationID,
-                sourceAnalysisID: seed.source.analysisID, analysisID: child, ownerID: seed.source.ownerID),
+            try ObservationReanalysisPersistence.insert(.init(observationID: source.observationID,
+                sourceAnalysisID: source.analysisID, analysisID: child, ownerID: source.ownerID),
                 paths: [], metadata: Data("{}".utf8), context: context)
         }
         try context.save()
         let access = CaptureVideoStatusAccess.prepared(account: ObservationReanalysisProducerTests().account(), owner: .init(), reader: .init(),
-            currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in true }, containerIsCurrent: { _ in true })
-        let model = CaptureVideoSavedRequestsModel(status: try access.open(seed.source.ownerID, seed.source.observationID, seed.container),
+            currentOwner: { source.ownerID }, generation: { 1 }, sessionIsCurrent: { _ in true }, containerIsCurrent: { _ in true })
+        let model = CaptureVideoSavedRequestsModel(status: try access.open(source.ownerID, source.observationID, history.container),
             openResume: { _ in Issue.record("Paging resumed work"); throw MerianError.invalidResponse }, isPresented: { true })
         model.start(); await idle(model)
         #expect(model.rows.isEmpty && model.omittedCount == 20 && model.next != nil)
         model.start(more: true); await idle(model)
-        #expect(model.rows.map(\.identity) == [seed.preparation.identity] && model.next == nil && model.selected == nil)
+        #expect(model.rows.map(\.identity) == [preparation.identity] && model.next == nil && model.selected == nil)
+        #expect(model.rows.first?.phase == .filesPending)
         model.select(try #require(model.rows.first)); model.start(); await idle(model)
         #expect(model.selected == nil && model.rows.isEmpty && model.next != nil)
     }

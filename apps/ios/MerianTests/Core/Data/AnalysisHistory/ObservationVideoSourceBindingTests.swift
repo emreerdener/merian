@@ -8,8 +8,8 @@ import Testing
 struct ObservationVideoSourceBindingTests {
     let fixture = ObservationReanalysisSourceTests()
 
-    private func request(_ source: ObservationReanalysisSource, collision: UUID? = nil, artifactIndex: Int = 0,
-                         observationID: UUID? = nil, sourceID: UUID? = nil) throws -> ObservationVideoReanalysisRequest {
+    func request(_ source: ObservationReanalysisSource, collision: UUID? = nil, artifactIndex: Int = 0,
+                 observationID: UUID? = nil, sourceID: UUID? = nil) throws -> ObservationVideoReanalysisRequest {
         let text = try DatabaseActorTestSupport.loadRepositorySource(at: "services/supabase/functions/_shared/analysisHistory/fixtures/video-request-v4.json")
         let vectors = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [[String: Any]])
         let input = try #require(vectors.first?["input"] as? [String: Any])

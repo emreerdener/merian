@@ -16,6 +16,19 @@ final class CaptureWorkspaceOperationState {
     private var pendingLocalSheet: CaptureWorkspaceViewModel.ActiveSheet?
     private var refinementStagingTask: Task<Void, Never>?
     private var activeCropTask: Task<Void, Never>?
+    private var stagedMediaCleanupTask: Task<Void, Never>?
+
+    func enqueueStagedMediaCleanup(operation: @escaping @MainActor @Sendable () async -> Void) {
+        let previous = stagedMediaCleanupTask
+        stagedMediaCleanupTask = Task(priority: .utility) {
+            await previous?.value
+            await operation()
+        }
+    }
+
+    func awaitStagedMediaCleanup() async {
+        await stagedMediaCleanupTask?.value
+    }
 
     var isDismissingPresentation: Bool {
         dismissingPresentation != nil

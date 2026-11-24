@@ -356,10 +356,9 @@ struct CaptureScanDependenciesTests {
         #expect(model.stagedCapture.videos.first?.originalFilePath == original.path)
         #expect(model.draftOwnedFiles.contains(original.path))
         model.removeStagedVideo(at: 0)
-        for _ in 0..<100 where FileManager.default.fileExists(atPath: original.path) {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await model.operationState.awaitStagedMediaCleanup()
         #expect(!FileManager.default.fileExists(atPath: original.path))
+        #expect(!FileManager.default.fileExists(atPath: playback.path))
     }
 
     @Test(arguments: ["commit", "failure", "dismiss", "generation"], [false, true])
@@ -433,9 +432,7 @@ struct CaptureScanDependenciesTests {
             #expect(model.stagedCapture.videos.first?.originalFilePath == sourcePath)
             #expect(model.stagedCapture.videos.first?.framing?.quarterTurns == 0)
             #expect(model.draftOwnedFiles == [sourcePath, newest.path])
-            for _ in 0..<100 where FileManager.default.fileExists(atPath: candidate.path) {
-                try await Task.sleep(for: .milliseconds(10))
-            }
+            await model.operationState.awaitStagedMediaCleanup()
             #expect(!FileManager.default.fileExists(atPath: candidate.path))
             #expect(FileManager.default.fileExists(atPath: StagedVideo.localURL(for: sourcePath).path))
         } else {
@@ -444,9 +441,7 @@ struct CaptureScanDependenciesTests {
         }
         let removed = outcome == "commit" ? prior : candidate
         if outcome != "failure", !(historySource && outcome == "commit") {
-            for _ in 0..<100 where FileManager.default.fileExists(atPath: removed.path) {
-                try await Task.sleep(for: .milliseconds(10))
-            }
+            await model.operationState.awaitStagedMediaCleanup()
             #expect(!FileManager.default.fileExists(atPath: removed.path))
         }
     }

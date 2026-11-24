@@ -145,7 +145,9 @@ extension CaptureWorkspaceViewModel {
     func discardLocalMediaFiles(at paths: [String]) {
         let uniquePaths = Array(Set(paths.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
         guard !uniquePaths.isEmpty else { return }
-        Task(priority: .utility) {
+        // Keep one completion boundary for every submitted batch without
+        // holding UI transitions open while filesystem work drains.
+        operationState.enqueueStagedMediaCleanup {
             await FileIOActor.shared.deleteFiles(at: uniquePaths)
         }
     }

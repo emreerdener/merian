@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class CaptureWorkspaceOperationStateTests: XCTestCase {
+    func testStagedMediaCleanupCompletionIncludesEarlierBatches() async {
+        let state = CaptureWorkspaceOperationState()
+        let firstStarted = expectation(description: "first cleanup is pending")
+        var release: CheckedContinuation<Void, Never>?
+        var firstFinished = false, secondFinished = false
+        state.enqueueStagedMediaCleanup {
+            await withCheckedContinuation { continuation in
+                release = continuation
+                firstStarted.fulfill()
+            }
+            firstFinished = true
+        }
+        state.enqueueStagedMediaCleanup {
+            XCTAssertTrue(firstFinished, "Later cleanup must join the earlier batch")
+            secondFinished = true
+        }
+        await fulfillment(of: [firstStarted], timeout: 5)
+        XCTAssertFalse(firstFinished)
+        XCTAssertFalse(secondFinished)
+        release?.resume()
+        await state.awaitStagedMediaCleanup()
+        XCTAssertTrue(firstFinished && secondFinished)
+    }
+
     func testTimeoutProtectionIsConsumedExactlyOnce() {
         let state = CaptureWorkspaceOperationState()
         let now = Date(timeIntervalSinceReferenceDate: 1_000)
@@ -50,8 +74,6 @@ final class CaptureWorkspaceOperationStateTests: XCTestCase {
         XCTAssertEqual(state.takePendingLocalSheet(), .scans)
         XCTAssertNil(state.takePendingLocalSheet())
     }
-
-
 
     func testOverlappingExternalImportRequestsCoalesceIntoRetry() async {
         let state = CaptureWorkspaceOperationState()
