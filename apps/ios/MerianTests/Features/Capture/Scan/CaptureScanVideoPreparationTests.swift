@@ -9,6 +9,27 @@ import UIKit
 @Suite("Concurrent video preparation")
 struct CaptureScanVideoPreparationTests {
     @Test(arguments: [false, true])
+    func cancelledFrameGenerationCannotReturnAnImage(cancelOwner: Bool) async throws {
+        let fixture = try await VideoAudioFixture(channels: nil)
+        defer { fixture.remove() }
+        let asset = AVURLAsset(url: fixture.videoURL)
+        let composition = try await CaptureScanVideoMediaPreparer.canonicalSquareComposition(asset: asset, composingCenter: 0.5)
+        let generator = CaptureScanVideoFrameGenerator(asset: asset, composition: composition,
+            maximumSize: CGSize(width: 64, height: 64))
+        if cancelOwner { await generator.cancel() }
+        let work = Task {
+            if !cancelOwner { withUnsafeCurrentTask { $0?.cancel() } }
+            return try await generator.image(at: .zero)
+        }
+        do {
+            _ = try await work.value
+            Issue.record("Cancelled frame generation returned an image")
+        } catch { #expect(error is CancellationError) }
+        await generator.cancel()
+        #expect(FileManager.default.fileExists(atPath: fixture.videoURL.path))
+    }
+
+    @Test(arguments: [false, true])
     func canonicalSquareFramesAndPlaybackUseTheSameOrientation(rotated: Bool) async throws {
         let transform = rotated ? CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 160, ty: 0) : .identity
         let fixture = try await VideoAudioFixture(channels: nil, width: 96, height: 160, transform: transform)

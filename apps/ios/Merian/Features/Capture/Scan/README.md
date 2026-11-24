@@ -108,6 +108,14 @@ worker's actual result even after cancellation and removes intermediate exports
 before returning. Synchronous ImageIO/AVFoundation work observes cancellation at
 explicit stage boundaries; cancellation alone does not prove worker exit.
 
+Frame extraction uses asynchronous image generation through an actor that owns
+the generator and its cancellation state. Cancellation requests native image
+generation cancellation; the worker checks cancellation before encoding or
+returning a frame and joins cleanup before exit. The five sample offsets,
+canonical square composition, encoding policy and existing frame/audio/playback
+deadlines remain unchanged. Individual non-cancellation decode failures retain
+the existing skip-and-report behavior.
+
 `CaptureScanVideoAudioTimeline` decodes asset-timed samples directly into
 standard mono 44.1 kHz Int16 PCM WAV. Companion sample zero corresponds to the
 original audio track's start; empty edits become silence and internal gaps

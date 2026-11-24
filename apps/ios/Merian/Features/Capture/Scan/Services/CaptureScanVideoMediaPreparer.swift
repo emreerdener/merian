@@ -65,6 +65,32 @@ private actor CaptureScanAssetExportSessionFinisher {
     }
 }
 
+/// Keeps native generation cancellable while an asynchronous frame is pending.
+actor CaptureScanVideoFrameGenerator {
+    private let generator: AVAssetImageGenerator
+    private var cancelled = false
+
+    init(asset: AVAsset, composition: AVVideoComposition, maximumSize: CGSize) {
+        generator = AVAssetImageGenerator(asset: asset)
+        generator.videoComposition = composition
+        generator.maximumSize = maximumSize
+    }
+
+    func image(at time: CMTime) async throws -> SendableCGImage {
+        try Task.checkCancellation()
+        guard !cancelled else { throw CancellationError() }
+        let result = try await generator.image(at: time)
+        try Task.checkCancellation()
+        guard !cancelled else { throw CancellationError() }
+        return SendableCGImage(image: result.image)
+    }
+
+    func cancel() {
+        cancelled = true
+        generator.cancelAllCGImageGeneration()
+    }
+}
+
 enum CaptureScanVideoMediaPreparer {
     private static let inferenceFrameSampleCount = 5
     private static let framePreparationTimeout: TimeInterval = 8
@@ -261,82 +287,65 @@ enum CaptureScanVideoMediaPreparer {
             category: .imagePreparation
         ) {
             let asset = AVURLAsset(url: request.videoURL)
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.videoComposition = try await canonicalSquareComposition(asset: asset, composingCenter: request.composingCenter, framing: request.framing)
-            generator.maximumSize = CGSize(
-                width: ImagePreparationPolicy.displayMaxDimension,
-                height: ImagePreparationPolicy.displayMaxDimension
-            )
-
-            let sampleOffsets = CaptureScanVideoFrameSamplingPolicy
-                .sampleOffsets(
-                    duration: request.duration,
-                    sampleCount: frameSampleCount
-                )
-            let times = sampleOffsets.map {
-                CMTime(seconds: $0, preferredTimescale: 600)
-            }
-            let inferenceMaxSize = ImagePreparationPolicy.inferenceMaxDimension(
-                isProActive: request.isProActive
-            )
-
-            var preparedFrames: [PreparedCaptureScanStill] = []
-            preparedFrames.reserveCapacity(times.count)
-
-            for time in times {
-                try Task.checkCancellation()
-                autoreleasepool {
-                    guard let frame = try? generator.copyCGImage(
-                        at: time,
-                        actualTime: nil
-                    ) else {
-                        MerianLog.hardware.warning(
-                            "Video frame sampling skipped frame at \(time.seconds, privacy: .public)s."
-                        )
-                        return
-                    }
-                    // The same canonical composition renders playback and all
-                    // sampled frames. Never crop the already-framed output again.
-                    let displayFrame = frame
-                    guard let displayData = ImageCropProcessor.encode(
-                        displayFrame
-                    ), !displayData.isEmpty else {
-                        MerianLog.hardware.warning(
-                            "Video frame sampling skipped frame because display encoding failed."
-                        )
-                        return
-                    }
-
-                    let inferenceFrame = ImageDownsampler.downsample(
-                        data: displayData,
-                        maxSize: inferenceMaxSize
-                    ) ?? displayFrame
-                    let inferenceCropped = inferenceFrame
-                    guard let inferenceData = ImageCropProcessor.encode(
-                        inferenceCropped
-                    ), !inferenceData.isEmpty else {
-                        MerianLog.hardware.warning(
-                            "Video frame sampling skipped frame because inference encoding failed."
-                        )
-                        return
-                    }
-
-                    preparedFrames.append(PreparedCaptureScanStill(
-                        inferenceData: inferenceData,
-                        displayData: displayData,
-                        previewCGImage: SendableCGImage(
-                            image: displayFrame
-                        )
-                    ))
+            let composition = try await canonicalSquareComposition(asset: asset,
+                composingCenter: request.composingCenter, framing: request.framing)
+            let generator = CaptureScanVideoFrameGenerator(asset: asset, composition: composition,
+                maximumSize: CGSize(width: ImagePreparationPolicy.displayMaxDimension,
+                                    height: ImagePreparationPolicy.displayMaxDimension))
+            return try await withTaskCancellationHandler {
+                do {
+                    let frames = try await sampleFrames(request, generator: generator, sampleCount: frameSampleCount)
+                    await generator.cancel()
+                    return frames
+                } catch {
+                    await generator.cancel()
+                    throw error
                 }
+            } onCancel: { Task { await generator.cancel() } }
+        }
+    }
+
+    nonisolated private static func sampleFrames(
+        _ request: CaptureScanVideoPreparationRequest, generator: CaptureScanVideoFrameGenerator, sampleCount: Int
+    ) async throws -> [PreparedCaptureScanStill] {
+        let times = CaptureScanVideoFrameSamplingPolicy.sampleOffsets(duration: request.duration, sampleCount: sampleCount)
+            .map { CMTime(seconds: $0, preferredTimescale: 600) }
+        let inferenceMaxSize = ImagePreparationPolicy.inferenceMaxDimension(isProActive: request.isProActive)
+        var preparedFrames: [PreparedCaptureScanStill] = []
+        preparedFrames.reserveCapacity(times.count)
+        for time in times {
+            try Task.checkCancellation()
+            let frame: SendableCGImage
+            do {
+                frame = try await generator.image(at: time)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                try Task.checkCancellation()
+                MerianLog.hardware.warning("Video frame sampling skipped frame at \(time.seconds, privacy: .public)s.")
+                continue
             }
             try Task.checkCancellation()
-
-            MerianLog.hardware.debug(
-                "Video frame sampling prepared \(preparedFrames.count, privacy: .public)/\(times.count, privacy: .public) frames."
-            )
-            return preparedFrames
+            autoreleasepool {
+                // The same canonical composition renders playback and all
+                // sampled frames. Never crop the already-framed output again.
+                let displayFrame = frame.image
+                guard let displayData = ImageCropProcessor.encode(displayFrame), !displayData.isEmpty else {
+                    MerianLog.hardware.warning("Video frame sampling skipped frame because display encoding failed.")
+                    return
+                }
+                let inferenceFrame = ImageDownsampler.downsample(data: displayData, maxSize: inferenceMaxSize) ?? displayFrame
+                guard let inferenceData = ImageCropProcessor.encode(inferenceFrame), !inferenceData.isEmpty else {
+                    MerianLog.hardware.warning("Video frame sampling skipped frame because inference encoding failed.")
+                    return
+                }
+                preparedFrames.append(PreparedCaptureScanStill(inferenceData: inferenceData,
+                    displayData: displayData, previewCGImage: SendableCGImage(image: displayFrame)))
+            }
         }
+        try Task.checkCancellation()
+        MerianLog.hardware.debug("Video frame sampling prepared \(preparedFrames.count, privacy: .public)/\(times.count, privacy: .public) frames.")
+        return preparedFrames
     }
 
     nonisolated private static func preparePlaybackClip(

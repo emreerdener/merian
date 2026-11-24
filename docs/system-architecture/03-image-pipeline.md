@@ -427,22 +427,26 @@ queue acceptance so durable queue/live persistence retains media ownership.
 **Video-preparation cancellation boundary**: sampled-frame, playback-export, and
 companion-WAV work run as three bounded concurrent child operations over the
 finished recording. They observe parent cancellation through their worker owners
-and explicit stage checks. Playback and audio results retain their file leases
-until the join succeeds, so an early frame failure cannot leak a concurrently
-completed export. Newly created WAV and compressed-playback files stay in
-temporary leases until the prepared result is accepted for staging. A failed,
-cancelled, timed-out, superseded, or otherwise unconsumed result therefore
-deletes its files even when an AVFoundation operation completes after the
-timeout winner. The join and timeout owners drain all children and explicitly
-discard successful late leases before returning the original error; actor
-release timing is only a fallback. Cleanup failure is reported privately and
-leaves the lease non-accepting and retryable. Borrowed original playback is
-excluded from discard. The audio owner observes its detached worker's result
-before applying cancellation, then explicitly removes every unreturned export.
-Accepted paths transfer to the staged-media cleanup contract above. Once staging
-commits, Scan finalizes the recording generation and hides its cancel UI before
-awaiting the optional Camera Roll write; PhotoKit still retains the original
-recording until that write finishes.
+and explicit stage checks. Frame extraction awaits the actor-owned image
+generator rather than blocking on synchronous image copying. Cancellation calls
+the generator's native cancellation operation and rejects a late image before
+encoding or return; sample times, crop composition and deadlines are unchanged.
+Playback and audio results retain their file leases until the join succeeds, so
+an early frame failure cannot leak a concurrently completed export. Newly
+created WAV and compressed-playback files stay in temporary leases until the
+prepared result is accepted for staging. A failed, cancelled, timed-out,
+superseded, or otherwise unconsumed result therefore deletes its files even when
+an AVFoundation operation completes after the timeout winner. The join and
+timeout owners drain all children and explicitly discard successful late leases
+before returning the original error; actor release timing is only a fallback.
+Cleanup failure is reported privately and leaves the lease non-accepting and
+retryable. Borrowed original playback is excluded from discard. The audio owner
+observes its detached worker's result before applying cancellation, then
+explicitly removes every unreturned export. Accepted paths transfer to the
+staged-media cleanup contract above. Once staging commits, Scan finalizes the
+recording generation and hides its cancel UI before awaiting the optional Camera
+Roll write; PhotoKit still retains the original recording until that write
+finishes.
 
 The video companion-audio writer retains valid sample buffers through encoding.
 Its WAVE_EXTENSIBLE exports are normalized through the shared bounded

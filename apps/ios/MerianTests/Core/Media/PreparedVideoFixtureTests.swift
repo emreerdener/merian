@@ -182,12 +182,15 @@ struct PreparedVideoFixtureTests {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = false
         let image = try await generator.image(at: .zero).image
+        let colorSpace = try #require(image.colorSpace)
         var bytes = [UInt8](repeating: 0, count: 8 * 8 * 4)
         try bytes.withUnsafeMutableBytes { buffer in
             let context = try #require(CGContext(data: buffer.baseAddress, width: 8, height: 8,
-                bitsPerComponent: 8, bytesPerRow: 32, space: CGColorSpaceCreateDeviceRGB(),
+                bitsPerComponent: 8, bytesPerRow: 32, space: colorSpace,
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
-            context.interpolationQuality = .high
+            // Probe decoded channels, not a color-converted/interpolated thumbnail.
+            // Either conversion can mix the independent encoded x/y gradients.
+            context.interpolationQuality = .none
             context.draw(image, in: CGRect(x: 0, y: 0, width: 8, height: 8))
         }
         func channel(_ x: Int, _ y: Int, _ c: Int) -> Int { Int(bytes[(y * 8 + x) * 4 + c]) }

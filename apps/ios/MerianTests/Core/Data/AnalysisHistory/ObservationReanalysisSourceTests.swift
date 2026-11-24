@@ -22,11 +22,14 @@ struct ObservationReanalysisSourceTests {
         let bytes: Data
         if version == 4 { bytes = try JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().audioSnapshot()) } else if version == 5 {
             bytes = try JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().videoSnapshot())
+        } else if version == 6 {
+            bytes = try JSONSerialization.data(withJSONObject: ObservationHistorySyncTests().compositionSnapshot())
         } else { bytes = try Data(#require(item["snapshot"] as? String).utf8) }
         let snapshot = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
         let observation = try #require(snapshot["observation_id"] as? String)
         let result = try ObservationHistoryPage.snapshot(bytes, observationID: observation,
             ordinal: ObservationHistoryPage.integer(snapshot["ordinal"]))
+        try #require(result.version == version, "Source fixture must preserve the requested snapshot version")
         let container = try target ?? fixture.container(url: url, seed: false), context = ModelContext(container)
         let parent = LocalScanRecord(id: observation, speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
         parent.analysisOwnerAccountID = fixture.owner.uuidString.lowercased()

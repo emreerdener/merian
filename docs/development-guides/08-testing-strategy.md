@@ -12906,12 +12906,16 @@ level against an independent matrix of all fifteen configurations. Decoded
 frames must independently show the red x-gradient, green y-gradient and fixed
 blue component for patterned inputs; ordinary inputs must remain black. This
 prevents two derivatives of an accidentally uniform fixture from falsely
-qualifying crop/orientation tests. It checks concurrent copy isolation,
-cancellation and successful reuse, plus digest, length, missing file, symlink,
-duplicate-name, manifest-version and unsupported-configuration rejection. These
-replace tests of the removed fixture encoder's ownership and append-deadline
-helper. All product extraction, transcoding, retention, frame and cancellation
-assertions remain in their owning suites.
+qualifying crop/orientation tests. The channel probe uses the decoded image's
+required color space and nearest-neighbor sampling: converting Composite NTSC to
+Device RGB or interpolating the tiny probe can mix independent channel
+gradients. Asset bytes and all gradient, cross-axis and blue thresholds remain
+unchanged. It checks concurrent copy isolation, cancellation and successful
+reuse, plus digest, length, missing file, symlink, duplicate-name,
+manifest-version and unsupported-configuration rejection. These replace tests of
+the removed fixture encoder's ownership and append-deadline helper. All product
+extraction, transcoding, retention, frame and cancellation assertions remain in
+their owning suites.
 
 To author replacement inputs deliberately on a Mac, compile
 `scripts/generate-ios-video-fixtures.swift` with
