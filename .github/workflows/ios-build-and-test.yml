@@ -991,7 +991,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: xcode-27
-    timeout-minutes: 70
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -1088,7 +1088,7 @@ jobs:
 
       - name: Archive unsigned Release from current SHA
         id: xcode-archive
-        timeout-minutes: 38
+        timeout-minutes: 60
         env:
           MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY: "1"
         run: |

@@ -2260,6 +2260,18 @@ HTTP request is dispatched. See the
    transport-security, dSYM, and shipping-seed exclusion validation—not a
    distributable App Store artifact.
 
+The Release archive job has a 90-minute limit, including 10 minutes for package
+resolution and 60 minutes for the unsigned archive. The remaining allowance
+covers setup and the unchanged provenance, bundle, privacy, transport-security,
+dSYM and evidence checks. The November 23 `24b3b1d88` archive took approximately
+35 minutes 30 seconds under the former 38-minute archive limit. The consolidated
+`2d33f102f` source adds 217 compiled Swift files and was stopped at that limit
+during the main app compile, with no compiler error reported. The bounded
+increase provides compilation headroom; it is not evidence that the combined
+archive succeeds. Hosted validation on the repaired exact SHA remains required.
+No unit/UI execution budget, compiler option or production release workflow is
+changed by this archive allowance.
+
 The UI job has a 70-minute limit: 10 minutes for package resolution, 25 for
 compilation, five for boot, 25 for execution, and five for setup and evidence.
 It restores the same exact-key Swift package cache as the other jobs; the unit
@@ -13304,6 +13316,15 @@ helper step itself: registering a migration test in its file list does not grant
 its filesystem access. Validate this step with its checked-in Deno permissions;
 a successful full-suite run with broader permissions does not prove the
 candidate step runs.
+
+The same exact-file allowlist includes the nine November 20–21 migrations read
+by the private capture staging, audio-stage ownership/erasure and photo geometry
+contract tests. Their six tests must execute in the shared-helper step; adding
+selectors alone is insufficient. The finalization failure mock declares
+`Promise<never>` explicitly so its rejection is compatible with every recovery
+dependency in CI's selected TypeScript graph. Validate that exact selection:
+isolated-file and broader-graph type-checks did not reproduce the inference
+error found by the candidate step.
 
 ### Held video inventory coverage
 

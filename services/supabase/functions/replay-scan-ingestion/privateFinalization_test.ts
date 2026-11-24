@@ -105,7 +105,7 @@ Deno.test("a sealed completion wins before media/result recovery", async () => {
 Deno.test("uncertainty and invalid proofs stay held at every recovery boundary", async () => {
   for (const phase of ["completed", "accepted", "finalize"] as const) {
     const { calls, dependencies } = await fixture();
-    dependencies[phase] = () => {
+    dependencies[phase] = (): Promise<never> => {
       calls.push(phase);
       return Promise.reject(new Error("synthetic failure"));
     };

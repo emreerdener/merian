@@ -527,6 +527,16 @@ for job_id in ios-unit-build ios-critical-scan-ui ios-release-archive; do
 done
 unit_job="$contract_tmp/ios-unit-tests"
 ui_job="$contract_tmp/ios-critical-scan-ui"
+archive_job="$contract_tmp/ios-release-archive"
+assert_file_count "$archive_job" 1 '    timeout-minutes: 90'
+# Keep the larger Release compile bounded in its own step; the job must also
+# leave room for package resolution and the unchanged archive evidence checks.
+awk '
+  /- name: Archive unsigned Release from current SHA/ { in_archive = 1; next }
+  in_archive && /^      - name:/ { in_archive = 0 }
+  in_archive && /^        timeout-minutes:/ { budget = $2; count += 1 }
+  END { exit !(count == 1 && budget == 60) }
+' "$archive_job" || fail "Release archive compilation must have one 60-minute budget."
 assert_file_count "$unit_job" 0 'XCODE_UI_'
 assert_file_count "$unit_job" 0 '-only-testing:merianUITests'
 assert_file_count "$unit_job" 1 'bash scripts/validate-ios-critical-test-results.sh'
