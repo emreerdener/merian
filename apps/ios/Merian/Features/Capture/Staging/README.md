@@ -48,9 +48,14 @@ visibility, auto-submit behavior, and reanalysis capacity remain unchanged.
   Review occupancy ends only at its matching outer dismissal.
   `CapturePhotoEditorState` retains original-based crop geometry;
   `CapturePhotoReviewPage` supplies square preview, pinch/pan and quarter-turn
-  controls. The photo and video editor states retain UIKit image previews
-  alongside `StagedImage`; these three explicit model owners are the UIKit
-  import allowlist. This does not permit service resolution in staging models.
+  controls. Photo review reuses the capture toolbar's glass trash control and
+  mode-selector dimensions for its rotation group and icons. Its heading and
+  paragraph are centered between the toolbar and square preview; instructions
+  sit 16 points below the preview. Text is measured before sizing the square to
+  accommodate Dynamic Type. The photo and video editor states retain UIKit image
+  previews alongside `StagedImage`; these three explicit model owners are the
+  UIKit import allowlist. This does not permit service resolution in staging
+  models.
 - Shell's `CapturePhotoReviewCommit` barrier waits for recipe/image preparation
   and persistence before whole-observation Identify/Reanalyze. Individual item
   review is optional; no Next action or per-item confirmation gate exists.

@@ -691,6 +691,14 @@ final class merianUITests: XCTestCase {
             XCTAssertTrue(audio.waitForExistence(timeout: 4))
             audio.tap()
             app.buttons["Remove audio recording"].tap()
+            let discard = app.alerts["Discard observation?"]
+            XCTAssertTrue(discard.waitForExistence(timeout: 3))
+            discard.buttons["Keep editing"].tap()
+            XCTAssertTrue(app.buttons["Remove audio recording"].isHittable)
+            XCTAssertTrue(app.buttons["Identify"].isEnabled)
+            app.buttons["Remove audio recording"].tap()
+            XCTAssertTrue(discard.waitForExistence(timeout: 3))
+            discard.buttons["Discard"].tap()
             XCTAssertTrue(waitForDisappearance(audio))
             XCTAssertTrue(app.buttons["Record audio"].waitForExistence(timeout: 4))
             app.terminate()
@@ -1118,6 +1126,70 @@ final class merianUITests: XCTestCase {
         expectation(for: NSPredicate(format: "value == %@", "Small green shape"), evaluatedWith: input)
         waitForExpectations(timeout: 3)
         XCTAssertTrue(app.buttons["Identify"].isHittable)
+    }
+
+    @MainActor
+    func testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal() throws {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-autoSubmitScans", "NO",
+            "-hasShownCaptureNoteTip", "YES", "-hasShownCaptureSubmitTip", "YES"
+        ])
+        let notes = app.buttons["CaptureFieldNotes"]
+        XCTAssertTrue(notes.waitForExistence(timeout: 8))
+        let toolbar = app.otherElements["CaptureObservationToolbar"]
+        XCTAssertTrue(toolbar.waitForExistence(timeout: 4))
+        let origin = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: 8))
+        origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -100)))
+        let close = app.buttons["FieldNotesClose"], title = app.staticTexts["FieldNotesTitle"]
+        XCTAssertTrue(close.waitForExistence(timeout: 4))
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        XCTAssertTrue(input.isHittable)
+        let viewport = app.scrollViews["FieldNotesContent"].frame
+        XCTAssertGreaterThanOrEqual(input.frame.minY, viewport.minY - 1)
+        XCTAssertLessThanOrEqual(input.frame.maxY, viewport.maxY + 1, "Initial sheet fits the complete editor")
+        XCTAssertEqual(app.buttons.matching(identifier: "Identify").count, 1)
+        XCTAssertLessThan(app.buttons["FieldNotesPrompts"].frame.maxY, viewport.minY)
+        let opened = XCTAttachment(screenshot: app.screenshot())
+        opened.name = "Field notes expands from toolbar with fixed header and complete editor"
+        opened.lifetime = .keepAlways; add(opened)
+        let restingInputHeight = input.frame.height
+        let expand = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        expand.press(forDuration: 0.05, thenDragTo: expand.withOffset(CGVector(dx: 0, dy: -90)))
+        XCTAssertGreaterThan(input.frame.height, restingInputHeight,
+                             "Expanding the panel gives the input its remaining space")
+        let expandedViewport = app.scrollViews["FieldNotesContent"].frame
+        XCTAssertLessThanOrEqual(input.frame.maxY, expandedViewport.maxY + 1)
+        XCTAssertLessThanOrEqual(expandedViewport.maxY - input.frame.maxY, 16,
+                                 "The expanded input should not leave a large gap above the toolbar")
+        let expanded = XCTAttachment(screenshot: app.screenshot())
+        expanded.name = "Expanded Field notes fills its body with the notes input"
+        expanded.lifetime = .keepAlways; add(expanded)
+        input.tap(); input.typeText("Near the fallen branch")
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
+        let prompt = app.staticTexts["What did you notice?"]
+        XCTAssertTrue(prompt.isHittable, "Normal keyboard layout retains the prompt above the editor")
+        XCTAssertGreaterThanOrEqual(prompt.frame.minY, app.scrollViews["FieldNotesContent"].frame.minY - 1)
+        let keyboard = XCTAttachment(screenshot: app.screenshot())
+        keyboard.name = "Keyboard fits prompt cards and editor above shared toolbar"
+        keyboard.lifetime = .keepAlways; add(keyboard)
+        let header = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        header.press(forDuration: 0.05, thenDragTo: header.withOffset(CGVector(dx: 0, dy: 180)))
+        XCTAssertTrue(waitForDisappearance(close), "Dragging the header dismisses notes, including with keyboard open")
+        XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
+        XCTAssertTrue(notes.isHittable)
+        notes.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "Near the fallen branch")
+        let grabber = close.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        grabber.press(forDuration: 0.05, thenDragTo: grabber.withOffset(CGVector(dx: 0, dy: 160)))
+        XCTAssertTrue(waitForDisappearance(close))
+        notes.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "Near the fallen branch")
+        close.tap()
+        XCTAssertTrue(waitForDisappearance(close))
     }
 
     @MainActor

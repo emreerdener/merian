@@ -9,43 +9,44 @@ struct CapturePhotoReviewPage: View {
     @ScaledMetric(relativeTo: .subheadline) private var instructionSize = 16
 
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Button("Remove photo", systemImage: "trash", role: .destructive, action: onRemove)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.circle)
-                    .controlSize(.large)
-                Spacer()
-                HStack(spacing: 20) {
-                    rotationButton(clockwise: false)
-                    rotationButton(clockwise: true)
+        VStack(spacing: 0) {
+            topToolbar
+            CapturePhotoReviewContentLayout {
+                VStack(spacing: 8) {
+                    Text("Review photo").font(.system(size: headingSize, weight: .semibold))
+                    Text(editor.selectedSourceRect == nil
+                         ? "Naturebook will find the subject automatically."
+                         : "Tap to reposition selection. Drag corners to adjust.")
+                        .font(.system(size: instructionSize)).foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .modifier(CaptureTrayGlass())
-                Spacer()
-                Color.clear.frame(width: 48, height: 48).accessibilityHidden(true)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+                GeometryReader { geometry in
+                    let size = max(0, min(geometry.size.width, geometry.size.height))
+                    photo(size: size)
+                        .onChange(of: size, initial: true) { _, value in editor.resize(to: value) }
+                }
+                instructions
             }
-            .padding(.horizontal)
-            VStack(spacing: 8) {
-                Text("Review photo").font(.system(size: headingSize, weight: .semibold))
-                Text(editor.selectedSourceRect == nil
-                     ? "Naturebook will find the subject automatically."
-                     : "Tap to reposition selection. Drag corners to adjust.")
-                    .font(.system(size: instructionSize)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            }
-            .padding(.horizontal)
-            GeometryReader { geometry in
-                let size = max(0, min(geometry.size.width, geometry.size.height))
-                photo(size: size)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: size, initial: true) { _, value in editor.resize(to: value) }
-            }
-            instructions
         }
         .frame(maxWidth: .infinity)
         .task(id: editor.candidateRevision) {
             await editor.refreshCandidates(revision: editor.candidateRevision)
+        }
+    }
+
+    private var topToolbar: some View {
+        HStack(spacing: 0) {
+            rotationButton(clockwise: false)
+            rotationButton(clockwise: true)
+        }
+        .frame(width: CaptureModeSelectorStyle.controlWidth, height: CaptureModeSelectorStyle.controlHeight)
+        .modifier(CaptureTrayGlass())
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .leading) {
+            CaptureStagingCancelButton(action: onRemove)
+                .accessibilityLabel("Remove photo")
+                .padding(.leading, 20)
         }
     }
 
@@ -107,12 +108,42 @@ struct CapturePhotoReviewPage: View {
             editor.rotate(clockwise: clockwise)
         } label: {
             Image(clockwise ? "capture-review-rotate-right" : "capture-review-rotate-left")
-                .frame(width: 31, height: 31)
-                .frame(width: 44, height: 44)
+                .resizable()
+                .scaledToFit()
+                .frame(width: CaptureModeSelectorStyle.symbolPointSize, height: CaptureModeSelectorStyle.symbolPointSize)
+                .frame(width: CaptureModeSelectorStyle.controlWidth / 2, height: CaptureModeSelectorStyle.controlHeight)
                 .contentShape(Rectangle())
         }
         .accessibilityLabel(clockwise ? "Rotate right" : "Rotate left")
         .buttonStyle(.plain)
         .disabled(!editor.allowsReframing)
+    }
+}
+
+/// Measure text before sizing the square, so Dynamic Type can shrink the preview
+/// without separating its helper or pinning the heading to the toolbar.
+private struct CapturePhotoReviewContentLayout: Layout {
+    private let spacing: CGFloat = 16
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 640))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 3 else { return }
+        let textProposal = ProposedViewSize(width: bounds.width, height: nil)
+        let heading = subviews[0].sizeThatFits(textProposal)
+        let helper = subviews[2].sizeThatFits(textProposal)
+        let side = max(0, min(bounds.width, bounds.height - heading.height - helper.height - spacing * 3))
+        let minimumTop = heading.height + spacing * 2
+        let maximumTop = max(minimumTop, bounds.height - side - helper.height - spacing)
+        let photoTop = min(maximumTop, max(minimumTop, (bounds.height - side) / 2))
+
+        subviews[0].place(at: CGPoint(x: bounds.midX, y: bounds.minY + photoTop / 2),
+            anchor: .center, proposal: ProposedViewSize(width: bounds.width, height: heading.height))
+        subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.minY + photoTop),
+            anchor: .top, proposal: ProposedViewSize(width: side, height: side))
+        subviews[2].place(at: CGPoint(x: bounds.midX, y: bounds.minY + photoTop + side + spacing),
+            anchor: .top, proposal: ProposedViewSize(width: bounds.width, height: helper.height))
     }
 }

@@ -65,6 +65,12 @@ extension CaptureWorkspaceViewModelRefinementTests {
             // The square must leave room for the header and instructions, even
             // when those controls grow. Selection remains in that same viewport.
             XCTAssertLessThan(editor.displaySize, window.bounds.height - 100)
+            let previewAttachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            })
+            previewAttachment.name = "Photo review helper — \(textSize)"
+            previewAttachment.lifetime = .keepAlways
+            add(previewAttachment)
             editor.select(at: CGPoint(x: editor.displaySize / 2, y: editor.displaySize / 2))
             try await Task.sleep(for: .milliseconds(100))
             host.view.layoutIfNeeded()
@@ -78,6 +84,95 @@ extension CaptureWorkspaceViewModelRefinementTests {
             attachment.lifetime = .keepAlways
             add(attachment)
         }
+    }
+
+    func testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses() async throws {
+        let model = makePhotoReviewModel(count: 0)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400)).image { context in
+            UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+        }
+        let bytes = try XCTUnwrap(image.pngData())
+        model.stagedCapture.images = [StagedImage(compressedData: bytes, displayData: bytes,
+            uiImage: image, original: IdentifiableImage(image: image, isFromGallery: true))]
+        model.presentCrop(for: 0)
+        let review = try XCTUnwrap(model.mediaReviewSession)
+        let hardware = HardwareOrchestrator(appSettings: AppSettings(), observeSystemChanges: false)
+        let host = UIHostingController(rootView: CaptureMediaReviewView(workspace: model, session: review, onSubmit: {})
+            .environment(hardware).preferredColorScheme(.dark))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true; window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        host.view.frame = window.bounds
+        try await Task.sleep(for: .milliseconds(500))
+        let baseline = try photoMarkerBounds(in: captureNotesGeometry(window, name: "Photo before notes"))
+        XCTAssertGreaterThan(baseline.height, 200)
+        for cycle in 0..<2 {
+            XCTAssertTrue(model.openFieldNotes(inReview: review))
+            let notes = try XCTUnwrap(model.fieldNotesSession)
+            try await Task.sleep(for: .milliseconds(500))
+            let opened = try photoMarkerBounds(in: captureNotesGeometry(window, name: "Photo behind notes \(cycle)"))
+            XCTAssertEqual(opened.minY, baseline.minY, accuracy: 1)
+            XCTAssertEqual(opened.height, baseline.height, accuracy: 1)
+            if cycle == 0 {
+                let input = try XCTUnwrap(findNotesTextView(in: host.view))
+                XCTAssertTrue(input.becomeFirstResponder())
+                try await Task.sleep(for: .milliseconds(500))
+                let typing = try photoMarkerBounds(in: captureNotesGeometry(window, name: "Photo behind notes keyboard"))
+                XCTAssertEqual(typing.minY, baseline.minY, accuracy: 1)
+                XCTAssertEqual(typing.height, baseline.height, accuracy: 1)
+            }
+            model.closeFieldNotes(sessionID: notes.id)
+            for _ in 0..<40 where model.fieldNotesSession != nil {
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            XCTAssertNil(model.fieldNotesSession)
+            let closed = try photoMarkerBounds(in: captureNotesGeometry(window, name: "Photo after notes \(cycle)"))
+            XCTAssertEqual(closed.minY, baseline.minY, accuracy: 1)
+            XCTAssertEqual(closed.height, baseline.height, accuracy: 1)
+        }
+    }
+
+    private func captureNotesGeometry(_ window: UIWindow, name: String) -> UIImage {
+        window.layoutIfNeeded()
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            XCTAssertTrue(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+        }
+        let attachment = XCTAttachment(image: image)
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        return image
+    }
+
+    private func photoMarkerBounds(in image: UIImage) throws -> CGRect {
+        let source = try XCTUnwrap(image.cgImage)
+        var pixels = [UInt8](repeating: 0, count: source.width * source.height * 4)
+        let context = try XCTUnwrap(CGContext(data: &pixels, width: source.width, height: source.height,
+            bitsPerComponent: 8, bytesPerRow: source.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+        context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+        // The sheet leaves an eight-point outer margin. Sample the synthetic
+        // photo there, independent of accessibility hiding and backdrop dimming.
+        let column = Int(3 * image.scale)
+        let rows = (0..<source.height).filter { row in
+            let offset = (row * source.width + column) * 4
+            return pixels[offset] > 60 && Int(pixels[offset]) > Int(pixels[offset + 1]) * 2
+                && Int(pixels[offset]) > Int(pixels[offset + 2]) * 2
+        }
+        let first = try XCTUnwrap(rows.first), last = try XCTUnwrap(rows.last)
+        return CGRect(x: 3, y: CGFloat(first) / image.scale, width: 1,
+                      height: CGFloat(last - first + 1) / image.scale)
+    }
+
+    private func findNotesTextView(in view: UIView) -> UITextView? {
+        if let text = view as? UITextView { return text }
+        return view.subviews.lazy.compactMap { self.findNotesTextView(in: $0) }.first
     }
 
     func testSingleImportIdentifyCommitsOnceAndLeavesManualRetryReady() throws {

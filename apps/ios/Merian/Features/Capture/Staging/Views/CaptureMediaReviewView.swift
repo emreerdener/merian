@@ -14,6 +14,7 @@ struct CaptureMediaReviewView: View {
     @State private var showsCommitError = false
     @State private var showsRemovalOptions = false
     @State private var command: Task<Void, Never>?
+    @State private var reviewToolbarHeight: CGFloat = 0
 
     private var selectedNode: StagedCaptureNode? {
         workspace.stagedCapture.orderedNodes.first { $0.id == session.selectedNodeID }
@@ -42,11 +43,20 @@ struct CaptureMediaReviewView: View {
                 .disabled(isBusy || workspace.isFieldNotesOccupied)
                 .accessibilityHidden(workspace.isFieldNotesOccupied)
                 .safeAreaInset(edge: .bottom) {
-                    if !workspace.isFieldNotesOccupied { toolbar.padding(.vertical, 8) }
+                    if workspace.isFieldNotesOccupied {
+                        // Reserve the same layout without retaining hidden glass controls.
+                        Color.clear.frame(height: reviewToolbarHeight).accessibilityHidden(true)
+                    } else {
+                        toolbar.padding(.vertical, 8)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                                reviewToolbarHeight = $0
+                            }
+                    }
                 }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             if let notes = workspace.fieldNotesSession {
                 CaptureFieldNotesOverlay(workspace: workspace, session: notes,
-                    speechManager: workspace.diContainer.speechManager) { toolbar }
+                    speechManager: workspace.diContainer.speechManager, toolbarBottomPadding: 8) { toolbar }
                     .id(notes.id)
             }
         }
@@ -135,7 +145,7 @@ struct CaptureMediaReviewView: View {
         if workspace.stagedCapture.physicalItemCount > 1 || !workspace.descriptionDraft.isEmpty
             || !workspace.stagedCapture.observationContexts.isEmpty {
             showsRemovalOptions = true
-        } else { removeAfterPlayback() }
+        } else { workspace.requestDraftDiscard() }
     }
 
     private func acceptPreview(_ lifetime: MediaPlaybackLifetime, node: String?, generation: UUID,

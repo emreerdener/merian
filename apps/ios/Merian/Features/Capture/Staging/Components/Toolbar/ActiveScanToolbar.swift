@@ -111,16 +111,21 @@ struct ActiveScanToolbar: View {
             .modifier(CaptureTrayGlass(isExpanded: true))
         }
         .overlay(alignment: .top) {
-            Capsule().fill(.secondary).frame(width: 56, height: 4)
-                .padding(.top, 5).allowsHitTesting(false).accessibilityHidden(true)
+            if !isNotesPresented {
+                Capsule().fill(.secondary).frame(width: 56, height: 4)
+                    .padding(.top, 5).allowsHitTesting(false).accessibilityHidden(true)
+            }
         }
+        .contentShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("CaptureObservationToolbar")
         .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { value in
             guard !isNotesPresented, !isMutationLocked, value.translation.height < -30,
                   abs(value.translation.height) > abs(value.translation.width) else { return }
             onNoteTap()
         })
         .overlay(alignment: .top) {
-            if showTooltip {
+            if showTooltip && !isNotesPresented {
                 Text("Add a note about what you noticed")
                     .font(.caption).padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))

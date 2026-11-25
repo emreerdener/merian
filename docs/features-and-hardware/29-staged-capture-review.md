@@ -80,6 +80,22 @@ remains open. The [Capture plan](../product/capture-review-plan.md) records
 exact-source evidence and remaining physical-device/deployed-environment checks.
 No release is claimed.
 
+## Photo review presentation — November 24, 2026
+
+Photo review uses the shared 52-point glass trash button and the capture mode
+selector's 144-by-56-point dimensions, with 24-point rotation icons. The heading
+and paragraph are vertically centered between the top toolbar and square
+preview. Helper text, or Clear selection when a subject is selected, sits 16
+points below the preview. Dynamic Type text is measured before allocating the
+square preview. This presentation correction does not add quantity controls or
+change selection, submission, or media custody behavior.
+
+The focused native hosting test passed at normal and accessibility3 text sizes,
+with retained screenshots inspected before and after subject selection. The
+first run compiled successfully but stalled in simulator IPC; the unchanged
+products passed after restarting the simulator service. This is scoped layout
+validation, separate from the frozen PR152 candidate and device integration.
+
 ## Successor foundation — November 15, 2026
 
 The [consolidated capture plan](../product/capture-review-plan.md) is authorized
@@ -306,10 +322,25 @@ the review toolbar, including at full media capacity, and autosaves into the
 current draft. Its empty/populated pencil-and-page symbol uses supported SF
 Symbols with a fallback; accessibility labels are **Add field notes** and **Edit
 field notes**. The selected note node has a blue border. An upward swipe on the
-toolbar also opens notes when mutation is allowed. The notes editor keeps the
-same observation toolbar above the keyboard and has an accessible close handle;
-closing returns to the originating review. Removing the final physical item
-clears supplementary notes and returns to empty capture.
+toolbar also opens notes when mutation is allowed. The notes editor expands
+upward from the stationary observation toolbar into one continuous dark material
+panel. Its resting height fits the prompt cards and a 180-point notes input when
+space permits; keyboard focus or an upward header drag expands it to the
+available height. The input fills the remaining body space while expanded or
+dragging, keeping the controls together without clipping a fixed-height input.
+The underlying review retains its measured toolbar inset while notes owns the
+visible toolbar, and does not resize for the notes keyboard. Root capture also
+retains its chrome measurements while notes is occupied. The fixed sheet header
+owns the prompt-list and dictation buttons. Only the sheet grabber remains
+visible while notes is open. The same observation toolbar stays above the
+keyboard. Dragging the header or grabber down, tapping the accessible close
+handle, VoiceOver escape, or tapping outside dismisses the panel back to the
+toolbar without discarding autosaved notes. Opening, starting a header drag, and
+closing use the existing haptic feedback service. Reduce Motion removes the
+spring; Reduce Transparency and hardware policy retain an opaque fallback. The
+matching dismissal completion still owns the occupancy barrier. Closing returns
+to the originating review. Removing the final physical item clears supplementary
+notes and returns to empty capture.
 
 Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
 and the primary action inside one glass capsule with 12 pt horizontal, 16 pt
@@ -344,6 +375,11 @@ added photos, recordings, and details will be removed, and offers **Keep
 editing** / **Discard**. Reanalysis asks **Discard reanalysis?** and explicitly
 preserves the original observation. Opening or dismissing confirmation preserves
 content; submission and composition mutations remain blocked while it is open.
+
+Review's trash follows the same protected discard path when only one media item
+remains without notes. It never immediately removes that final item. Reviews
+with additional media or notes retain their item-removal / whole-observation
+discard choices; whole-observation discard opens the same confirmation.
 
 Confirmed discard clears draft media, shared text, editor, and refinement state;
 it stops dictation, invalidates pending callbacks, and retires only draft-owned

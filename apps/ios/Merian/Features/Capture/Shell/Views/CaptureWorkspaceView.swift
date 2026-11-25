@@ -115,6 +115,7 @@ struct CaptureWorkspaceView: View {
     var body: some View {
         ZStack {
             workspaceContent
+                .ignoresSafeArea(.keyboard, edges: .bottom)
                 .allowsHitTesting(!viewModel.isFieldNotesOccupied && viewModel.mediaReviewPresentationID == nil)
                 .accessibilityHidden(viewModel.isFieldNotesOccupied || viewModel.mediaReviewPresentationID != nil)
             if viewModel.mediaReviewPresentationID == nil, let session = viewModel.fieldNotesSession {
@@ -140,7 +141,8 @@ struct CaptureWorkspaceView: View {
             }
             .environment(\.captureChromeLayout, chromeLayout)
             .onPreferenceChange(CaptureToolbarHeightKey.self) { height in
-                guard height.isFinite, abs(stagedToolbarHeight - height) > 0.5 else { return }
+                guard !viewModel.isFieldNotesOccupied, height.isFinite,
+                      abs(stagedToolbarHeight - height) > 0.5 else { return }
                 stagedToolbarHeight = height
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: chromeLayout)
