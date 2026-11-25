@@ -388,7 +388,7 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "d38fd8e7aeaa8bae3fd51179cd6f5713d6f33d16"
+        "object": "2ffbbea212399f58ae089ca82ef146e7d9695e47"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
     },

@@ -2531,10 +2531,16 @@ need their actual source revision and a reviewed dependency/change-impact
 justification and unchanged concrete owned paths; a naked success flag or
 unreviewed JSON cannot close a journey. The policy initially has no accepted
 journey reports: populate it only after inspection, rather than inventing
-acceptance. Fixture checks and live app/backend checks retain their distinct
-scope. A successful ordinary-unit recovery still records the separate native/SQL
-integration as not executed; review its existing source-applicable evidence when
-that feature requires it.
+acceptance. Merge-stage reports may establish controlled native/service,
+disposable-database and rendered-fixture acceptance; they must name that scope
+and never claim live backend or device behavior. Source-applicable mixed-media
+ordering/submission evidence can support engineering merge acceptance while
+rendered/live mixed-media remains unverified. Do not require beta deployment
+before an engineering merge assessment merely to create the backend that the
+later live journey needs. Compatible beta/live and physical-device evidence
+remain TestFlight/activation prerequisites below. A successful ordinary-unit
+recovery still records the separate native/SQL integration as not executed;
+review its existing source-applicable evidence when that feature requires it.
 
 For TestFlight acceptance, use the same command with `--stage testflight`. That
 adds the reviewed exact signed archive/privacy/ATS/History evidence, compatible
