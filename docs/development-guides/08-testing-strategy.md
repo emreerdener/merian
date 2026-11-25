@@ -2483,16 +2483,22 @@ The native evidence comprises:
    execution supplies its coverage. Never manufacture its original receipt.
 4. A clean combined-source build and the 18 integration selectors, plus the
    Library navigation regression and six critical scan UI smokes. The seven
-   additions cover the changed shared Capture/navigation presentation. All 25
-   methods must pass with zero skips. Preserve the actual XCResult, source
-   before/after, full source fingerprint, toolchain and simulator identity. An
-   independent review pins that execution receipt in policy before assessment.
-   Hash the command log and retain the wrapper-created bundle under
-   `.artifacts/local-ios`; this is retained evidence outside `.build`, not a
-   disposable cache. Missing or changed original evidence blocks acceptance.
-   Later verifier/documentation-only commits can reuse it only with identical
-   compiled product/build-input objects and a reviewed full source/control
-   delta.
+   additions cover the changed shared Capture/navigation presentation. Seven
+   existing essential UI checks also run: initial photo/audio/video completion
+   with text, their media-specific recovery into History and Undo, and
+   background queued-audio interruption. Older accepted reports have changed
+   direct fixture/model/schema inputs or unreconstructable dirty source, so they
+   cannot close these current checks. The recovery tests already cover rendered
+   History restore/Undo; a separate History-preview run would duplicate that
+   coverage. All 32 methods must pass with zero skips. Preserve the actual
+   XCResult, source before/after, full source fingerprint, toolchain and
+   simulator identity. An independent review pins that execution receipt in
+   policy before assessment. Hash the command log and retain the wrapper-created
+   bundle under `.artifacts/local-ios`; this is retained evidence outside
+   `.build`, not a disposable cache. Missing or changed original evidence blocks
+   acceptance. Later verifier/documentation-only commits can reuse it only with
+   identical compiled product/build-input objects and a reviewed full
+   source/control delta.
 
 `ios-evidence-recovery.py` runs collection and verification together in the
 read-only **Recovered development evidence** Actions job. It requires exact

@@ -136,7 +136,14 @@
     "merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
     "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
     "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
-    "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat"
+    "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat",
+    "merianUITests/InitialMediaHistoryUITests/testInitialPhotoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+    "merianUITests/InitialMediaHistoryUITests/testInitialAudioWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+    "merianUITests/InitialMediaHistoryUITests/testInitialVideoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+    "merianUITests/ReanalysisRecoveryRestartUITests/testPhotoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+    "merianUITests/ReanalysisRecoveryRestartUITests/testAudioRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+    "merianUITests/ReanalysisRecoveryRestartUITests/testVideoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+    "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
   ],
   "reused_surface_paths": {
     "backend": [
@@ -388,7 +395,7 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "2ffbbea212399f58ae089ca82ef146e7d9695e47"
+        "object": "d30c6fda4ecaad3902db8ee645c84f058f357460"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
     },
@@ -416,7 +423,7 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "13849acfbc6be44412fd2d9fef27dcca8eb8b0ce"
+        "object": "251823b3918f82328d9147ec4ac48452936a46de"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
     },
