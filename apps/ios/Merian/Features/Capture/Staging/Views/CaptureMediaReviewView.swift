@@ -56,7 +56,8 @@ struct CaptureMediaReviewView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             if let notes = workspace.fieldNotesSession {
                 CaptureFieldNotesOverlay(workspace: workspace, session: notes,
-                    speechManager: workspace.diContainer.speechManager, toolbarBottomPadding: 8) { toolbar }
+                    speechManager: workspace.diContainer.speechManager, toolbarBottomPadding: 8,
+                    onNavigation: perform) { toolbar }
                     .id(notes.id)
             }
         }
@@ -180,7 +181,7 @@ struct CaptureMediaReviewView: View {
         ActiveScanToolbar(
             stagedCapture: workspace.stagedCapture, isRefining: workspace.isReanalyzing,
             stagedCaptureLimit: workspace.stagedCaptureLimit, isSubmissionReady: isPrimaryReady,
-            isMutationLocked: isBusy, isNotesPresented: workspace.isFieldNotesOccupied,
+            isMutationLocked: isBusy || workspace.fieldNotesSession?.isSubmitting == true, isNotesPresented: workspace.isFieldNotesOccupied,
             allowsFrozenRequestActions: command == nil && workspace.canRetryInitialDraft,
             selectedNodeID: workspace.isFieldNotesOccupied ? nil : session.selectedNodeID,
             primaryActionTitle: workspace.isReanalyzing ? "Reanalyze" : "Identify",
@@ -271,6 +272,10 @@ struct CaptureMediaReviewView: View {
             return
         }
         guard !isBusy, workspace.isCurrentMediaReview(session) else { return }
+        if workspace.isFieldNotesOccupied, action != .identify, action != .fieldNotes {
+            workspace.navigateFromFieldNotes(action)
+            return
+        }
         if case .selectMedia(let nodeID) = action, nodeID == session.selectedNodeID { return }
         if action == .fieldNotes {
             command = Task { @MainActor in

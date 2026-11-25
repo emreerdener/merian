@@ -1230,11 +1230,36 @@ final class merianUITests: XCTestCase {
         }
         XCTAssertTrue(app.buttons["Identify"].isHittable)
         prompts.tap()
-        XCTAssertTrue(app.navigationBars["Prompts"].waitForExistence(timeout: 4))
-        app.navigationBars["Prompts"].buttons.firstMatch.tap()
+        let back = app.buttons["FieldNotesPromptsBack"], reset = app.buttons["FieldNotesReset"]
+        XCTAssertTrue(back.waitForExistence(timeout: 4))
+        XCTAssertTrue(reset.isHittable)
+        XCTAssertEqual(back.frame.midY, reset.frame.midY, accuracy: 1)
+        XCTAssertFalse(dictation.exists)
+        XCTAssertFalse(prompts.exists)
+        XCTAssertTrue(app.buttons["FieldNotesPrompt_0"].isSelected)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Field notes single prompts toolbar and neutral rows"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["FieldNotesPrompt_1"].tap()
+        XCTAssertTrue(prompts.waitForExistence(timeout: 4))
+        prompts.tap()
+        XCTAssertTrue(back.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["FieldNotesPrompt_1"].isSelected)
+        back.tap()
         XCTAssertTrue(prompts.waitForExistence(timeout: 4))
         XCTAssertTrue(dictation.isHittable)
         XCTAssertTrue(app.buttons["Identify"].isHittable)
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        input.tap(); input.typeText("Synthetic notes to reset")
+        prompts.tap()
+        XCTAssertTrue(reset.waitForExistence(timeout: 4))
+        reset.tap()
+        XCTAssertTrue(dictation.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "")
+        prompts.tap()
+        XCTAssertTrue(app.buttons["FieldNotesPrompt_0"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["FieldNotesPrompt_0"].isSelected)
     }
 
     @MainActor

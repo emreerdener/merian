@@ -40,6 +40,39 @@ final class StagedAudioBoostUITests: XCTestCase {
     }
 
     @MainActor
+    func testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes() throws {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-captureModeOrder", "audio,visual",
+            "-hasShownCaptureNoteTip", "YES", "-hasShownCaptureSubmitTip", "YES"
+        ])
+        let note = app.buttons["CaptureFieldNotes"], audio = app.buttons["StagedAudioBadge_0"]
+        XCTAssertTrue(note.waitForExistence(timeout: 8)); note.tap()
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 4)); input.tap(); input.typeText("Synthetic navigation note")
+        XCTAssertTrue(audio.isHittable); audio.tap()
+        XCTAssertTrue(app.staticTexts["Review audio"].waitForExistence(timeout: 6))
+        note.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "Synthetic navigation note")
+        // Selecting the already-current item still closes its notes sheet.
+        audio.tap()
+        XCTAssertTrue(app.staticTexts["Review audio"].waitForExistence(timeout: 5))
+        note.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        app.buttons["Add media"].tap()
+        XCTAssertTrue(app.segmentedControls["CaptureModeToggle"].waitForExistence(timeout: 5))
+        note.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertEqual(input.value as? String, "Synthetic navigation note")
+        // The same plus action works for notes opened directly over Capture.
+        app.buttons["Add media"].tap()
+        XCTAssertTrue(app.segmentedControls["CaptureModeToggle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.segmentedControls["CaptureModeToggle"].buttons["Scan"].isSelected)
+        XCTAssertTrue(audio.isHittable)
+    }
+
+    @MainActor
     func testStagedAudioBoostPreparesAndCanBeReverted() throws {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [

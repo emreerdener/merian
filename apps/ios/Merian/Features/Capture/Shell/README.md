@@ -5,20 +5,23 @@ toolbar while occupied. Underlying toolbar controls are removed until dismissal;
 inactive capture-side actions are also unmounted so native glass buttons cannot
 share invisible touch or accessibility targets. The Field notes root header now
 owns explicit 44-point prompt and dictation buttons instead of compact native
-navigation-bar items. Prompts retains native back navigation. Capture auxiliary
-controls use circular hit regions matching their 50-point visible surfaces;
-introduction swipes are consumed without opening a goal or paging the workspace.
-Empty Scan and Record restore an available goal at the leading side; drafts and
-active recording hide the goal. The simulator camera surface preserves focus
-taps and vertical-drag locking while allowing horizontal paging through UIKit
-gesture arbitration. Physical camera behavior still needs device validation.
-Native79 passed 16 of 18 UI journeys, including recording completion. Native80
-corrected the remaining assertions but its full-target run was interrupted after
-finding a registry-order defect and stale test expectations. Native81 applies
-the reviewed corrections and a wrapping Field notes heading; 116 focused unit
-tests and all 18 UI journeys passed with unchanged source/fixture pins. Visual
-inspection still found a clipped caret at accessibility XXXL. Field notes now
-uses a private bounded scrolling editor sized to its available viewport, with
+navigation-bar items. Prompts shares that header, replacing its controls with
+Back and Reset and showing neutral rows with the current-question checkmark.
+Toolbar media/plus selection dismisses notes before routing, fenced to the
+originating session, draft generation and account. Capture auxiliary controls
+use circular hit regions matching their 50-point visible surfaces; introduction
+swipes are consumed without opening a goal or paging the workspace. Empty Scan
+and Record restore an available goal at the leading side; drafts and active
+recording hide the goal. The simulator camera surface preserves focus taps and
+vertical-drag locking while allowing horizontal paging through UIKit gesture
+arbitration. Physical camera behavior still needs device validation. Native79
+passed 16 of 18 UI journeys, including recording completion. Native80 corrected
+the remaining assertions but its full-target run was interrupted after finding a
+registry-order defect and stale test expectations. Native81 applies the reviewed
+corrections and a wrapping Field notes heading; 116 focused unit tests and all
+18 UI journeys passed with unchanged source/fixture pins. Visual inspection
+still found a clipped caret at accessibility XXXL. Field notes now uses a
+private bounded scrolling editor sized to its available viewport, with
 focus/keyboard changes revealing the complete input. Its bindings and autosave
 session are unchanged. Native82 passed 15 unit tests and five affected UI
 journeys; screenshot inspection confirmed final-line/caret visibility for long

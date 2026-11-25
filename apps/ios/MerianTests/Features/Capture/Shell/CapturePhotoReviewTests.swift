@@ -140,6 +140,44 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
     }
 
+    func testNotesOverlayResumesNavigationWhenPersistenceDrains() async throws {
+        let model = makePhotoReviewModel(count: 1)
+        let review = try XCTUnwrap(model.mediaReviewSession)
+        XCTAssertTrue(model.openFieldNotes(inReview: review))
+        let notes = try XCTUnwrap(model.fieldNotesSession)
+        var destinations: [CapturePhotoReviewAction] = []
+        let hardware = HardwareOrchestrator(appSettings: AppSettings(), observeSystemChanges: false)
+        let host = UIHostingController(rootView: CaptureFieldNotesOverlay(
+            workspace: model, session: notes, speechManager: model.diContainer.speechManager,
+            onNavigation: { destinations.append($0) }, toolbar: { Color.clear.frame(height: 74) })
+            .environment(hardware).environment(\.accessibilityReduceMotion, true))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let previousKeyWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = host; window.makeKeyAndVisible()
+        defer {
+            model.initialDraftMutationTask?.cancel(); model.initialDraftMutationTask = nil
+            window.isHidden = true; window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        host.view.frame = window.bounds
+        try await Task.sleep(for: .milliseconds(300))
+        model.navigateFromFieldNotes(.addMore)
+        // Hold the production owner's observable work flag across dismissal;
+        // only the mounted overlay may retry when the flag clears.
+        model.initialDraftMutationTask = Task { }
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertTrue(destinations.isEmpty)
+        XCTAssertTrue(model.isFieldNotesOccupied)
+        model.initialDraftMutationTask = nil
+        for _ in 0..<40 where destinations.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
+        XCTAssertEqual(destinations, [.addMore])
+        XCTAssertFalse(model.isFieldNotesOccupied)
+        XCTAssertEqual(model.mediaReviewSession?.id, review.id)
+    }
+
     private func captureNotesGeometry(_ window: UIWindow, name: String) -> UIImage {
         window.layoutIfNeeded()
         let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in

@@ -26,6 +26,7 @@ final class CaptureFieldNotesSession: Identifiable {
     var isSubmitting = false
     var isDictationRequested = false
     var errorMessage: String?
+    var pendingNavigation: CapturePhotoReviewAction?
 
     init(draftGeneration: UUID, accountID: UUID?, flow: DescribePromptFlow,
          progress: DescribePromptViewModel.Progress?,

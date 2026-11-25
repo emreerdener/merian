@@ -120,7 +120,7 @@ struct CaptureWorkspaceView: View {
                 .accessibilityHidden(viewModel.isFieldNotesOccupied || viewModel.mediaReviewPresentationID != nil)
             if viewModel.mediaReviewPresentationID == nil, let session = viewModel.fieldNotesSession {
                 CaptureFieldNotesOverlay(workspace: viewModel, session: session,
-                                         speechManager: speechManager) {
+                                         speechManager: speechManager, onNavigation: navigateNotesToolbar) {
                     activeToolbar
                 }
                 .id(session.id)
@@ -440,44 +440,61 @@ struct CaptureWorkspaceView: View {
             isMutationLocked: viewModel.isDraftMutationLocked || viewModel.fieldNotesSession?.isSubmitting == true,
             isNotesPresented: viewModel.isFieldNotesOccupied,
             allowsFrozenRequestActions: viewModel.canRetryHistoryWorkspace || viewModel.canRetryInitialDraft || viewModel.canRecoverInitialDraft,
+            onAddMore: viewModel.isFieldNotesOccupied ? { navigateNotesToolbar(.addMore) } : nil,
             onNoteTap: editSharedNote,
-            onUpgradeTap: viewModel.presentStagedMediaUpgradePaywall,
+            onUpgradeTap: {
+                if viewModel.isFieldNotesOccupied { navigateNotesToolbar(.addMore) } else { viewModel.presentStagedMediaUpgradePaywall() }
+            },
             selectedPhotoItems: $viewModel.selectedPhotoItems,
             onRequestPhotoPickerPresentation: { selectionCount in
                 await viewModel.requestPhotoPickerEntryAdmission(
                     maximumSelectionCount: selectionCount
                 )
             },
-            onThumbnailTap: { index in viewModel.presentCrop(for: index) },
+            onThumbnailTap: { index in
+                guard viewModel.stagedCapture.images.indices.contains(index) else { return }
+                navigateNotesToolbar(.selectMedia("img_\(viewModel.stagedCapture.images[index].original.id)"))
+            },
             onCancel: { viewModel.requestDraftDiscard() },
             onSubmit: {
                 submitActiveStagedCapture()
             },
             onDescriptionTap: { index in
-                guard !viewModel.areCaptureActionsBlocked,
-                      viewModel.stagedCapture.observationContexts.indices.contains(index) else { return }
-                coordinator.isDictationRequested = false
-                speechManager.stopDictation()
-                if viewModel.isReanalyzing,
-                   !viewModel.stagedCapture.observationContexts[index].isRefinementSupplement {
-                    viewModel.isFeaturePresentationAwaitingDismissal = true
-                    stagedDescriptionEditIndex = index
-                } else {
-                    editSharedNote()
-                }
+                guard viewModel.stagedCapture.observationContexts.indices.contains(index) else { return }
+                navigateNotesToolbar(.historicalDescription(viewModel.stagedCapture.observationContexts[index].id))
             },
             onAudioTap: { index in
-                guard !viewModel.areCaptureActionsBlocked,
-                      viewModel.stagedCapture.audios.indices.contains(index) else { return }
-                _ = viewModel.presentMediaReview(nodeID: "audio_\(viewModel.stagedCapture.audios[index].id)")
+                guard viewModel.stagedCapture.audios.indices.contains(index) else { return }
+                navigateNotesToolbar(.selectMedia("audio_\(viewModel.stagedCapture.audios[index].id)"))
             },
             onVideoTap: { index in
-                guard !viewModel.areCaptureActionsBlocked,
-                      viewModel.stagedCapture.videos.indices.contains(index) else { return }
-                _ = viewModel.presentMediaReview(nodeID: "video_\(viewModel.stagedCapture.videos[index].id)")
+                guard viewModel.stagedCapture.videos.indices.contains(index) else { return }
+                navigateNotesToolbar(.selectMedia("video_\(viewModel.stagedCapture.videos[index].id)"))
             },
             dependencies: viewModel.dependencies.stagingToolbar
         )
+    }
+
+    private func navigateNotesToolbar(_ action: CapturePhotoReviewAction) {
+        if viewModel.isFieldNotesOccupied {
+            viewModel.navigateFromFieldNotes(action)
+            return
+        }
+        guard !viewModel.areCaptureActionsBlocked else { return }
+        switch action {
+        case .selectMedia(let nodeID): _ = viewModel.presentMediaReview(nodeID: nodeID)
+        case .addMore: captureMode = .visual
+        case .historicalDescription(let id):
+            guard let index = viewModel.stagedCapture.observationContexts.firstIndex(where: { $0.id == id }) else { return }
+            coordinator.isDictationRequested = false
+            speechManager.stopDictation()
+            if viewModel.isReanalyzing, !viewModel.stagedCapture.observationContexts[index].isRefinementSupplement {
+                viewModel.isFeaturePresentationAwaitingDismissal = true
+                stagedDescriptionEditIndex = index
+            } else { editSharedNote() }
+        case .fieldNotes: editSharedNote()
+        case .identify: break
+        }
     }
 
     private func editSharedNote() {

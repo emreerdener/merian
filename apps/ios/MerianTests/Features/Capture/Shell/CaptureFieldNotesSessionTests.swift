@@ -177,4 +177,95 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertFalse(reopened.isPresented)
         XCTAssertFalse(model.autosaveFieldNotes(ObservationContext(freeText: "Late speech"), session: reopened))
     }
+    func testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft() throws {
+        let model = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        let audio = StagedAudio(filePath: "notes-test.wav")
+        model.stagedCapture.audios = [audio]
+        XCTAssertTrue(model.openFieldNotes())
+        let session = try XCTUnwrap(model.fieldNotesSession)
+        XCTAssertTrue(model.autosaveFieldNotes(ObservationContext(freeText: "Near water"), session: session))
+        let action = CapturePhotoReviewAction.selectMedia("audio_\(audio.id)")
+        model.navigateFromFieldNotes(action)
+        XCTAssertFalse(session.isPresented)
+        XCTAssertTrue(model.isFieldNotesOccupied)
+        XCTAssertFalse(model.presentMediaReview(nodeID: "audio_\(audio.id)"))
+        XCTAssertNil(model.finishFieldNotesDismissal(sessionID: UUID()))
+        // A second tap during dismissal cannot change the chosen destination.
+        model.navigateFromFieldNotes(.addMore)
+        XCTAssertEqual(model.finishFieldNotesDismissal(sessionID: session.id), action)
+        XCTAssertNil(model.finishFieldNotesDismissal(sessionID: session.id))
+        XCTAssertTrue(model.presentMediaReview(nodeID: "audio_\(audio.id)"))
+        XCTAssertEqual(model.descriptionDraft.freeText, "Near water")
+        XCTAssertEqual(model.stagedCapture.audios.first?.id, audio.id)
+    }
+
+    func testNotesNavigationIsDroppedAfterReplacementOrInvalidation() throws {
+        for replaceDraft in [true, false] {
+            let model = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+            model.stagedCapture.audios = [StagedAudio(filePath: "notes-test.wav")]
+            XCTAssertTrue(model.openFieldNotes())
+            let session = try XCTUnwrap(model.fieldNotesSession)
+            model.navigateFromFieldNotes(.addMore)
+            if replaceDraft { model.draftSession.reset() } else { model.invalidateFieldNotes(clearProgress: false) }
+            XCTAssertNil(model.finishFieldNotesDismissal(sessionID: session.id))
+            XCTAssertNil(model.mediaReviewSession)
+        }
+    }
+
+    func testNotesNavigationCannotBypassSubmissionLock() throws {
+        let model = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        model.stagedCapture.audios = [StagedAudio(filePath: "notes-test.wav")]
+        XCTAssertTrue(model.openFieldNotes())
+        let session = try XCTUnwrap(model.fieldNotesSession)
+        session.isSubmitting = true
+        model.navigateFromFieldNotes(.addMore)
+        XCTAssertTrue(session.isPresented)
+        XCTAssertNil(session.pendingNavigation)
+        session.isSubmitting = false
+        model.navigateFromFieldNotes(.identify)
+        XCTAssertTrue(session.isPresented)
+        XCTAssertNil(session.pendingNavigation)
+    }
+
+    func testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress() throws {
+        let model = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        let audio = StagedAudio(filePath: "notes-test.wav")
+        model.stagedCapture.audios = [audio]
+        XCTAssertTrue(model.openFieldNotes())
+        let session = try XCTUnwrap(model.fieldNotesSession)
+        session.prompts.advanceQuestion()
+        XCTAssertTrue(model.autosaveFieldNotes(ObservationContext(freeText: "Near water"), session: session))
+        model.resetFieldNotes(session: session)
+        XCTAssertTrue(model.descriptionDraft.freeText.isEmpty)
+        XCTAssertEqual(model.stagedCapture.audios.first?.id, audio.id)
+        XCTAssertEqual(session.prompts.activeQuestionIndex, 0)
+        XCTAssertNil(session.prompts.activeSubjectId)
+        model.closeFieldNotes(sessionID: session.id)
+        model.finishFieldNotesDismissal(sessionID: session.id)
+        XCTAssertTrue(model.openFieldNotes())
+        let reopened = try XCTUnwrap(model.fieldNotesSession)
+        XCTAssertTrue(model.descriptionDraft.freeText.isEmpty)
+        XCTAssertEqual(reopened.prompts.activeQuestionIndex, 0)
+        XCTAssertTrue(model.autosaveFieldNotes(ObservationContext(freeText: "New notes"), session: reopened))
+        model.resetFieldNotes(session: session)
+        XCTAssertEqual(model.descriptionDraft.freeText, "New notes")
+    }
+
+    func testNotesNavigationWaitsForOriginalMediaNotesPersistence() throws {
+        let model = CaptureWorkspaceViewModel(diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        model.stagedCapture.audios = [StagedAudio(filePath: "notes-test.wav")]
+        XCTAssertTrue(model.openFieldNotes())
+        let session = try XCTUnwrap(model.fieldNotesSession)
+        model.navigateFromFieldNotes(.addMore)
+        // The persistence owner retains its mutation task until its deferred cleanup.
+        model.initialDraftMutationTask = Task { }
+        defer { model.initialDraftMutationTask?.cancel(); model.initialDraftMutationTask = nil }
+        XCTAssertNil(model.finishFieldNotesDismissal(sessionID: session.id))
+        XCTAssertTrue(model.isFieldNotesOccupied)
+        XCTAssertEqual(session.pendingNavigation, .addMore)
+        model.initialDraftMutationTask = nil
+        XCTAssertEqual(model.finishFieldNotesDismissal(sessionID: session.id), .addMore)
+        XCTAssertFalse(model.isFieldNotesOccupied)
+    }
+
 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// Populated evidence has an opaque backing; empty slots reveal the tray beneath.
 struct CaptureStagingNodeSurface: ViewModifier {
     var isEmpty = false
+    var isSelected = false
 
     func body(content: Content) -> some View {
         content
@@ -13,8 +14,9 @@ struct CaptureStagingNodeSurface: ViewModifier {
             )
             .overlay {
                 Circle().strokeBorder(
-                    .primary.opacity(0.5),
-                    style: StrokeStyle(lineWidth: isEmpty ? 1.5 : 1, dash: isEmpty ? [4] : [])
+                    isSelected ? Color.blue : Color.primary.opacity(0.5),
+                    style: StrokeStyle(lineWidth: isSelected ? 2 : (isEmpty ? 1.5 : 1),
+                                       dash: isEmpty && !isSelected ? [4] : [])
                 )
             }
             .contentShape(Circle())

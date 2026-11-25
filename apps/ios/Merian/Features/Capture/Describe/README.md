@@ -16,9 +16,12 @@ Description is supporting evidence edited through the shared toolbar's Field
 notes button; new submissions require physical media. Shell owns a session-bound
 text/prompt editor, autosaves valid changes, and retains occupancy through outer
 dismissal. Closing or backgrounding stops input without discarding accepted
-edits. Prompts is a navigation destination within that session. Identify awaits
-bounded speech finalization; failure retains the draft and blocks admission. The
-historical text codec and admitted replay support are unchanged.
+edits. Prompts replaces the body and header controls within that session, with
+Back and Reset in the existing sheet toolbar. Neutral rows retain the
+current-question checkmark; Reset clears notes and prompt progress while
+preserving media. Identify awaits bounded speech finalization; failure retains
+the draft and blocks admission. The historical text codec and admitted replay
+support are unchanged.
 
 The legacy page/layout details below document retained components, not an
 available standalone Describe journey. Their scroll-host guidance still applies

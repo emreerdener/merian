@@ -7,12 +7,15 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     let session: CaptureFieldNotesSession
     let speechManager: SpeechManager
     var toolbarBottomPadding: CGFloat = 0
+    var onNavigation: (CapturePhotoReviewAction) -> Void = { _ in }
+    private let toolbarInteriorPadding: CGFloat = 12
     @ViewBuilder let toolbar: () -> Toolbar
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isTextFocused: Bool
     @State private var isVisible = false
+    @State private var hasFinishedDismissal = false
     @State private var isExpanded = false
     @State private var showsPrompts = false
     @State private var contentHeight: CGFloat = 392
@@ -40,7 +43,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                     .contentShape(Rectangle())
                     .onTapGesture(perform: close)
                     .accessibilityHidden(true)
-                let availableHeight = max(0, geometry.size.height - toolbarHeight - toolbarBottomPadding - 12)
+                let availableHeight = max(0, geometry.size.height - toolbarHeight - toolbarBottomPadding - toolbarInteriorPadding - 12)
                 let editorHeight = min(availableHeight, isExpanded ? availableHeight : headerHeight + contentHeight)
                 let draggedHeight = max(0, min(availableHeight, editorHeight - dragTranslation))
                 VStack(spacing: 0) {
@@ -53,6 +56,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                     toolbar()
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { toolbarHeight = $0 }
                 }
+                .padding(.bottom, isVisible ? toolbarInteriorPadding : 0)
                 .background {
                     sheetBackground
                         .clipShape(RoundedRectangle(cornerRadius: isVisible ? 32 : 50, style: .continuous))
@@ -73,6 +77,9 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         .accessibilityAction(.escape, close)
         .onChange(of: session.isPresented) { _, presented in
             if !presented { dismissPresentation() }
+        }
+        .onChange(of: workspace.isInitialDraftWorkActive) { _, active in
+            if !active { completeDismissalIfReady() }
         }
         .onChange(of: isGestureActive) { _, active in
             // Gesture cancellation does not call onEnded (e.g. interruption).
@@ -157,28 +164,31 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     }
 
     private var promptsPage: some View {
-        NavigationStack {
-            List {
-                ForEach(session.prompts.activeQuestions.indices, id: \.self) { index in
-                    Button(session.prompts.displayPrompt(at: index)) {
-                        guard workspace.acceptsFieldNotesWrite(session) else { return }
-                        session.prompts.activeQuestionIndex = index
-                        showsPrompts = false
+        List {
+            ForEach(session.prompts.activeQuestions.indices, id: \.self) { index in
+                Button {
+                    guard workspace.acceptsFieldNotesWrite(session) else { return }
+                    presentation.selectionFeedback()
+                    session.prompts.activeQuestionIndex = index
+                    showsPrompts = false
+                } label: {
+                    HStack {
+                        Text(session.prompts.displayPrompt(at: index)).font(.body)
+                        Spacer()
+                        if index == session.prompts.activeQuestionIndex {
+                            Image(systemName: "checkmark").fontWeight(.bold)
+                        }
                     }
+                    .foregroundStyle(.primary)
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(index == session.prompts.activeQuestionIndex ? .isSelected : [])
+                .accessibilityIdentifier("FieldNotesPrompt_\(index)")
             }
-            .scrollContentBackground(.hidden)
-            .navigationTitle("Prompts")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showsPrompts = false } label: {
-                        Label("Field notes", systemImage: "chevron.left")
-                    }
-                }
-            }
-            .toolbarBackground(.hidden, for: .navigationBar)
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .accessibilityIdentifier("FieldNotesPromptList")
     }
 
     private var sheetDrag: some Gesture {
@@ -280,9 +290,19 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     /// the Field notes targets below the design's 44-point touch regions.
     private var notesHeader: some View {
         HStack {
-            if !workspace.describePromptFlow.isReanalysis {
+            if showsPrompts {
+                Button {
+                    presentation.selectionFeedback()
+                    showsPrompts = false
+                } label: { notesHeaderIcon("chevron.left") }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back to Field notes")
+                .accessibilityIdentifier("FieldNotesPromptsBack")
+            } else if !workspace.describePromptFlow.isReanalysis {
                 Button {
                     isTextFocused = false
+                    session.stopInput()
+                    presentation.selectionFeedback()
                     isExpanded = true
                     showsPrompts = true
                 } label: {
@@ -295,20 +315,32 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                 Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
             }
             Spacer()
-            Text("Field notes")
+            Text(showsPrompts ? "Prompts" : "Field notes")
                 .font(.headline)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("FieldNotesTitle")
             Spacer()
-            Button(action: toggleDictation) {
-                notesHeaderIcon("microphone.fill")
+            if showsPrompts {
+                Button("Reset", role: .destructive) {
+                    workspace.resetFieldNotes(session: session)
+                    presentation.selectionFeedback()
+                    showsPrompts = false
+                }
+                .font(.body)
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityLabel("Reset field notes")
+                .accessibilityIdentifier("FieldNotesReset")
+            } else {
+                Button(action: toggleDictation) {
+                    notesHeaderIcon("microphone.fill")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(session.isDictationRequested ? "Stop dictation" : "Dictate notes")
+                .disabled(session.isSubmitting)
+                .accessibilityIdentifier("FieldNotesDictation")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(session.isDictationRequested ? "Stop dictation" : "Dictate notes")
-            .disabled(session.isSubmitting)
-            .accessibilityIdentifier("FieldNotesDictation")
         }
         .padding(.horizontal, 16)
     }
@@ -334,7 +366,15 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
             isVisible = false
             dragTranslation = 0
         } completion: {
-            workspace.finishFieldNotesDismissal(sessionID: session.id)
+            hasFinishedDismissal = true
+            completeDismissalIfReady()
+        }
+    }
+
+    private func completeDismissalIfReady() {
+        guard hasFinishedDismissal else { return }
+        if let action = workspace.finishFieldNotesDismissal(sessionID: session.id) {
+            onNavigation(action)
         }
     }
 

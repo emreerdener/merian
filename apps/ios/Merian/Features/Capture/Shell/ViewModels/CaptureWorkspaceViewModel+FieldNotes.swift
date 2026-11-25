@@ -97,10 +97,40 @@ extension CaptureWorkspaceViewModel {
         persistInitialDraftNotesWhenIdle()
     }
 
-    func finishFieldNotesDismissal(sessionID: UUID) {
-        guard fieldNotesSession?.id == sessionID,
-              fieldNotesSession?.isPresented == false else { return }
+    /// Queue navigation behind the same dismissal barrier used by autosaved notes.
+    func navigateFromFieldNotes(_ action: CapturePhotoReviewAction) {
+        guard let session = fieldNotesSession, acceptsFieldNotesWrite(session),
+              !session.isSubmitting, photoReviewCommit == nil else { return }
+        switch action {
+        case .selectMedia, .addMore, .historicalDescription: break
+        case .identify, .fieldNotes: return
+        }
+        session.pendingNavigation = action
+        closeFieldNotes(sessionID: session.id)
+    }
+
+    @discardableResult
+    func finishFieldNotesDismissal(sessionID: UUID) -> CapturePhotoReviewAction? {
+        guard let session = fieldNotesSession, session.id == sessionID,
+              !session.isPresented else { return nil }
+        let isCurrent = session.draftGeneration == draftSession.generation
+            && session.accountID == dependencies.submission.admission.accountID() && isDraftAccountCurrent
+        // Closing persists initial-draft notes. Keep the destination and occupancy
+        // until that existing work drains rather than dropping a tap on slow storage.
+        if isCurrent, session.pendingNavigation != nil, isInitialDraftWorkActive { return nil }
         fieldNotesSession = nil
+        guard isCurrent, !isDraftMutationLocked, stagedCapture.physicalItemCount > 0 else { return nil }
+        return session.pendingNavigation
+    }
+
+    func resetFieldNotes(session: CaptureFieldNotesSession) {
+        guard acceptsFieldNotesWrite(session), !session.isSubmitting else { return }
+        session.stopInput()
+        session.prompts.resetFunnel()
+        session.prompts.activeQuestionIndex = 0
+        var context = descriptionDraft
+        context.freeText = ""
+        _ = autosaveFieldNotes(context, session: session)
     }
 
     func invalidateFieldNotes(clearProgress: Bool) {
@@ -109,6 +139,7 @@ extension CaptureWorkspaceViewModel {
             fieldNotesPromptGeneration = nil
         }
         guard let session = fieldNotesSession else { return }
+        session.pendingNavigation = nil
         session.isPresented = false
         session.stopInput()
     }

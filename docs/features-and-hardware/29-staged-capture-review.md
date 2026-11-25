@@ -321,26 +321,38 @@ Scan (photo/video) and Record are the capture workspaces. Field notes opens from
 the review toolbar, including at full media capacity, and autosaves into the
 current draft. Its empty/populated pencil-and-page symbol uses supported SF
 Symbols with a fallback; accessibility labels are **Add field notes** and **Edit
-field notes**. The selected note node has a blue border. An upward swipe on the
-toolbar also opens notes when mutation is allowed. The notes editor expands
-upward from the stationary observation toolbar into one continuous dark material
-panel. Its resting height fits the prompt cards and a 180-point notes input when
-space permits; keyboard focus or an upward header drag expands it to the
-available height. The input fills the remaining body space while expanded or
-dragging, keeping the controls together without clipping a fixed-height input.
-The underlying review retains its measured toolbar inset while notes owns the
-visible toolbar, and does not resize for the notes keyboard. Root capture also
-retains its chrome measurements while notes is occupied. The fixed sheet header
-owns the prompt-list and dictation buttons. Only the sheet grabber remains
-visible while notes is open. The same observation toolbar stays above the
-keyboard. Dragging the header or grabber down, tapping the accessible close
+field notes**. The selected note node has one solid blue border replacing its
+dashed or neutral border. An upward swipe on the toolbar also opens notes when
+mutation is allowed. The notes editor expands upward from the stationary
+observation toolbar into one continuous dark material panel. Its resting height
+fits the prompt cards and a 180-point notes input when space permits; keyboard
+focus or an upward header drag expands it to the available height. The input
+fills the remaining body space while expanded or dragging, keeping the controls
+together without clipping a fixed-height input. The underlying review retains
+its measured toolbar inset while notes owns the visible toolbar, and does not
+resize for the notes keyboard. Root capture also retains its chrome measurements
+while notes is occupied. The fixed sheet header owns the prompt-list and
+dictation buttons. Opening Prompts replaces those controls in the same header
+with Back and Reset; it does not mount a second navigation bar. Prompt rows use
+primary text and mark the current question with a checkmark. Selecting a row
+returns to that question. Reset clears the current notes and prompt progress,
+stops dictation, and preserves staged physical media. The panel keeps 12 points
+of interior padding below its observation toolbar. Only the sheet grabber
+remains visible while notes is open. The same observation toolbar stays above
+the keyboard. Dragging the header or grabber down, tapping the accessible close
 handle, VoiceOver escape, or tapping outside dismisses the panel back to the
 toolbar without discarding autosaved notes. Opening, starting a header drag, and
 closing use the existing haptic feedback service. Reduce Motion removes the
 spring; Reduce Transparency and hardware policy retain an opaque fallback. The
 matching dismissal completion still owns the occupancy barrier. Closing returns
-to the originating review. Removing the final physical item clears supplementary
-notes and returns to empty capture.
+to the originating review. Tapping a toolbar media node closes notes and then
+opens that item's review, including when it is already the selected item. Plus
+closes notes and returns to capture. These destinations are retained only for
+the originating notes session, draft generation, and account; they execute after
+the matching dismissal releases occupancy. Replacement, invalidation, or
+submission locks prevent stale navigation. Autosaved notes survive both paths.
+Removing the final physical item clears supplementary notes and returns to empty
+capture.
 
 Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
 and the primary action inside one glass capsule with 12 pt horizontal, 16 pt

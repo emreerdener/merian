@@ -239,12 +239,11 @@ struct ActiveScanToolbar: View {
             onAudioTap: onAudioTap,
             onVideoTap: onVideoTap
         )
-        .disabled(isNotesPresented || isCheckingPhotoImportAdmission || isMutationLocked)
+        .disabled(isCheckingPhotoImportAdmission || isMutationLocked)
         Button(action: onNoteTap) {
             CaptureStagingNoteIcon(hasNote: hasSharedNote)
                 .frame(width: 48, height: 48)
-                .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote))
-                .overlay { if isNotesPresented { Circle().stroke(.blue, lineWidth: 2) } }
+                .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote, isSelected: isNotesPresented))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(hasSharedNote ? "Edit field notes" : "Add field notes")
@@ -267,8 +266,9 @@ struct ActiveScanToolbar: View {
     }
 
     private func requestPhotoPickerPresentation(selectionCount: Int) {
-        guard photoImportAdmissionTask == nil, !isNotesPresented else { return }
+        guard photoImportAdmissionTask == nil else { return }
         if let onAddMore { onAddMore(); return }
+        guard !isNotesPresented else { return }
 
         isCheckingPhotoImportAdmission = true
         photoImportAdmissionTask = Task { @MainActor in
