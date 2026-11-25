@@ -2126,8 +2126,11 @@ HTTP request is dispatched. See the
    `InferenceReplayTests`. It proves simultaneous Library, scheduler, reconnect,
    and URLSession wakes produce one active reconciliation and at most one
    trailing pass. The exact durable admission function remains
-   `testEnqueueCapture_WithValidData_PersistsQueuedScan()` and now belongs to
-   `CaptureAdmissionTests`.
+   `testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)` and
+   belongs to `CaptureAdmissionTests`. Its exact `false` and `true` argument
+   leaves must both pass, proving lowercase and uppercase input persistence. The
+   retired no-argument signature, missing or duplicated arguments, and
+   failed/skipped argument leaves cannot satisfy this protected regression.
 
    The validator also follows eight retained regression names out of the retired
    queue aggregate: background HTTP-success disposition and retryable

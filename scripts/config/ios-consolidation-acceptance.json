@@ -395,9 +395,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "d30c6fda4ecaad3902db8ee645c84f058f357460"
+        "object": "b48210558f034680c642e3afbaf9fca6b078608e"
       },
-      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+      "review_scope": "Protected admission selector matches executed uppercaseInput signature; both exact boolean argument leaves required. Positive/adversarial verifier checks and canonical contract; no compiled application change."
     },
     {
       "path": "docs/development-guides/14-ios-release-versioning.md",
@@ -518,6 +518,20 @@
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
     },
     {
+      "path": "scripts/test-ios-build-and-test-workflow.sh",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "25fc5559fc84afa19e6cb44e85cb4b4c5673c212"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "9e97545488d5a493d52a14f2ec3945297615c3a2"
+      },
+      "review_scope": "Preserve empty alternate-name argument position when checking exact protected test declarations; JSON argument names cannot be mistaken for a display-name override."
+    },
+    {
       "path": "scripts/test-ios-consolidation-acceptance.py",
       "before": null,
       "after": {
@@ -536,6 +550,34 @@
         "object": "6c644ff41cc7f79c6b8cb7db46e87a683ca65886"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/test-validate-ios-critical-test-results.sh",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "d4c860590f5f1224f21458d5502d7d86ce5bc46d"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "a64e8213e0998d1f257d00e30265507e6a25c105"
+      },
+      "review_scope": "Protected admission selector matches executed uppercaseInput signature; both exact boolean argument leaves required. Positive/adversarial verifier checks and canonical contract; no compiled application change."
+    },
+    {
+      "path": "scripts/validate-ios-critical-test-results.sh",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "05b50fb2d2806f70c80c2b643add53f9b982f80d"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "2b1b9f35b0a70975d24876b83003b9eccd80a449"
+      },
+      "review_scope": "Protected admission selector matches executed uppercaseInput signature; both exact boolean argument leaves required. Positive/adversarial verifier checks and canonical contract; no compiled application change."
     },
     {
       "path": "skills/merian-release/references/authorized-release.md",

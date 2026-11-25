@@ -74,12 +74,14 @@ assert_suite_has_passed_test_case() {
   local alternate_suite_name="$3"
   local required_case_name="$4"
   local alternate_case_name="${5:-}"
+  local expected_arguments="${6:-null}"
 
   if ! jq -e \
     --arg primary_suite "$primary_suite_name" \
     --arg alternate_suite "$alternate_suite_name" \
     --arg required_case "$required_case_name" \
     --arg alternate_case "$alternate_case_name" \
+    --argjson expected_arguments "$expected_arguments" \
     '
       [
         ..
@@ -110,6 +112,19 @@ assert_suite_has_passed_test_case() {
         and ($required_suites[0].result? == "Passed")
         and ($required_cases | length) == 1
         and ($required_cases[0].result? == "Passed")
+        and (
+          $expected_arguments == null
+          or (
+            $required_cases[0].children as $arguments
+            | ($arguments | type) == "array"
+              and (($arguments | map(.name) | sort) == ($expected_arguments | sort))
+              and all($arguments[];
+                .nodeType == "Arguments"
+                and .result == "Passed"
+                and ((.children // []) | length) == 0
+              )
+          )
+        )
     ' "$test_tree_path" >/dev/null; then
     echo "$case_label did not report a passed test case." >&2
     exit 1
@@ -302,7 +317,9 @@ assert_suite_has_passed_test_case \
   "Offline capture durability" \
   "CaptureAdmissionTests" \
   "Capture Admission Tests" \
-  "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+  "testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)" \
+  "" \
+  '["false", "true"]'
 assert_suite_has_passed_test_case \
   "Description-only manual retry budget reset" \
   "OfflineQueueManagerTests" \

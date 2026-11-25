@@ -1376,7 +1376,7 @@ done < <(
       alternate_case = ""
       next
     }
-    in_call && match($0, /"[^"]+"/) {
+    in_call && match($0, /"[^"]*"/) {
       value = substr($0, RSTART + 1, RLENGTH - 2)
       quoted_count += 1
       if (quoted_count == 2) {

@@ -55,7 +55,11 @@ write_test_tree() {
             end
           ),
           result: "Passed"
-        };
+        } + (
+          if $name == "testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)" then
+            {children: ["false", "true"] | map({nodeType: "Arguments", name: ., result: "Passed"})}
+          else {} end
+        );
       def suite($name; $case_names):
         {
           nodeType: "Test Suite",
@@ -123,7 +127,7 @@ write_test_tree() {
               "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
             ]),
             suite("Capture Admission Tests"; [
-              "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+              "testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)"
             ]),
             suite("QueueMaintenanceTests"; [
               "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
@@ -328,6 +332,27 @@ if bash "$validator" "$summary_path" "$tmp_dir/duplicate-shards.json" >/dev/null
   fail "Duplicated protected suite in aggregate was accepted."
 fi
 
+# The durable-admission regression now executes both input casing variants.
+# A passed method node cannot substitute for either required argument leaf.
+for mutation in \
+  '.name = "testEnqueueCapture_WithValidData_PersistsQueuedScan()"' \
+  '.children = []' \
+  '.children |= .[1:]' \
+  '.children |= .[:1]' \
+  '.children += [.children[0]]' \
+  '.children[0].name = "unknown"' \
+  '.children[0].result = "Failed"' \
+  '.children[1].result = "Skipped"' \
+  '.children[0].nodeType = "Test Case"' \
+  '.children[0].children = [{nodeType: "Arguments", name: "extra", result: "Passed"}]'; do
+  write_test_tree
+  jq --arg case_name "testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)" \
+    "(.testNodes[] | select(.name == \"Capture Admission Tests\") | .children[] | select(.name == \$case_name)) |= ($mutation)" \
+    "$test_tree_path" > "$tmp_dir/admission-argument-mutation.json"
+  mv "$tmp_dir/admission-argument-mutation.json" "$test_tree_path"
+  assert_rejected "Durable admission with invalid argument evidence: $mutation"
+done
+
 for parameterized_case in \
   "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
   "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"; do
@@ -458,7 +483,7 @@ required_cases=(
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
   "testScheduleInferenceRetryUsesMonotonicMirroredAttempt"
   "testInferenceRetryCannotOverrideCompletedCloudOwnership"
-  "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+  "testEnqueueCapture_WithValidData_PersistsQueuedScan(uppercaseInput:)"
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
   "consentReapprovalResumesOnlyNewestOwnedFundedScan"
   "consentReapprovalSkipsUnownedOrUnfundedScans"
