@@ -618,3 +618,13 @@ whole-candidate qualification remains open, including a stable-candidate Release
 gate. Exact logs, input manifests, results and findings are recorded under
 `.artifacts/native-app-capture-handoff-20261020/completion231-*` and the single
 `.artifacts/identification-history-findings.json` register.
+
+## Reviewed consolidation subset
+
+The November 25 consolidation uses the existing XCResult acceptance parser and
+managed local build wrapper for its reviewed 25-method subset. Its additional
+source, product, artifact-loss and operation boundaries are owned by the
+[testing strategy](08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026)
+and `scripts/config/ios-consolidation-acceptance.json`. This candidate-specific
+selection does not replace the general runtime audit manifest or its performance
+measurements. A runtime audit alone remains insufficient for distribution.

@@ -1,0 +1,549 @@
+{
+  "schema_version": 1,
+  "repository": "emreerdener/merian",
+  "scope": "consolidated-development-merge-and-testflight-acceptance",
+  "origin": {
+    "source_sha": "88ee71ef48fd3a5173574589d1015ad343e21665",
+    "run_id": 45460754856,
+    "build_attempt": 1,
+    "recovery_attempt": 2,
+    "lost_shard": 1,
+    "lost_job_id": 138842321471,
+    "retry_shards": [
+      1,
+      6,
+      11
+    ],
+    "plan_sha256": "ae7a0bdd7ad5cd47e9c3daddccf81daa1795760fc3589abce37ced0f3763f1d0",
+    "products_sha256": "7735420edbd82c69c304c6676a7652f9254e4a04c98d6848a91e719f837b490d",
+    "artifacts": {
+      "plan": {
+        "id": 14971948491,
+        "archive_digest": "sha256:556fb69c2c7360ad5ceeaa8975e9cbb0d92f6d106d18d20e0bf459f8f0a1428d"
+      },
+      "products": {
+        "id": 14971913710,
+        "archive_digest": "sha256:d4e056349cd6e2333bfdc165dd6a9cfd2829251a6c9c7072d28e0bb3249ceb8e"
+      },
+      "requalification": {
+        "id": 14971918503,
+        "archive_digest": "sha256:d39e3fe400afd02bcf054026738da9ca3486bc38caf2d17f038a2c089e6abeab"
+      }
+    }
+  },
+  "product_paths": [
+    "apps/ios",
+    "apps/watch",
+    "project.yml",
+    "merian.xcodeproj",
+    "Config.xcconfig",
+    "HistoryQualification.xcconfig",
+    "Signing.xcconfig",
+    "resources",
+    "scripts/local-ios-build.py",
+    ".github/workflows/ios-build-and-test.yml"
+  ],
+  "reviewed_product_delta": [
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Components/Navigation/MainTabBar.swift",
+      "base_sha256": "f30ce83960dc488e6d5fdd24be3d591ce5eb73f8e3b0bbef326d87004d1a5d3e",
+      "candidate_sha256": "4bac2c323942629aaf16e2075966fedf48e61362884e97a9ef9106f62f609938",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/README.md",
+      "base_sha256": "d74bf70b404c892dab7acc8ec6d93e3b8b58ebe4d27477db2f1d52f324cd163a",
+      "candidate_sha256": "d947042425e8b85864791021666cc66ca4de1808814249c9486efea4dcf04b45",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
+      "base_sha256": "bf6e3eeb4e7c8a88a0b9cd256d38fd14b258b244a16fda391d5d44860fe508a1",
+      "candidate_sha256": "0264029538e1679a904837694cdb58101ca01a157fc3e50e60c3048fd87191a4",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
+      "base_sha256": "1fdb679f91bbad6c3e4a03cc6d8e5eef7e3fba85b7361b680379a4ba768a2c72",
+      "candidate_sha256": "ae621989f48a0348a223d16a268d626808a15551affe9470547da24879f2dedb",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/ActiveScanToolbar.swift",
+      "base_sha256": "5016846985a16fbbf4d73baed10a9ba9f9d874a6fc860e2246d745bc0fb556f4",
+      "candidate_sha256": "210de9dca318cca45e4155b1b7d4b3157a6e58b3a03725e5a22b0f733ea7134e",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/README.md",
+      "base_sha256": "cf7752d4c67852f349e19485cd7c4b1c9602fed0f1b627d02e4d19dff0c1750c",
+      "candidate_sha256": "22f25dc04d8c56ea24922cb03c02cb9565fc7d3fc611a3bb62515f9036a17cd6",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Views/CaptureMediaReviewView.swift",
+      "base_sha256": "b86b40a6b1ccced8550e3dd34bfa3a27232409cea3571a0c65261fbf1249ec30",
+      "candidate_sha256": "96e7e724c6cb143f5015f339e27ce1b0c48f52bc929cbe1b41e7e7b8d71c11f9",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Views/CapturePhotoReviewPage.swift",
+      "base_sha256": "f4effc6adaebc2f506117de084d8bfcd474dea4913695616cb6f46ec395a9b28",
+      "candidate_sha256": "da22f04deaa8b18394f2c13ee7aec8347d0e939664429c13e85a8fa401a01f8e",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
+      "base_sha256": "66ff199a6630835b9cc3c7339cf895ef8c30199a766f79ce64c7eaeb5aab5901",
+      "candidate_sha256": "1a066848c96d88ddfba40752e9b759874d4b62e0570887440f65c4d2d606f22e",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/MerianUITests/merianUITests.swift",
+      "base_sha256": "3252ed77f91f077fe654f210af345f5384917cfb29c6c7eda7a6258370a0a867",
+      "candidate_sha256": "9c635a6d706ab39998134186c690591d1c1899bfe29a12c2c5503401298de8da",
+      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+    },
+    {
+      "path": "apps/ios/README.md",
+      "justification": "Documentation of the reviewed acceptance alternative; no compiled application behavior changes.",
+      "base_sha256": "1f6db6394c4f359b40ce0e73cc67b9110ec57831b933bf272d9ae2f3f34fd141",
+      "candidate_sha256": "4e578f4fe109e11e35f23ece7bc3bf452adb033c0c285c4dfef69895a272a096"
+    }
+  ],
+  "required_focused_selectors": [
+    "merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal",
+    "merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace",
+    "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+    "merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion",
+    "merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes",
+    "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+    "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview",
+    "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+    "merianUITests/merianUITests/testLibraryLabelOpensScans",
+    "merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+    "merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+    "merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+    "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+    "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
+    "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat"
+  ],
+  "reused_surface_paths": {
+    "backend": [
+      "services/supabase"
+    ],
+    "web": [
+      "apps/web"
+    ],
+    "admin": [
+      "apps/admin"
+    ]
+  },
+  "reused_workflows": {
+    "backend": 45441285783,
+    "web": 45441291288,
+    "admin": 45441295712
+  },
+  "required_journeys": [
+    "capture-photo-import",
+    "audio-capture-review",
+    "video-import-playback",
+    "mixed-media-identify",
+    "field-notes-preservation",
+    "library-history-reopen",
+    "reanalyze-and-undo",
+    "interruption-recovery",
+    "first-scan-consent"
+  ],
+  "testflight_prerequisites": [
+    "exact-signed-archive-privacy-ats-history",
+    "compatible-beta-backend",
+    "schema-install-over",
+    "consent-rollout",
+    "device-media-acceptance"
+  ],
+  "authorization": {
+    "merge": false,
+    "testflight_upload_or_distribution": false,
+    "backend_or_sites_deploy": false
+  },
+  "reused_workflow_paths": {
+    "backend": ".github/workflows/supabase-candidate-validation.yml",
+    "web": ".github/workflows/web-quality.yml",
+    "admin": ".github/workflows/admin-quality.yml"
+  },
+  "recovery_workflow": ".github/workflows/ios-evidence-recovery.yml",
+  "journey_evidence": [],
+  "testflight_evidence": [],
+  "reviewed_source_delta": [
+    {
+      "path": ".github/workflows/ios-evidence-recovery.yml",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "f505a41f20e720ca409905b5dcf0b76c3e13c1f3"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "Makefile",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "733a79fb1729a434e9eb7705ea695c8b55a2ca84"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "3b6d70a61dadf98cb31be930e6ede6e46d5aabd5"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "4bc45f46cbe77edace4f0d2779d624394f36f819"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "2dbbd4a033bd9b6d5faa04ed1664123deef6b9ab"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Components/Navigation/MainTabBar.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "0e34d29df186747adacb7c3312c6464adb1ca535"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "978da9326088a713d86095670989fa553e6aaa88"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "1ac44253c04754434817ffd3ba189bcf02925ffb"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "9c5b84562ac13ad99dfd4617fadfc365f2b4688b"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "8abddf73f26c63ee35871b19089ae5f2f1c50d1f"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "bfa4f2731b9def03626badd21e288f142c2b9c6d"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "047f8870b9f016cc2f218f3ef418dcb845e5c59b"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "da03fbe4d18852c32977c7f0a06a3c9400a85803"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/ActiveScanToolbar.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e1736a33116325289f806345f297a310ae7cb693"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b388495e32805c9c65e7dfe568d62f39004e1cb6"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "7411df5fb3653fb2850d6abdef1d5af31af37f0e"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "1b730f52ab28d65880c7cea3e1149d848834f572"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Views/CaptureMediaReviewView.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e2350ce523529d33d58de13af30984366c038717"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "6c166f48b8c20b3a82108ba3077c71e11dda7270"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Views/CapturePhotoReviewPage.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "bcf98f330238e3e5b4c498ec4e6db461262be2db"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "229afa850ecd65dc66c0575a57328b48f502f2a7"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "1928f6bb32056dfc934e66f0e97640c511074ab8"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "2440489d02647a80cbd8e89a3d63cb77f58a3dd3"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/MerianUITests/merianUITests.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "c0ce8b7744b05ced224157c5f1cd2a808be2744d"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e294dc11b2edce2d27ead071cd3bf91ce12eccb0"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "apps/ios/README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e8fa8aa35cdfac8b6f28e7d218443209d89291a3"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "cf524d7a21e558ad674448112fa991b51e9e1011"
+      },
+      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+    },
+    {
+      "path": "docs/development-guides/08-testing-strategy.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "4ebd4cb32f1ff6efc163789daebbe156e7c319a4"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "d38fd8e7aeaa8bae3fd51179cd6f5713d6f33d16"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/development-guides/14-ios-release-versioning.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "f355862f1ab66d381fd7f27ef5c207fee82c2549"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e379734ac22fa1555d997f9b6a1fcfce79cab07c"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/development-guides/18-ios-runtime-quality-and-benchmarking.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "79a031e4ca4e29bc08c340e793206b7ae68b3982"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "13849acfbc6be44412fd2d9fef27dcca8eb8b0ce"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/features-and-hardware/07-feature-modules-and-ui.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "fa7510bfca2bb0403e4f12d5e842936439467fa4"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e058b79ec3d0439eb359598242cf9fdff3589c6f"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/features-and-hardware/29-staged-capture-review.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "6e1697986913a788a885620a07e4e9a2d0a26fe6"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "d5e26337301c19e234cdb933de4725598711905c"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/release-evidence/README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "1e5b27c4ed894a2ae925b9f5d18d6163f6f5ad6c"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "024f9a849ba2fbaa33b6c2bfc48d04edca9deacc"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "docs/release-evidence/unified-beta-release-candidate-2026-11-24.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "116c7af0a165d4b91bffc7d8cd53de336a18d080"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "3a01c9e0530042c2d042cce315d8f60bf776edda"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/ios-consolidation-acceptance.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "025522d818be30fd47750a4781c4296cb04f16c2"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/ios-evidence-recovery.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "acf2db739618459bc63c5fefca2c281a9ae7bc46"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/ios-unit-shards.py",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "59a06dde4d6ce7a937797be97b178ac7e3aaf2c9"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "5cb52ef4f4d730dd1d6d835f283bc7070079b6d1"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/test-ios-consolidation-acceptance.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b07ec81ad76447deae8574bb771e2ca35eea6c3e"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/test-ios-evidence-recovery.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "6c644ff41cc7f79c6b8cb7db46e87a683ca65886"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "skills/merian-release/references/authorized-release.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "6cd7397148a53f0e43e62d9af72fa1798245457e"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "07940a527c89d2a8d39367d71e22a89f2fa64b60"
+      },
+      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    }
+  ],
+  "focused_evidence": null
+}

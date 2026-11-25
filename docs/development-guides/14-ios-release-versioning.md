@@ -110,9 +110,15 @@ create competing build-number authorities and are the source of the sequential
 build failures this policy prevents.
 
 Normal development uses direct commits and pushes to `main`, followed by one
-complete iOS validation run for the exact release SHA. Branches and PRs are
-optional; no merge is required to make a passing main commit eligible for the
-existing Organizer process. See the
+complete iOS validation run for the exact release SHA. The reviewed November 25
+consolidation may instead use the
+[proportionate acceptance route](08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026),
+including its TestFlight-specific prerequisites. A passed alternate assessment
+replaces the repeated full-native prerequisite for that candidate; it does not
+waive archive, backend compatibility, install-over, consent, device or explicit
+upload/distribution authority. Branches and PRs are optional; no merge is
+required to make a passing main commit eligible for the existing Organizer
+process. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
 ## Version and Build Policy
@@ -176,9 +182,12 @@ make validate-ios-transport-security
 make validate-ios-versioning
 ```
 
-The checkout must be clean. Wait for **iOS Build and Test** on that SHA to pass
-before distributing a beta. CI's unsigned archive is evidence that Release
-compiles; it is not the archive uploaded to Apple.
+The checkout must be clean. Obtain **iOS Build and Test** on that SHA or, for
+this reviewed consolidation beta only, a passed policy-bound TestFlight
+assessment before distributing. The alternative is an explicit operator
+prerequisite; the existing Organizer preflight checks source/signing/version
+only and does not evaluate the assessment. CI's unsigned archive is evidence
+that Release compiles; it is not the archive uploaded to Apple.
 
 ### 2. Create one local archive
 
@@ -435,7 +444,9 @@ For every external beta or App Review submission, record:
 
 - marketing version and App Store Connect build number;
 - source Git SHA;
-- CI **iOS Build and Test** run;
+- CI **iOS Build and Test** run, or for this consolidation beta the exact
+  recovery workflow and reviewed TestFlight assessment with original compiled
+  revisions, combined focused execution and full change-impact record;
 - archive evidence showing `privacy_manifest_valid: true`;
 - archive evidence showing `transport_security: "ats-default"`;
 - Organizer archive creation date;

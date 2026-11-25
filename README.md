@@ -676,11 +676,13 @@ make validate-markdown-format
 ```
 
 Normal local builds never increment the app version or build. For routine beta
-testing, wait for exact-SHA **iOS Build and Test**, then use Xcode **Product →
-Archive** and Organizer **Distribute App → TestFlight & App Store → Upload**.
-Keep automatic signing and **Manage version and build number** enabled. Xcode
-and App Store Connect own the uploaded build number; promote the same processed
-build through TestFlight and App Review. See the
+testing, obtain exact-SHA **iOS Build and Test** evidence or the reviewed
+[consolidation acceptance route](docs/development-guides/08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026),
+then, with upload authorization, use Xcode **Product → Archive** and Organizer
+**Distribute App → TestFlight & App Store → Upload**. Keep automatic signing and
+**Manage version and build number** enabled. Xcode and App Store Connect own the
+uploaded build number; promote the same processed build through TestFlight and
+App Review. See the
 [iOS publishing runbook](docs/development-guides/14-ios-release-versioning.md)
 for setup, upload, promotion, and incident-safe recovery.
 

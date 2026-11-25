@@ -2447,6 +2447,127 @@ required before consolidation, together with its scoped backend/web and external
 control prerequisites. Dedicated native/SQL and app acceptance remain separate
 activation/distribution requirements; the hosted result does not clear them.
 
+### Consolidation evidence recovery and proportionate acceptance — November 25, 2026
+
+For the reviewed consolidated development baseline only, the owner approved an
+alternative native acceptance route for merging and TestFlight preparation. This
+supersedes the requirement to start another complete native run after each
+narrow change in this candidate. It does not change the standard sharded
+workflow, relabel a failed workflow, waive tests, or authorize an operation.
+Other candidates continue to use the complete exact-source route unless their
+own change-impact policy is reviewed.
+
+The executable policy is
+[`ios-consolidation-acceptance.json`](../../scripts/config/ios-consolidation-acceptance.json).
+It fixes the original application revision, run/build attempt, immutable product
+and plan digests, recovered groups, reviewed product delta, required focused
+selectors, complete reviewed source/control object changes and remaining feature
+prerequisites. The policy cannot contain its own hash: its exact Git object is
+bound by the current verifier commit and trusted recovery check. The verifier
+revision and the compiled application revision are separate identities. Changes
+outside the reviewed product bytes or changes to reused backend/web/admin
+sources fail closed and require affected validation and a new applicability
+review.
+
+The native evidence comprises:
+
+1. Thirteen original passing groups from run `45460754856`, built from
+   `88ee71ef48fd3a5173574589d1015ad343e21665`.
+2. One failed-job recovery attempt for groups **1, 6 and 11**, using the exact
+   original compiled products, plan, whole-suite assignments, runtime checks,
+   deadlines and assertions. Retain the original failures for 6 and 11.
+3. A distinct loss record for group 1. The original native/receipt steps passed
+   but both coverage and fallback uploads timed out. GitHub job metadata,
+   upload-timeout lines and API-confirmed absence of both artifacts establish
+   the loss; they contribute **zero passing coverage**. A fresh complete group 1
+   execution supplies its coverage. Never manufacture its original receipt.
+4. A clean combined-source build and the 18 integration selectors, plus the
+   Library navigation regression and six critical scan UI smokes. The seven
+   additions cover the changed shared Capture/navigation presentation. All 25
+   methods must pass with zero skips. Preserve the actual XCResult, source
+   before/after, full source fingerprint, toolchain and simulator identity. An
+   independent review pins that execution receipt in policy before assessment.
+   Hash the command log and retain the wrapper-created bundle under
+   `.artifacts/local-ios`; this is retained evidence outside `.build`, not a
+   disposable cache. Missing or changed original evidence blocks acceptance.
+   Later verifier/documentation-only commits can reuse it only with identical
+   compiled product/build-input objects and a reviewed full source/control
+   delta.
+
+`ios-evidence-recovery.py` runs collection and verification together in the
+read-only **Recovered development evidence** Actions job. It requires exact
+Actions/repository/source identity, rejects a preexisting input directory,
+re-downloads and hashes immutable artifacts, and verifies every selected raw
+receipt and the complete ordinary method/parameter coverage. The normal unit
+aggregate still rejects a missing original envelope. GitHub may project earlier
+successful jobs into attempt 2 with new IDs; unchanged timestamps and steps, and
+absence of new artifacts, distinguish those projections from execution. The old
+workflow remains failed. The new check proves recovery at its own verifier
+commit; it is not called Production readiness.
+
+After the shared native slot is released, run the focused combined check through
+the managed cache/storage wrapper:
+
+```bash
+python3 -B scripts/ios-consolidation-acceptance.py run-focused \
+  --destination 'platform=iOS Simulator,id=THE-RELEASED-SIMULATOR-UUID' \
+  --output /absolute/path/to/new-focused-evidence
+```
+
+After the reviewed recovery workflow passes at the same candidate, assess the
+merge evidence with a read-only GitHub credential:
+
+```bash
+make validate-ios-consolidation-acceptance ARGS='--stage merge --recovery-run RUN_ID --focused /absolute/path/to/focused-evidence --evidence /absolute/path/to/reviewed-feature-evidence --output /absolute/path/to/new-acceptance-result'
+```
+
+This command verifies the exact candidate delta, fresh original/recovery GitHub
+metadata and artifacts, the exact-verifier recovery check, unchanged-source
+backend/web/admin workflow passes, and the original combined XCResult. It also
+requires policy-pinned, independently reviewed reports for capture/import,
+photo/video/audio and supported mixed media, Field notes, Identify, History,
+Reanalyze/Undo, interruption recovery and first-scan consent. Historical reports
+need their actual source revision and a reviewed dependency/change-impact
+justification and unchanged concrete owned paths; a naked success flag or
+unreviewed JSON cannot close a journey. The policy initially has no accepted
+journey reports: populate it only after inspection, rather than inventing
+acceptance. Fixture checks and live app/backend checks retain their distinct
+scope. A successful ordinary-unit recovery still records the separate native/SQL
+integration as not executed; review its existing source-applicable evidence when
+that feature requires it.
+
+For TestFlight acceptance, use the same command with `--stage testflight`. That
+adds the reviewed exact signed archive/privacy/ATS/History evidence, compatible
+beta backend, schema install-over, consent rollout and device media checks.
+Missing evidence returns a nonzero exit and names unresolved items. Neither
+stage requires another complete native run solely because the reviewed UI delta
+exists. Broaden testing only for an actual shared-dependency change or new
+failure; preserve valid earlier passes with their original source identity. This
+is a real alternative native merge/TestFlight acceptance route, not merely a
+development report followed by an implicit full-suite requirement.
+
+The local assessment is an explicit operator prerequisite, not a GitHub status
+check or an automatic Organizer preflight. The existing clean-source/signing
+preflight does not evaluate it. Retain and review the assessment before an
+authorized merge or TestFlight operation. It cannot satisfy or bypass an
+independently enforced required status check.
+
+A passing acceptance result is **engineering evidence only**. Merge approval,
+PR152 publication/holds, PR150 exclusion, final main identity, fresh Vercel
+controls, exact-SHA backend deployment validation, cleanup cutover, feature
+activation and target-specific release authority remain separate. In particular,
+reusing unchanged backend evidence for development acceptance does not replace
+the protected deployment job's exact-SHA Candidate Validation. Organizer remains
+the only uploader; no script here merges, changes a gate, deploys, cancels a
+run, allocates a build number, uploads or distributes an app. Before an
+authorized operation, read back actual repository requirements; a required old
+check cannot be bypassed by presenting the alternate report.
+
+Portable verification: `make test-ios-ci-tooling` includes strict-mode
+regression checks, recovery provenance/archive adversarial cases,
+combined-method coverage, change-impact and reviewed-report tests. Keep the
+source policy and its review with the acceptance result.
+
 ### Repository Rule Setup
 
 Use the
@@ -2455,10 +2576,12 @@ allow ordinary main pushes without a required PR or pre-push status check,
 retain administrator enforcement, and prohibit force pushes and branch deletion.
 
 `iOS Build and Test / Production readiness` remains the stable result to inspect
-for the exact main commit. Hosted validation requires every ordinary unit suite,
-all six critical UI smokes, and Release archive on that SHA; a scope-only
-success cannot substitute. Dedicated integration and app-release acceptance are
-separate requirements; see the
+for the exact main commit on the standard route. This reviewed consolidation may
+instead satisfy native acceptance through the policy-bound alternative above.
+Standard hosted validation requires every ordinary unit suite, all six critical
+UI smokes, and Release archive on that SHA; a scope-only success cannot
+substitute. Dedicated integration and app-release acceptance are separate
+requirements; see the
 [literal qualification contract](./18-ios-runtime-quality-and-benchmarking.md#literal-native-disposable-sql-recovery-qualification).
 Existing PR and merge-group triggers remain optional validation support, not a
 required development path. A direct main push runs the applicable iOS gate once
@@ -2468,10 +2591,11 @@ its same-commit Deployment Check independently of branch rules.
 ### Xcode Organizer Distribution Contract
 
 Distribution is deliberately outside CI. Only after exact-SHA **iOS Build and
-Test**, applicable dedicated integration and app-release acceptance pass, and
-distribution is explicitly authorized, an operator archives the clean revision
-with Xcode and uploads it with Organizer **TestFlight & App Store**. Automatic
-signing and **Manage version and build number** remain enabled. Apple
+Test** (or the reviewed consolidation TestFlight assessment for this beta
+candidate), applicable dedicated integration and app-release acceptance pass,
+and distribution is explicitly authorized, an operator archives the clean
+revision with Xcode and uploads it with Organizer **TestFlight & App Store**.
+Automatic signing and **Manage version and build number** remain enabled. Apple
 credentials stay in Xcode and the macOS Keychain; no workflow receives signing
 certificates or App Store Connect private keys.
 
@@ -2566,7 +2690,7 @@ failure:
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                                                                                                                                                                          |
 | ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                                                                                                                                                            |
 | Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                                                                                                                                                            |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so the complete unit pipeline, UI and archive run and produce current-SHA evidence.                                                                                                                                                                              |
+| Intended release SHA was out of scope                                 | Use the reviewed proportionate route for this consolidation candidate; otherwise manually dispatch **iOS Build and Test** on the intended ref for complete current-SHA evidence.                                                                                                                                      |
 
 For a unit shard failure, inspect Xcode's structured result summary
 (`summary.json`) and result tree (`tests.json`) in its retained coverage

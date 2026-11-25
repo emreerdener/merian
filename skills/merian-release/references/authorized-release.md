@@ -28,8 +28,10 @@ Canonical procedure: `docs/development-guides/14-ios-release-versioning.md`.
 
 - Keep `project.yml` versioning, automatic signing, permanent bundle IDs, and
   the existing app record authoritative.
-- Require exact-SHA iOS Build and Test evidence, archive privacy and transport
-  checks, and every release-specific legal/product hold in the canonical docs.
+- Require exact-SHA iOS Build and Test evidence or the canonical reviewed
+  November 25 consolidation acceptance route for this beta/TestFlight candidate
+  only (not App Review/public release), archive privacy and transport checks,
+  and every release-specific legal/product hold in the canonical docs.
 - Xcode Organizer is the sole distribution authority: Product → Archive, then
   Organizer → Distribute App. Do not add CI/Fastlane signing or upload logic.
 - Treat upload, processing, internal distribution, external distribution, and

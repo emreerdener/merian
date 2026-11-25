@@ -143,6 +143,21 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testLibraryLabelOpensScans() {
+        let app = UITestAppLauncher.launchConfiguredApp()
+        let library = app.buttons["MainTabBar_Naturebook"]
+        XCTAssertTrue(library.waitForExistence(timeout: 8))
+        XCTAssertEqual(library.label, "Library")
+        XCTAssertTrue(library.isHittable)
+        library.tap()
+        XCTAssertTrue(app.segmentedControls.buttons["Scans"].waitForExistence(timeout: 8))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Library label and Scans navigation"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testPrivateScanMapCollectionNavigationFiltersAndInsight() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-seedPrivateScanMapFlow"]

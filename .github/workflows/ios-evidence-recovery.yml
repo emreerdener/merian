@@ -1,0 +1,48 @@
+name: iOS Evidence Recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/ios-evidence-recovery-20261125]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ios-evidence-recovery-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Recovered development evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout reviewed verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test strict and recovery verifier contracts
+        run: |
+          python3 -B scripts/test-ios-unit-shards.py
+          python3 -B scripts/test-ios-evidence-recovery.py
+          python3 -B scripts/test-ios-consolidation-acceptance.py
+      - name: Collect and verify immutable original and recovered evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B scripts/ios-evidence-recovery.py \
+            --directory .artifacts/recovery-input \
+            --output .artifacts/recovered-evidence
+      - name: Retain distinct recovery proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recovered-development-evidence-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            .artifacts/recovery-input
+            .artifacts/recovered-evidence
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

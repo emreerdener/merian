@@ -20,16 +20,31 @@ change remain excluded. History, Capture and Gemini feature activation, paid
 provider activation, TestFlight upload/distribution, secret rotation, and data
 cleanup are not included. Preserve existing default-off feature gates.
 
-## Required decisions and evidence
+## November 25 acceptance-policy supersession
 
-The approved consolidation packet still requires one complete exact-source
-hosted native gate before the main merge, plus final exact-source Supabase
-Candidate Validation, web/admin checks and fresh external control readbacks.
-Retain all ordinary native suites, all six critical UI cases, archive and
-coverage reconciliation. The separate opt-in native/SQL app integration belongs
-to affected app activation/distribution; it is not an added backend/sites gate.
-The backend Candidate Validation's C1 and private-handoff artifacts remain
-mandatory and are different from that app integration.
+The owner approved implementing the
+[proportionate acceptance route](../development-guides/08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026).
+For this consolidation, verified original passes plus the single 1/6/11
+recovery, reviewed change-impact evidence, final combined checks and essential
+feature acceptance replace the repeated complete-native-run prerequisite stated
+below. The old failed workflow remains failed. This is policy approval, not a
+claim that recovery, combined checks or feature prerequisites have passed. PR152
+remains frozen while the successor policy/candidate is prepared. PR150 stays
+excluded. Merge, deployment, activation, holds and TestFlight authority remain
+unchanged.
+
+## Required decisions and evidence (November 24 record)
+
+The November 24 packet required one complete exact-source hosted native gate
+before the main merge; that native requirement is superseded for this candidate
+by the November 25 route above. Final exact-source Supabase Candidate
+Validation, web/admin checks and fresh external control readbacks remain
+required for their respective operations. Retain all ordinary native suites, all
+six critical UI cases, archive and coverage reconciliation. The separate opt-in
+native/SQL app integration belongs to affected app activation/distribution; it
+is not an added backend/sites gate. The backend Candidate Validation's C1 and
+private-handoff artifacts remain mandatory and are different from that app
+integration.
 
 Prepare the source-hold change before freezing the final candidate so validation
 is not repeated solely for a later hold-manifest edit. No earlier-SHA result is

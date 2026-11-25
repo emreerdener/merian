@@ -76,8 +76,8 @@ def write_json(path, value):
     Path(path).write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
 
 
-def identity():
-    result = {key: os.environ.get(env, "") for key, env in (
+def identity(context=None):
+    result = {key: (context[key] if context is not None else os.environ.get(env, "")) for key, env in (
         ("source_sha", "GITHUB_SHA"), ("run_id", "GITHUB_RUN_ID"),
         ("run_attempt", "GITHUB_RUN_ATTEMPT"))}
     require(re.fullmatch(r"[0-9a-f]{40}", result["source_sha"]), "Missing exact source SHA")
@@ -86,16 +86,16 @@ def identity():
     return result
 
 
-def build_identity():
-    current = identity()
-    attempt = os.environ.get("IOS_UNIT_BUILD_ATTEMPT", current["run_attempt"])
+def build_identity(context=None):
+    current = identity(context)
+    attempt = context["build_attempt"] if context is not None else os.environ.get("IOS_UNIT_BUILD_ATTEMPT", current["run_attempt"])
     require(re.fullmatch(r"[1-9][0-9]*", attempt), "Missing build attempt")
     return {"source_sha": current["source_sha"], "origin_run_id": current["run_id"], "build_attempt": attempt}
 
 
-def execution_context(plan, attempt=None):
+def execution_context(plan, attempt=None, *, context=None):
     """Validate old evidence explicitly; never rewrite the aggregate's environment."""
-    origin, current = build_identity(), identity()
+    origin, current = build_identity(context), identity(context)
     require(all(plan.get(k) == v for k, v in origin.items()), "Plan source/run/build attempt mismatch")
     build = int(origin["build_attempt"])
     require(build <= int(current["run_attempt"]) <= build + 1, "Only one failed-jobs retry is allowed")
@@ -105,17 +105,21 @@ def execution_context(plan, attempt=None):
     return {"source_sha": origin["source_sha"], "run_id": origin["origin_run_id"], "run_attempt": attempt}
 
 
-def provenance(plan, attempt=None):
-    context = execution_context(plan, attempt)
-    return {**build_identity(), "execution_attempt": context["run_attempt"]}
+def provenance(plan, attempt=None, *, context=None):
+    execution_identity = execution_context(plan, attempt, context=context)
+    return {**build_identity(context), "execution_attempt": execution_identity["run_attempt"]}
 
 
-def artifact_ids():
-    result = {role: os.environ.get("IOS_UNIT_" + role.upper() + "_ID", "")
+def artifact_ids(context=None):
+    result = {role: (context["artifact_ids"][role] if context is not None else os.environ.get("IOS_UNIT_" + role.upper() + "_ID", ""))
               for role in ("products", "plan", "requalification")}
     require(all(re.fullmatch(r"[1-9][0-9]*", value) for value in result.values())
             and len(set(result.values())) == 3, "Missing or duplicate immutable artifact IDs")
     return result
+
+
+def plan_digest(context=None):
+    return context["plan_sha256"] if context is not None else os.environ.get("IOS_UNIT_PLAN_SHA256")
 
 
 def canonical(selector):
@@ -210,10 +214,10 @@ def hosted_methods(methods, integrations):
     return [m for m in methods if m not in integrations]
 
 
-def load_plan(path, *, require_workspace=True):
-    require(digest(path) == os.environ.get("IOS_UNIT_PLAN_SHA256"), "Plan digest mismatch")
+def load_plan(path, *, require_workspace=True, context=None):
+    require(digest(path) == plan_digest(context), "Plan digest mismatch")
     plan = read_json(path)
-    execution_context(plan)
+    execution_context(plan, context=context)
     require(type(plan.get("schema_version")) is int and plan.get("schema_version") == 4 and plan.get("toolchain") == TOOLCHAIN
             and plan.get("configuration") == "Debug" and plan.get("runtime") == RUNTIME
             and plan.get("target") == TARGET, "Plan qualification mismatch")
@@ -432,15 +436,15 @@ def result_methods(summary, tree, qualification, *, context=None):
     return sorted(methods), len(arguments)
 
 
-def receipt(plan, index, directory, *, attempt=None):
+def receipt(plan, index, directory, *, attempt=None, context=None):
     directory = Path(directory)
     shard = selected_shard(plan, index)
     require(inventory(directory / "enumeration.txt", plan=plan) == shard["methods"], "Selected enumeration differs from plan")
     methods, arguments = result_methods(read_json(directory / "summary.json"), read_json(directory / "tests.json"),
-                                        read_json(directory / "qualification.json"), context=execution_context(plan, attempt))
+                                        read_json(directory / "qualification.json"), context=execution_context(plan, attempt, context=context))
     require(methods == shard["methods"], "Executed methods differ from compiled inventory")
-    return {"schema_version": 2, **provenance(plan, attempt), "shard": index, "toolchain": TOOLCHAIN,
-            "plan_sha256": os.environ["IOS_UNIT_PLAN_SHA256"], "products_sha256": plan["products_sha256"],
+    return {"schema_version": 2, **provenance(plan, attempt, context=context), "shard": index, "toolchain": TOOLCHAIN,
+            "plan_sha256": plan_digest(context), "products_sha256": plan["products_sha256"],
             "methods": methods, "parameter_leaves": arguments, "status": "passed",
             "files": {name: digest(directory / name) for name in
                       ("enumeration.txt", "summary.json", "tests.json", "qualification.json")}}
@@ -453,10 +457,10 @@ def focused_methods(plan):
     return expected
 
 
-def requalification(directory, *, require_workspace=True):
+def requalification(directory, *, require_workspace=True, context=None):
     """Focused prerequisite, never a substitute for complete shard coverage."""
     directory = Path(directory)
-    plan = load_plan(directory / "plan.json", require_workspace=require_workspace)
+    plan = load_plan(directory / "plan.json", require_workspace=require_workspace, context=context)
     full = inventory(directory / "full-inventory.txt", full_target=True)
     require(full == plan["inventory"], "Focused full inventory differs from immutable plan")
     require(digest(directory / "full-inventory.txt") == plan["enumeration_sha256"],
@@ -466,9 +470,9 @@ def requalification(directory, *, require_workspace=True):
     require(inventory(directory / "enumeration.txt", plan=plan) == expected, "Focused enumeration differs from complete compiled suites")
     tree = read_json(directory / "tests.json")
     methods, leaves = result_methods(read_json(directory / "summary.json"), tree,
-                                     read_json(directory / "qualification.json"), context=execution_context(plan, plan["build_attempt"]))
+                                     read_json(directory / "qualification.json"), context=execution_context(plan, plan["build_attempt"], context=context))
     require(methods == expected, "Focused execution differs from complete compiled suites")
-    return {"schema_version": 2, **provenance(plan, plan["build_attempt"]), "toolchain": TOOLCHAIN, "runtime": RUNTIME,
+    return {"schema_version": 2, **provenance(plan, plan["build_attempt"], context=context), "toolchain": TOOLCHAIN, "runtime": RUNTIME,
             "status": "passed", "release_eligible": False, "methods": methods, "parameter_leaves": leaves,
             "plan_sha256": digest(directory / "plan.json"), "products_sha256": plan["products_sha256"],
             "files": {name: digest(directory / name) for name in (
@@ -479,11 +483,11 @@ SHARD_FILES = {"enumeration.txt", "summary.json", "tests.json", "qualification.j
 OUTCOME_KEYS = {"identity", "enumeration", "native", "receipt"}
 
 
-def execution(plan, index, directory, outcomes, *, attempt=None):
+def execution(plan, index, directory, outcomes, *, attempt=None, context=None):
     """Retain every attempt; only recomputed, complete raw results can pass."""
     directory = Path(directory)
     shard = selected_shard(plan, index)
-    context = provenance(plan, attempt)
+    execution_identity = provenance(plan, attempt, context=context)
     require(isinstance(outcomes, dict) and set(outcomes) == OUTCOME_KEYS
             and all(v in ("success", "failure", "cancelled", "skipped") for v in outcomes.values()),
             "Invalid execution outcomes")
@@ -493,16 +497,16 @@ def execution(plan, index, directory, outcomes, *, attempt=None):
     passed = all(value == "success" for value in outcomes.values())
     if passed:
         require(files == SHARD_FILES, "Missing passed shard evidence")
-        require(read_json(directory / "receipt.json") == receipt(plan, index, directory, attempt=attempt),
+        require(read_json(directory / "receipt.json") == receipt(plan, index, directory, attempt=attempt, context=context),
                 "Shard receipt mismatch")
     else:
         require("receipt.json" not in files, "Failed execution carries a passing receipt")
     assignment = hashlib.sha256(json.dumps({"suites": shard["suites"], "methods": shard["methods"]},
                                          sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"schema_version": 1, **context, "shard": index, "status": "passed" if passed else "failed",
+    return {"schema_version": 1, **execution_identity, "shard": index, "status": "passed" if passed else "failed",
             "outcomes": outcomes, "toolchain": TOOLCHAIN, "runtime": RUNTIME,
-            "plan_sha256": os.environ["IOS_UNIT_PLAN_SHA256"], "products_sha256": plan["products_sha256"],
-            "artifact_ids": artifact_ids(), "assignment_sha256": assignment,
+            "plan_sha256": plan_digest(context), "products_sha256": plan["products_sha256"],
+            "artifact_ids": artifact_ids(context), "assignment_sha256": assignment,
             "files": {name: digest(directory / name) for name in sorted(files)}}
 
 
@@ -510,8 +514,8 @@ def shard_artifact(plan, index, attempt):
     return f"ios-unit-shard-{plan['origin_run_id']}-build-{plan['build_attempt']}-attempt-{attempt}-{index}"
 
 
-def selected_executions(plan, evidence):
-    current = execution_context(plan)["run_attempt"]
+def read_executions(plan, evidence, *, context=None):
+    current = execution_context(plan, context=context)["run_attempt"]
     attempts = [plan["build_attempt"]] if current == plan["build_attempt"] else [plan["build_attempt"], current]
     allowed = {shard_artifact(plan, s["index"], a): (s["index"], a) for s in plan["shards"] for a in attempts}
     executions = {}
@@ -524,9 +528,14 @@ def selected_executions(plan, evidence):
         value = read_json(directory / "execution.json")
         require(isinstance(value, dict) and type(value.get("schema_version")) is int
                 and value["schema_version"] == 1 and type(value.get("shard")) is int, "Invalid execution schema")
-        computed = execution(plan, index, directory, value.get("outcomes"), attempt=attempt)
+        computed = execution(plan, index, directory, value.get("outcomes"), attempt=attempt, context=context)
         require(value == computed, "Execution envelope mismatch")
         executions[index, attempt] = (directory, value)
+    return executions
+
+
+def selected_executions(plan, evidence, *, context=None):
+    executions = read_executions(plan, evidence, context=context)
     selected, failed = [], []
     for shard in plan["shards"]:
         index = shard["index"]
@@ -544,19 +553,24 @@ def selected_executions(plan, evidence):
     return selected, failed
 
 
-def aggregate(plan, evidence, output, requalification_directory):
-    evidence, output = Path(evidence), Path(output)
+def verify_requalification(plan, requalification_directory, *, context=None):
     focused = Path(requalification_directory)
     require({p.name for p in focused.iterdir()} == {"plan.json", "full-inventory.txt", "enumeration.txt", "summary.json", "tests.json",
             "qualification.json", "receipt.json", "enumeration.log", "xcodebuild.log", "results.xcresult"}, "Missing or extra focused evidence")
     require((focused / "results.xcresult").is_dir() and not (focused / "results.xcresult").is_symlink(), "Missing focused native result")
     require(read_json(focused / "plan.json") == plan, "Focused result uses another plan")
-    focused_receipt = requalification(focused, require_workspace=False)
+    focused_receipt = requalification(focused, require_workspace=False, context=context)
     require(read_json(focused / "receipt.json") == focused_receipt, "Focused receipt mismatch")
-    selected, failed = selected_executions(plan, evidence)
+    return focused_receipt
+
+
+def write_aggregate(plan, selected, failed, output, requalification_directory, *, context=None):
+    """Render already selected evidence, recomputing all receipts and union coverage."""
+    output, focused = Path(output), Path(requalification_directory)
+    focused_receipt = verify_requalification(plan, focused, context=context)
     trees, methods, parameters, selections = [], [], 0, []
     for directory, envelope in selected:
-        value = receipt(plan, envelope["shard"], directory, attempt=envelope["execution_attempt"])
+        value = receipt(plan, envelope["shard"], directory, attempt=envelope["execution_attempt"], context=context)
         methods.extend(value["methods"])
         parameters += value["parameter_leaves"]
         trees.append(read_json(directory / "tests.json"))
@@ -570,14 +584,23 @@ def aggregate(plan, evidence, output, requalification_directory):
     # Preserve raw trees. The unchanged critical validator searches recursively
     # and still requires each protected suite and case exactly once.
     write_json(output / "tests.json", {"shards": trees})
-    write_json(output / "coverage.json", {**provenance(plan), "artifact_ids": artifact_ids(),
-               "selected_executions": selections, "failed_executions": failed, "plan_sha256": os.environ["IOS_UNIT_PLAN_SHA256"],
+    write_json(output / "coverage.json", {**provenance(plan, context=context), "artifact_ids": artifact_ids(context),
+               "selected_executions": selections, "failed_executions": failed, "plan_sha256": plan_digest(context),
                "status": "passed", "methods": len(methods), "parameter_leaves": parameters, "shards": len(trees),
                "scope": "hosted-unit-suites", "complete_target": False, "release_eligible": False,
                "compiled_methods": len(plan["inventory"]),
                "separate_integrations": {"methods": plan["separate_integrations"], "status": "not-executed"},
                "requalification": {"receipt_sha256": digest(focused / "receipt.json"),
                                    "products_sha256": focused_receipt["products_sha256"]}})
+
+
+def aggregate(plan, evidence, output, requalification_directory, *, context=None):
+    # The ordinary gate has no artifact-loss exception, even with an explicit
+    # offline verification context. The separate recovery verifier owns that
+    # narrowly pinned, independently checked policy.
+    verify_requalification(plan, requalification_directory, context=context)
+    selected, failed = selected_executions(plan, evidence, context=context)
+    write_aggregate(plan, selected, failed, output, requalification_directory, context=context)
 
 
 def main():

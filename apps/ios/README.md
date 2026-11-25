@@ -1596,7 +1596,11 @@ or app-release requirements. The unit build also compiles the report-only
 performance bundle; sharding does not qualify device performance. See the
 [complete-unit sharding contract](../../docs/development-guides/08-testing-strategy.md#complete-unit-sharding-contract)
 for artifact provenance, process-isolation limits and the requirement to rerun
-all jobs together, and
+all jobs together. The reviewed
+[November 25 consolidation route](../../docs/development-guides/08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026)
+provides separately verified artifact-loss recovery and combined-source
+merge/TestFlight acceptance without repeating unaffected passing suites. It does
+not change this workflow or authorize distribution. See also
 [CI evidence and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
 for retained diagnostics.
 

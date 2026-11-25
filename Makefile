@@ -156,6 +156,8 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-ios-evidence-recovery.py
+	python3 -B scripts/test-ios-consolidation-acceptance.py
 	python3 -B scripts/test-ios-unit-shards.py
 	python3 -B scripts/test-prepare-ios-unit-simulator.py
 	python3 -B scripts/test-discover-ios27-simulator.py
@@ -288,3 +290,7 @@ validate-identification-research:
 	deno lint scripts/identification-research-catalog*.ts
 	deno test --allow-read=docs/research/identification/catalog.json,docs/research/identification/capabilities.json scripts/identification-research-catalog_test.ts
 	deno run --allow-read=docs --allow-run=deno scripts/identification-research-catalog.ts --check
+
+.PHONY: validate-ios-consolidation-acceptance
+validate-ios-consolidation-acceptance:
+	python3 -B scripts/ios-consolidation-acceptance.py assess $(ARGS)

@@ -69,9 +69,13 @@ A failing commit can enter `main`, but it is not eligible for release. Backend
 mutation requires the successful same-SHA reusable Candidate Validation job,
 source holds, current protected-main identity, and environment controls. The
 mutation job does not repeat the validation suite. iOS release requires the
-complete same-SHA iOS Build and Test run and the existing Xcode Organizer steps;
-a scope-only success is not release evidence. Optional PR evidence never
-replaces the final main-SHA evidence. See the
+complete same-SHA iOS Build and Test run, or, for this reviewed beta/TestFlight
+candidate only (not App Review/public release), the November 25
+[consolidation acceptance route](../development-guides/08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026),
+and the existing Xcode Organizer steps; a scope-only success is not release
+evidence. Optional PR evidence never becomes final main-SHA evidence by
+relabelling. The consolidation exception records original compiled revisions and
+validates the final combined delta. See the
 [testing strategy](../development-guides/08-testing-strategy.md).
 
 Only production mutation jobs share the production concurrency lock; validation
