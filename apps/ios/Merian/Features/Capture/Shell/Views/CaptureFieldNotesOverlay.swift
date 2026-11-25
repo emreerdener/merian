@@ -334,10 +334,12 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                 .accessibilityIdentifier("FieldNotesReset")
             } else {
                 Button(action: toggleDictation) {
-                    notesHeaderIcon("microphone.fill")
+                    notesHeaderIcon("microphone.fill", isRecording: isDictating)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(session.isDictationRequested ? "Stop dictation" : "Dictate notes")
+                .accessibilityValue(isDictating ? "Recording" : (session.isDictationRequested ? "Starting" : "Off"))
+                .accessibilityAddTraits(isDictating ? .isSelected : [])
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("FieldNotesDictation")
             }
@@ -345,12 +347,14 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         .padding(.horizontal, 16)
     }
 
-    private func notesHeaderIcon(_ name: String) -> some View {
+    private var isDictating: Bool { session.isDictationRequested && speechManager.isRecording }
+
+    private func notesHeaderIcon(_ name: String, isRecording: Bool = false) -> some View {
         Image(systemName: name)
             .font(.system(size: 20))
-            .foregroundStyle(.primary)
+            .foregroundStyle(isRecording ? Color.white : Color.primary)
             .frame(width: 44, height: 44)
-            .background(.primary.opacity(0.1), in: Circle())
+            .background(isRecording ? Color.red : Color.primary.opacity(0.1), in: Circle())
             .contentShape(Circle())
     }
 
@@ -380,6 +384,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
 
     private func toggleDictation() {
         guard workspace.acceptsFieldNotesWrite(session), !session.isSubmitting else { return }
+        presentation.selectionFeedback()
         session.isDictationRequested.toggle()
         session.input.dictationRequestDidChange(
             isRequested: session.isDictationRequested,

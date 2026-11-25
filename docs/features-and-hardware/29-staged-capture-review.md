@@ -332,27 +332,31 @@ together without clipping a fixed-height input. The underlying review retains
 its measured toolbar inset while notes owns the visible toolbar, and does not
 resize for the notes keyboard. Root capture also retains its chrome measurements
 while notes is occupied. The fixed sheet header owns the prompt-list and
-dictation buttons. Opening Prompts replaces those controls in the same header
-with Back and Reset; it does not mount a second navigation bar. Prompt rows use
-primary text and mark the current question with a checkmark. Selecting a row
-returns to that question. Reset clears the current notes and prompt progress,
-stops dictation, and preserves staged physical media. The panel keeps 12 points
-of interior padding below its observation toolbar. Only the sheet grabber
-remains visible while notes is open. The same observation toolbar stays above
-the keyboard. Dragging the header or grabber down, tapping the accessible close
-handle, VoiceOver escape, or tapping outside dismisses the panel back to the
-toolbar without discarding autosaved notes. Opening, starting a header drag, and
-closing use the existing haptic feedback service. Reduce Motion removes the
-spring; Reduce Transparency and hardware policy retain an opaque fallback. The
-matching dismissal completion still owns the occupancy barrier. Closing returns
-to the originating review. Tapping a toolbar media node closes notes and then
-opens that item's review, including when it is already the selected item. Plus
-closes notes and returns to capture. These destinations are retained only for
-the originating notes session, draft generation, and account; they execute after
-the matching dismissal releases occupancy. Replacement, invalidation, or
-submission locks prevent stale navigation. Autosaved notes survive both paths.
-Removing the final physical item clears supplementary notes and returns to empty
-capture.
+dictation buttons. Dictation is a one-tap start/stop toggle with selection
+haptics on each accepted tap. While this notes session is recording, its button
+uses a red circular background and white microphone; stopping restores the
+neutral background. Accessibility reports Starting, Recording, or Off without
+claiming recording before speech capture begins. Opening Prompts replaces those
+controls in the same header with Back and Reset; it does not mount a second
+navigation bar. Prompt rows use primary text and mark the current question with
+a checkmark. Selecting a row returns to that question. Reset clears the current
+notes and prompt progress, stops dictation, and preserves staged physical media.
+The panel keeps 12 points of interior padding below its observation toolbar.
+Only the sheet grabber remains visible while notes is open. The same observation
+toolbar stays above the keyboard. Dragging the header or grabber down, tapping
+the accessible close handle, VoiceOver escape, or tapping outside dismisses the
+panel back to the toolbar without discarding autosaved notes. Opening, starting
+a header drag, and closing use the existing haptic feedback service. Reduce
+Motion removes the spring; Reduce Transparency and hardware policy retain an
+opaque fallback. The matching dismissal completion still owns the occupancy
+barrier. Closing returns to the originating review. Tapping a toolbar media node
+closes notes and then opens that item's review, including when it is already the
+selected item. Plus closes notes and returns to capture. These destinations are
+retained only for the originating notes session, draft generation, and account;
+they execute after the matching dismissal releases occupancy. Replacement,
+invalidation, or submission locks prevent stale navigation. Autosaved notes
+survive both paths. Removing the final physical item clears supplementary notes
+and returns to empty capture.
 
 Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
 and the primary action inside one glass capsule with 12 pt horizontal, 16 pt
