@@ -341,22 +341,26 @@ controls in the same header with Back and Reset; it does not mount a second
 navigation bar. Prompt rows use primary text and mark the current question with
 a checkmark. Selecting a row returns to that question. Reset clears the current
 notes and prompt progress, stops dictation, and preserves staged physical media.
-The panel keeps 12 points of interior padding below its observation toolbar.
-Only the sheet grabber remains visible while notes is open. The same observation
-toolbar stays above the keyboard. Dragging the header or grabber down, tapping
-the accessible close handle, VoiceOver escape, or tapping outside dismisses the
-panel back to the toolbar without discarding autosaved notes. Opening, starting
-a header drag, and closing use the existing haptic feedback service. Reduce
-Motion removes the spring; Reduce Transparency and hardware policy retain an
-opaque fallback. The matching dismissal completion still owns the occupancy
-barrier. Closing returns to the originating review. Tapping a toolbar media node
-closes notes and then opens that item's review, including when it is already the
-selected item. Plus closes notes and returns to capture. These destinations are
-retained only for the originating notes session, draft generation, and account;
-they execute after the matching dismissal releases occupancy. Replacement,
-invalidation, or submission locks prevent stale navigation. Autosaved notes
-survive both paths. Removing the final physical item clears supplementary notes
-and returns to empty capture.
+The panel keeps 12 points of interior padding below its observation toolbar. The
+toolbar and panel share one 44 × 5 pt grabber that travels with the panel's
+upper edge. The glass toolbar remains mounted while notes opens, collapses,
+waits for persistence, and reopens. Selection styling changes in the same spring
+transaction as the panel; presentation occupancy still fences navigation until
+dismissal and required persistence finish. The same observation toolbar stays
+above the keyboard. Dragging the header or grabber down, tapping the accessible
+close handle, VoiceOver escape, or tapping outside dismisses the panel back to
+the toolbar without discarding autosaved notes. Opening, starting a header drag,
+and closing use the existing haptic feedback service. Reduce Motion removes the
+spring; Reduce Transparency and hardware policy retain an opaque fallback. The
+matching dismissal completion still owns the occupancy barrier. Closing returns
+to the originating review. Tapping a toolbar media node closes notes and then
+opens that item's review, including when it is already the selected item. Plus
+closes notes and returns to capture. These destinations are retained only for
+the originating notes session, draft generation, and account; they execute after
+the matching dismissal releases occupancy. Replacement, invalidation, or
+submission locks prevent stale navigation. Autosaved notes survive both paths.
+Removing the final physical item clears supplementary notes and returns to empty
+capture.
 
 Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
 and the primary action inside one glass capsule with 12 pt horizontal, 16 pt

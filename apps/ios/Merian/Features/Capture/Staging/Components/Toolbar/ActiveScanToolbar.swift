@@ -26,6 +26,10 @@ struct ActiveScanToolbar: View {
 
     private let dependencies: CaptureStagingToolbarDependencies
 
+    @Environment(\.captureNotesVisible) private var notesVisibility
+    @Environment(\.captureNotesOwnsGrabber) private var ownsGrabber
+    private var notesAreVisible: Bool { notesVisibility ?? isNotesPresented }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showTooltip: Bool
     @State private var showSubmitTooltip = false
@@ -111,16 +115,15 @@ struct ActiveScanToolbar: View {
             .modifier(CaptureTrayGlass(isExpanded: true))
         }
         .overlay(alignment: .top) {
-            if !isNotesPresented {
-                Capsule().fill(.secondary).frame(width: 56, height: 4)
-                    .padding(.top, 5).allowsHitTesting(false).accessibilityHidden(true)
+            if !isNotesPresented, !ownsGrabber {
+                CaptureNotesGrabber().padding(.top, 6)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("CaptureObservationToolbar")
         .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { value in
-            guard !isNotesPresented, !isMutationLocked, value.translation.height < -30,
+            guard !ownsGrabber, !isNotesPresented, !isMutationLocked, value.translation.height < -30,
                   abs(value.translation.height) > abs(value.translation.width) else { return }
             onNoteTap()
         })
@@ -225,10 +228,10 @@ struct ActiveScanToolbar: View {
     private var mediaNodes: some View {
         CaptureStagingToolbarMediaRow(
             presentation: presentation,
-            selectedNodeID: selectedNodeID,
+            selectedNodeID: notesAreVisible ? nil : selectedNodeID,
             addAccessibilityLabel: onAddMore == nil ? "Add photo" : "Add media",
             isReview: onAddMore != nil,
-            isAddingMedia: onAddMore == nil && !isNotesPresented,
+            isAddingMedia: !notesAreVisible && (onAddMore == nil || (isNotesPresented && selectedNodeID == nil)),
             isCheckingPhotoImportAdmission:
                 isCheckingPhotoImportAdmission,
             onRequestPhotoPickerPresentation:
@@ -243,11 +246,11 @@ struct ActiveScanToolbar: View {
         Button(action: onNoteTap) {
             CaptureStagingNoteIcon(hasNote: hasSharedNote)
                 .frame(width: 48, height: 48)
-                .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote, isSelected: isNotesPresented))
+                .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote, isSelected: notesAreVisible))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(hasSharedNote ? "Edit field notes" : "Add field notes")
-        .accessibilityAddTraits(isNotesPresented ? .isSelected : [])
+        .accessibilityAddTraits(notesAreVisible ? .isSelected : [])
         .accessibilityIdentifier("CaptureFieldNotes")
     }
 

@@ -143,13 +143,17 @@ extension CaptureWorkspaceViewModelRefinementTests {
     func testNotesOverlayResumesNavigationWhenPersistenceDrains() async throws {
         let model = makePhotoReviewModel(count: 1)
         let review = try XCTUnwrap(model.mediaReviewSession)
-        XCTAssertTrue(model.openFieldNotes(inReview: review))
-        let notes = try XCTUnwrap(model.fieldNotesSession)
+        var toolbarMounts = 0
+        var toolbarUnmounts = 0
         var destinations: [CapturePhotoReviewAction] = []
         let hardware = HardwareOrchestrator(appSettings: AppSettings(), observeSystemChanges: false)
         let host = UIHostingController(rootView: CaptureFieldNotesOverlay(
-            workspace: model, session: notes, speechManager: model.diContainer.speechManager,
-            onNavigation: { destinations.append($0) }, toolbar: { Color.clear.frame(height: 74) })
+            workspace: model, speechManager: model.diContainer.speechManager,
+            onNavigation: { destinations.append($0) }, toolbar: {
+                Color.clear.frame(height: 74)
+                    .onAppear { toolbarMounts += 1 }
+                    .onDisappear { toolbarUnmounts += 1 }
+            })
             .environment(hardware).environment(\.accessibilityReduceMotion, true))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive })
@@ -164,6 +168,11 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
         host.view.frame = window.bounds
         try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(toolbarMounts, 1)
+        XCTAssertTrue(model.openFieldNotes(inReview: review))
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(toolbarMounts, 1)
+        XCTAssertEqual(toolbarUnmounts, 0)
         model.navigateFromFieldNotes(.addMore)
         // Hold the production owner's observable work flag across dismissal;
         // only the mounted overlay may retry when the flag clears.
@@ -171,11 +180,21 @@ extension CaptureWorkspaceViewModelRefinementTests {
         try await Task.sleep(for: .milliseconds(500))
         XCTAssertTrue(destinations.isEmpty)
         XCTAssertTrue(model.isFieldNotesOccupied)
+        XCTAssertEqual(toolbarMounts, 1)
+        XCTAssertEqual(toolbarUnmounts, 0)
         model.initialDraftMutationTask = nil
         for _ in 0..<40 where destinations.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
         XCTAssertEqual(destinations, [.addMore])
         XCTAssertFalse(model.isFieldNotesOccupied)
         XCTAssertEqual(model.mediaReviewSession?.id, review.id)
+        XCTAssertTrue(model.openFieldNotes(inReview: review))
+        try await Task.sleep(for: .milliseconds(300))
+        model.closeFieldNotes(sessionID: try XCTUnwrap(model.fieldNotesSession).id)
+        for _ in 0..<40 where model.isFieldNotesOccupied { try await Task.sleep(for: .milliseconds(100)) }
+        XCTAssertFalse(model.isFieldNotesOccupied)
+        XCTAssertEqual(destinations, [.addMore])
+        XCTAssertEqual(toolbarMounts, 1, "The glass toolbar must survive open, close, and reopen")
+        XCTAssertEqual(toolbarUnmounts, 0)
     }
 
     private func captureNotesGeometry(_ window: UIWindow, name: String) -> UIImage {

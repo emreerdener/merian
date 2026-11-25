@@ -118,12 +118,14 @@ struct CaptureWorkspaceView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
                 .allowsHitTesting(!viewModel.isFieldNotesOccupied && viewModel.mediaReviewPresentationID == nil)
                 .accessibilityHidden(viewModel.isFieldNotesOccupied || viewModel.mediaReviewPresentationID != nil)
-            if viewModel.mediaReviewPresentationID == nil, let session = viewModel.fieldNotesSession {
-                CaptureFieldNotesOverlay(workspace: viewModel, session: session,
-                                         speechManager: speechManager, onNavigation: navigateNotesToolbar) {
+            if viewModel.mediaReviewPresentationID == nil, viewModel.shouldPresentActiveScanToolbar {
+                CaptureFieldNotesOverlay(workspace: viewModel,
+                                         speechManager: speechManager, onNavigation: navigateNotesToolbar,
+                                         onOpenNotes: editSharedNote) {
                     activeToolbar
                 }
-                .id(session.id)
+                .opacity(viewModel.isFieldNotesOccupied || !shouldHideBottomChrome ? 1 : 0)
+                .allowsHitTesting(viewModel.isFieldNotesOccupied || !shouldHideBottomChrome)
             }
         }
             .onChange(of: viewModel.draftSession.generation) { _, _ in
@@ -394,9 +396,6 @@ struct CaptureWorkspaceView: View {
                             isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile),
                             dependencies: viewModel.dependencies.navigation
                         )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else if viewModel.mediaReviewPresentationID == nil && !viewModel.isFieldNotesOccupied {
-                        activeToolbar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }

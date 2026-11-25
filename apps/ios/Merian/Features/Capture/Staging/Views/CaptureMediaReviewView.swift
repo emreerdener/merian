@@ -14,7 +14,7 @@ struct CaptureMediaReviewView: View {
     @State private var showsCommitError = false
     @State private var showsRemovalOptions = false
     @State private var command: Task<Void, Never>?
-    @State private var reviewToolbarHeight: CGFloat = 0
+    @State private var reviewToolbarHeight: CGFloat = 74
 
     private var selectedNode: StagedCaptureNode? {
         workspace.stagedCapture.orderedNodes.first { $0.id == session.selectedNodeID }
@@ -43,23 +43,14 @@ struct CaptureMediaReviewView: View {
                 .disabled(isBusy || workspace.isFieldNotesOccupied)
                 .accessibilityHidden(workspace.isFieldNotesOccupied)
                 .safeAreaInset(edge: .bottom) {
-                    if workspace.isFieldNotesOccupied {
-                        // Reserve the same layout without retaining hidden glass controls.
-                        Color.clear.frame(height: reviewToolbarHeight).accessibilityHidden(true)
-                    } else {
-                        toolbar.padding(.vertical, 8)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                                reviewToolbarHeight = $0
-                            }
-                    }
+                    // The persistent overlay owns glass; reserve its unchanged footprint.
+                    Color.clear.frame(height: reviewToolbarHeight + 16).accessibilityHidden(true)
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
-            if let notes = workspace.fieldNotesSession {
-                CaptureFieldNotesOverlay(workspace: workspace, session: notes,
-                    speechManager: workspace.diContainer.speechManager, toolbarBottomPadding: 8,
-                    onNavigation: perform) { toolbar }
-                    .id(notes.id)
-            }
+            CaptureFieldNotesOverlay(workspace: workspace,
+                speechManager: workspace.diContainer.speechManager, toolbarBottomPadding: 8,
+                onNavigation: perform, onOpenNotes: { perform(.fieldNotes) },
+                onToolbarHeightChange: { reviewToolbarHeight = $0 }) { toolbar }
         }
         .sheet(isPresented: Binding(get: { session.historicalDescriptionID != nil }, set: {
             if !$0 { session.historicalDescriptionID = nil }
@@ -183,7 +174,7 @@ struct CaptureMediaReviewView: View {
             stagedCaptureLimit: workspace.stagedCaptureLimit, isSubmissionReady: isPrimaryReady,
             isMutationLocked: isBusy || workspace.fieldNotesSession?.isSubmitting == true, isNotesPresented: workspace.isFieldNotesOccupied,
             allowsFrozenRequestActions: command == nil && workspace.canRetryInitialDraft,
-            selectedNodeID: workspace.isFieldNotesOccupied ? nil : session.selectedNodeID,
+            selectedNodeID: session.selectedNodeID,
             primaryActionTitle: workspace.isReanalyzing ? "Reanalyze" : "Identify",
             onAddMore: { perform(.addMore) },
             onNoteTap: {

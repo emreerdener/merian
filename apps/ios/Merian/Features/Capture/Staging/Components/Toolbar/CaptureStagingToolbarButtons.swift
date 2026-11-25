@@ -106,3 +106,24 @@ struct CaptureStagingSubmitButton: View {
         .animation(.easeInOut(duration: 0.2), value: isDisabled)
     }
 }
+
+/// Shared chrome, also used by the persistent Field notes panel host.
+struct CaptureNotesGrabber: View {
+    var body: some View {
+        Capsule().fill(.secondary).frame(width: 44, height: 5)
+            .allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+private struct CaptureNotesVisibleKey: EnvironmentKey { static let defaultValue: Bool? = nil }
+private struct CaptureNotesOwnsGrabberKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var captureNotesVisible: Bool? {
+        get { self[CaptureNotesVisibleKey.self] }
+        set { self[CaptureNotesVisibleKey.self] = newValue }
+    }
+    var captureNotesOwnsGrabber: Bool {
+        get { self[CaptureNotesOwnsGrabberKey.self] }
+        set { self[CaptureNotesOwnsGrabberKey.self] = newValue }
+    }
+}

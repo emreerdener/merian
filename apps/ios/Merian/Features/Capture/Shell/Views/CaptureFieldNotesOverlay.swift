@@ -1,33 +1,161 @@
 import SwiftUI
 
-/// One outer presentation owns the editor, nested prompts, and dismissal barrier.
-/// The same observation toolbar stays above the keyboard while editing.
+@MainActor
+@Observable
+private final class CaptureFieldNotesMotion {
+    var isVisible = false
+    var isExpanded = false
+    var isDragging = false
+    var dragTranslation: CGFloat = 0
+}
+
+/// Keep native glass and the grabber mounted while the editor expands/collapses.
 struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     let workspace: CaptureWorkspaceViewModel
-    let session: CaptureFieldNotesSession
     let speechManager: SpeechManager
     var toolbarBottomPadding: CGFloat = 0
     var onNavigation: (CapturePhotoReviewAction) -> Void = { _ in }
-    private let toolbarInteriorPadding: CGFloat = 12
+    var onOpenNotes: () -> Void = {}
+    var onToolbarHeightChange: (CGFloat) -> Void = { _ in }
     @ViewBuilder let toolbar: () -> Toolbar
+    @State private var motion = CaptureFieldNotesMotion()
+    @State private var toolbarHeight: CGFloat = 74
+    @GestureState private var isGestureActive = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(HardwareOrchestrator.self) private var hardware
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                if workspace.isFieldNotesOccupied {
+                    Color.black.opacity(motion.isVisible ? 0.2 : 0)
+                        .contentShape(Rectangle()).onTapGesture(perform: close).accessibilityHidden(true)
+                }
+                VStack(spacing: 0) {
+                    if let session = workspace.fieldNotesSession {
+                        CaptureFieldNotesPanel(workspace: workspace, session: session, speechManager: speechManager,
+                            availableHeight: max(0, geometry.size.height - toolbarHeight - toolbarBottomPadding - 24),
+                            motion: motion, sheetDrag: sheetDrag, onNavigation: onNavigation)
+                            .id(session.id)
+                            .transition(.identity)
+                    }
+                    toolbar()
+                        .environment(\.captureNotesVisible, motion.isVisible)
+                        .environment(\.captureNotesOwnsGrabber, true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                            toolbarHeight = $0
+                            onToolbarHeightChange($0)
+                        }
+                        .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { value in
+                            guard !workspace.isFieldNotesOccupied, value.translation.height < -30,
+                                  abs(value.translation.height) > abs(value.translation.width) else { return }
+                            onOpenNotes()
+                        })
+                }
+                .padding(.bottom, motion.isVisible ? 12 : 0)
+                .background {
+                    sheetBackground.clipShape(RoundedRectangle(cornerRadius: motion.isVisible ? 32 : 50))
+                        .padding(.horizontal, 8).opacity(motion.isVisible ? 1 : 0)
+                }
+                .overlay(alignment: .top) { grabber }
+                .environment(\.colorScheme, .dark)
+                .padding(.bottom, toolbarBottomPadding)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(workspace.isFieldNotesOccupied ? .isModal : [])
+        .onChange(of: workspace.fieldNotesSession?.id) { _, id in
+            if id == nil { motion.isVisible = false; motion.isDragging = false; motion.dragTranslation = 0 }
+        }
+        .onChange(of: isGestureActive) { _, active in
+            if !active, motion.isDragging, workspace.fieldNotesSession?.isPresented == true {
+                withAnimation(animation) { motion.isDragging = false; motion.dragTranslation = 0 }
+            }
+        }
+    }
+
+    private var grabber: some View {
+        Button {
+            if workspace.isFieldNotesOccupied { close() } else { onOpenNotes() }
+        } label: {
+            VStack(spacing: 0) {
+                CaptureNotesGrabber().padding(.top, motion.isVisible ? 6 : 34)
+                Spacer(minLength: 0)
+            }
+            .frame(width: 80, height: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // Keep the closed handle's 44-point target above the media buttons.
+        .offset(y: motion.isVisible ? 0 : -28)
+        .accessibilityLabel(workspace.isFieldNotesOccupied ? "Close Field notes" : "Open Field notes")
+        .accessibilityHint("Double-tap or drag to expand or close")
+        .accessibilityIdentifier(workspace.isFieldNotesOccupied ? "FieldNotesClose" : "FieldNotesOpen")
+        .disabled(workspace.fieldNotesSession.map { !$0.isPresented || $0.isSubmitting } ?? workspace.areCaptureActionsBlocked)
+        .highPriorityGesture(sheetDrag)
+    }
+
+    @ViewBuilder private var sheetBackground: some View {
+        if reduceTransparency || !hardware.isGlassmorphismEnabled { Color(uiColor: .secondarySystemBackground) } else {
+            Rectangle().fill(.regularMaterial).overlay(Color.black.opacity(0.18))
+        }
+    }
+    private var animation: Animation? { reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.86) }
+    private func close() {
+        if let session = workspace.fieldNotesSession { workspace.closeFieldNotes(sessionID: session.id) }
+    }
+    private var sheetDrag: AnyGesture<DragGesture.Value> {
+        // The header moves with the panel; measure against the stationary screen.
+        AnyGesture(DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .updating($isGestureActive) { _, active, _ in active = true }
+            .onChanged { value in
+                guard let session = workspace.fieldNotesSession, session.isPresented, !session.isSubmitting,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                if !motion.isDragging {
+                    motion.isDragging = true
+                    workspace.dependencies.feedback.selection("capture.field-notes.drag")
+                }
+                motion.dragTranslation = value.translation.height
+            }
+            .onEnded { value in
+                if !workspace.isFieldNotesOccupied, value.translation.height < -30,
+                   abs(value.translation.height) > abs(value.translation.width) { onOpenNotes(); return }
+                guard let session = workspace.fieldNotesSession, session.isPresented, !session.isSubmitting,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                if value.translation.height > 80 || value.predictedEndTranslation.height > 160 {
+                    close()
+                } else {
+                    withAnimation(animation) {
+                        motion.isDragging = false
+                        if value.translation.height < -30 { motion.isExpanded = true }
+                        motion.dragTranslation = 0
+                    }
+                }
+            })
+    }
+
+}
+
+/// One outer presentation owns the editor, nested prompts, and dismissal barrier.
+/// The same observation toolbar stays above the keyboard while editing.
+private struct CaptureFieldNotesPanel: View {
+    let workspace: CaptureWorkspaceViewModel
+    let session: CaptureFieldNotesSession
+    let speechManager: SpeechManager
+    let availableHeight: CGFloat
+    let motion: CaptureFieldNotesMotion
+    let sheetDrag: AnyGesture<DragGesture.Value>
+    var onNavigation: (CapturePhotoReviewAction) -> Void = { _ in }
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isTextFocused: Bool
-    @State private var isVisible = false
     @State private var hasFinishedDismissal = false
-    @State private var isExpanded = false
     @State private var showsPrompts = false
     @State private var contentHeight: CGFloat = 392
     @State private var promptHeight: CGFloat = 180
     @ScaledMetric(relativeTo: .body) private var minimumEditorHeight: CGFloat = 72
     @State private var headerHeight: CGFloat = 80
-    @State private var toolbarHeight: CGFloat = 74
-    @State private var dragTranslation: CGFloat = 0
-    @State private var isDragging = false
-    @GestureState private var isGestureActive = false
-    @Environment(HardwareOrchestrator.self) private var hardware
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let presentation = DescribePresentationDependencies.live
 
     private var context: Binding<ObservationContext> {
@@ -37,42 +165,21 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                Color.black.opacity(isVisible ? 0.2 : 0)
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: close)
-                    .accessibilityHidden(true)
-                let availableHeight = max(0, geometry.size.height - toolbarHeight - toolbarBottomPadding - toolbarInteriorPadding - 12)
-                let editorHeight = min(availableHeight, isExpanded ? availableHeight : headerHeight + contentHeight)
-                let draggedHeight = max(0, min(availableHeight, editorHeight - dragTranslation))
-                VStack(spacing: 0) {
-                    editor
-                        .frame(height: isDragging ? draggedHeight : editorHeight)
-                        .frame(height: isVisible ? draggedHeight : 0, alignment: .top)
-                        .clipped()
-                        .opacity(isVisible ? 1 : 0)
-                        .accessibilityHidden(!isVisible)
-                    toolbar()
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { toolbarHeight = $0 }
-                }
-                .padding(.bottom, isVisible ? toolbarInteriorPadding : 0)
-                .background {
-                    sheetBackground
-                        .clipShape(RoundedRectangle(cornerRadius: isVisible ? 32 : 50, style: .continuous))
-                        .padding(.horizontal, 8)
-                        .opacity(isVisible ? 1 : 0)
-                }
-                .environment(\.colorScheme, .dark)
-                .padding(.bottom, toolbarBottomPadding)
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
+        let editorHeight = min(availableHeight, motion.isExpanded ? availableHeight : headerHeight + contentHeight)
+        let draggedHeight = max(0, min(availableHeight, editorHeight - motion.dragTranslation))
+        editor
+            .frame(height: motion.isDragging ? draggedHeight : editorHeight)
+            .frame(height: motion.isVisible ? draggedHeight : 0, alignment: .top)
+            .clipped()
+            .opacity(motion.isVisible ? 1 : 0)
+            .accessibilityHidden(!motion.isVisible)
         .onAppear {
             guard session.isPresented else { dismissPresentation(); return }
+            motion.isExpanded = false
+            motion.isDragging = false
+            motion.dragTranslation = 0
             workspace.dependencies.feedback.sheet("capture.field-notes.open")
-            withAnimation(animation) { isVisible = true }
+            withAnimation(animation) { motion.isVisible = true }
         }
         .accessibilityAction(.escape, close)
         .onChange(of: session.isPresented) { _, presented in
@@ -81,17 +188,8 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         .onChange(of: workspace.isInitialDraftWorkActive) { _, active in
             if !active { completeDismissalIfReady() }
         }
-        .onChange(of: isGestureActive) { _, active in
-            // Gesture cancellation does not call onEnded (e.g. interruption).
-            if !active, isDragging, session.isPresented {
-                withAnimation(animation) {
-                    isDragging = false
-                    dragTranslation = 0
-                }
-            }
-        }
         .onChange(of: isTextFocused) { _, focused in
-            if focused { withAnimation(animation) { isExpanded = true } }
+            if focused { withAnimation(animation) { motion.isExpanded = true } }
         }
         .onChange(of: session.prompts.progress) { _, _ in
             workspace.saveFieldNotesProgress(session: session)
@@ -122,35 +220,10 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         .onDisappear { session.stopInput() }
     }
 
-    @ViewBuilder
-    private var sheetBackground: some View {
-        if reduceTransparency || !hardware.isGlassmorphismEnabled {
-            Color(uiColor: .secondarySystemBackground)
-        } else {
-            Rectangle().fill(.regularMaterial).overlay(Color.black.opacity(0.18))
-        }
-    }
-
     private var editor: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                notesHeader.padding(.top, 20).padding(.bottom, 16)
-                Button(action: close) {
-                    VStack {
-                        Capsule().fill(.secondary).frame(width: 36, height: 5).padding(.top, 6)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(width: 80, height: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close Field notes")
-                .accessibilityHint("Double-tap to close, or drag the header down")
-                .accessibilityIdentifier("FieldNotesClose")
-            }
+            notesHeader.padding(.top, 20).padding(.bottom, 16)
             .contentShape(Rectangle())
-            // A recognized drag must cancel the close handle's tap, including
-            // when a title drag starts inside its accessible hit region.
             .highPriorityGesture(sheetDrag)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
             if showsPrompts {
@@ -189,34 +262,6 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .accessibilityIdentifier("FieldNotesPromptList")
-    }
-
-    private var sheetDrag: some Gesture {
-        // The header moves with the panel; measure against the stationary screen.
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
-            .updating($isGestureActive) { _, active, _ in active = true }
-            .onChanged { value in
-                guard session.isPresented, !session.isSubmitting,
-                      abs(value.translation.height) > abs(value.translation.width) else { return }
-                if !isDragging {
-                    isDragging = true
-                    workspace.dependencies.feedback.selection("capture.field-notes.drag")
-                }
-                dragTranslation = value.translation.height
-            }
-            .onEnded { value in
-                guard session.isPresented, !session.isSubmitting,
-                      abs(value.translation.height) > abs(value.translation.width) else { return }
-                if value.translation.height > 80 || value.predictedEndTranslation.height > 160 {
-                    close()
-                } else {
-                    withAnimation(animation) {
-                        isDragging = false
-                        if value.translation.height < -30 { isExpanded = true }
-                        dragTranslation = 0
-                    }
-                }
-            }
     }
 
     private var notesContent: some View {
@@ -262,7 +307,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                         // Keep the resting detent independent of the flexible editor
                         // while dragging, expanded, or accommodating the keyboard.
-                        if !isTextFocused, !isExpanded, !isDragging { contentHeight = height }
+                        if !isTextFocused, !motion.isExpanded, !motion.isDragging { contentHeight = height }
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
@@ -279,7 +324,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     }
 
     private func textEditorHeight(in viewportHeight: CGFloat) -> CGFloat {
-        guard isTextFocused || isExpanded || isDragging else { return 180 }
+        guard isTextFocused || motion.isExpanded || motion.isDragging else { return 180 }
         // Fit prompt cards and input together when possible. At accessibility
         // sizes, reserve a readable input viewport and let the prompts scroll.
         let minimum = min(minimumEditorHeight, max(44, viewportHeight - 24))
@@ -303,7 +348,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                     isTextFocused = false
                     session.stopInput()
                     presentation.selectionFeedback()
-                    isExpanded = true
+                    motion.isExpanded = true
                     showsPrompts = true
                 } label: {
                     notesHeaderIcon("list.bullet")
@@ -366,9 +411,9 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
         isTextFocused = false
         workspace.dependencies.feedback.sheet("capture.field-notes.close")
         withAnimation(animation, completionCriteria: .removed) {
-            isDragging = false
-            isVisible = false
-            dragTranslation = 0
+            motion.isDragging = false
+            motion.isVisible = false
+            motion.dragTranslation = 0
         } completion: {
             hasFinishedDismissal = true
             completeDismissalIfReady()
