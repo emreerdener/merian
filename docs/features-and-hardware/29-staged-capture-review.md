@@ -344,13 +344,15 @@ notes and prompt progress, stops dictation, and preserves staged physical media.
 The panel keeps 12 points of interior padding below its observation toolbar. The
 toolbar and panel share one 44 × 5 pt grabber that travels with the panel's
 upper edge. The glass toolbar remains mounted while notes opens, collapses,
-waits for persistence, and reopens. Selection styling changes in the same spring
-transaction as the panel; presentation occupancy still fences navigation until
-dismissal and required persistence finish. The same observation toolbar stays
-above the keyboard. Dragging the header or grabber down, tapping the accessible
-close handle, VoiceOver escape, or tapping outside dismisses the panel back to
-the toolbar without discarding autosaved notes. Opening, starting a header drag,
-and closing use the existing haptic feedback service. Reduce Motion removes the
+waits for persistence, and reopens. Clearing staged content during account or
+draft teardown retains the host until the matching notes dismissal releases
+occupancy. Selection styling changes in the same spring transaction as the
+panel; presentation occupancy still fences navigation until dismissal and
+required persistence finish. The same observation toolbar stays above the
+keyboard. Dragging the header or grabber down, tapping the accessible close
+handle, VoiceOver escape, or tapping outside dismisses the panel back to the
+toolbar without discarding autosaved notes. Opening, starting a header drag, and
+closing use the existing haptic feedback service. Reduce Motion removes the
 spring; Reduce Transparency and hardware policy retain an opaque fallback. The
 matching dismissal completion still owns the occupancy barrier. Closing returns
 to the originating review. Tapping a toolbar media node closes notes and then

@@ -118,7 +118,7 @@ struct CaptureWorkspaceView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
                 .allowsHitTesting(!viewModel.isFieldNotesOccupied && viewModel.mediaReviewPresentationID == nil)
                 .accessibilityHidden(viewModel.isFieldNotesOccupied || viewModel.mediaReviewPresentationID != nil)
-            if viewModel.mediaReviewPresentationID == nil, viewModel.shouldPresentActiveScanToolbar {
+            if viewModel.mediaReviewPresentationID == nil, viewModel.shouldPresentCaptureToolbarHost {
                 CaptureFieldNotesOverlay(workspace: viewModel,
                                          speechManager: speechManager, onNavigation: navigateNotesToolbar,
                                          onOpenNotes: editSharedNote) {

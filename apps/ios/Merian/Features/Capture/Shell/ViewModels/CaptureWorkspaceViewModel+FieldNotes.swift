@@ -3,6 +3,10 @@ import Foundation
 extension CaptureWorkspaceViewModel {
     var isFieldNotesOccupied: Bool { fieldNotesSession != nil }
 
+    /// Account/draft teardown can clear staged content before the panel finishes
+    /// dismissing. Keep its host alive until that matching dismissal releases it.
+    var shouldPresentCaptureToolbarHost: Bool { shouldPresentActiveScanToolbar || isFieldNotesOccupied }
+
     /// Competing actions use this guard. Autosaves retain the original mutation
     /// guard so the presentation cannot lock out its own editor.
     var areCaptureActionsBlocked: Bool {

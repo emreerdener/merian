@@ -147,14 +147,16 @@ extension CaptureWorkspaceViewModelRefinementTests {
         var toolbarUnmounts = 0
         var destinations: [CapturePhotoReviewAction] = []
         let hardware = HardwareOrchestrator(appSettings: AppSettings(), observeSystemChanges: false)
-        let host = UIHostingController(rootView: CaptureFieldNotesOverlay(
-            workspace: model, speechManager: model.diContainer.speechManager,
-            onNavigation: { destinations.append($0) }, toolbar: {
-                Color.clear.frame(height: 74)
-                    .onAppear { toolbarMounts += 1 }
-                    .onDisappear { toolbarUnmounts += 1 }
-            })
-            .environment(hardware).environment(\.accessibilityReduceMotion, true))
+        let host = UIHostingController(rootView: Group {
+            if model.shouldPresentCaptureToolbarHost {
+                CaptureFieldNotesOverlay(workspace: model, speechManager: model.diContainer.speechManager,
+                    onNavigation: { destinations.append($0) }, toolbar: {
+                        Color.clear.frame(height: 74)
+                            .onAppear { toolbarMounts += 1 }
+                            .onDisappear { toolbarUnmounts += 1 }
+                    })
+            }
+        }.environment(hardware).environment(\.accessibilityReduceMotion, true))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive })
         let previousKeyWindow = scene.windows.first { $0.isKeyWindow }
@@ -195,6 +197,21 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(destinations, [.addMore])
         XCTAssertEqual(toolbarMounts, 1, "The glass toolbar must survive open, close, and reopen")
         XCTAssertEqual(toolbarUnmounts, 0)
+        model.dismissMediaReview(sessionID: review.id)
+        XCTAssertTrue(model.finishMediaReviewDismissal(sessionID: review.id))
+        model.isFeaturePresentationAwaitingDismissal = false // matching outer orchestration callback
+        XCTAssertTrue(model.openFieldNotes())
+        try await Task.sleep(for: .milliseconds(300))
+        model.stagedCapture = StagedCapture()
+        model.clearFieldNotesAfterFinalMediaRemoval()
+        XCTAssertFalse(model.shouldPresentActiveScanToolbar)
+        XCTAssertTrue(model.shouldPresentCaptureToolbarHost, "The empty draft must retain its dismissal owner")
+        for _ in 0..<40 where model.isFieldNotesOccupied { try await Task.sleep(for: .milliseconds(100)) }
+        XCTAssertFalse(model.isFieldNotesOccupied)
+        XCTAssertFalse(model.shouldPresentCaptureToolbarHost)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(toolbarMounts, 1)
+        XCTAssertEqual(toolbarUnmounts, 1, "Only completed empty-draft dismissal may retire the host")
     }
 
     private func captureNotesGeometry(_ window: UIWindow, name: String) -> UIImage {
