@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum CaptureStagingToolbarMetrics {
-    static let nodeSize: CGFloat = 58
-    static let spacing: CGFloat = 10
-    static let compactHeight: CGFloat = 88
+    static let nodeSize: CGFloat = 53
+    static let spacing: CGFloat = 9
+    static let compactHeight: CGFloat = 81
     static let bottomInset: CGFloat = 12
 }
 
@@ -83,13 +83,13 @@ struct CaptureStagingSubmitButton: View {
     let submitAccessibilityHint: String
     let isDisabled: Bool
     let onSubmit: () -> Void
-    @ScaledMetric(relativeTo: .body) private var labelSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .body) private var labelSize: CGFloat = 18.5
 
     var body: some View {
         Button(action: onSubmit) {
             Text(title)
                 .font(.system(size: labelSize, weight: .semibold))
-                .padding(.horizontal, 22)
+                .padding(.horizontal, 20)
                 .frame(minHeight: CaptureStagingToolbarMetrics.nodeSize)
                 .background(isDisabled ? Color.primary.opacity(0.15) : Color.accentColor)
                 .foregroundStyle(isDisabled ? Color.secondary : .white)

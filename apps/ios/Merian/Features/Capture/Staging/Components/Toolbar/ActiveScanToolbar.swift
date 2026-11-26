@@ -95,9 +95,9 @@ struct ActiveScanToolbar: View {
                 submitButton
                     .disabled(isCheckingPhotoImportAdmission)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 13)
+            .padding(.top, 17)
+            .padding(.bottom, 11)
             .modifier(CaptureTrayGlass())
             // Report the complete ideal width; never accept a compressed media row.
             .fixedSize(horizontal: true, vertical: false)
@@ -109,9 +109,9 @@ struct ActiveScanToolbar: View {
                 .disabled(isCheckingPhotoImportAdmission || isMutationLocked)
                 submitButton.disabled(isCheckingPhotoImportAdmission)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 13)
+            .padding(.top, 17)
+            .padding(.bottom, 11)
             .modifier(CaptureTrayGlass(isExpanded: true))
         }
         .overlay(alignment: .top) {
@@ -306,7 +306,7 @@ struct CaptureStagingNoteIcon: View {
 
     var body: some View {
         Image(systemName: hasNote ? Self.populatedSymbol : Self.emptySymbol)
-            .font(.system(size: 24, weight: .medium))
+            .font(.system(size: 22, weight: .medium))
             .foregroundStyle(.primary)
             .accessibilityHidden(true)
     }

@@ -387,14 +387,14 @@ can therefore open the chosen media review synchronously at completion, before
 unrelated deferred routes or camera restoration resume. Removing the final
 physical item clears supplementary notes and returns to empty capture.
 
-Nodes use 58 pt touch targets and 10 pt spacing. Compact layout places nodes and
-the primary action inside one glass capsule with 14 pt horizontal, 18 pt top,
-and 12 pt bottom padding. The toolbar has 16 pt outer horizontal margins. When
+Nodes use 53 pt touch targets and 9 pt spacing. Compact layout places nodes and
+the primary action inside one glass capsule with 13 pt horizontal, 17 pt top,
+and 11 pt bottom padding. The toolbar has 16 pt outer horizontal margins. When
 ideal contents do not fit, whole media nodes wrap in chronological order above
 the primary action inside one rounded glass container; Field notes stays last
 among the nodes. The decision uses available width and ideal content size, not
 device or node-count thresholds. Identify/Reanalyze uses a blue text capsule
-with at least 58 pt height, 22 pt horizontal text padding, and a 20 pt label
+with at least 53 pt height, 20 pt horizontal text padding, and an 18.5 pt label
 that scales with Dynamic Type, preserving its context-specific accessibility
 label, submission hint, disabled state, and Large Content Viewer label.
 

@@ -946,8 +946,8 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(upgrade.waitForExistence(timeout: 8))
         XCTAssertTrue(upgrade.isHittable)
         XCTAssertEqual(upgrade.label, "Add another media item with Pro")
-        XCTAssertEqual(upgrade.frame.width, 58, accuracy: 1)
-        XCTAssertEqual(upgrade.frame.height, 58, accuracy: 1)
+        XCTAssertEqual(upgrade.frame.width, 53, accuracy: 1)
+        XCTAssertEqual(upgrade.frame.height, 53, accuracy: 1)
         XCTAssertTrue(audio.isHittable)
         XCTAssertFalse(app.buttons["StagedMediaPlaceholder_0"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -1165,8 +1165,8 @@ final class merianUITests: XCTestCase {
         let toolbar = app.otherElements["CaptureObservationToolbar"]
         XCTAssertTrue(toolbar.waitForExistence(timeout: 4))
         let closedBounds = toolbar.frame
-        XCTAssertEqual(notes.frame.width, 58, accuracy: 1)
-        XCTAssertEqual(closedBounds.height, 88, accuracy: 1)
+        XCTAssertEqual(notes.frame.width, 53, accuracy: 1)
+        XCTAssertEqual(closedBounds.height, 81, accuracy: 1)
         let origin = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
             .withOffset(CGVector(dx: 0, dy: 8))
         origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -100)))

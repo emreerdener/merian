@@ -67,20 +67,20 @@ struct CaptureStagingToolbarPresentationTests {
 
     @Test("Media wraps at complete-node boundaries and retains chronological positions")
     func mediaWrapsWithoutClipping() {
-        let sizes = Array(repeating: CGSize(width: 58, height: 58), count: 7)
-        let frames = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 194)
-        #expect(frames.map(\.minX) == [0, 68, 136, 0, 68, 136, 0])
-        #expect(frames.map(\.minY) == [0, 0, 0, 68, 68, 68, 136])
-        #expect(frames.allSatisfy { $0.width == 58 && $0.height == 58 && $0.maxX <= 194 })
-        let narrow = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 193)
-        #expect(narrow[2].minY == 68)
-        #expect(narrow[6].minY == 204)
-        #expect(CaptureStagingMediaFlowLayout.frames(sizes: [], width: 194).isEmpty)
+        let sizes = Array(repeating: CGSize(width: 53, height: 53), count: 7)
+        let frames = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 177)
+        #expect(frames.map(\.minX) == [0, 62, 124, 0, 62, 124, 0])
+        #expect(frames.map(\.minY) == [0, 0, 0, 62, 62, 62, 124])
+        #expect(frames.allSatisfy { $0.width == 53 && $0.height == 53 && $0.maxX <= 177 })
+        let narrow = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 176)
+        #expect(narrow[2].minY == 62)
+        #expect(narrow[6].minY == 186)
+        #expect(CaptureStagingMediaFlowLayout.frames(sizes: [], width: 177).isEmpty)
     }
 
     @Test("Expanded tray clearance moves all content together and restores the baseline")
     func toolbarClearanceTracksMeasuredHeight() {
-        for height: CGFloat in [0, 88, 96] {
+        for height: CGFloat in [0, 81, 96] {
             let layout = CaptureChromeLayout(toolbarHeight: height)
             #expect(layout.bottomInset == 124)
             #expect(layout.reservedHeight == 204)

@@ -33,7 +33,7 @@ struct CaptureStagingToolbarMediaRow: View {
                             ProgressView().tint(.primary)
                         } else {
                             Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 22, weight: .medium))
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -57,7 +57,7 @@ struct CaptureStagingToolbarMediaRow: View {
             if presentation.showsProMediaPlaceholder {
                 Button(action: onUpgradeTap) {
                     Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .medium))
+                        .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(.primary)
                         .frame(width: CaptureStagingToolbarMetrics.nodeSize, height: CaptureStagingToolbarMetrics.nodeSize)
                         .modifier(CaptureStagingNodeSurface(isEmpty: true))
@@ -126,9 +126,9 @@ struct CaptureStagingToolbarMediaRow: View {
                             .modifier(CaptureStagingNodeSurface())
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
-                            .frame(width: 22, height: 22)
+                            .frame(width: 20, height: 20)
                             .background(Color.black.opacity(0.62))
                             .clipShape(Circle())
                             .offset(x: 1, y: 1)
@@ -144,7 +144,7 @@ struct CaptureStagingToolbarMediaRow: View {
 private struct StagedDescriptionBadge: View {
     var body: some View {
         Image(systemName: "text.alignleft")
-            .font(.system(size: 22, weight: .medium))
+            .font(.system(size: 20, weight: .medium))
             .foregroundStyle(.primary)
             .frame(width: CaptureStagingToolbarMetrics.nodeSize, height: CaptureStagingToolbarMetrics.nodeSize)
             .modifier(CaptureStagingNodeSurface())
@@ -155,7 +155,7 @@ private struct StagedDescriptionBadge: View {
 private struct StagedAudioBadge: View {
     var body: some View {
         Image(systemName: "waveform")
-            .font(.system(size: 22, weight: .semibold))
+            .font(.system(size: 20, weight: .semibold))
             .foregroundStyle(.primary)
             .frame(width: CaptureStagingToolbarMetrics.nodeSize, height: CaptureStagingToolbarMetrics.nodeSize)
             .modifier(CaptureStagingNodeSurface())
