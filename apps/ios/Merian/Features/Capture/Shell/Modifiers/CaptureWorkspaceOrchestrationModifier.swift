@@ -55,7 +55,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             .onChange(of: viewModel.activePresentation, initial: true) { _, presentation in
                 if presentation != nil { rootPresentationAwaitingDismissal = true }
             }
-            .onChange(of: isFeaturePresentationOccupied, initial: true) { _, occupied in
+            .onChange(of: isFeaturePresentationAwaitingCallback, initial: true) { _, occupied in
                 if occupied { viewModel.isFeaturePresentationAwaitingDismissal = true }
             }
             .onChange(of: viewModel.fieldNotesSession?.id) { old, new in
@@ -91,8 +91,13 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     }
 
     private var isFeaturePresentationOccupied: Bool {
+        isFeaturePresentationAwaitingCallback || viewModel.isFieldNotesOccupied
+    }
+
+    // Inline notes owns its lifetime through animation and persistence. Only
+    // sheets/covers need the separate latch released by their onDismiss callback.
+    private var isFeaturePresentationAwaitingCallback: Bool {
         stagedDescriptionEditIndex != nil
-            || viewModel.isFieldNotesOccupied
             || isDescribeQuestionsSheetPresented
             || stagedAudioReviewIndex != nil
             || stagedVideoReviewIndex != nil

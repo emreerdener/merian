@@ -349,20 +349,26 @@ draft teardown retains the host until the matching notes dismissal releases
 occupancy. Selection styling changes in the same spring transaction as the
 panel; presentation occupancy still fences navigation until dismissal and
 required persistence finish. The same observation toolbar stays above the
-keyboard. Dragging the header or grabber down, tapping the accessible close
-handle, VoiceOver escape, or tapping outside dismisses the panel back to the
-toolbar without discarding autosaved notes. Opening, starting a header drag, and
-closing use the existing haptic feedback service. Reduce Motion removes the
-spring; Reduce Transparency and hardware policy retain an opaque fallback. The
-matching dismissal completion still owns the occupancy barrier. Closing returns
-to the originating review. Tapping a toolbar media node closes notes and then
-opens that item's review, including when it is already the selected item. Plus
-closes notes and returns to capture. These destinations are retained only for
-the originating notes session, draft generation, and account; they execute after
-the matching dismissal releases occupancy. Replacement, invalidation, or
-submission locks prevent stale navigation. Autosaved notes survive both paths.
-Removing the final physical item clears supplementary notes and returns to empty
-capture.
+keyboard and remains bottom-aligned when the panel is closed. Accessibility
+containment covers the visible panel and toolbar, leaving the separate review
+and capture headers reachable. Dragging the header or grabber down, tapping the
+accessible close handle, VoiceOver escape, or tapping outside dismisses the
+panel back to the toolbar without discarding autosaved notes. Opening, starting
+a header drag, and closing use the existing haptic feedback service. Reduce
+Motion removes the spring; Reduce Transparency and hardware policy retain an
+opaque fallback. The matching dismissal completion still owns the occupancy
+barrier. Closing returns to the originating review. Tapping a toolbar media node
+closes notes and then opens that item's review, including when it is already the
+selected item. Plus closes notes and returns to capture. These destinations are
+retained only for the originating notes session, draft generation, and account;
+they execute after the matching dismissal releases occupancy. Replacement,
+invalidation, or submission locks prevent stale navigation. Autosaved notes
+survive both paths. Inline notes uses its session as the animation/persistence
+occupancy barrier; it does not acquire the separate sheet/cover dismissal latch.
+Notes inside an existing review retains that review's outer latch. Root notes
+can therefore open the chosen media review synchronously at completion, before
+unrelated deferred routes or camera restoration resume. Removing the final
+physical item clears supplementary notes and returns to empty capture.
 
 Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
 and the primary action inside one glass capsule with 12 pt horizontal, 16 pt

@@ -145,6 +145,12 @@
       "justification": "Documentation of the reviewed acceptance alternative; no compiled application behavior changes.",
       "base_sha256": "1f6db6394c4f359b40ce0e73cc67b9110ec57831b933bf272d9ae2f3f34fd141",
       "candidate_sha256": "4e578f4fe109e11e35f23ece7bc3bf452adb033c0c285c4dfef69895a272a096"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
+      "base_sha256": "f215aff27c70c1f3fb6242376f976f1fa49a9491b63949a7ddb50ff559c1fe42",
+      "candidate_sha256": "d385673b6db526454f71c8d8c643f9a4c592854fccdf27261ffedb18cbd22096",
+      "justification": "Separate callback-backed sheet/cover latch from inline notes lifetime; aggregate camera/route occupancy and presentation guards unchanged. Exact root notes-to-audio regression plus all26Capture selectors required;14no-notes selector source applicability independently reviewed."
     }
   ],
   "required_focused_selectors": [
@@ -579,9 +585,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "97c289b116dbbc8e64bb84df42dc84f3789cbf6a"
+        "object": "44c2f3257536009e92c4d8b9fada7ef6c17926e0"
       },
-      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+      "review_scope": "Separate callback-backed sheet/cover latch from inline notes lifetime; aggregate camera/route occupancy and presentation guards unchanged. Exact root notes-to-audio regression plus all26Capture selectors required;14no-notes selector source applicability independently reviewed."
     },
     {
       "path": "docs/release-evidence/README.md",
@@ -720,6 +726,20 @@
         "object": "07940a527c89d2a8d39367d71e22a89f2fa64b60"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b89c79d31c412a3bbbd899995f94bf3e0b338e29"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b959208662678e8158a4a1e5564dbe437066623f"
+      },
+      "review_scope": "Separate callback-backed sheet/cover latch from inline notes lifetime; aggregate camera/route occupancy and presentation guards unchanged. Exact root notes-to-audio regression plus all26Capture selectors required;14no-notes selector source applicability independently reviewed."
     }
   ],
   "focused_evidence": null
