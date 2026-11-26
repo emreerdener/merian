@@ -45,34 +45,58 @@
   ],
   "reviewed_product_delta": [
     {
+      "path": "apps/ios/Merian/Features/Capture/Describe/README.md",
+      "base_sha256": "340e236fa4dd45b679115e775ec414fa3af9cf528cc5f27365d4efe717832f77",
+      "candidate_sha256": "9ad393419841365b79099ece415e6d0cc78239d7cf90edb02add393d815019b7",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
       "path": "apps/ios/Merian/Features/Capture/Shell/Components/Navigation/MainTabBar.swift",
       "base_sha256": "f30ce83960dc488e6d5fdd24be3d591ce5eb73f8e3b0bbef326d87004d1a5d3e",
       "candidate_sha256": "4bac2c323942629aaf16e2075966fedf48e61362884e97a9ef9106f62f609938",
       "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
     },
     {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Models/CaptureFieldNotesSession.swift",
+      "base_sha256": "310a93d604d73785decf039e63b38c563477438d1a20048f856b88a44224f2d8",
+      "candidate_sha256": "088469a65ceda1ee4d42d0badf265242e48b40e12e13c4b37e7e578296881b7a",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
       "path": "apps/ios/Merian/Features/Capture/Shell/README.md",
       "base_sha256": "d74bf70b404c892dab7acc8ec6d93e3b8b58ebe4d27477db2f1d52f324cd163a",
-      "candidate_sha256": "d947042425e8b85864791021666cc66ca4de1808814249c9486efea4dcf04b45",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "c803893e0b59b57fe0b2128c404dc6801fa01450eabd2510905e614ca06219ff",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+FieldNotes.swift",
+      "base_sha256": "40c39f1725e732089d835f10c41a71dafcfdf7ae4f49e189e1d2ebbe223243eb",
+      "candidate_sha256": "a27a954c1ca59f2fa8392b4ca284b32e5324ecf6839e379bcbfd53c4e8e0c13d",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
       "base_sha256": "bf6e3eeb4e7c8a88a0b9cd256d38fd14b258b244a16fda391d5d44860fe508a1",
-      "candidate_sha256": "0264029538e1679a904837694cdb58101ca01a157fc3e50e60c3048fd87191a4",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "eb3dbfc7cd92eb1906c584b74de4518fb1ddd18ccfcd06182986038e9ff78ff0",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
       "base_sha256": "1fdb679f91bbad6c3e4a03cc6d8e5eef7e3fba85b7361b680379a4ba768a2c72",
-      "candidate_sha256": "ae621989f48a0348a223d16a268d626808a15551affe9470547da24879f2dedb",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "9a148b7870d4003505a006de2b427a211cad851425ebb4586eafcd1dab7fc5ee",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/ActiveScanToolbar.swift",
       "base_sha256": "5016846985a16fbbf4d73baed10a9ba9f9d874a6fc860e2246d745bc0fb556f4",
-      "candidate_sha256": "210de9dca318cca45e4155b1b7d4b3157a6e58b3a03725e5a22b0f733ea7134e",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "8c1b04b539400c276821285624c35b6815a9debfe6a9821669d26d62c61bfe7b",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/CaptureStagingToolbarButtons.swift",
+      "base_sha256": "f6067f0611589d3159a0ef50aae83e165aad9cf5bb31f83a0f7f8b4f81fed9e1",
+      "candidate_sha256": "ed569d95b82cb23300a1b4b21acca18208aa74c15a419f6ac6c0ab9fc0f4d2f4",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/README.md",
@@ -83,8 +107,8 @@
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Views/CaptureMediaReviewView.swift",
       "base_sha256": "b86b40a6b1ccced8550e3dd34bfa3a27232409cea3571a0c65261fbf1249ec30",
-      "candidate_sha256": "96e7e724c6cb143f5015f339e27ce1b0c48f52bc929cbe1b41e7e7b8d71c11f9",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "40d0bd078a861eb9cbf456cf129bcc71b983d2a96790bb51360320b810cfac63",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Views/CapturePhotoReviewPage.swift",
@@ -93,16 +117,28 @@
       "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
     },
     {
+      "path": "apps/ios/MerianTests/Features/Capture/Shell/CaptureFieldNotesSessionTests.swift",
+      "base_sha256": "0754f26ba08912291353ae3f18b29393f707820301b8059963ac65d79c983188",
+      "candidate_sha256": "3df690375c7db6609eb8d0a6ce676f0cbbcdb173e63825abfadc8831353612e4",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
       "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
       "base_sha256": "66ff199a6630835b9cc3c7339cf895ef8c30199a766f79ce64c7eaeb5aab5901",
-      "candidate_sha256": "1a066848c96d88ddfba40752e9b759874d4b62e0570887440f65c4d2d606f22e",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "bc58347d856392b925f346c6bd5ffbf4359f24e198521e32e1628cb8aba8d04f",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+    },
+    {
+      "path": "apps/ios/MerianUITests/StagedAudioBoostUITests.swift",
+      "base_sha256": "5de01b63da4b12353050d00ef4ad5bb77f90d28a5d231df2a6b41f905efc47c5",
+      "candidate_sha256": "72e7bd913f4ac86cca12cbb9be3936bb1a09b06afad1fc3f2e861a6545d445d0",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/MerianUITests/merianUITests.swift",
       "base_sha256": "3252ed77f91f077fe654f210af345f5384917cfb29c6c7eda7a6258370a0a867",
-      "candidate_sha256": "9c635a6d706ab39998134186c690591d1c1899bfe29a12c2c5503401298de8da",
-      "justification": "Reviewed Capture presentation/navigation changes and their regressions; no persistence, networking, media preparation, dependencies or backend implementation changes. Current combined build and selected UI/lifecycle tests cover this delta."
+      "candidate_sha256": "5586ad9bbeb64940639af6dbc1e84c7d7145c579ac19f4991955b6c2ccf0ea8c",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
       "path": "apps/ios/README.md",
@@ -143,7 +179,15 @@
     "merianUITests/ReanalysisRecoveryRestartUITests/testPhotoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
     "merianUITests/ReanalysisRecoveryRestartUITests/testAudioRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
     "merianUITests/ReanalysisRecoveryRestartUITests/testVideoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
-    "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
+    "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+    "merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia",
+    "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
   ],
   "reused_surface_paths": {
     "backend": [
@@ -232,6 +276,20 @@
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
     },
     {
+      "path": "apps/ios/Merian/Features/Capture/Describe/README.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "c00fd92380174d8018c2b2e925819079edb80a1c"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "429e76dc528c303fadefaa51e50c06df664813ed"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
       "path": "apps/ios/Merian/Features/Capture/Shell/Components/Navigation/MainTabBar.swift",
       "before": {
         "mode": "100644",
@@ -246,6 +304,20 @@
       "review_scope": "Capture/navigation UI integration and focused regression coverage"
     },
     {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Models/CaptureFieldNotesSession.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e3ab12bc0c09183eaf039ef963211dc1e566599f"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e4bbca215e1f0d2e54f23264b8f014fc89fa8c79"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
       "path": "apps/ios/Merian/Features/Capture/Shell/README.md",
       "before": {
         "mode": "100644",
@@ -255,9 +327,23 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "9c5b84562ac13ad99dfd4617fadfc365f2b4688b"
+        "object": "02a03f760d47d72d57077548a389a4a0092a3520"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+FieldNotes.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e52bc76830fdc367c78ed58ceb43f46b24db53e4"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "353654c7dc3587a5732f2fe95f0af16c984a8bc8"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
@@ -269,9 +355,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "bfa4f2731b9def03626badd21e288f142c2b9c6d"
+        "object": "832f654fa45cb52940422ab99547b5fa710e74ef"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
@@ -283,9 +369,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "da03fbe4d18852c32977c7f0a06a3c9400a85803"
+        "object": "568c27480e230bc21798162e8b23e893ce8eeb3d"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/ActiveScanToolbar.swift",
@@ -297,9 +383,23 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "b388495e32805c9c65e7dfe568d62f39004e1cb6"
+        "object": "b143b0b7f061b5b26c0ae835777c624c52345ba9"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/CaptureStagingToolbarButtons.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "6b042447eac7662b78f86b39d80d6715c687bd84"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "4418d36db3c32662be885eafaeb78c25365b861d"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/README.md",
@@ -325,9 +425,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "6c166f48b8c20b3a82108ba3077c71e11dda7270"
+        "object": "0e88cb64dda395a4a3afb3a2b0863f777b13f68c"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Views/CapturePhotoReviewPage.swift",
@@ -344,6 +444,20 @@
       "review_scope": "Capture/navigation UI integration and focused regression coverage"
     },
     {
+      "path": "apps/ios/MerianTests/Features/Capture/Shell/CaptureFieldNotesSessionTests.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "861b64da7df7341799e0a8402e4dc3300a5df873"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "c5f10a9e333edab9a57cfa81ce28b36ed14b1959"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
       "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
       "before": {
         "mode": "100644",
@@ -353,9 +467,23 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "2440489d02647a80cbd8e89a3d63cb77f58a3dd3"
+        "object": "a49a6b50b67ac1a43a5dbf13a7c3388eb7517ba5"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
+      "path": "apps/ios/MerianUITests/StagedAudioBoostUITests.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "7c5bb75fafa3bb2cf8699aa16e67f544a4c25cb3"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "859582480cbc905f293ea86030d38c97f381dc57"
+      },
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/MerianUITests/merianUITests.swift",
@@ -367,9 +495,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "e294dc11b2edce2d27ead071cd3bf91ce12eccb0"
+        "object": "499d436abf1bd669d71db42a7d9ab81457639f1a"
       },
-      "review_scope": "Capture/navigation UI integration and focused regression coverage"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "apps/ios/README.md",
@@ -423,9 +551,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "251823b3918f82328d9147ec4ac48452936a46de"
+        "object": "d30511b6905fd539921e99ab9a70dcf50114c3d4"
       },
-      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+      "review_scope": "Supersede the unexecuted 32-check subset with its 40-check integrated superset; preserve all prior checks, assertions, deadlines and operation boundaries."
     },
     {
       "path": "docs/features-and-hardware/07-feature-modules-and-ui.md",
@@ -451,9 +579,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "d5e26337301c19e234cdb933de4725598711905c"
+        "object": "97c289b116dbbc8e64bb84df42dc84f3789cbf6a"
       },
-      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
     },
     {
       "path": "docs/release-evidence/README.md",

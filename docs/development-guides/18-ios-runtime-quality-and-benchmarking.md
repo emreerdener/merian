@@ -622,8 +622,11 @@ gate. Exact logs, input manifests, results and findings are recorded under
 ## Reviewed consolidation subset
 
 The November 25 consolidation uses the existing XCResult acceptance parser and
-managed local build wrapper for its reviewed 32-method subset. Its additional
-source, product, artifact-loss and operation boundaries are owned by the
+managed local build wrapper for its reviewed 40-method subset: the previously
+prepared 32 checks plus eight Field notes navigation, persistence and hosting
+regressions. The unexecuted 32-method plan is superseded before compilation so
+all checks run once on the integrated source. Its additional source, product,
+artifact-loss and operation boundaries are owned by the
 [testing strategy](08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026)
 and `scripts/config/ios-consolidation-acceptance.json`. This candidate-specific
 selection does not replace the general runtime audit manifest or its performance
