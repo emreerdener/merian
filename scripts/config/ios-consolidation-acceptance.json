@@ -83,7 +83,7 @@
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
       "base_sha256": "1fdb679f91bbad6c3e4a03cc6d8e5eef7e3fba85b7361b680379a4ba768a2c72",
-      "candidate_sha256": "9a148b7870d4003505a006de2b427a211cad851425ebb4586eafcd1dab7fc5ee",
+      "candidate_sha256": "1162cfeaf2eea6a6956b1b1d21eb1c02805d6db33f2c0aa6742522965bc549c0",
       "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
@@ -369,9 +369,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "568c27480e230bc21798162e8b23e893ce8eeb3d"
+        "object": "1ea4c14be5d3131aafa24daba1135111edfd4e2e"
       },
-      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+      "review_scope": "Capture Field notes integration and scoped regressions; share the unchanged bottom-chrome predicate between the hoisted notes host and workspace content to repair lexical visibility. No predicate, assertion, deadline or operation-boundary change."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Staging/Components/Toolbar/ActiveScanToolbar.swift",

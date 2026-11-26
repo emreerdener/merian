@@ -38,6 +38,10 @@ struct CaptureWorkspaceView: View {
     private var chromeLayout: CaptureChromeLayout {
         CaptureChromeLayout(toolbarHeight: viewModel.shouldPresentActiveScanToolbar ? stagedToolbarHeight : 0)
     }
+    private var shouldHideBottomChrome: Bool {
+        (isKeyboardVisible && captureMode == .describe)
+            || viewModel.shouldSuppressCaptureChromeForCrop
+    }
     @State private var captureGoalIndicatorExpansionState:
         CaptureGoalIndicatorExpansionState = .collapsed
 
@@ -178,9 +182,6 @@ struct CaptureWorkspaceView: View {
 
     private var workspaceContent: some View {
         let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
-        let shouldHideBottomChrome =
-            (isKeyboardVisible && captureMode == .describe)
-            || viewModel.shouldSuppressCaptureChromeForCrop
 
         return ZStack {
                 // Paged capture mode switcher.
