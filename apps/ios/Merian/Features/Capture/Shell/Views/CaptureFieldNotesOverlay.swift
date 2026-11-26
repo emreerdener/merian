@@ -61,10 +61,11 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                 .overlay(alignment: .top) { grabber }
                 .environment(\.colorScheme, .dark)
                 .padding(.bottom, toolbarBottomPadding)
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(workspace.isFieldNotesOccupied ? .isModal : [])
             }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(workspace.isFieldNotesOccupied ? .isModal : [])
         .onChange(of: workspace.fieldNotesSession?.id) { _, id in
             if id == nil { motion.isVisible = false; motion.isDragging = false; motion.dragTranslation = 0 }
         }

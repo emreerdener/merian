@@ -145,18 +145,12 @@ extension CaptureWorkspaceViewModelRefinementTests {
         let review = try XCTUnwrap(model.mediaReviewSession)
         var toolbarMounts = 0
         var toolbarUnmounts = 0
+        var toolbarBounds = CGRect.zero
         var destinations: [CapturePhotoReviewAction] = []
         let hardware = HardwareOrchestrator(appSettings: AppSettings(), observeSystemChanges: false)
-        let host = UIHostingController(rootView: Group {
-            if model.shouldPresentCaptureToolbarHost {
-                CaptureFieldNotesOverlay(workspace: model, speechManager: model.diContainer.speechManager,
-                    onNavigation: { destinations.append($0) }, toolbar: {
-                        Color.clear.frame(height: 74)
-                            .onAppear { toolbarMounts += 1 }
-                            .onDisappear { toolbarUnmounts += 1 }
-                    })
-            }
-        }.environment(hardware))
+        let host = UIHostingController(rootView: NotesLifecycleTestHost(model: model,
+            onNavigation: { destinations.append($0) }, onMount: { toolbarMounts += 1 },
+            onUnmount: { toolbarUnmounts += 1 }, onToolbarBounds: { toolbarBounds = $0 }).environment(hardware))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive })
         let previousKeyWindow = scene.windows.first { $0.isKeyWindow }
@@ -171,6 +165,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
         host.view.frame = window.bounds
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(toolbarMounts, 1)
+        XCTAssertGreaterThan(toolbarBounds.minY, window.bounds.midY, "The closed toolbar must remain at the bottom")
+        XCTAssertLessThanOrEqual(toolbarBounds.maxY, window.bounds.maxY)
         XCTAssertTrue(model.openFieldNotes(inReview: review))
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(toolbarMounts, 1)
@@ -197,6 +193,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(destinations, [.addMore])
         XCTAssertEqual(toolbarMounts, 1, "The glass toolbar must survive open, close, and reopen")
         XCTAssertEqual(toolbarUnmounts, 0)
+        XCTAssertGreaterThan(toolbarBounds.minY, window.bounds.midY, "Closing notes must not move the toolbar over the header")
         model.dismissMediaReview(sessionID: review.id)
         XCTAssertTrue(model.finishMediaReviewDismissal(sessionID: review.id))
         model.isFeaturePresentationAwaitingDismissal = false // matching outer orchestration callback
@@ -206,10 +203,11 @@ extension CaptureWorkspaceViewModelRefinementTests {
         model.clearFieldNotesAfterFinalMediaRemoval()
         XCTAssertFalse(model.shouldPresentActiveScanToolbar)
         XCTAssertTrue(model.shouldPresentCaptureToolbarHost, "The empty draft must retain its dismissal owner")
-        for _ in 0..<40 where model.isFieldNotesOccupied { try await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<40 where model.isFieldNotesOccupied || toolbarUnmounts == 0 {
+            try await Task.sleep(for: .milliseconds(100))
+        }
         XCTAssertFalse(model.isFieldNotesOccupied)
         XCTAssertFalse(model.shouldPresentCaptureToolbarHost)
-        try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(toolbarMounts, 1)
         XCTAssertEqual(toolbarUnmounts, 1, "Only completed empty-draft dismissal may retire the host")
     }
@@ -501,5 +499,24 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
         model.presentCrop(for: 0)
         return model
+    }
+}
+
+@MainActor
+private struct NotesLifecycleTestHost: View {
+    let model: CaptureWorkspaceViewModel
+    let onNavigation: (CapturePhotoReviewAction) -> Void
+    let onMount: () -> Void
+    let onUnmount: () -> Void
+    let onToolbarBounds: (CGRect) -> Void
+
+    var body: some View {
+        if model.shouldPresentCaptureToolbarHost {
+            CaptureFieldNotesOverlay(workspace: model, speechManager: model.diContainer.speechManager,
+                onNavigation: onNavigation, toolbar: {
+                    Color.clear.frame(height: 74).onAppear(perform: onMount).onDisappear(perform: onUnmount)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onToolbarBounds($0) }
+                })
+        }
     }
 }

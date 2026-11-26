@@ -77,8 +77,8 @@
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
       "base_sha256": "bf6e3eeb4e7c8a88a0b9cd256d38fd14b258b244a16fda391d5d44860fe508a1",
-      "candidate_sha256": "eb3dbfc7cd92eb1906c584b74de4518fb1ddd18ccfcd06182986038e9ff78ff0",
-      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+      "candidate_sha256": "c5d3ffa9e6d3ea72fef3cdc364bc0635d2170e2656b9d5861811b4efea7d4bc0",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate. Correct the observed closed-toolbar top alignment and scope accessibility to visible content; hosted lifecycle fixture now observes its outer condition, retaining assertions/deadlines and adding bottom-placement coverage. Scoped native replay remains required."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
@@ -125,8 +125,8 @@
     {
       "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
       "base_sha256": "66ff199a6630835b9cc3c7339cf895ef8c30199a766f79ce64c7eaeb5aab5901",
-      "candidate_sha256": "f6f7fea51915897b60132a6e9387dc79a89b1d64f2259895ad032f274ced0735",
-      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
+      "candidate_sha256": "8ac570b6cd124b65db6b7fa898ffaa0d1411cd533e52b817e3f66931b611242d",
+      "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate. Correct the observed closed-toolbar top alignment and scope accessibility to visible content; hosted lifecycle fixture now observes its outer condition, retaining assertions/deadlines and adding bottom-placement coverage. Scoped native replay remains required."
     },
     {
       "path": "apps/ios/MerianUITests/StagedAudioBoostUITests.swift",
@@ -355,9 +355,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "832f654fa45cb52940422ab99547b5fa710e74ef"
+        "object": "67dddc5e6ebcc0f42cdca43997d34bbec9fc9b25"
       },
-      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+      "review_scope": "Narrow bottom-alignment/accessibility correction and observed-host regression; unchanged lifecycle/navigation/storage code, assertions and deadlines; focused native verification pending."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift",
@@ -467,9 +467,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "6deba5f666544e1c0c6d54c3f471af6f9e0b2367"
+        "object": "60102669f02a2577df5ea9e75c9261be92ec262d"
       },
-      "review_scope": "Capture hosting/geometry regressions and persistent-host lifecycle coverage; remove unsupported read-only Reduce Motion environment override, preserving production animation, all assertions and existing bounded waits."
+      "review_scope": "Narrow bottom-alignment/accessibility correction and observed-host regression; unchanged lifecycle/navigation/storage code, assertions and deadlines; focused native verification pending."
     },
     {
       "path": "apps/ios/MerianUITests/StagedAudioBoostUITests.swift",
