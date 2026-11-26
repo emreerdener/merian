@@ -1,3 +1,54 @@
+## November 26 — manual photo subject selection qualification
+
+The next user journey is tap → optional corner resize/pan/zoom → Identify or
+Reanalyze with the selected region preserved as evidence. Root starts from
+`8c120c6e`, including the delivered Field notes and fixed toolbar geometry.
+
+The existing submission owners already support selection: initial Capture
+retains source-relative selection in its original-media journal; reanalysis
+requires the composition owner and versioned focus evidence. Ordinary Debug
+intentionally cannot expose this path. **HistoryTesting** is the existing
+local-device scheme for the normal OAuth composition; no global flag, Auth
+namespace, hosted switch, or deployment change is part of this work. Earlier
+beta activation is historical evidence, not a fresh hosted compatibility
+readback.
+
+A source defect cleared selection during the transition from full-aspect preview
+to crop, or after only one of overlapping pan/pinch recognizers ended. The
+editor now waits for both recognizers to settle before testing crop exclusion.
+Candidate results from before a framing gesture are invalidated immediately.
+
+Final scoped validation covers 40 unique methods: 23 methods (31 expanded cases)
+passed on the final gesture source, and 17 unchanged preparation, journal,
+presentation, composition and prepared-pixel methods retain their direct earlier
+passes. Source fingerprints match before and after each native run. Both
+callback orders, overlapping recognizers, cancellation, stale candidates and
+one-shot accessibility commands are covered. Normal and large-text rendered
+selection states were inspected.
+
+The initial run and diagnostic replay remain failed evidence: XCTest's requested
+1.2 pinch produced an actual scale of about 2.70, correctly excluding the
+selected region. The final UI fixture zooms before selecting, then verifies
+source coordinates survive interior pan, rotation and zoom-out. Separately,
+terminal callbacks are now idempotent after GestureState reset; their regression
+tests cover both callback orders. The fixture correction is not proof that the
+original requested pinch produced its nominal scale.
+
+The Debug-only production-editor harness neither admits a submission nor changes
+workspace availability. Physical-device candidate assistance and the complete
+live Capture → Identify/Reanalyze journey remain device qualification, distinct
+from the passing editor and durable-owner checks. Use the existing
+HistoryTesting scheme and preserve the normal account/store configuration. No
+hosted mutation or provider submission was performed.
+
+Project generation/validation, strict lint, runtime audit tests and the portable
+iOS CI tooling recipe passed across retained successes and focused recovery. The
+device-scheme audit now tests the canonical project file rather than directory
+entry casing; its configuration and entitlement assertions are unchanged. The
+new Debug seed is included in the Release binary denylist. Exact receipts,
+failed attempts, source manifests and reconciliation are retained under
+`.artifacts/photo-selection-20261126/`.
+
 ## Current closeout — November 22, 2026
 
 Local implementation and the authorized targeted validation are complete; the

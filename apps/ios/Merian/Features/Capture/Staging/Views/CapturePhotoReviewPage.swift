@@ -7,6 +7,8 @@ struct CapturePhotoReviewPage: View {
 
     @ScaledMetric(relativeTo: .title2) private var headingSize = 26
     @ScaledMetric(relativeTo: .subheadline) private var instructionSize = 16
+    @GestureState private var isDragging = false
+    @GestureState private var isMagnifying = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +35,9 @@ struct CapturePhotoReviewPage: View {
         .task(id: editor.candidateRevision) {
             await editor.refreshCandidates(revision: editor.candidateRevision)
         }
+        .onChange(of: isDragging) { _, active in if !active { editor.endDragGesture() } }
+        .onChange(of: isMagnifying) { _, active in if !active { editor.endMagnifyGesture() } }
+        .onDisappear { editor.cancelFramingGestures() }
     }
 
     private var topToolbar: some View {
@@ -60,13 +65,16 @@ struct CapturePhotoReviewPage: View {
             .clipped()
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 10)
+                .updating($isDragging) { _, active, _ in active = true }
                 .onChanged { editor.drag($0.translation, ended: false) }
-                .onEnded { editor.drag($0.translation, ended: true) }
+                .onEnded { editor.finishDragGesture($0.translation) }
                 .simultaneously(with: MagnificationGesture()
+                    .updating($isMagnifying) { _, active, _ in active = true }
                     .onChanged { editor.magnify($0, ended: false) }
-                    .onEnded { editor.magnify($0, ended: true) })
+                    .onEnded { editor.finishMagnifyGesture($0) })
                 .exclusively(before: SpatialTapGesture().onEnded { editor.select(at: $0.location) }))
             .accessibilityLabel("Photo crop preview")
+            .accessibilityIdentifier("CapturePhotoPreview")
             .overlay { CapturePhotoSelectionOverlay(editor: editor) }
             .accessibilityActions {
                 if editor.allowsReframing {

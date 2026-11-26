@@ -1,6 +1,6 @@
+@testable import Merian
 import Testing
 import UIKit
-@testable import Merian
 
 @MainActor @Suite("Photo selection editor ownership")
 struct CapturePhotoSelectionEditorTests {
@@ -44,6 +44,77 @@ struct CapturePhotoSelectionEditorTests {
         #expect(editor.candidates.isEmpty)
         editor.clearSelection()
         #expect(editor.selectedSourceRect == nil)
+    }
+
+    @Test func fullAspectPanRetainsSelectionUntilFinalCropSettles() throws {
+        let source = CGRect(x: 0.2, y: 0.05, width: 0.6, height: 0.2)
+        let editor = CapturePhotoEditorState(original: make().original, allowsManualSelection: true,
+            selectedSourceRect: source, usesFullAspect: true)
+        editor.resize(to: 200)
+        let revision = editor.candidateRevision
+        editor.drag(.init(width: 0, height: 10), ended: false)
+        #expect(!editor.usesFullAspect)
+        #expect(editor.selectionGeometry.finalCropRect(for: source) == nil)
+        #expect(editor.selectedSourceRect == source)
+        editor.acceptCandidates([source], revision: revision)
+        #expect(editor.candidates.isEmpty)
+        editor.drag(.init(width: 0, height: 100), ended: true)
+        #expect(editor.selectionGeometry.finalCropRect(for: source) != nil)
+        #expect(editor.selectedSourceRect == source && !editor.hasSelectionEdits)
+    }
+
+    @Test(arguments: [false, true])
+    func overlappingPanAndPinchClearOnlyAfterBothEnd(panEndsFirst: Bool) throws {
+        let editor = make()
+        editor.select(at: CGPoint(x: 70, y: 100))
+        let source = try #require(editor.selectedSourceRect)
+        editor.drag(.init(width: 0, height: 10), ended: false)
+        editor.magnify(4, ended: false)
+        if panEndsFirst { editor.drag(.init(width: 0, height: 10), ended: true) } else { editor.magnify(4, ended: true) }
+        #expect(editor.selectedSourceRect == source)
+        if panEndsFirst { editor.magnify(4, ended: true) } else { editor.drag(.init(width: 0, height: 10), ended: true) }
+        #expect(editor.selectedSourceRect == nil)
+    }
+
+    @Test func interruptedGesturesSettleAndNextInteractionUsesCurrentOrigin() throws {
+        let editor = make()
+        editor.select(at: CGPoint(x: 100, y: 100))
+        editor.magnify(1.2, ended: false)
+        editor.drag(.init(width: 0, height: 10), ended: false)
+        let source = try #require(editor.selectedSourceRect)
+        editor.cancelFramingGestures()
+        #expect(editor.selectedSourceRect == source)
+        let revision = editor.candidateRevision
+        editor.endDragGesture(); editor.endMagnifyGesture(); editor.cancelFramingGestures()
+        #expect(editor.candidateRevision == revision)
+        editor.magnify(1.1, ended: true)
+        #expect(abs(editor.scale - 1.32) < 0.000001)
+        editor.dragSelection(corner: .topLeft, translation: .init(width: -10, height: -10), ended: false)
+        let resized = try #require(editor.selectedSourceRect)
+        editor.endSelectionGesture()
+        editor.dragSelection(corner: .topLeft, translation: .zero, ended: true)
+        #expect(editor.selectedSourceRect == resized)
+        editor.magnify(4, ended: false)
+        editor.endMagnifyGesture()
+        #expect(editor.selectedSourceRect == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func terminalCallbacksAndGestureResetApplyTransformOnlyOnce(resetFirst: Bool) {
+        let editor = make()
+        editor.magnify(1.2, ended: false)
+        if resetFirst { editor.endMagnifyGesture() }
+        editor.finishMagnifyGesture(1.2)
+        editor.endMagnifyGesture()
+        #expect(abs(editor.scale - 1.2) < 0.000001)
+        editor.drag(.init(width: 0, height: 10), ended: false)
+        if resetFirst { editor.endDragGesture() }
+        editor.finishDragGesture(.init(width: 0, height: 10))
+        editor.endDragGesture()
+        #expect(editor.offset.height == 10)
+        editor.magnify(1.1, ended: true) // One-shot accessibility commands still work.
+        editor.drag(.init(width: 0, height: 10), ended: true)
+        #expect(abs(editor.scale - 1.32) < 0.000001 && editor.offset.height == 20)
     }
 
     @Test func unsupportedSubmissionOwnerCannotExposeSelection() {

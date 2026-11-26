@@ -64,7 +64,7 @@ final class CapturePhotoEditorState {
         dragOrigin = origin
         offset = clamp(CGSize(width: origin.width + translation.width, height: origin.height + translation.height))
         if offset != origin { hasEdits = true }
-        if ended { dragOrigin = nil; finishFramingGesture() }
+        if ended { endDragGesture() }
     }
 
     func magnify(_ value: CGFloat, ended: Bool) {
@@ -75,8 +75,42 @@ final class CapturePhotoEditorState {
         scale = max(1, origin * value)
         offset = clamp(offset)
         if scale != origin { hasEdits = true }
-        if ended { zoomOrigin = nil; finishFramingGesture() }
+        if ended { endMagnifyGesture() }
     }
+
+    func endDragGesture() {
+        guard dragOrigin != nil else { return }
+        dragOrigin = nil
+        finishFramingGesture()
+    }
+
+    func endMagnifyGesture() {
+        guard zoomOrigin != nil else { return }
+        zoomOrigin = nil
+        finishFramingGesture()
+    }
+
+    // A GestureState reset may settle first. Late terminal callbacks must not
+    // apply their absolute translation/magnification again from the new origin.
+    // Direct drag/magnify commands remain available to accessibility actions.
+    func finishDragGesture(_ translation: CGSize) {
+        guard dragOrigin != nil else { return }
+        drag(translation, ended: true)
+    }
+
+    func finishMagnifyGesture(_ value: CGFloat) {
+        guard zoomOrigin != nil else { return }
+        magnify(value, ended: true)
+    }
+
+    func cancelFramingGestures() {
+        guard dragOrigin != nil || zoomOrigin != nil else { return }
+        dragOrigin = nil
+        zoomOrigin = nil
+        finishFramingGesture()
+    }
+
+    func endSelectionGesture() { selectionDragOrigin = nil }
 
     func rotate(clockwise: Bool) {
         guard allowsReframing else { return }
@@ -187,6 +221,9 @@ final class CapturePhotoEditorState {
     }
 
     private func finishFramingGesture() {
+        // Pinch and pan can overlap. Judge exclusion only after both recognizers
+        // settle, so an intermediate crop cannot discard a recoverable selection.
+        guard dragOrigin == nil, zoomOrigin == nil else { return }
         candidateRevision = UUID()
         candidates = []
         guard let rect = selectedSourceRect, selectionGeometry.finalCropRect(for: rect) == nil else { return }
@@ -196,9 +233,12 @@ final class CapturePhotoEditorState {
     }
 
     private func beginFraming() {
+        if dragOrigin == nil, zoomOrigin == nil {
+            candidateRevision = UUID()
+            candidates = []
+        }
         guard usesFullAspect else { return }
         usesFullAspect = false
         hasEdits = true
-        finishFramingGesture()
     }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 /// one-finger panning on the photo, as specified by the review design.
 struct CapturePhotoSelectionOverlay: View {
     let editor: CapturePhotoEditorState
+    @GestureState private var isResizing = false
 
     var body: some View {
         if editor.allowsManualSelection, let rect = editor.selectionViewportRect {
@@ -18,6 +19,8 @@ struct CapturePhotoSelectionOverlay: View {
             }
             .frame(width: editor.displaySize, height: editor.displaySize)
             .coordinateSpace(name: "photo-selection")
+            .onChange(of: isResizing) { _, active in if !active { editor.endSelectionGesture() } }
+            .onDisappear { editor.endSelectionGesture() }
         }
     }
 
@@ -27,6 +30,7 @@ struct CapturePhotoSelectionOverlay: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("photo-selection"))
+                .updating($isResizing) { _, active, _ in active = true }
                 .onChanged { editor.dragSelection(corner: corner, translation: $0.translation, ended: false) }
                 .onEnded { editor.dragSelection(corner: corner, translation: $0.translation, ended: true) })
             .position(point)

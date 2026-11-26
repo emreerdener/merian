@@ -1,3 +1,14 @@
+## Manual photo-selection gesture fixture
+
+`PhotoSelectionUITestPresentation` is a Debug-only harness enabled only by the
+existing UI-test opt-in, test execution context and `-seedPhotoSelectionReview`.
+It presents the production photo editor with synthetic pixels and exposes source
+selection and framing diagnostics to UI tests. It does not install a submission
+owner, enable ordinary Debug selection, or qualify live Identify/Reanalyze. The
+seed is forbidden in Release binaries. Real device review uses the existing
+HistoryTesting normal-OAuth configuration; see the
+[device review guide](../../../../docs/development-guides/24-identification-history-device-review.md).
+
 ## Initial photo result and History verification
 
 The existing `-seedInitialMediaHistory` Debug fixture now accepts a staged photo

@@ -1238,6 +1238,7 @@ jobs:
             "-seedReanalysisRecoveryRestart" \
             "-seedReanalysisRecoverySuccess" \
             "-seedInitialMediaHistory" \
+            "-seedPhotoSelectionReview" \
             "-seedQueuedRetryPresentationFlow" \
             "-seedOpenAIPermissionFlow" \
             "-seedLiveQueueHandoffFlow" \

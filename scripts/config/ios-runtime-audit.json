@@ -400,6 +400,22 @@
         "CompositionExecutionServiceTests"
       ],
       "owner": "apps/ios/MerianTests/Core/Data/AnalysisHistory/CompositionExecutionServiceTests.swift"
+    },
+    {
+      "selector": "merianTests/CapturePhotoSelectionEditorTests",
+      "suite_names": [
+        "CapturePhotoSelectionEditorTests",
+        "Photo selection editor ownership"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoSelectionEditorTests.swift"
+    },
+    {
+      "selector": "merianTests/CapturePhotoSelectionGeometryTests",
+      "suite_names": [
+        "CapturePhotoSelectionGeometryTests",
+        "Source-bound photo selection geometry"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoSelectionGeometryTests.swift"
     }
   ],
   "ui": [
@@ -646,6 +662,20 @@
       "suite_names": [
         "ReanalysisRecoveryRestartUITests"
       ]
+    },
+    {
+      "selector": "merianUITests/PhotoSelectionUITests/testTapRetapCornersPanZoomRotateAndClear",
+      "suite_names": [
+        "PhotoSelectionUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PhotoSelectionUITests.swift"
+    },
+    {
+      "selector": "merianUITests/PhotoSelectionUITests/testPanAndPinchDoNotCreateSelection",
+      "suite_names": [
+        "PhotoSelectionUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/PhotoSelectionUITests.swift"
     }
   ],
   "performance": [

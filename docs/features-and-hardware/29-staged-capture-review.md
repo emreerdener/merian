@@ -4,6 +4,22 @@ This document separates the current successor source checkpoint from the
 retained staging/submission contracts. Repository implementation is not a
 production deployment or qualification claim.
 
+## Manual selection qualification — November 26, 2026
+
+The current source exposes manual photo selection only through qualified initial
+or composition-reanalysis owners. Ordinary Debug stays inactive; the existing
+HistoryTesting device scheme supplies the normal-OAuth configuration. This
+supersedes older dated statements below about selection awaiting integration; it
+does not claim fresh hosted compatibility or live device qualification.
+
+Pan and pinch may overlap. Selection stays in source coordinates until both
+recognizers finish or cancel, then clears only if the settled crop excludes it.
+Gesture reset and terminal callbacks settle once, without applying a transform
+twice. Candidate results from an earlier framing revision cannot replace edits.
+The Debug-only editor harness qualifies gestures separately from durable
+evidence preparation/reopening and live submission. See the
+[current validation record](../product/capture-review-plan.md).
+
 ## Current integrated source contract — November 21, 2026
 
 This checkpoint supersedes older implementation-status statements below; dated

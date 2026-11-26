@@ -259,6 +259,7 @@ struct MerianApp: App {
                     .modifier(NativeRecoveryUITestPresentation())
                     .modifier(ReanalysisRecoveryUITestPresentation())
                     .modifier(InitialMediaHistoryUITestPresentation())
+                    .modifier(PhotoSelectionUITestPresentation())
                     #endif
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)

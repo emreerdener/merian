@@ -139,7 +139,7 @@ class DeviceReviewSchemes(unittest.TestCase):
             self.assertNotIn("#if MERIAN_HISTORY_NORMAL_OAUTH", source)
 
     def test_generated_qualification_preserves_primary_identity_and_entitlements(self):
-        self.assertIn("merian.xcodeproj", {path.name for path in ROOT.iterdir()})
+        self.assertTrue((ROOT / "merian.xcodeproj" / "project.pbxproj").is_file())
         result = subprocess.run(["ruby", "-rxcodeproj", "-rjson", "-e",
             'p=Xcodeproj::Project.open(ARGV.first); puts JSON.generate(p.targets.to_h {|t| [t.name,t.build_configurations.to_h {|c| [c.name,c.build_settings]}]})',
             str(ROOT / "merian.xcodeproj")], capture_output=True, text=True)

@@ -67,6 +67,15 @@ visibility, auto-submit behavior, and reanalysis capacity remain unchanged.
   and removal confirmation for historical text. Nested presentation keeps the
   outer review occupancy and cannot restart hardware.
 
+Photo subject selection uses immutable source coordinates. Full-aspect-to-crop
+transitions preserve the selection while a gesture is active; crop exclusion is
+resolved only after both overlapping pan and pinch recognizers settle. Starting
+framing invalidates older candidate results. The Debug-only
+`-seedPhotoSelectionReview` UI harness exercises this production editor without
+enabling a submission owner or altering normal Debug availability. Durable
+initial/composition integration is validated separately; use the existing
+HistoryTesting configuration for the qualified normal-OAuth device path.
+
 Capture Shell remains the mutable owner of `StagedCapture`. Shell admits and
 commits imports, appends completed modality values, owns review and
 automatic-submission presentation fences, removes items, and routes disposable
