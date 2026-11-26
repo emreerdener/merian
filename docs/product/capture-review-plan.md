@@ -1,3 +1,13 @@
+## November 26 — capture completion opens review
+
+User clarification: all successful media capture types (photo, audio, video)
+should automatically open the newly staged item's review. Existing routing is
+intended behavior, not an outstanding defect. Whole-observation submission does
+not require reviewing every item; eligible automatic identification retains its
+existing bypass. The historical audio-completion test selector is retained for
+evidence compatibility, but now explicitly asserts Review audio appears before
+any tray-node tap, for both active and paused recording completion.
+
 ## November 26 — manual photo subject selection qualification
 
 The next user journey is tap → optional corner resize/pan/zoom → Identify or

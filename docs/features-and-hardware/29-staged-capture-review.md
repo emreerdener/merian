@@ -253,6 +253,11 @@ the existing capacity policy; users tap again to add media. The upgrade node
 never grants additional admission capacity, changes reanalysis capacity, or
 reveals the tray outside its existing staged-review visibility rules.
 
+Successful photo, audio, and video capture stages the new item and automatically
+opens its shared media review. Users can return through Add media; reviewing
+every item is not a submission prerequisite. This November 26 clarification
+supersedes older statements that recording completion stays on the root tray.
+
 Staged review is the default on new and existing installations. Workspace's
 **Identify automatically** uses the `autoSubmitScans` key, registered as
 `false`; legacy confirmation and multi-capture values do not initialize it.
@@ -310,11 +315,12 @@ supplement. See the
 ## Audio completion
 
 **Finish recording** and the 15-second limit both add the completed original WAV
-directly to the staged tray, including completion while paused. Recording and
-handoff keep submission blocked. The accepted clip returns Record to idle;
-playback, scrubbing, boost, and removal are available from its node. Another
-recording is available only while capacity remains. Eligible Auto-submit uses
-the existing capture-attempt policy after staging, including early completion.
+to the staged tray and open its shared audio review, including completion while
+paused. Recording and handoff keep submission blocked. The accepted clip returns
+the recorder to idle; playback, scrubbing, boost, and removal are available in
+review. Tapping its node reopens that review. Another recording is available
+only while capacity remains. Eligible Auto-submit uses the existing
+capture-attempt policy after staging, including early completion.
 
 Completion is checked against the recording ID and draft generation, committed
 once, and acknowledged before recorder reset. Capacity loss in a valid draft

@@ -676,6 +676,8 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    // Keep the historical selector for retained evidence; successful capture now
+    // explicitly requires the shared review to open without tapping its tray node.
     func testFinishedRecordingJoinsTrayWithoutIntermediateReview() throws {
         for paused in [false, true] {
             let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
@@ -696,10 +698,10 @@ final class merianUITests: XCTestCase {
             XCTAssertFalse(app.buttons["Retry adding recording"].exists)
             XCTAssertTrue(app.buttons["Identify"].isEnabled)
             let screenshot = XCTAttachment(screenshot: app.screenshot())
-            screenshot.name = paused ? "Paused recording finished directly into tray" : "Recording finished directly into tray"
+            screenshot.name = paused ? "Paused recording automatically opens shared review" : "Recording automatically opens shared review"
             screenshot.lifetime = .keepAlways
             add(screenshot)
-            audio.tap()
+            XCTAssertTrue(app.staticTexts["Review audio"].waitForExistence(timeout: 8))
             XCTAssertTrue(app.buttons["Remove audio recording"].waitForExistence(timeout: 8))
             XCTAssertTrue(app.buttons["Turn off audio boost"].waitForExistence(timeout: 8))
             app.buttons["Add media"].tap()

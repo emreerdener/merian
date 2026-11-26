@@ -174,8 +174,10 @@ resolving.
 
 ### Recording Review Audio Boost
 
-Successful recordings join the staged tray immediately. Tapping their audio node
-opens the shared staged preview with playback, scrubbing, boost, and removal.
+Successful recordings join the staged tray immediately and automatically open
+the shared staged preview with playback, scrubbing, boost, and removal. Tapping
+their audio node reopens that review after returning to capture. Eligible
+automatic identification retains its existing submission path.
 `StagedAudio.prefersBoostedPreview` carries the recording-start default as
 ephemeral metadata; it never enters a payload or persisted scan. Each mounted
 preview initializes from that snapshot, and local toggles do not change it.
