@@ -82,8 +82,11 @@ def validate_delta(policy, candidate, *, whole_tree=True):
     for entry in entries:
         require(entry["justification"].strip(), "Missing change-impact justification")
         for revision, key in ((origin, "base_sha256"), (candidate, "candidate_sha256")):
-            require(recovery.sha256(recovery.git("show", revision + ":" + entry["path"])) == entry[key],
-                    "Reviewed product bytes changed: " + entry["path"])
+            if entry[key] is None:
+                require(entry["path"] not in tree_entries(revision), "Reviewed absent product path appeared")
+            else:
+                require(recovery.sha256(recovery.git("show", revision + ":" + entry["path"])) == entry[key],
+                        "Reviewed product bytes changed: " + entry["path"])
     for surface, owned in policy["reused_surface_paths"].items():
         require(not recovery.git("diff", "--name-only", origin, candidate, "--", *owned).strip(),
                 "Reused " + surface + " source changed; affected validation is required")
@@ -149,6 +152,7 @@ def focused_command(policy, destination):
 def run_focused(policy, destination, output):
     """One managed invocation; failures retain their evidence and are never retried here."""
     require(re.fullmatch(r"platform=iOS Simulator,id=[A-Fa-f0-9-]{36}", destination), "Exact simulator destination required")
+    require(not policy.get("successor_followups"), "Reviewed follow-ups use retained evidence; do not restart the legacy plan")
     identity = source_identity()
     validate_delta(policy, identity["source_sha"])
     require(not output.exists(), "Focused evidence destination must be new")
@@ -209,6 +213,8 @@ def verify_focused(policy, directory, candidate):
 
 
 def verify_combined_evidence(policy, directory, candidate):
+    if policy.get("successor_followups"):
+        return module("followups", "ios-consolidation-followups.py").verify(policy, directory, candidate)
     legacy, recovered = bool(policy.get("focused_evidence")), bool(policy.get("focused_recovery"))
     require(legacy != recovered, "Exactly one reviewed focused evidence route is required")
     if recovered:
@@ -237,8 +243,10 @@ def reviewed_records(policy, field, required, evidence, candidate):
             and ".." not in Path(p).parts and not any(c in p for c in "*?[]:") for p in owned), "Missing concrete applicability owner paths")
         for owner in owned:
             require(recovery.git("ls-tree", "-r", record["source_sha"], "--", owner).strip(), "Unknown evidence source/owner")
-        require(not recovery.git("diff", "--name-only", record["source_sha"], candidate, "--", *owned).strip(),
-                "Historical acceptance owner changed; rerun or supply current evidence")
+        if recovery.git("diff", "--name-only", record["source_sha"], candidate, "--", *owned).strip():
+            require(field == "journey_evidence" and policy.get("successor_followups"),
+                    "Historical acceptance owner changed; rerun or supply current evidence")
+            module("followups", "ios-consolidation-followups.py").journey_applicability(policy, record, candidate)
         report = evidence / path
         require(report.is_file() and not report.is_symlink() and shards.digest(report) == record["sha256"],
                 "Reviewed acceptance evidence missing or changed")
@@ -246,7 +254,7 @@ def reviewed_records(policy, field, required, evidence, candidate):
     return accepted, sorted(set(required) - {r["requirement"] for r in records})
 
 
-def assess(policy, focused, evidence, output, stage, client, recovery_run):
+def assess(policy, focused, evidence, output, stage, client, recovery_run, archive_run=None):
     require(policy["authorization"] == {"merge": False, "testflight_upload_or_distribution": False, "backend_or_sites_deploy": False}, "Acceptance cannot grant operation authority")
     candidate = source_identity()
     impact = validate_delta(policy, candidate["source_sha"])
@@ -271,17 +279,29 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run):
                 "Required " + surface + " workflow is not a verified pass")
         surface_runs[surface] = {k: run[k] for k in ("id", "head_sha", "run_attempt", "path", "conclusion")}
     journeys, missing = reviewed_records(policy, "journey_evidence", policy["required_journeys"], evidence, candidate["source_sha"])
+    archive = None
+    if policy.get("successor_followups"):
+        if archive_run is None:
+            missing.append("exact-source-unsigned-release-archive")
+        else:
+            archive = module("followups", "ios-consolidation-followups.py").verify_archive(client, archive_run, candidate, output / "archive-evidence")
     prerequisites = []
+    if stage == "qa-upload":
+        required = ["exact-signed-archive-privacy-ats-history", "compatible-beta-backend", "consent-rollout-readiness"]
+        prerequisites, absent = reviewed_records(policy, "qa_upload_evidence", required, evidence, candidate["source_sha"])
+        missing += absent
     if stage == "testflight":
         prerequisites, absent = reviewed_records(policy, "testflight_evidence", policy["testflight_prerequisites"], evidence, candidate["source_sha"])
         missing += absent
     result = {"schema_version": 1, "stage": stage, "status": "blocked" if missing else "passed",
               "candidate": candidate, "change_impact": impact, "native_origin": coverage["compiled_source"],
-              "recovery_sha256": shards.digest(output / "recovery/coverage.json"), "combined_focused": current,
+              "recovery_sha256": shards.digest(output / "recovery/coverage.json"), "combined_focused": current, "unsigned_release_archive": archive,
               "recovery_workflow_run": recovery_run, "reused_surfaces": surface_runs, "journeys": journeys, "testflight_prerequisites": prerequisites,
               "unresolved": missing, "authorization": policy["authorization"],
               "old_workflow_relabelled": False, "new_full_suite_required": False,
               "classification": "local-reviewed-engineering-acceptance", "satisfies_branch_protection": False,
+              "qa_upload_scope": "Organizer upload/processing preparation only; no tester assignment" if stage == "qa-upload" else None,
+              "qa_assignment_prerequisites": ["completed consent distribution safety", "explicit named bounded migration-QA group authorization"] if stage == "qa-upload" else [],
               "operator_prerequisites": ["fresh repository and Vercel controls", "target-specific approval", "applicable backend cutover/activation controls"]}
     shards.write_json(output / "acceptance.json", result)
     require(not missing, "Acceptance remains blocked: " + ", ".join(missing))
@@ -296,16 +316,17 @@ def main():
     focused.add_argument("--output", required=True, type=Path)
     acceptance = commands.add_parser("assess")
     acceptance.add_argument("--recovery-run", required=True, type=int)
+    acceptance.add_argument("--archive-run", type=int)
     acceptance.add_argument("--focused", required=True, type=Path)
     acceptance.add_argument("--evidence", required=True, type=Path)
     acceptance.add_argument("--output", required=True, type=Path)
-    acceptance.add_argument("--stage", required=True, choices=("merge", "testflight"))
+    acceptance.add_argument("--stage", required=True, choices=("merge", "qa-upload", "testflight"))
     args = parser.parse_args()
     policy = shards.read_json(recovery.POLICY)
     if args.action == "run-focused":
         run_focused(policy, args.destination, args.output)
     else:
-        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run)
+        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run, args.archive_run)
 
 
 if __name__ == "__main__":

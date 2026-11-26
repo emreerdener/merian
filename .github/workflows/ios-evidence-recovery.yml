@@ -3,7 +3,7 @@ name: iOS Evidence Recovery
 on:
   workflow_dispatch:
   push:
-    branches: [codex/ios-evidence-recovery-20261125]
+    branches: [codex/ios-evidence-recovery-20261125, codex/beta-release-preparation-20261126]
 
 permissions:
   contents: read

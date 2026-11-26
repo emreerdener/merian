@@ -204,6 +204,19 @@ class AcceptanceTests(unittest.TestCase):
             report = acceptance.shards.read_json(self.root / "flight/acceptance.json")
             self.assertEqual(report["status"], "blocked")
             self.assertEqual(report["unresolved"], ["device-media-acceptance"])
+            qa_required = ["exact-signed-archive-privacy-ats-history", "compatible-beta-backend", "consent-rollout-readiness"]
+            with self.assertRaisesRegex(ValueError, "exact-signed-archive"):
+                acceptance.assess(policy, self.root, self.root, self.root / "qa-missing", "qa-upload", Client(), 9)
+            report = acceptance.shards.read_json(self.root / "qa-missing/acceptance.json")
+            self.assertEqual(report["unresolved"], sorted(qa_required))
+            policy["qa_upload_evidence"] = [{**self.record(), "requirement": requirement} for requirement in qa_required]
+            report = acceptance.assess(policy, self.root, self.root, self.root / "qa-prepared", "qa-upload", Client(), 9)
+            self.assertEqual(report["status"], "passed")
+            self.assertIn("no tester assignment", report["qa_upload_scope"])
+            self.assertEqual(report["qa_assignment_prerequisites"], ["completed consent distribution safety", "explicit named bounded migration-QA group authorization"])
+            self.assertFalse(report["authorization"]["testflight_upload_or_distribution"])
+            with self.assertRaisesRegex(ValueError, "device-media-acceptance"):
+                acceptance.assess(policy, self.root, self.root, self.root / "flight-after-qa", "testflight", Client(), 9)
             with self.assertRaisesRegex(ValueError, "exact-verifier"):
                 acceptance.assess(policy, self.root, self.root, self.root / "wrong", "merge", Client(), 2)
             policy["authorization"]["merge"] = True
@@ -242,6 +255,7 @@ class AcceptanceTests(unittest.TestCase):
 
 def load_tests(loader, standard_tests, pattern):
     standard_tests.addTests(loader.loadTestsFromModule(module("focused_recovery_tests", "test-ios-focused-recovery.py")))
+    standard_tests.addTests(loader.loadTestsFromModule(module("followup_tests", "test-ios-consolidation-followups.py")))
     return standard_tests
 
 

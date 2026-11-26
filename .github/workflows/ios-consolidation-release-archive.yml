@@ -1,0 +1,445 @@
+name: iOS Consolidation Release Archive
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/beta-release-preparation-20261126]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-consolidation-archive-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  archive-contract:
+    name: Archive contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify standard archive job parity
+        run: python3 -B scripts/check-ios-release-archive-workflow.py
+
+  ios-release-archive:
+    name: Current-SHA Release archive
+    needs: archive-contract
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize runner-local archive paths
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/ios-archive-package-cache"
+            echo "XCODE_DERIVED_DATA=$RUNNER_TEMP/ios-archive-derived-data"
+            echo "XCODE_ARCHIVE=$RUNNER_TEMP/Merian.xcarchive"
+            echo "XCODE_RESULT_BUNDLE=$RUNNER_TEMP/ios-release-archive.xcresult"
+            echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-release-archive-xcodebuild.log"
+            echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-archive-package-resolution.log"
+            echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-release-archive-evidence.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Checkout is dirty before the Release archive." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified source revision $actual_sha"
+
+      - name: Verify pinned Xcode toolchain
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version | tee "${RUNNER_TEMP}/ios-archive-xcode-version.txt"
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 27.0" ]; then
+            echo "This gate requires Xcode 27.0." >&2
+            exit 1
+          fi
+          if [ "$(xcodebuild -version | sed -n '2p')" != "Build version 27A266a" ]; then
+            echo "This gate requires the reviewed Xcode 27.0 build 27A266a." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
+          sw_vers
+          df -h "$RUNNER_TEMP"
+
+      - name: Restore locked Swift package checkouts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
+
+      - name: Archive unsigned Release from current SHA
+        id: xcode-archive
+        timeout-minutes: 60
+        env:
+          MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY: "1"
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild archive \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$XCODE_ARCHIVE" \
+            -resultBundlePath "$XCODE_RESULT_BUNDLE" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            MERIAN_IOS_VALIDATION_ARCHIVE=1 \
+            MERIAN_EXPECTED_SOURCE_REVISION="$GITHUB_SHA" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$XCODE_BUILD_LOG"
+
+      - name: Verify Release archive structure and dSYM
+        run: |
+          archive_info="$XCODE_ARCHIVE/Info.plist"
+          if [ ! -f "$archive_info" ]; then
+            echo "Archive Info.plist is missing." >&2
+            exit 1
+          fi
+          application_path="$(
+            /usr/libexec/PlistBuddy \
+              -c "Print :ApplicationProperties:ApplicationPath" \
+              "$archive_info"
+          )"
+          app_path="$XCODE_ARCHIVE/Products/$application_path"
+          app_info="$app_path/Info.plist"
+          privacy_manifest="$app_path/PrivacyInfo.xcprivacy"
+          main_binary="$app_path/Merian"
+          main_dsym="$XCODE_ARCHIVE/dSYMs/Merian.app.dSYM"
+          main_dsym_binary="$main_dsym/Contents/Resources/DWARF/Merian"
+
+          for required_path in \
+            "$app_info" \
+            "$privacy_manifest" \
+            "$main_binary" \
+            "$main_dsym" \
+            "$main_dsym_binary" \
+            "$app_path/PlugIns/MerianExploreWidget.appex" \
+            "$app_path/PlugIns/MerianMessagesExtension.appex" \
+            "$app_path/Watch/MerianWatch.app"; do
+            if [ ! -e "$required_path" ]; then
+              echo "Release archive is missing $required_path." >&2
+              exit 1
+            fi
+          done
+
+          bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifest"
+          bash scripts/validate-ios-transport-security.sh "$app_info"
+          python3 scripts/validate-ios-history-release.py "$app_info"
+
+          project_version="$(
+            awk '$1 == "MARKETING_VERSION:" { print $2; exit }' project.yml
+          )"
+          project_build="$(
+            awk '$1 == "CURRENT_PROJECT_VERSION:" { print $2; exit }' project.yml
+          )"
+          archive_version="$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app_info"
+          )"
+          archive_build="$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$app_info"
+          )"
+          archive_source_revision="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_REVISION" "$app_info"
+          )"
+          archive_source_fingerprint="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_FINGERPRINT" "$app_info"
+          )"
+          archive_source_state="$(
+            /usr/libexec/PlistBuddy -c "Print :MERIAN_SOURCE_STATE" "$app_info"
+          )"
+          if [ "$archive_version" != "$project_version" ] \
+            || [ "$archive_build" != "$project_build" ]; then
+            echo "Archive is ${archive_version} (${archive_build}); project.yml is ${project_version} (${project_build})." >&2
+            exit 1
+          fi
+          expected_source_fingerprint="$(
+            MERIAN_PROJECT_ROOT="$GITHUB_WORKSPACE" \
+              bash scripts/ios-release-source-fingerprint.sh
+          )"
+          if ! [[ "$expected_source_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Could not compute a valid checked-out source fingerprint." >&2
+            exit 1
+          fi
+          if [ "$archive_source_revision" != "$GITHUB_SHA" ]; then
+            echo "Archive source ${archive_source_revision} does not match workflow source ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          if [ "$archive_source_fingerprint" != "$expected_source_fingerprint" ]; then
+            echo "Archive source fingerprint does not match the checked-out source." >&2
+            exit 1
+          fi
+          if [ "$archive_source_state" != "clean" ]; then
+            echo "Archive source state is ${archive_source_state}; expected clean." >&2
+            exit 1
+          fi
+
+          app_uuids="${RUNNER_TEMP}/ios-release-app-uuids.txt"
+          dsym_uuids="${RUNNER_TEMP}/ios-release-dsym-uuids.txt"
+          dwarfdump --uuid "$main_binary" \
+            | awk '{ print $2 }' \
+            | sort > "$app_uuids"
+          dwarfdump --uuid "$main_dsym_binary" \
+            | awk '{ print $2 }' \
+            | sort > "$dsym_uuids"
+          if [ ! -s "$app_uuids" ] || [ ! -s "$dsym_uuids" ]; then
+            echo "Could not extract UUIDs from the main app and dSYM binaries." >&2
+            exit 1
+          fi
+          if ! diff -u "$app_uuids" "$dsym_uuids"; then
+            echo "Main app and dSYM UUIDs do not match." >&2
+            exit 1
+          fi
+
+          release_strings_file="${RUNNER_TEMP}/ios-release-main-binary-strings.txt"
+          LC_ALL=C /usr/bin/strings -a "$main_binary" > "$release_strings_file"
+          for forbidden_ui_seed_marker in \
+            "HistoryLocalDiagnostics" \
+            "-seedCurrentRequiredConsent" \
+            "-seedLocationPermissionPromptSuppressed" \
+            "-seedAchievementDetailFlow" \
+            "-seedAchievementDeletionRefreshFlow" \
+            "-seedCaptureGoalIndicatorFlow" \
+            "-seedCaptureGoalIntroductionFlow" \
+            "-seedQueuedAudioHandoffFlow" \
+            "-seedQueuedObservationRestart" \
+            "-seedNativePhotoRecoveryRestart" \
+            "-seedNativePhotoRecoveryHistory" \
+            "-seedReanalysisRecoveryRestart" \
+            "-seedReanalysisRecoverySuccess" \
+            "-seedInitialMediaHistory" \
+            "-seedPhotoSelectionReview" \
+            "-seedQueuedRetryPresentationFlow" \
+            "-seedOpenAIPermissionFlow" \
+            "-seedLiveQueueHandoffFlow" \
+            "-seedProgressiveAnalyzingFlow" \
+            "-seedMissingVideoFallbackFlow" \
+            "-seedStagedAudioReviewFlow" \
+            "-seedAudioFinishFlow" \
+            "-seedAudioFinishPaused" \
+            "-seedWrappedStagedReanalysis" \
+            "-seedNonBiologicalCollectionRoute" \
+            "-seedPrivateScanMapFlow" \
+            "-seedIdentificationHistory" \
+            "-seedSavedAudioChooser" \
+            "-seedAudioReanalysisSheet" \
+            "-seedSavedReanalysisFailure" \
+            "-seedProtectedInsightChat" \
+            "-seedProtectedChatStale" \
+            "-seedPublicationConsentChooser" \
+            "-seedSelectedNameConfirmation" \
+            "-seedConfirmationUndo" \
+            "-seedRejectionUndo" \
+            "-seedCandidateConfirmation" \
+            "-seedWhatsNewLaunch" \
+            "ui_test_queued_audio_handoff" \
+            "ui_test_queued_retry_attention" \
+            "ui_test_queued_retry_scheduled" \
+            "ui_test_live_queue_handoff" \
+            "ui_test_live_queue_handoff.png" \
+            "ui_test_queued_audio_handoff.wav" \
+            "ui_test_queued_audio_handoff.webp" \
+            "ui_test_missing_video_fallback" \
+            "ui_test_missing_video.mp4" \
+            "ui_test_video_fallback.png" \
+            "ui_test_staged_audio_review.wav" \
+            "ui_test_cardinal" \
+            "ui_test_blue_swallowtail"; do
+            if grep -Fq -- "$forbidden_ui_seed_marker" "$release_strings_file"; then
+              echo "Release binary contains Debug-only UI-test seed marker: $forbidden_ui_seed_marker" >&2
+              exit 1
+            fi
+          done
+
+          archive_kib="$(du -sk "$XCODE_ARCHIVE" | awk '{ print $1 }')"
+          main_binary_sha256="$(shasum -a 256 "$main_binary" | awk '{ print $1 }')"
+          jq -n \
+            --arg source_sha "$GITHUB_SHA" \
+            --arg source_fingerprint "$archive_source_fingerprint" \
+            --arg version "$archive_version" \
+            --arg build "$archive_build" \
+            --arg application_path "$application_path" \
+            --arg main_binary_sha256 "$main_binary_sha256" \
+            --arg xcode "$(xcodebuild -version | paste -sd ' ' -)" \
+            --argjson archive_bytes "$((archive_kib * 1024))" \
+            '{
+              source_sha: $source_sha,
+              source_fingerprint: $source_fingerprint,
+              source_state: "clean",
+              version: $version,
+              build: $build,
+              configuration: "Release",
+              signing: "disabled-validation-only",
+              application_path: $application_path,
+              archive_bytes: $archive_bytes,
+              main_binary_sha256: $main_binary_sha256,
+              xcode: $xcode,
+              verified_embedded_products: [
+                "MerianExploreWidget.appex",
+                "MerianMessagesExtension.appex",
+                "MerianWatch.app"
+              ],
+              dsym_uuid_match: true,
+              privacy_manifest_valid: true,
+              transport_security: "ats-default",
+              history_enabled_normal_oauth: true,
+              local_history_diagnostics_absent: true,
+              ui_test_seed_markers_absent: true
+            }' > "$XCODE_EVIDENCE"
+
+          {
+            echo ""
+            echo "### Current-SHA iOS Release archive"
+            echo ""
+            echo "- Source SHA: \`$GITHUB_SHA\`"
+            echo "- Source fingerprint: \`$archive_source_fingerprint\`"
+            echo "- Version/build: \`${archive_version} (${archive_build})\`"
+            echo "- Archive size: \`$((archive_kib * 1024)) bytes\`"
+            echo "- Main dSYM UUIDs: verified"
+            echo "- Privacy manifest: bundled and validated"
+            echo "- Transport security: ATS defaults, HTTPS-only app origins"
+            echo "- Debug-only UI-test seed markers: absent"
+            echo "- Signing: disabled (compile/archive validation only)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          df -h "$RUNNER_TEMP"
+
+      - name: Print Release archive failure diagnostics
+        if: failure()
+        run: |
+          diagnostics="${RUNNER_TEMP}/ios-release-archive-diagnostics.txt"
+          if [ -f "$XCODE_BUILD_LOG" ]; then
+            grep -E \
+              "error:|fatal error:|xcodebuild: error|The following build commands failed|No space left on device" \
+              "$XCODE_BUILD_LOG" > "$diagnostics" || true
+            if [ ! -s "$diagnostics" ]; then
+              tail -n 180 "$XCODE_BUILD_LOG" > "$diagnostics"
+            fi
+          else
+            {
+              echo "No xcodebuild archive log was produced; inspect the preceding setup steps."
+              echo "Required toolchain: Xcode 27.0, build 27A266a."
+              if [ -s "${RUNNER_TEMP}/ios-archive-xcode-version.txt" ]; then
+                echo "Observed toolchain:"
+                cat "${RUNNER_TEMP}/ios-archive-xcode-version.txt"
+              else
+                echo "No toolchain version was recorded."
+              fi
+              echo "The xcode-27 runner pool can contain different images during rollout."
+              echo "A compiler mismatch requires a runner with the reviewed build; keep the exact-build gate."
+            } > "$diagnostics"
+          fi
+          {
+            echo ""
+            echo "#### Release archive diagnostics"
+            echo ""
+            echo '```text'
+            head -n 180 "$diagnostics"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          df -h "$RUNNER_TEMP" || true
+
+      - name: Upload Release archive evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-release-archive-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-release-archive-evidence.json
+            ${{ runner.temp }}/ios-archive-xcode-version.txt
+            ${{ runner.temp }}/ios-release-app-uuids.txt
+            ${{ runner.temp }}/ios-release-dsym-uuids.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload current-SHA validation archive
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unsigned-release-archive-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/Merian.xcarchive
+          if-no-files-found: error
+          compression-level: 0
+          include-hidden-files: true
+          retention-days: 7
+
+      - name: Upload Release archive failure bundle
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-release-archive-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-release-archive.xcresult
+            ${{ runner.temp }}/ios-release-archive-xcodebuild.log
+            ${{ runner.temp }}/ios-archive-package-resolution.log
+            ${{ runner.temp }}/ios-release-archive-diagnostics.txt
+          if-no-files-found: ignore
+          retention-days: 14
+

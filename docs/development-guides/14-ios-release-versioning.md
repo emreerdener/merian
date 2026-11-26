@@ -121,6 +121,17 @@ required to make a passing main commit eligible for the existing Organizer
 process. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
+The November 26 Capture successor binds the retained focused follow-ups through
+`ios-consolidation-followups.py`. Its merge assessment also requires the
+separate exact-source **iOS Consolidation Release Archive** workflow via
+`--archive-run`; this runs the unchanged standard unsigned archive job without
+restarting unit shards. The six unchanged critical UI smokes remain explicitly
+source-bound to the retained combined evidence. The
+[follow-up evidence contract](08-testing-strategy.md#november-26-capture-follow-up-evidence)
+owns dirty-source equivalence, parameter coverage and applicability checks. This
+validation archive does not replace the signed Organizer artifact or the
+TestFlight-stage backend/device prerequisites.
+
 ## Version and Build Policy
 
 `project.yml` is the repository source of truth:
@@ -276,13 +287,51 @@ mandatory implementation proof, but they do not replace installing the exact
 processed candidate over a store created by the released application on a
 physical device.
 
-For the current upgrade, the released source uses V50 and the candidate uses
-V51. The custom stage partitions preferred species names by account and deletes
-unowned device-global V50 rows while the source schema is active, before the new
-unique identifier is materialized; every other persisted shape remains
-compatible. The historical V49→V50 install-over evidence remains the
-prerequisite baseline for stores that have not yet crossed that release
-boundary:
+### Current consolidated candidate: source-derived V74 target
+
+The November 26 consolidated application's `CurrentSchema` is `MerianSchemaV74`,
+as defined by `apps/ios/Merian/Models/Aliases.swift`; the candidate's migration
+plan includes `migrateV73toV74`. The older V50→V51 procedure below is historical
+evidence for that boundary, not the current candidate's expected diagnostics.
+
+Before device qualification, record the exact archive/source identity, its
+`CurrentSchema` alias, migration-plan source digest and expected startup
+strategy for the actual previously shipped store. Discover the genuine prior App
+Store/TestFlight version, build and stored schema from sanitized device
+diagnostics; do not assume it is V50. An unknown or unmapped prior schema is a
+triage result, not a qualifying baseline. Never substitute a fabricated store,
+uninstall the app or clear the user's library to obtain a pass.
+
+Install the exact processed candidate over that qualified baseline in the
+explicitly approved bounded migration-QA group. Require the source-derived
+current schema and matching prior-store migration strategy, successful normal
+open without safe mode/recovery/store replacement, preservation of the existing
+queue/media/History/selection relationships, then a second launch that selects
+`current-store` and preserves the reopened data. Record sanitized versions,
+source identity, schema/strategy and pass/fail outcomes only. The historical
+V50-specific account-partition/tombstone checks remain applicable if that
+boundary is actually crossed; they do not prescribe V51/V52 as this candidate's
+target or demand a second device/database setup.
+
+The `qa-upload` assessment exists to avoid requiring a processed-build
+install-over result before Apple has processed a build. It checks the exact
+signed archive, compatible beta backend and consent rollout readiness for
+**upload/processing preparation only**. It authorizes no upload or tester
+assignment. Before assigning even a bounded migration-QA group, complete the
+consent distribution-safety requirements above, including deployed RPC/ACL
+protection and expiration/suspension of older direct-writing builds, and obtain
+explicit authorization naming the group. After that controlled QA verifies
+install-over and physical media behavior, the final `testflight` assessment
+still requires all five prerequisites before general beta assignment. Separate
+operation approvals remain mandatory throughout.
+
+### Historical V50→V51 boundary procedure
+
+The prior upgrade partitioned preferred species names by account and deleted
+unowned device-global V50 rows while the source schema was active, before the
+new unique identifier was materialized. Its retained V49→V50 evidence and
+V50→V51 procedure remain historical references. The following recorded expected
+values must not be used as current V74 acceptance criteria:
 
 1. Reserve a dedicated non-production iPhone and account. Keep a genuine V50 App
    Store/TestFlight installation on the device; do not replace it with a locally

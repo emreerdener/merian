@@ -68,6 +68,22 @@ optional; no merge is required to make a passing main commit eligible for the
 existing Organizer process. See the
 [direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
+The reviewed November 25 consolidation and November 26 Capture successor may use
+the
+[proportionate acceptance route](../development-guides/08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026).
+That route preserves complete original/recovered unit coverage and explicitly
+binds affected follow-ups and unchanged critical UI smokes. The separate **iOS
+Consolidation Release Archive** lane preserves the standard unsigned archive job
+byte-for-byte apart from its scope dependency. Its exact-source artifact and
+safety checks remain mandatory before successor acceptance. Neither evidence
+reuse nor this archive lane signs, uploads or distributes an app; the signed
+Organizer and beta compatibility/device prerequisites remain.
+
+A separate `qa-upload` assessment prepares upload/processing only. Consent
+safety and explicit bounded QA assignment precede processed-build device tests;
+the final `testflight` assessment still gates general beta distribution on all
+five prerequisites.
+
 ## Source Identity
 
 The Release prebuild phase rejects a dirty checkout and verifies the tracked

@@ -2629,6 +2629,76 @@ regression checks, recovery provenance/archive adversarial cases,
 combined-method coverage, change-impact and reviewed-report tests. Keep the
 source policy and its review with the acceptance result.
 
+#### November 26 Capture follow-up evidence
+
+The successor at `101c3208952e979179c5b9f6f33e0e79869260b4` adds the reviewed
+fixed toolbar floor and midpoint sizing, photo-selection gesture settlement, and
+the automatic-review assertion. `ios-consolidation-followups.py` layers these
+checks over the frozen `7d84a7f` acceptance policy. It loads the original
+verifier and all imported helpers only after comparing their bytes with that Git
+revision in the retained checkout of the same repository. It does not extend the
+old three-file repair exception or change the original failures.
+
+Four pinned executions supply 44 unique passing methods; nine overlap the legacy
+40, yielding 75 unique methods. The original toolbar run remains failed; its
+Pro-slot failure is covered by the later midpoint execution. The 17 supplemental
+initial-photo owner passes are retained but are not credited by this successor
+verifier. Its final photo execution supplies 23 methods and 31 expanded cases.
+The original hosted complete-unit evidence remains separate.
+
+Dirty execution is not relabelled clean. Midpoint and automatic-review receipts
+must match complete canonical source maps and the embedded build fingerprint,
+including paths, modes and symlink objects. The photo receipt uses the distinct
+`dirty_manifest_equivalent_with_reviewed_post_native_nonruntime_delta` kind:
+exactly four reviewed documentation/Release-denylist objects differ after
+compilation. One document was reconstructed from retained output and must match
+its independent pre-native SHA-256 and Git object. No runtime, test or project
+bytes may be hidden in this exception. Before/after maps, the original command,
+managed cache destination, log-bound XCResult, exact method/parameter inventory,
+SDK/runtime and original result disposition are checked again. Exports are
+regenerated from the original bundles, not accepted as self-authored passes.
+
+Journey reuse names every changed owned path, its accepted run/method mapping,
+and required essential methods. The six Insight/queue/chat smokes remain in the
+legacy 40: exact method-body hashes and unchanged fixture/runtime dependencies
+are checked rather than automatically rerunning them. A changed assertion,
+fixture or owner invalidates that reuse. Signed archive, backend, install-over,
+consent and physical-device prerequisites cannot use this journey exception.
+
+The new Debug-only photo harness requires a current-source unsigned Release
+archive and binary exclusion check. The **iOS Consolidation Release Archive**
+workflow runs only the standard archive job, with identical toolchain, limits,
+assertions and artifact retention. `check-ios-release-archive-workflow.py`
+requires byte parity; only the parent scope dependency becomes its contract
+check. It runs on the prepared branch or manual dispatch, never publishes to
+Apple and does not start unit shards. **iOS Evidence Recovery** also runs on
+that prepared branch. Publication of either remains separately authorized. The
+normal native workflow and its Production readiness result are unchanged.
+
+For this successor, add `--archive-run ARCHIVE_RUN_ID` to `assess`. The verifier
+requires successful exact-source recovery and archive workflows, rehashes the
+small archive evidence download, verifies its embedded source fingerprint,
+version, dSYM, privacy, ATS, normal OAuth and Debug-seed exclusion, and binds
+the separately retained unsigned archive's ID, SHA-256 digest and size. Missing
+archive evidence blocks acceptance. The unsigned object cannot be distributed;
+Organizer still owns the eventual signed archive. The final assessment records
+compiled application revisions separately from the verifier/control revision. No
+full suite is required solely for these reviewed follow-ups, and no publication,
+merge, backend mutation or distribution authority is granted.
+
+`--stage qa-upload` is a distinct preparation assessment, requiring the exact
+signed archive, compatible beta backend and a reviewed consent-rollout readiness
+record. It only prepares an authorized Organizer upload/Apple processing; it
+does not permit assignment to any tester group. Completed consent distribution
+safety and explicit bounded migration-QA group authorization precede that
+assignment. The processed build can then supply the physical install-over and
+device evidence which cannot exist before processing. Final `--stage testflight`
+continues to require all five prerequisites before general beta distribution.
+The
+[current schema gate](14-ios-release-versioning.md#current-consolidated-candidate-source-derived-v74-target)
+uses the actual prior-store identity and current V74 source, not stale V50/V51
+expected values. No stage grants operation authority.
+
 ### Repository Rule Setup
 
 Use the
