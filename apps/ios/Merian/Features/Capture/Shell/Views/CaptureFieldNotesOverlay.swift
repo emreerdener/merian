@@ -19,7 +19,7 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
     var onToolbarHeightChange: (CGFloat) -> Void = { _ in }
     @ViewBuilder let toolbar: () -> Toolbar
     @State private var motion = CaptureFieldNotesMotion()
-    @State private var toolbarHeight: CGFloat = 74
+    @State private var toolbarHeight: CGFloat = CaptureStagingToolbarMetrics.compactHeight
     @GestureState private var isGestureActive = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -53,7 +53,8 @@ struct CaptureFieldNotesOverlay<Toolbar: View>: View {
                             onOpenNotes()
                         })
                 }
-                .padding(.bottom, motion.isVisible ? 12 : 0)
+                // Reserve the panel floor even while closed so the toolbar never changes anchors.
+                .padding(.bottom, CaptureStagingToolbarMetrics.bottomInset)
                 .background {
                     sheetBackground.clipShape(RoundedRectangle(cornerRadius: motion.isVisible ? 32 : 50))
                         .padding(.horizontal, 8).opacity(motion.isVisible ? 1 : 0)

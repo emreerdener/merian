@@ -951,8 +951,8 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(upgrade.waitForExistence(timeout: 8))
         XCTAssertTrue(upgrade.isHittable)
         XCTAssertEqual(upgrade.label, "Add another media item with Pro")
-        XCTAssertEqual(upgrade.frame.width, 48, accuracy: 1)
-        XCTAssertEqual(upgrade.frame.height, 48, accuracy: 1)
+        XCTAssertEqual(upgrade.frame.width, 58, accuracy: 1)
+        XCTAssertEqual(upgrade.frame.height, 58, accuracy: 1)
         XCTAssertTrue(audio.isHittable)
         XCTAssertFalse(app.buttons["StagedMediaPlaceholder_0"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -973,6 +973,16 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    private func assertToolbarBounds(_ toolbar: XCUIElement, match expected: CGRect,
+                                     file: StaticString = #filePath, line: UInt = #line) {
+        let actual = toolbar.frame
+        XCTAssertEqual(actual.minX, expected.minX, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(actual.minY, expected.minY, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(actual.width, expected.width, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(actual.height, expected.height, accuracy: 1, file: file, line: line)
+    }
+
+    @MainActor
     func testNoteAtMediaCapacityWithLargerText() throws {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
@@ -990,9 +1000,12 @@ final class merianUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Next"].exists)
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
         XCTAssertFalse(app.segmentedControls["CaptureModeToggle"].buttons["Describe"].exists)
+        let toolbar = app.otherElements["CaptureObservationToolbar"]
+        let closedBounds = toolbar.frame
         note.tap()
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 4))
+        assertToolbarBounds(toolbar, match: closedBounds)
         input.tap(); input.typeText("Beside a pond")
         let title = app.staticTexts["FieldNotesTitle"]
         XCTAssertTrue(title.isHittable)
@@ -1018,7 +1031,9 @@ final class merianUITests: XCTestCase {
         multiline.lifetime = .keepAlways; add(multiline)
         app.buttons["FieldNotesClose"].tap()
         XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
+        XCTAssertTrue(waitForDisappearance(app.buttons["FieldNotesClose"]))
         XCTAssertTrue(note.isHittable)
+        assertToolbarBounds(toolbar, match: closedBounds)
         note.tap()
         XCTAssertTrue(input.waitForExistence(timeout: 4))
         XCTAssertEqual(input.value as? String, "Beside a pond" + continuation)
@@ -1154,6 +1169,9 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(notes.waitForExistence(timeout: 8))
         let toolbar = app.otherElements["CaptureObservationToolbar"]
         XCTAssertTrue(toolbar.waitForExistence(timeout: 4))
+        let closedBounds = toolbar.frame
+        XCTAssertEqual(notes.frame.width, 58, accuracy: 1)
+        XCTAssertEqual(closedBounds.height, 88, accuracy: 1)
         let origin = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
             .withOffset(CGVector(dx: 0, dy: 8))
         origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -100)))
@@ -1161,6 +1179,7 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 4))
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.isHittable)
+        assertToolbarBounds(toolbar, match: closedBounds)
         let viewport = app.scrollViews["FieldNotesContent"].frame
         XCTAssertGreaterThanOrEqual(input.frame.minY, viewport.minY - 1)
         XCTAssertLessThanOrEqual(input.frame.maxY, viewport.maxY + 1, "Initial sheet fits the complete editor")
@@ -1174,6 +1193,7 @@ final class merianUITests: XCTestCase {
         expand.press(forDuration: 0.05, thenDragTo: expand.withOffset(CGVector(dx: 0, dy: -90)))
         XCTAssertGreaterThan(input.frame.height, restingInputHeight,
                              "Expanding the panel gives the input its remaining space")
+        assertToolbarBounds(toolbar, match: closedBounds)
         let expandedViewport = app.scrollViews["FieldNotesContent"].frame
         XCTAssertLessThanOrEqual(input.frame.maxY, expandedViewport.maxY + 1)
         XCTAssertLessThanOrEqual(expandedViewport.maxY - input.frame.maxY, 16,
@@ -1186,6 +1206,9 @@ final class merianUITests: XCTestCase {
         let prompt = app.staticTexts["What did you notice?"]
         XCTAssertTrue(prompt.isHittable, "Normal keyboard layout retains the prompt above the editor")
         XCTAssertGreaterThanOrEqual(prompt.frame.minY, app.scrollViews["FieldNotesContent"].frame.minY - 1)
+        XCTAssertEqual(toolbar.frame.width, closedBounds.width, accuracy: 1)
+        XCTAssertEqual(toolbar.frame.height, closedBounds.height, accuracy: 1)
+        XCTAssertLessThanOrEqual(toolbar.frame.maxY, app.keyboards.firstMatch.frame.minY)
         let keyboard = XCTAttachment(screenshot: app.screenshot())
         keyboard.name = "Keyboard fits prompt cards and editor above shared toolbar"
         keyboard.lifetime = .keepAlways; add(keyboard)
@@ -1194,6 +1217,7 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(waitForDisappearance(close), "Dragging the header dismisses notes, including with keyboard open")
         XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
         XCTAssertTrue(notes.isHittable)
+        assertToolbarBounds(toolbar, match: closedBounds)
         notes.tap()
         XCTAssertTrue(input.waitForExistence(timeout: 4))
         XCTAssertEqual(input.value as? String, "Near the fallen branch")

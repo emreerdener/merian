@@ -22,7 +22,8 @@ struct CaptureChromeLayout: Equatable {
     var toolbarHeight: CGFloat = 0
 
     var bottomInset: CGFloat {
-        max(CaptureControlBarLayout.bottomInset, toolbarHeight + 16)
+        // Include the persistent 12-point panel floor plus 16 points of control clearance.
+        max(CaptureControlBarLayout.bottomInset, toolbarHeight + 28)
     }
     var reservedHeight: CGFloat { CaptureControlBarLayout.primaryControlSize + bottomInset }
     var fullScreenOverlayClearance: CGFloat {

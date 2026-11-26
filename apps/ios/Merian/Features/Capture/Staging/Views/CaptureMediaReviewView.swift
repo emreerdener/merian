@@ -14,7 +14,7 @@ struct CaptureMediaReviewView: View {
     @State private var showsCommitError = false
     @State private var showsRemovalOptions = false
     @State private var command: Task<Void, Never>?
-    @State private var reviewToolbarHeight: CGFloat = 74
+    @State private var reviewToolbarHeight: CGFloat = CaptureStagingToolbarMetrics.compactHeight
 
     private var selectedNode: StagedCaptureNode? {
         workspace.stagedCapture.orderedNodes.first { $0.id == session.selectedNodeID }
@@ -44,7 +44,7 @@ struct CaptureMediaReviewView: View {
                 .accessibilityHidden(workspace.isFieldNotesOccupied)
                 .safeAreaInset(edge: .bottom) {
                     // The persistent overlay owns glass; reserve its unchanged footprint.
-                    Color.clear.frame(height: reviewToolbarHeight + 16).accessibilityHidden(true)
+                    Color.clear.frame(height: reviewToolbarHeight + CaptureStagingToolbarMetrics.bottomInset + 16).accessibilityHidden(true)
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             CaptureFieldNotesOverlay(workspace: workspace,

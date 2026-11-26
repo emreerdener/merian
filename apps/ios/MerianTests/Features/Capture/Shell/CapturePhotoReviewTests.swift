@@ -167,8 +167,11 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(toolbarMounts, 1)
         XCTAssertGreaterThan(toolbarBounds.minY, window.bounds.midY, "The closed toolbar must remain at the bottom")
         XCTAssertLessThanOrEqual(toolbarBounds.maxY, window.bounds.maxY)
+        let closedToolbarBounds = toolbarBounds
         XCTAssertTrue(model.openFieldNotes(inReview: review))
-        try await Task.sleep(for: .milliseconds(300))
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertEqual(toolbarBounds.minY, closedToolbarBounds.minY, accuracy: 1)
+        XCTAssertEqual(toolbarBounds.maxY, closedToolbarBounds.maxY, accuracy: 1)
         XCTAssertEqual(toolbarMounts, 1)
         XCTAssertEqual(toolbarUnmounts, 0)
         model.navigateFromFieldNotes(.addMore)
@@ -193,7 +196,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(destinations, [.addMore])
         XCTAssertEqual(toolbarMounts, 1, "The glass toolbar must survive open, close, and reopen")
         XCTAssertEqual(toolbarUnmounts, 0)
-        XCTAssertGreaterThan(toolbarBounds.minY, window.bounds.midY, "Closing notes must not move the toolbar over the header")
+        XCTAssertEqual(toolbarBounds.minY, closedToolbarBounds.minY, accuracy: 1)
+        XCTAssertEqual(toolbarBounds.maxY, closedToolbarBounds.maxY, accuracy: 1)
         model.dismissMediaReview(sessionID: review.id)
         XCTAssertTrue(model.finishMediaReviewDismissal(sessionID: review.id))
         model.isFeaturePresentationAwaitingDismissal = false // matching outer orchestration callback

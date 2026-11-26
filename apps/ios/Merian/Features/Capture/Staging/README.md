@@ -190,7 +190,7 @@ pencil-and-page Field notes node, and the text-labelled Identify/Reanalyze
 button. Whole media nodes wrap above that action when needed. Shell owns the
 leading goal/persona-to-trash transition and generation-bound discard.
 
-Nodes use 48 pt touch targets with 8 pt spacing. Populated nodes use opaque
+Nodes use 58 pt touch targets with 10 pt spacing. Populated nodes use opaque
 primary system backgrounds and solid borders; empty nodes use transparent
 backgrounds and dashed borders. Native glass respects Expedition, thermal, and
 accessibility reductions. Field notes preserves the same toolbar above the

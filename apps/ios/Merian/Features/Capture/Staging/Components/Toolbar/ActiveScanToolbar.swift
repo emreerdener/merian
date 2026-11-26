@@ -90,28 +90,28 @@ struct ActiveScanToolbar: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: CaptureStagingToolbarMetrics.spacing) {
                 mediaNodes
                 submitButton
                     .disabled(isCheckingPhotoImportAdmission)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 14)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
             .modifier(CaptureTrayGlass())
             // Report the complete ideal width; never accept a compressed media row.
             .fixedSize(horizontal: true, vertical: false)
 
-            VStack(spacing: 8) {
+            VStack(spacing: CaptureStagingToolbarMetrics.spacing) {
                 CaptureStagingMediaFlowLayout {
                     mediaNodes
                 }
                 .disabled(isCheckingPhotoImportAdmission || isMutationLocked)
                 submitButton.disabled(isCheckingPhotoImportAdmission)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 14)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
             .modifier(CaptureTrayGlass(isExpanded: true))
         }
         .overlay(alignment: .top) {
@@ -209,8 +209,8 @@ struct ActiveScanToolbar: View {
                     .frame(width: 140)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                     .fixedSize(horizontal: false, vertical: true)
-                    // Anchor the bubble's bottom above the 52 pt action plus an 8 pt gap.
-                    .offset(y: -60)
+                    // Anchor above the enlarged action with an eight-point gap.
+                    .offset(y: -CaptureStagingToolbarMetrics.nodeSize - 8)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("CaptureSubmitTooltip")
             }
@@ -245,7 +245,7 @@ struct ActiveScanToolbar: View {
         .disabled(isCheckingPhotoImportAdmission || isMutationLocked)
         Button(action: onNoteTap) {
             CaptureStagingNoteIcon(hasNote: hasSharedNote)
-                .frame(width: 48, height: 48)
+                .frame(width: CaptureStagingToolbarMetrics.nodeSize, height: CaptureStagingToolbarMetrics.nodeSize)
                 .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote, isSelected: notesAreVisible))
         }
         .buttonStyle(.plain)
@@ -306,7 +306,7 @@ struct CaptureStagingNoteIcon: View {
 
     var body: some View {
         Image(systemName: hasNote ? Self.populatedSymbol : Self.emptySymbol)
-            .font(.system(size: 20, weight: .medium))
+            .font(.system(size: 24, weight: .medium))
             .foregroundStyle(.primary)
             .accessibilityHidden(true)
     }

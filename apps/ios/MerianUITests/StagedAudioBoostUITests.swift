@@ -13,10 +13,14 @@ final class StagedAudioBoostUITests: XCTestCase {
         XCTAssertTrue(audio.waitForExistence(timeout: 8))
         audio.tap()
         XCTAssertTrue(app.staticTexts["Review audio"].waitForExistence(timeout: 8))
+        let toolbar = app.otherElements["CaptureObservationToolbar"]
+        let closedBounds = toolbar.frame
         app.buttons["CaptureFieldNotes"].tap()
         // Multiline SwiftUI text input uses different accessibility roles across runtimes.
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(toolbar.frame.minY, closedBounds.minY, accuracy: 1)
+        XCTAssertEqual(toolbar.frame.maxY, closedBounds.maxY, accuracy: 1)
         input.tap()
         input.typeText("Synthetic field note")
         let identify = app.buttons["Identify"]
@@ -29,6 +33,8 @@ final class StagedAudioBoostUITests: XCTestCase {
         add(screenshot)
         app.buttons["FieldNotesClose"].tap()
         XCTAssertTrue(app.staticTexts["Review audio"].waitForExistence(timeout: 5))
+        XCTAssertEqual(toolbar.frame.minY, closedBounds.minY, accuracy: 1)
+        XCTAssertEqual(toolbar.frame.maxY, closedBounds.maxY, accuracy: 1)
         app.buttons["CaptureFieldNotes"].tap()
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertEqual(input.value as? String, "Synthetic field note")

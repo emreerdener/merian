@@ -67,20 +67,20 @@ struct CaptureStagingToolbarPresentationTests {
 
     @Test("Media wraps at complete-node boundaries and retains chronological positions")
     func mediaWrapsWithoutClipping() {
-        let sizes = Array(repeating: CGSize(width: 48, height: 48), count: 7)
-        let frames = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 160)
-        #expect(frames.map(\.minX) == [0, 56, 112, 0, 56, 112, 0])
-        #expect(frames.map(\.minY) == [0, 0, 0, 56, 56, 56, 112])
-        #expect(frames.allSatisfy { $0.width == 48 && $0.height == 48 && $0.maxX <= 160 })
-        let narrow = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 159)
-        #expect(narrow[2].minY == 56)
-        #expect(narrow[6].minY == 168)
-        #expect(CaptureStagingMediaFlowLayout.frames(sizes: [], width: 160).isEmpty)
+        let sizes = Array(repeating: CGSize(width: 58, height: 58), count: 7)
+        let frames = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 194)
+        #expect(frames.map(\.minX) == [0, 68, 136, 0, 68, 136, 0])
+        #expect(frames.map(\.minY) == [0, 0, 0, 68, 68, 68, 136])
+        #expect(frames.allSatisfy { $0.width == 58 && $0.height == 58 && $0.maxX <= 194 })
+        let narrow = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 193)
+        #expect(narrow[2].minY == 68)
+        #expect(narrow[6].minY == 204)
+        #expect(CaptureStagingMediaFlowLayout.frames(sizes: [], width: 194).isEmpty)
     }
 
     @Test("Expanded tray clearance moves all content together and restores the baseline")
     func toolbarClearanceTracksMeasuredHeight() {
-        for height: CGFloat in [0, 88, 108] {
+        for height: CGFloat in [0, 88, 96] {
             let layout = CaptureChromeLayout(toolbarHeight: height)
             #expect(layout.bottomInset == 124)
             #expect(layout.reservedHeight == 204)
@@ -88,7 +88,7 @@ struct CaptureStagingToolbarPresentationTests {
         }
         for height: CGFloat in [144, 200, 264] {
             let layout = CaptureChromeLayout(toolbarHeight: height)
-            #expect(layout.bottomInset - height == 16)
+            #expect(layout.bottomInset - height == 28)
             #expect(layout.reservedHeight - layout.bottomInset == 80)
             #expect(layout.fullScreenOverlayClearance - layout.reservedHeight == 46)
         }

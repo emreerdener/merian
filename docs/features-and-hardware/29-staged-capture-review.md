@@ -341,8 +341,9 @@ controls in the same header with Back and Reset; it does not mount a second
 navigation bar. Prompt rows use primary text and mark the current question with
 a checkmark. Selecting a row returns to that question. Reset clears the current
 notes and prompt progress, stops dictation, and preserves staged physical media.
-The panel keeps 12 points of interior padding below its observation toolbar. The
-toolbar and panel share one 44 × 5 pt grabber that travels with the panel's
+The panel reserves 12 points below its observation toolbar in both open and
+closed states, keeping the toolbar at one anchor throughout drawer transitions.
+The toolbar and panel share one 44 × 5 pt grabber that travels with the panel's
 upper edge. The glass toolbar remains mounted while notes opens, collapses,
 waits for persistence, and reopens. Clearing staged content during account or
 draft teardown retains the host until the matching notes dismissal releases
@@ -370,16 +371,16 @@ can therefore open the chosen media review synchronously at completion, before
 unrelated deferred routes or camera restoration resume. Removing the final
 physical item clears supplementary notes and returns to empty capture.
 
-Nodes retain 48 pt touch targets and 8 pt spacing. Compact layout places nodes
-and the primary action inside one glass capsule with 12 pt horizontal, 16 pt
-top, and 10 pt bottom padding. The toolbar has 16 pt outer horizontal margins.
-When ideal contents do not fit, whole media nodes wrap in chronological order
-above the primary action inside one rounded glass container; Field notes stays
-last among the nodes. The decision uses available width and ideal content size,
-not device or node-count thresholds. Identify/Reanalyze uses a blue text capsule
-with at least 48 pt height and 18 pt horizontal text padding, preserving its
-context-specific accessibility label, submission hint, disabled state, and Large
-Content Viewer label.
+Nodes use 58 pt touch targets and 10 pt spacing. Compact layout places nodes and
+the primary action inside one glass capsule with 14 pt horizontal, 18 pt top,
+and 12 pt bottom padding. The toolbar has 16 pt outer horizontal margins. When
+ideal contents do not fit, whole media nodes wrap in chronological order above
+the primary action inside one rounded glass container; Field notes stays last
+among the nodes. The decision uses available width and ideal content size, not
+device or node-count thresholds. Identify/Reanalyze uses a blue text capsule
+with at least 58 pt height, 22 pt horizontal text padding, and a 20 pt label
+that scales with Dynamic Type, preserving its context-specific accessibility
+label, submission hint, disabled state, and Large Content Viewer label.
 
 Native Liquid Glass on iOS 26+ and material on earlier versions respect the
 existing Expedition, thermal, and Reduce Transparency policies. Populated nodes
@@ -392,8 +393,9 @@ submission is ready, after the note tooltip has finished.
 
 Only the staging toolbar reports its rendered height to Shell.
 `CaptureChromeLayout` retains the baseline 124 pt capture-control inset, or uses
-the toolbar height plus 16 pt when larger. Camera/audio clearance follows that
-increment. Expanded content grows upward; animation respects Reduce Motion.
+the toolbar height plus 28 pt when larger (12 pt reserved panel floor and 16 pt
+control clearance). Camera/audio clearance follows that increment. Expanded
+content grows upward; animation respects Reduce Motion.
 
 The Shell's leading goal/persona control is shown for empty capture and replaced
 by trash while a draft exists, then restored when the draft clears. It is hidden

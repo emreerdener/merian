@@ -449,16 +449,16 @@ boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
 by `CaptureWorkspaceView`, outside the horizontal pager. Capture chrome retains
 `CaptureControlBarLayout` baseline dimensions and consumes the width-dependent
 staging tray's measured height through `CaptureChromeLayout`. The control inset
-is the greater of 124 pt or tray height plus 16 pt. Camera/Audio preserve their
-250 pt full-screen baseline and add the same expansion delta; Describe adds that
-delta to its 204 pt reservation. Only the tray reports height; capture controls
-and UIKit-hosted Describe content do not feed back into that measurement. The
-primary and secondary controls retain their common vertical centerline. At the
-top, the hosted page uses an 82 pt selector band without adding another
-safe-area inset; UIKit automatic content-inset adjustment is disabled. Together
-these boundaries prevent the nested scroll, sheet, and preference feedback that
-previously formed a startup AttributeGraph cycle when Description was the
-configured first mode.
+is the greater of 124 pt or tray height plus 28 pt (12 pt panel floor and 16 pt
+clearance). Camera/Audio preserve their 250 pt full-screen baseline and add the
+same expansion delta; Describe adds that delta to its 204 pt reservation. Only
+the tray reports height; capture controls and UIKit-hosted Describe content do
+not feed back into that measurement. The primary and secondary controls retain
+their common vertical centerline. At the top, the hosted page uses an 82 pt
+selector band without adding another safe-area inset; UIKit automatic
+content-inset adjustment is disabled. Together these boundaries prevent the
+nested scroll, sheet, and preference feedback that previously formed a startup
+AttributeGraph cycle when Description was the configured first mode.
 
 Automatic single-capture submission owns its chrome transition explicitly.
 Camera, video, and crop-confirmed commits set

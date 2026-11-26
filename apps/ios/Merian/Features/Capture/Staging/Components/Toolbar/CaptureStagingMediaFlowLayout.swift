@@ -4,7 +4,7 @@ import SwiftUI
 struct CaptureStagingMediaFlowLayout: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-        let idealWidth = sizes.reduce(0) { $0 + $1.width } + CGFloat(max(0, sizes.count - 1)) * 8
+        let idealWidth = sizes.reduce(0) { $0 + $1.width } + CGFloat(max(0, sizes.count - 1)) * CaptureStagingToolbarMetrics.spacing
         let offeredWidth = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? idealWidth
         let width = max(sizes.map(\.width).max() ?? 0, offeredWidth)
         let frames = Self.frames(sizes: sizes, width: width)
@@ -29,11 +29,11 @@ struct CaptureStagingMediaFlowLayout: Layout {
         return sizes.map { size in
             if x > 0, x + size.width > width {
                 x = 0
-                y += rowHeight + 8
+                y += rowHeight + CaptureStagingToolbarMetrics.spacing
                 rowHeight = 0
             }
             let frame = CGRect(origin: CGPoint(x: x, y: y), size: size)
-            x += size.width + 8
+            x += size.width + CaptureStagingToolbarMetrics.spacing
             rowHeight = max(rowHeight, size.height)
             return frame
         }
