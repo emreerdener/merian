@@ -34,6 +34,7 @@ RELEASE_OWNER_PATHS = {
     "docs/development-guides/17-ios-transport-security.md",
     "docs/legal/production-consent-readiness-2026-08-03.md",
 }
+BACKEND_TOOLING_CONTROL = "services/supabase/scripts/test_supabase_tooling.sh"
 
 
 
@@ -87,12 +88,30 @@ def validate_delta(policy, candidate, *, whole_tree=True):
             else:
                 require(recovery.sha256(recovery.git("show", revision + ":" + entry["path"])) == entry[key],
                         "Reviewed product bytes changed: " + entry["path"])
+    controls = policy.get("reviewed_surface_control_delta", {})
+    require(set(controls) <= {"backend"}, "Unreviewed surface control exception")
     for surface, owned in policy["reused_surface_paths"].items():
-        require(not recovery.git("diff", "--name-only", origin, candidate, "--", *owned).strip(),
+        changed = recovery.git("diff", "--name-only", origin, candidate, "--", *owned).decode().splitlines()
+        reviewed = controls.get(surface, [])
+        require(len(reviewed) == len(changed) and {r["path"] for r in reviewed} == set(changed),
                 "Reused " + surface + " source changed; affected validation is required")
+        for record in reviewed:
+            require(surface == "backend" and record["path"] == BACKEND_TOOLING_CONTROL and record["review"].strip(),
+                    "Unreviewed backend runtime change")
+            require(record["before"] == tree_entries(origin).get(record["path"])
+                    and record["after"] == tree_entries(candidate).get(record["path"]), "Backend control object changed")
+            require(record["before"]["mode"] == record["after"]["mode"]
+                    and record["before"]["type"] == record["after"]["type"] == "blob", "Backend control mode/type changed")
+            before = recovery.git("show", origin + ":" + record["path"])
+            after = recovery.git("show", candidate + ":" + record["path"])
+            anchor = b"scripts/config/ios-runtime-audit.json,resources"
+            replacement = b"scripts/config/ios-runtime-audit.json,scripts/config/ios-consolidation-acceptance.json,resources"
+            require(before.count(anchor) == 1 and after == before.replace(anchor, replacement),
+                    "Backend control change is not the single reviewed read grant")
     complete = validate_full_delta(policy, candidate) if whole_tree else {}
     return {**complete, "compiled_origin": origin, "candidate": candidate, "reviewed_delta": entries,
-            "unchanged_surfaces": policy["reused_surface_paths"]}
+            "unchanged_surfaces": {k: v for k, v in policy["reused_surface_paths"].items() if not controls.get(k)},
+            "reviewed_surface_controls": controls}
 
 
 def focused_results(summary, tree, selectors):
@@ -254,7 +273,40 @@ def reviewed_records(policy, field, required, evidence, candidate):
     return accepted, sorted(set(required) - {r["requirement"] for r in records})
 
 
-def assess(policy, focused, evidence, output, stage, client, recovery_run, archive_run=None):
+def verify_current_backend(client, run_id, candidate):
+    require(type(run_id) is int and run_id > 0, "Missing exact-candidate backend validation")
+    run = client.json(f"/actions/runs/{run_id}")
+    require(run["id"] == run_id and run["head_sha"] == candidate["source_sha"] and run["path"] == ".github/workflows/supabase-candidate-validation.yml"
+            and run["status"] == "completed" and run["conclusion"] == "success"
+            and run["event"] == "workflow_dispatch", "Backend validation is not an exact-candidate pass")
+    jobs = client.listing(f"/actions/runs/{run_id}/attempts/{run['run_attempt']}/jobs", "jobs")["jobs"]
+    require(len(jobs) == 3 and {j["name"] for j in jobs} == {
+        "Determine Supabase candidate scope", "Validate exact candidate SHA", "Candidate readiness"}
+        and all(j["conclusion"] == "success" and j["head_sha"] == candidate["source_sha"] for j in jobs), "Backend validation skipped or failed required work")
+    validation = next(j for j in jobs if j["name"] == "Validate exact candidate SHA")
+    required = {"Test complete Supabase tooling suite", "Start disposable database for privileged-routine validation",
+                "Test complete Edge Function suite", "Qualify atomic admission C1 boundaries", "Retain atomic admission C1 evidence"}
+    steps = [s for s in validation["steps"] if s["name"] in required]
+    require(len(steps) == len(required) and {s["name"] for s in steps} == required
+            and all(s["status"] == "completed" and s["conclusion"] == "success" for s in steps), "Backend required steps incomplete")
+    # The exact source workflow guards this job on scope.should_run == 'true';
+    # a successful executed validation job, not the always-run final job alone,
+    # establishes that the complete scope was selected.
+    artifacts = client.listing(f"/actions/runs/{run_id}/artifacts", "artifacts")["artifacts"]
+    name = f"initial-atomic-c1-{candidate['source_sha']}-attempt-{run['run_attempt']}"
+    matches = [v for v in artifacts if v["name"] == name]
+    require(len(matches) == 1, "Missing exact-attempt C1 evidence")
+    artifact = matches[0]
+    require(artifact.get("expired") is False and type(artifact.get("size_in_bytes")) is int and artifact["size_in_bytes"] > 0
+            and re.fullmatch(r"sha256:[a-f0-9]{64}", artifact.get("digest", ""))
+            and artifact.get("workflow_run", {}).get("id") == run_id
+            and artifact["workflow_run"].get("head_sha") == candidate["source_sha"], "C1 artifact provenance unavailable")
+    return {**{k: run[k] for k in ("id", "head_sha", "run_attempt", "path", "conclusion")},
+            "c1_artifact": {k: artifact[k] for k in ("id", "name", "digest", "size_in_bytes")},
+            "complete_scope_executed": True}
+
+
+def assess(policy, focused, evidence, output, stage, client, recovery_run, archive_run=None, backend_run=None):
     require(policy["authorization"] == {"merge": False, "testflight_upload_or_distribution": False, "backend_or_sites_deploy": False}, "Acceptance cannot grant operation authority")
     candidate = source_identity()
     impact = validate_delta(policy, candidate["source_sha"])
@@ -279,6 +331,12 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run, archi
                 "Required " + surface + " workflow is not a verified pass")
         surface_runs[surface] = {k: run[k] for k in ("id", "head_sha", "run_attempt", "path", "conclusion")}
     journeys, missing = reviewed_records(policy, "journey_evidence", policy["required_journeys"], evidence, candidate["source_sha"])
+    current_backend = None
+    if policy.get("reviewed_surface_control_delta", {}).get("backend"):
+        if backend_run is None:
+            missing.append("exact-candidate-backend-validation")
+        else:
+            current_backend = verify_current_backend(client, backend_run, candidate)
     archive = None
     if policy.get("successor_followups"):
         if archive_run is None:
@@ -296,7 +354,8 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run, archi
     result = {"schema_version": 1, "stage": stage, "status": "blocked" if missing else "passed",
               "candidate": candidate, "change_impact": impact, "native_origin": coverage["compiled_source"],
               "recovery_sha256": shards.digest(output / "recovery/coverage.json"), "combined_focused": current, "unsigned_release_archive": archive,
-              "recovery_workflow_run": recovery_run, "reused_surfaces": surface_runs, "journeys": journeys, "testflight_prerequisites": prerequisites,
+              "recovery_workflow_run": recovery_run, "reused_surfaces": surface_runs, "current_backend_validation": current_backend,
+              "journeys": journeys, "testflight_prerequisites": prerequisites,
               "unresolved": missing, "authorization": policy["authorization"],
               "old_workflow_relabelled": False, "new_full_suite_required": False,
               "classification": "local-reviewed-engineering-acceptance", "satisfies_branch_protection": False,
@@ -317,6 +376,7 @@ def main():
     acceptance = commands.add_parser("assess")
     acceptance.add_argument("--recovery-run", required=True, type=int)
     acceptance.add_argument("--archive-run", type=int)
+    acceptance.add_argument("--backend-run", type=int)
     acceptance.add_argument("--focused", required=True, type=Path)
     acceptance.add_argument("--evidence", required=True, type=Path)
     acceptance.add_argument("--output", required=True, type=Path)
@@ -326,7 +386,7 @@ def main():
     if args.action == "run-focused":
         run_focused(policy, args.destination, args.output)
     else:
-        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run, args.archive_run)
+        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run, args.archive_run, args.backend_run)
 
 
 if __name__ == "__main__":

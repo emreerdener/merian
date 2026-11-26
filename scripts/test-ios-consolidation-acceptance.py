@@ -97,6 +97,58 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(accepted, [])
         self.assertEqual(missing, ["mixed-media"])
 
+    def test_backend_control_exception_is_one_exact_read_grant(self):
+        path = acceptance.BACKEND_TOOLING_CONTROL
+        before = b"--allow-read=scripts/config/ios-runtime-audit.json,resources\n"
+        after = before.replace(b",resources", b",scripts/config/ios-consolidation-acceptance.json,resources")
+        entries = {"a" * 40: {path: {"mode": "100644", "type": "blob", "object": "c" * 40}},
+                   "b" * 40: {path: {"mode": "100644", "type": "blob", "object": "d" * 40}}}
+        policy = self.policy()
+        policy["reviewed_surface_control_delta"] = {"backend": [{"path": path, "before": entries["a" * 40][path],
+            "after": entries["b" * 40][path], "review": "Only the literal linked-policy read permission"}]}
+        extra = ""
+        def git(*args):
+            if args[0] == "show" and args[1].endswith(":" + path):
+                return before if args[1].startswith("a" * 40) else after
+            if args[-1] == "services/supabase":
+                return (path + "\n" + extra).encode()
+            return self.git(*args)
+        with patch.object(acceptance.recovery, "git", side_effect=git), patch.object(acceptance, "tree_entries", side_effect=lambda r: entries[r]):
+            result = acceptance.validate_delta(policy, "b" * 40, whole_tree=False)
+            self.assertNotIn("backend", result["unchanged_surfaces"])
+            extra = "services/supabase/functions/runtime.ts\n"
+            with self.assertRaisesRegex(ValueError, "source changed"):
+                acceptance.validate_delta(policy, "b" * 40, whole_tree=False)
+            extra = ""
+            after += b"--allow-read=scripts\n"
+            with self.assertRaisesRegex(ValueError, "single reviewed read grant"):
+                acceptance.validate_delta(policy, "b" * 40, whole_tree=False)
+
+    def test_current_backend_requires_executed_steps_and_retained_c1_artifact(self):
+        candidate = {"source_sha": "b" * 40}
+        run = {"id": 10, "head_sha": candidate["source_sha"], "path": ".github/workflows/supabase-candidate-validation.yml",
+               "status": "completed", "conclusion": "success", "event": "workflow_dispatch", "run_attempt": 2}
+        names = ["Test complete Supabase tooling suite", "Start disposable database for privileged-routine validation",
+                 "Test complete Edge Function suite", "Qualify atomic admission C1 boundaries", "Retain atomic admission C1 evidence"]
+        jobs = [{"name": name, "head_sha": candidate["source_sha"], "conclusion": "success", "steps": []} for name in (
+            "Determine Supabase candidate scope", "Validate exact candidate SHA", "Candidate readiness")]
+        jobs[1]["steps"] = [{"name": n, "status": "completed", "conclusion": "success"} for n in names]
+        artifact = {"id": 20, "name": "initial-atomic-c1-" + candidate["source_sha"] + "-attempt-2", "expired": False,
+                    "digest": "sha256:" + "e" * 64, "size_in_bytes": 100, "workflow_run": {"id": 10, "head_sha": candidate["source_sha"]}}
+        class Client:
+            def json(inner, path): return run
+            def listing(inner, path, key): return {key: jobs if key == "jobs" else [artifact]}
+        self.assertTrue(acceptance.verify_current_backend(Client(), 10, candidate)["complete_scope_executed"])
+        for obj, key, bad in ((run, "head_sha", "a" * 40), (run, "id", 11), (run, "conclusion", "failure"),
+                             (jobs[1], "head_sha", "a" * 40),
+                             (jobs[1], "conclusion", "skipped"), (jobs[1]["steps"][3], "conclusion", "skipped"),
+                             (artifact, "expired", True), (artifact, "digest", ""), (artifact, "size_in_bytes", 0),
+                             (artifact["workflow_run"], "id", 9), (artifact, "name", "wrong-attempt")):
+            original = obj[key]; obj[key] = bad
+            with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
+                acceptance.verify_current_backend(Client(), 10, candidate)
+            obj[key] = original
+
     def record(self):
         path = self.root / "review.json"
         path.write_text('reviewed report with exact source and observed journey\n')
@@ -219,6 +271,13 @@ class AcceptanceTests(unittest.TestCase):
                 acceptance.assess(policy, self.root, self.root, self.root / "flight-after-qa", "testflight", Client(), 9)
             with self.assertRaisesRegex(ValueError, "exact-verifier"):
                 acceptance.assess(policy, self.root, self.root, self.root / "wrong", "merge", Client(), 2)
+            policy["reviewed_surface_control_delta"] = {"backend": [{"path": acceptance.BACKEND_TOOLING_CONTROL}]}
+            with self.assertRaisesRegex(ValueError, "exact-candidate-backend-validation"):
+                acceptance.assess(policy, self.root, self.root, self.root / "missing-backend", "merge", Client(), 9)
+            with patch.object(acceptance, "verify_current_backend", return_value={"verified_run": 10}) as backend:
+                report = acceptance.assess(policy, self.root, self.root, self.root / "current-backend", "merge", Client(), 9, backend_run=10)
+                backend.assert_called_once()
+                self.assertEqual(report["current_backend_validation"], {"verified_run": 10})
             policy["authorization"]["merge"] = True
             with self.assertRaisesRegex(ValueError, "cannot grant"):
                 acceptance.assess(policy, self.root, self.root, self.root / "authority", "merge", Client(), 9)

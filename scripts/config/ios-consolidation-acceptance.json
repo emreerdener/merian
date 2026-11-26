@@ -962,9 +962,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "881290d90a25aacf99f6c915b5ae9f3dc50bdf31"
+        "object": "dc5908cea5446a68b9a9be36df552c08ce95851f"
       },
-      "review_scope": "Independently reviewed successor provenance/coverage verifier and adversarial tests; isolated standard unsigned archive workflow; canonical proportionate merge, QA upload preparation and final TestFlight boundaries. No operation authority or application/backend/site changes in this preparation commit."
+      "review_scope": "Reviewed documentation-link permission repair and matching exact-backend-run acceptance proof. Retains all assertions and original failures; pins the sole backend tooling change; no product/SQL/deployment authorization changes."
     },
     {
       "path": "docs/development-guides/14-ios-release-versioning.md",
@@ -1136,9 +1136,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "fcdf6c40b79f2b71c995a80ae585454d01f8f20e"
+        "object": "9cedb0eaaf8258595d39c22b5070bd0fef9f2d16"
       },
-      "review_scope": "Independently reviewed successor provenance/coverage verifier and adversarial tests; isolated standard unsigned archive workflow; canonical proportionate merge, QA upload preparation and final TestFlight boundaries. No operation authority or application/backend/site changes in this preparation commit."
+      "review_scope": "Reviewed documentation-link permission repair and matching exact-backend-run acceptance proof. Retains all assertions and original failures; pins the sole backend tooling change; no product/SQL/deployment authorization changes."
     },
     {
       "path": "scripts/ios-consolidation-followups.py",
@@ -1204,9 +1204,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "4f237647efbaf1028131b7c528ef163ba13164e1"
+        "object": "687855565af0e3237f8bae3d67a13d6ff529eb8c"
       },
-      "review_scope": "Independently reviewed successor provenance/coverage verifier and adversarial tests; isolated standard unsigned archive workflow; canonical proportionate merge, QA upload preparation and final TestFlight boundaries. No operation authority or application/backend/site changes in this preparation commit."
+      "review_scope": "Reviewed documentation-link permission repair and matching exact-backend-run acceptance proof. Retains all assertions and original failures; pins the sole backend tooling change; no product/SQL/deployment authorization changes."
     },
     {
       "path": "scripts/test-ios-consolidation-followups.py",
@@ -1279,6 +1279,20 @@
         "object": "2b1b9f35b0a70975d24876b83003b9eccd80a449"
       },
       "review_scope": "Protected admission selector matches executed uppercaseInput signature; both exact boolean argument leaves required. Positive/adversarial verifier checks and canonical contract; no compiled application change."
+    },
+    {
+      "path": "services/supabase/scripts/test_supabase_tooling.sh",
+      "before": {
+        "mode": "100755",
+        "type": "blob",
+        "object": "6beff7dbfe60f59d8aafd860b2cbd7ecc25d5a25"
+      },
+      "after": {
+        "mode": "100755",
+        "type": "blob",
+        "object": "bcb76c3dd8c8c7f98bdb89a0959e971ed4ebf3d0"
+      },
+      "review_scope": "Reviewed documentation-link permission repair and matching exact-backend-run acceptance proof. Retains all assertions and original failures; pins the sole backend tooling change; no product/SQL/deployment authorization changes."
     },
     {
       "path": "skills/merian-release/references/authorized-release.md",
@@ -7623,5 +7637,23 @@
       }
     ]
   },
-  "qa_upload_evidence": []
+  "qa_upload_evidence": [],
+  "reviewed_surface_control_delta": {
+    "backend": [
+      {
+        "path": "services/supabase/scripts/test_supabase_tooling.sh",
+        "before": {
+          "mode": "100755",
+          "type": "blob",
+          "object": "6beff7dbfe60f59d8aafd860b2cbd7ecc25d5a25"
+        },
+        "after": {
+          "mode": "100755",
+          "type": "blob",
+          "object": "bcb76c3dd8c8c7f98bdb89a0959e971ed4ebf3d0"
+        },
+        "review": "Only adds the literal acceptance-policy file to Deno read permissions for the documentation link checker. No runtime, SQL, assertions, environment/network/write capability or deadline change. Require fresh exact-candidate complete Supabase validation with retained C1 evidence."
+      }
+    ]
+  }
 }

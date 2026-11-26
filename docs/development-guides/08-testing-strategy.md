@@ -2646,6 +2646,23 @@ initial-photo owner passes are retained but are not credited by this successor
 verifier. Its final photo execution supplies 23 methods and 31 expanded cases.
 The original hosted complete-unit evidence remains separate.
 
+The November 26 hosted backend check exposed one tooling permission gap: the
+documentation-link validator could not stat this acceptance policy. The only
+reviewed backend control exception adds the literal
+`scripts/config/ios-consolidation-acceptance.json` read grant to
+`services/supabase/scripts/test_supabase_tooling.sh`. The verifier pins both Git
+objects and checks that this insertion is the entire script delta; every other
+backend change still invalidates reuse. It does not label backend controls
+unchanged. Assessment now also requires `--backend-run RUN_ID`: a successful
+manual Supabase Candidate Validation on the exact candidate, all three jobs,
+executed tooling/disposable database/Edge/C1 steps, and the nonexpired
+exact-run, exact-attempt C1 artifact with its API digest. Successful execution
+of the scope-guarded validation job proves full scope was selected. The failed
+original run and its missing C1 evidence remain failed; historical runtime
+passes do not clear this new control gate. This permission-only repair requires
+no native test rerun, while the exact-source archive requirement remains in
+force.
+
 Dirty execution is not relabelled clean. Midpoint and automatic-review receipts
 must match complete canonical source maps and the embedded build fingerprint,
 including paths, modes and symlink objects. The photo receipt uses the distinct
