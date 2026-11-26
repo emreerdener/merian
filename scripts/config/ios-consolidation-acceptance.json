@@ -125,7 +125,7 @@
     {
       "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
       "base_sha256": "66ff199a6630835b9cc3c7339cf895ef8c30199a766f79ce64c7eaeb5aab5901",
-      "candidate_sha256": "bc58347d856392b925f346c6bd5ffbf4359f24e198521e32e1628cb8aba8d04f",
+      "candidate_sha256": "f6f7fea51915897b60132a6e9387dc79a89b1d64f2259895ad032f274ced0735",
       "justification": "Field notes presentation, persistent toolbar, matching-dismissal navigation and prompt reset follow-up, with session/account/submission guards retained. Core persistence, networking, media preparation, schemas and backend are unchanged. The 40-check integrated plan includes all 18 existing Capture checks and eight added lifecycle/hosting/navigation regressions; rendered and device-only observations remain explicitly separate."
     },
     {
@@ -467,9 +467,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "a49a6b50b67ac1a43a5dbf13a7c3388eb7517ba5"
+        "object": "6deba5f666544e1c0c6d54c3f471af6f9e0b2367"
       },
-      "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+      "review_scope": "Capture hosting/geometry regressions and persistent-host lifecycle coverage; remove unsupported read-only Reduce Motion environment override, preserving production animation, all assertions and existing bounded waits."
     },
     {
       "path": "apps/ios/MerianUITests/StagedAudioBoostUITests.swift",

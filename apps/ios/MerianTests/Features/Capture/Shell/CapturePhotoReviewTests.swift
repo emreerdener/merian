@@ -156,7 +156,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
                             .onDisappear { toolbarUnmounts += 1 }
                     })
             }
-        }.environment(hardware).environment(\.accessibilityReduceMotion, true))
+        }.environment(hardware))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive })
         let previousKeyWindow = scene.windows.first { $0.isKeyWindow }
