@@ -2493,15 +2493,61 @@ The native evidence comprises:
    direct fixture/model/schema inputs or unreconstructable dirty source, so they
    cannot close these current checks. The recovery tests already cover rendered
    History restore/Undo; a separate History-preview run would duplicate that
-   coverage. All 32 methods must pass with zero skips. Preserve the actual
-   XCResult, source before/after, full source fingerprint, toolchain and
-   simulator identity. An independent review pins that execution receipt in
-   policy before assessment. Hash the command log and retain the wrapper-created
-   bundle under `.artifacts/local-ios`; this is retained evidence outside
-   `.build`, not a disposable cache. Missing or changed original evidence blocks
-   acceptance. Later verifier/documentation-only commits can reuse it only with
-   identical compiled product/build-input objects and a reviewed full
-   source/control delta.
+   coverage. Eight additional Field notes hosting/navigation regressions extend
+   that plan to 40 methods. All required methods must pass with zero skips under
+   one of the two explicit evidence routes below. Preserve the actual XCResult,
+   source before/after, full source fingerprint, toolchain and simulator
+   identity. An independent review pins that execution receipt in policy before
+   assessment. Hash the command log and retain the wrapper-created bundle under
+   `.artifacts/local-ios`; this is retained evidence outside `.build`, not a
+   disposable cache. Missing or changed original evidence blocks acceptance.
+   Later verifier/documentation-only commits can reuse it only with identical
+   compiled product/build-input objects and a reviewed full source/control
+   delta.
+
+The focused evidence route is explicit and exclusive: policy pins either one
+complete successful 40-method result, or the reviewed Capture recovery route
+implemented by `ios-focused-recovery.py`. The latter preserves the complete
+failed original 40-method execution and reuses only its 14 directly passing
+non-Notes flows. It requires one complete, successful 26-method Capture replay
+on the independently reviewed repaired compile source. It does not accept a
+partial original run, missing methods, skipped tests, selective retries within
+the affected 26, or the earlier six-method diagnostic as final evidence.
+
+This recovery is limited to the exact reviewed overlay geometry/accessibility,
+inline-notes versus sheet/cover latch, and observed test-host corrections in
+`CaptureFieldNotesOverlay.swift`, `CaptureWorkspaceOrchestrationModifier.swift`,
+and `CapturePhotoReviewTests.swift`. Every other product/build/dependency object
+must be unchanged. Independent review establishes that the 14 reused flows
+neither construct this overlay nor open Field notes; the policy records that
+branch analysis and exact source objects. Any additional product change blocks
+this route and requires renewed impact analysis and affected validation.
+
+The verifier checks separate original-to-compiled and original-to-verifier
+manifests. Every replay must match the pinned local compile SHA, tree, source
+fingerprint and policy identity. Only explicitly reviewed control/documentation
+changes may follow compilation. Both raw XCResults are re-exported and compared
+with retained exports, command logs, exact selector plans, source-before/after,
+Xcode and simulator identities. The original failed receipt is copied intact,
+hashed and retained alongside the enriched evidence; it is never relabelled.
+Local generated project identifiers admit only the literal `Merian` and `merian`
+spellings, with exact target/suite/method matching.
+
+After each completed managed run, retain its evidence in a new directory with:
+
+```bash
+python3 -B scripts/ios-focused-recovery.py \
+  --original /absolute/path/to/completed-native-evidence \
+  --output /absolute/path/to/new-focused-evidence/original
+```
+
+Use a separate `capture26` output for the successful affected replay. Pin both
+receipts only after independent evidence review. `assess` requires exactly one
+of `focused_evidence` and `focused_recovery`; neither an unreviewed report nor a
+failed legacy focused run silently selects the recovery route. The standard
+acceptance tooling test entry point also runs the recovery verifier's positive
+and adversarial tests, including source mismatch, missing coverage, changed
+artifacts, runtime drift, unsafe paths and post-compile product changes.
 
 `ios-evidence-recovery.py` runs collection and verification together in the
 read-only **Recovered development evidence** Actions job. It requires exact

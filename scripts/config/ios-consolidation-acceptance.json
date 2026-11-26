@@ -240,7 +240,129 @@
     "admin": ".github/workflows/admin-quality.yml"
   },
   "recovery_workflow": ".github/workflows/ios-evidence-recovery.yml",
-  "journey_evidence": [],
+  "journey_evidence": [
+    {
+      "requirement": "capture-photo-import",
+      "path": "capture-photo-import.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "37fdcbc1875b29fd7c76495ae49c8ce84e23a2b93b47b41e3a2ae6ab6c64dddb",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Photo preparation geometry and seeded initial photo/notes result and History across relaunch; no physical-camera/import claim. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "audio-capture-review",
+      "path": "audio-capture-review.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "05ca0e9eabb435dec44c53c29bc2475a94c9738003663353e323343ad4a86e77",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Prepared/seeded audio recording-review, playback controls, queue handoff, notes navigation and real synthetic audio conversion/cleanup; no physical microphone claim. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "video-import-playback",
+      "path": "video-import-playback.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "1e5792b530e20cb50dfaf41df5e7272492d19f1f448886c0a575714239c5fd0e",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Synthetic native video preparation/orientation/crop/playback and seeded video History/Undo; no live device video import/provider claim. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "field-notes-preservation",
+      "path": "field-notes-preservation.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "4ff8309d1face2125170b178e11e101013ddb5452c6050d28a886a5082829332",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "All26 affected Field notes UI/hosting/lifecycle checks, root and nested navigation, persistence/locks/reset, discard and geometry; rendered review separate; physical haptics and active microphone state remain device observations. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "library-history-reopen",
+      "path": "library-history-reopen.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "8b10eb44f338fc359c3dfc3318a803b1abd257deb88a4bec86a618704db3330b",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Library navigation plus synthetic photo/audio/video result/History relaunch and persisted recovery/Undo; no live backend activation. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "reanalyze-and-undo",
+      "path": "reanalyze-and-undo.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "7a637fb22c677aeee69451ad516e038af63485473b83cc1050b2f7cdf3254a34",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Three synthetic media exhaustion-recovery journeys into persisted History and Undo; not live provider or server acceptance. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "interruption-recovery",
+      "path": "interruption-recovery.json",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "sha256": "a7e112413a16d98344d8c0b6e715d45a0e6964d03a98d3eee741cfd66aad0a79",
+      "owned_paths": [
+        "apps/ios",
+        "apps/watch",
+        "project.yml"
+      ],
+      "applicability": "Seeded queue/audio background interruption and completion handoff; these no-notes paths preserve identical aggregate/callback admission behavior; not OS crash or physical-device interruption qualification. Current source binding440; all product inputs must stay identical after this reviewed reconciliation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "mixed-media-identify",
+      "path": "mixed-media-identify.json",
+      "source_sha": "88ee71ef48fd3a5173574589d1015ad343e21665",
+      "sha256": "b945649a3f07aab083a8d6859a54ab6ad9b6ee244cb11f69b4959abb389b6834",
+      "owned_paths": [
+        "apps/ios/Merian/Features/Capture/Submission",
+        "apps/ios/Merian/Core",
+        "apps/ios/Merian/Models",
+        "apps/ios/MerianTests/Features/Capture/Submission/CaptureInitialJournalPreparationTests.swift",
+        "apps/ios/MerianTests/Features/Capture/Submission/CaptureInitialEvidencePreparationTests.swift"
+      ],
+      "applicability": "Independent successor review confirms every concrete owner unchanged88ee\u2192440; original method identities, raw hashes and scope retained; only report candidate_source rebound. Native/service evidence for ordered mixed media, notes and frozen retry preparation; not rendered mixed submission or live backend/device validation.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    },
+    {
+      "requirement": "first-scan-consent",
+      "path": "first-scan-consent.json",
+      "source_sha": "88ee71ef48fd3a5173574589d1015ad343e21665",
+      "sha256": "ca8026bdc19bb0709a1890ac83d4027d6843aced703011b97ac51719dbf324f4",
+      "owned_paths": [
+        "apps/ios/Merian/Features/Onboarding",
+        "apps/ios/Merian/Core",
+        "apps/ios/Merian/Models",
+        "apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift",
+        "apps/ios/MerianTests/Features/Onboarding/ReadyConsentPresentationTests.swift"
+      ],
+      "applicability": "Independent successor review confirms every concrete owner unchanged88ee\u2192440; original method identities, raw hashes and scope retained; only report candidate_source rebound. Native consent copy, required/optional choice combinations and resumption of the consent-blocked scan; not physical-device first consent or live consent rollout.",
+      "review": "Independent read-only baseline_branch_reconciliation reviewed selector-to-journey mapping, raw evidence and source-owner applicability. Capture rendered review is separately retained; these records establish scoped engineering evidence only."
+    }
+  ],
   "testflight_evidence": [],
   "reviewed_source_delta": [
     {
@@ -322,6 +444,20 @@
         "object": "e4bbca215e1f0d2e54f23264b8f014fc89fa8c79"
       },
       "review_scope": "Capture Field notes follow-up integration: toolbar/navigation/dictation/motion/dismissal guards and scoped regressions; independently reviewed integration; exact-source execution remains required."
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b89c79d31c412a3bbbd899995f94bf3e0b338e29"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "b959208662678e8158a4a1e5564dbe437066623f"
+      },
+      "review_scope": "Separate callback-backed sheet/cover latch from inline notes lifetime; aggregate camera/route occupancy and presentation guards unchanged. Exact root notes-to-audio regression plus all26Capture selectors required;14no-notes selector source applicability independently reviewed."
     },
     {
       "path": "apps/ios/Merian/Features/Capture/Shell/README.md",
@@ -529,9 +665,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "b48210558f034680c642e3afbaf9fca6b078608e"
+        "object": "ccb8b9e3671967d871cf87c3e7672e31ebe89b73"
       },
-      "review_scope": "Protected admission selector matches executed uppercaseInput signature; both exact boolean argument leaves required. Positive/adversarial verifier checks and canonical contract; no compiled application change."
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "docs/development-guides/14-ios-release-versioning.md",
@@ -557,9 +693,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "d30511b6905fd539921e99ab9a70dcf50114c3d4"
+        "object": "9ef0e7689efcd9a41c95fa43605c017610bf773f"
       },
-      "review_scope": "Supersede the unexecuted 32-check subset with its 40-check integrated superset; preserve all prior checks, assertions, deadlines and operation boundaries."
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "docs/features-and-hardware/07-feature-modules-and-ui.md",
@@ -623,9 +759,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "025522d818be30fd47750a4781c4296cb04f16c2"
+        "object": "0db89dc991dccccc12c3f2e25a336ab68632e09d"
       },
-      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "scripts/ios-evidence-recovery.py",
@@ -636,6 +772,16 @@
         "object": "acf2db739618459bc63c5fefca2c281a9ae7bc46"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/ios-focused-recovery.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "2b33b98826a941203ce728e85eb6994749ff4f89"
+      },
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "scripts/ios-unit-shards.py",
@@ -671,9 +817,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "b07ec81ad76447deae8574bb771e2ca35eea6c3e"
+        "object": "f966632510befb0a2c70a71ed2d10bc32813ba00"
       },
-      "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "scripts/test-ios-evidence-recovery.py",
@@ -684,6 +830,16 @@
         "object": "6c644ff41cc7f79c6b8cb7db46e87a683ca65886"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
+    },
+    {
+      "path": "scripts/test-ios-focused-recovery.py",
+      "before": null,
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "4668cf40dd893fbaf559362db5f6e2d9cf708308"
+      },
+      "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
     },
     {
       "path": "scripts/test-validate-ios-critical-test-results.sh",
@@ -726,21 +882,423 @@
         "object": "07940a527c89d2a8d39367d71e22a89f2fa64b60"
       },
       "review_scope": "Acceptance verifier, adversarial tests, read-only CI, or synchronized policy documentation; no product/backend mutation"
-    },
-    {
-      "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
-      "before": {
-        "mode": "100644",
-        "type": "blob",
-        "object": "b89c79d31c412a3bbbd899995f94bf3e0b338e29"
-      },
-      "after": {
-        "mode": "100644",
-        "type": "blob",
-        "object": "b959208662678e8158a4a1e5564dbe437066623f"
-      },
-      "review_scope": "Separate callback-backed sheet/cover latch from inline notes lifetime; aggregate camera/route occupancy and presentation guards unchanged. Exact root notes-to-audio regression plus all26Capture selectors required;14no-notes selector source applicability independently reviewed."
     }
   ],
-  "focused_evidence": null
+  "focused_evidence": null,
+  "focused_recovery": {
+    "compiled_source": {
+      "policy_sha256": "0950bd5294df1cc7cf47cb05fed8e7395e4b7e35ba4d5afa7bb487be1e9fa4d1",
+      "release_source_fingerprint": "0f550d641ab79a290e843c3f2ad8d6bc210e31c4d97b2c9f95aeba80b9df9efa",
+      "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+      "tree": "efb405067b24e4c0d14dd7208403a25e030a2056",
+      "workflow_run_attempt": null,
+      "workflow_run_id": null
+    },
+    "original": {
+      "execution_sha256": "80a503a3a883bc918fcf075dac0e749ba8f9a03ffb94dd4f733dd9285e5041e2",
+      "source": {
+        "policy_sha256": "f93edddd7231170bdc76655853bed0450026b95b9e514d3c30b98bdd8540be2d",
+        "release_source_fingerprint": "85f199fc42a185a630da14b3cf9f7e52a69e63314e52b5e7f7659bdf225dabf9",
+        "source_sha": "ffa0f19d6d814b7fdb35b2771a1596c64b838c05",
+        "tree": "1fd99cf8749a5cc480dc699b730cd3bbee01829c",
+        "workflow_run_attempt": null,
+        "workflow_run_id": null
+      },
+      "product_tree_sha256": "cff4a32eb7813fb09cfe5ed66591eb0942fa2ac6326942b1809cd14a00431c64",
+      "review": "Independent read-only evidence review by baseline_branch_reconciliation: exact source and raw hashes verified; original failure retained; current 26 cover every changed or failed Capture method; 14 unchanged direct original passes remain applicable. Capture rendered review is retained separately before delivery.",
+      "provenance": {
+        "result_bundle": "/Users/emreerdener/Developer/merian/.artifacts/pr-consolidation-20261113/unified-development/.artifacts/local-ios/85ed0be959a64aafa7eaaed01ad78ae1.xcresult",
+        "result_bundle_sha256": "d7b3e3855a5dff39a3ce6d9bfa2d056dfa6a53f83632ac2d6193ac0a87704b97",
+        "raw_sha256": {
+          "summary": "3e4eb3df261c0980eb14ebc4372b1758b939fe1fdc4f4aebaaf25731fe6bcc5b",
+          "tests": "11dfa4240b5a56d03ceca0df6345d5f52cd95d5de719e9c063589796f295b086"
+        },
+        "build_log_sha256": "24a81986997ee37a9d61cc1ee3fc51d40da4f38da8d7a785e4d3bdbb87f927a9",
+        "command": [
+          "make",
+          "ios-local-build",
+          "ARGS=simulator test -destination 'platform=iOS Simulator,id=A21BE672-462B-4DF2-88B3-E27DCFA2A5F7' -parallel-testing-enabled NO -only-testing:merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal -only-testing:merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace -only-testing:merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText -only-testing:merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion -only-testing:merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes -only-testing:merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview -only-testing:merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview -only-testing:merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard -only-testing:merianUITests/merianUITests/testLibraryLabelOpensScans -only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue -only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff -only-testing:merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity -only-testing:merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat -only-testing:merianUITests/InitialMediaHistoryUITests/testInitialPhotoWithTextCompletesIntoResultAndHistoryAcrossRelaunch -only-testing:merianUITests/InitialMediaHistoryUITests/testInitialAudioWithTextCompletesIntoResultAndHistoryAcrossRelaunch -only-testing:merianUITests/InitialMediaHistoryUITests/testInitialVideoWithTextCompletesIntoResultAndHistoryAcrossRelaunch -only-testing:merianUITests/ReanalysisRecoveryRestartUITests/testPhotoRecoversAfterExhaustionIntoPersistedHistoryAndUndo -only-testing:merianUITests/ReanalysisRecoveryRestartUITests/testAudioRecoversAfterExhaustionIntoPersistedHistoryAndUndo -only-testing:merianUITests/ReanalysisRecoveryRestartUITests/testVideoRecoversAfterExhaustionIntoPersistedHistoryAndUndo -only-testing:merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia -only-testing:merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+        ],
+        "selectors": [
+          "merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal",
+          "merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace",
+          "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+          "merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion",
+          "merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes",
+          "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+          "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview",
+          "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+          "merianUITests/merianUITests/testLibraryLabelOpensScans",
+          "merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+          "merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+          "merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+          "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+          "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
+          "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat",
+          "merianUITests/InitialMediaHistoryUITests/testInitialPhotoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+          "merianUITests/InitialMediaHistoryUITests/testInitialAudioWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+          "merianUITests/InitialMediaHistoryUITests/testInitialVideoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+          "merianUITests/ReanalysisRecoveryRestartUITests/testPhotoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+          "merianUITests/ReanalysisRecoveryRestartUITests/testAudioRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+          "merianUITests/ReanalysisRecoveryRestartUITests/testVideoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+          "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia",
+          "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+        ],
+        "toolchain": "Xcode 27.2\nBuild version 27B52",
+        "destination": "platform=iOS Simulator,id=A21BE672-462B-4DF2-88B3-E27DCFA2A5F7"
+      }
+    },
+    "replays": [
+      {
+        "execution_sha256": "5d1134da9d7d698d6387c61dee88dd2b12849f52d28a5be5cdb55155bd5f92be",
+        "source": {
+          "policy_sha256": "0950bd5294df1cc7cf47cb05fed8e7395e4b7e35ba4d5afa7bb487be1e9fa4d1",
+          "release_source_fingerprint": "0f550d641ab79a290e843c3f2ad8d6bc210e31c4d97b2c9f95aeba80b9df9efa",
+          "source_sha": "440421c8f6e4dc5d0a424142f98aed8c462d8ff2",
+          "tree": "efb405067b24e4c0d14dd7208403a25e030a2056",
+          "workflow_run_attempt": null,
+          "workflow_run_id": null
+        },
+        "product_tree_sha256": "da7056a40459cbd90aa457d3bb40342afbf3bcaf34bb7691ca6163039f83b205",
+        "review": "Independent read-only evidence review by baseline_branch_reconciliation: exact source and raw hashes verified; original failure retained; current 26 cover every changed or failed Capture method; 14 unchanged direct original passes remain applicable. Capture rendered review is retained separately before delivery.",
+        "provenance": {
+          "result_bundle": "/Users/emreerdener/Developer/merian/.artifacts/pr-consolidation-20261113/unified-development/.artifacts/local-ios/fbf934367916494dac105dbde77512f5.xcresult",
+          "result_bundle_sha256": "a7e47a1b75dc7d1a91e38090395b19d124242010dcc64a3d4fdb29c53c602aac",
+          "raw_sha256": {
+            "summary": "65c2aa956e48a277dc2f15538005d56824d4a4e64ef862bbbd022aeffce6f01c",
+            "tests": "302df3cc52eb05f1862756441edce044a9b74dd89598a719ae8ee0c07dbf6478"
+          },
+          "build_log_sha256": "f364e2a0d6c3e5fceb8079fc9481bc9eafa5c8bfdb75e95c02580bb0e2620928",
+          "command": [
+            "make",
+            "ios-local-build",
+            "ARGS=simulator test -destination 'platform=iOS Simulator,id=A21BE672-462B-4DF2-88B3-E27DCFA2A5F7' -parallel-testing-enabled NO -only-testing:merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal -only-testing:merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace -only-testing:merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText -only-testing:merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion -only-testing:merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes -only-testing:merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview -only-testing:merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview -only-testing:merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia -only-testing:merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+          ],
+          "selectors": [
+            "merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal",
+            "merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace",
+            "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+            "merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion",
+            "merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes",
+            "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+            "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview",
+            "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+            "merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia",
+            "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+          ],
+          "toolchain": "Xcode 27.2\nBuild version 27B52",
+          "destination": "platform=iOS Simulator,id=A21BE672-462B-4DF2-88B3-E27DCFA2A5F7"
+        },
+        "directory": "capture26",
+        "selectors": [
+          "merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal",
+          "merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace",
+          "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+          "merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion",
+          "merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes",
+          "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+          "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview",
+          "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+          "merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia",
+          "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+        ]
+      }
+    ],
+    "original_failed_selectors": [
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+      "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes",
+      "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+      "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+      "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+      "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview"
+    ],
+    "replay_selectors": [
+      "merianUITests/merianUITests/testFieldNotesDragsFromToolbarAndPreservesNotesOnDismissal",
+      "merianUITests/merianUITests/testFieldNotesOpensPromptsWithoutDescribeWorkspace",
+      "merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText",
+      "merianUITests/merianUITests/testFieldNotesTextAreaFocusesFromLowerRegion",
+      "merianUITests/StagedAudioBoostUITests/testFieldNotesReturnToSameReviewAndKeepIdentifyAboveKeyboard",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testCropAndNotesCannotAcquireEachOthersPresentation",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testAccountReplacementRetiresNotesAndRejectsLateInput",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testQueuedDiscardCannotClearAnOpenOrDismissingNotesSession",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingNotesWaitForRootPresentationAndPickerToRelease",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testPendingFieldNotesWaitsForMediaAndCannotOpenAReplacementDraft",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRequiresMediaAndRetainsOccupancyThroughMatchingDismissal",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testFieldNotesRejectsReplacedDraftAndKeepsOriginalMutationGuard",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testPromptProgressSurvivesCloseAndFinalMediaRemovalClearsSupplement",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewGeometryStaysFixedWhileNotesOpensTypesAndCloses",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testPhotoReviewKeepsSquareSelectionInAvailableSpaceAtLargeTextSizes",
+      "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
+      "merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview",
+      "merianUITests/merianUITests/testFieldNotesReviewAndConfirmedDiscard",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForMatchingDismissalAndPreservesDraft",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationIsDroppedAfterReplacementOrInvalidation",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationCannotBypassSubmissionLock",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testResetFieldNotesPreservesMediaAndResetsSavedPromptProgress",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesNavigationWaitsForOriginalMediaNotesPersistence",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNotesOverlayResumesNavigationWhenPersistenceDrains",
+      "merianTests/CaptureWorkspaceViewModelRefinementTests/testNestedNotesCloseRetainsReviewAndMedia",
+      "merianUITests/StagedAudioBoostUITests/testNotesToolbarNavigatesToMediaAndCaptureWithoutLosingNotes"
+    ],
+    "reused_selectors": [
+      "merianUITests/merianUITests/testLibraryLabelOpensScans",
+      "merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+      "merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+      "merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+      "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+      "merianUITests/merianUITests/testExactQuestionPersistsAndReopeningKeepsPendingIdentity",
+      "merianUITests/merianUITests/testStaleQuestionRequiresExplicitRefreshBeforeFreshChat",
+      "merianUITests/InitialMediaHistoryUITests/testInitialPhotoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+      "merianUITests/InitialMediaHistoryUITests/testInitialAudioWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+      "merianUITests/InitialMediaHistoryUITests/testInitialVideoWithTextCompletesIntoResultAndHistoryAcrossRelaunch",
+      "merianUITests/ReanalysisRecoveryRestartUITests/testPhotoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+      "merianUITests/ReanalysisRecoveryRestartUITests/testAudioRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+      "merianUITests/ReanalysisRecoveryRestartUITests/testVideoRecoversAfterExhaustionIntoPersistedHistoryAndUndo",
+      "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
+    ],
+    "review": "Independent read-only evidence review by baseline_branch_reconciliation: exact source and raw hashes verified; original failure retained; current 26 cover every changed or failed Capture method; 14 unchanged direct original passes remain applicable. Capture rendered review is retained separately before delivery.",
+    "applicability": "Three reviewed owners only: overlay bottom geometry and AX containment; observable View.body hosting fixture with original deadline and exact lifecycle assertions; callback-only presentation latch excludes inline notes while combined occupancy, nested review guards and persistence remain intact. All 26 affected selectors executed successfully on exact compiled source 440421c8. All subsequent changes are reviewed verification controls or documentation, with application/product bytes unchanged.",
+    "reuse_review": "The 14 direct original passes cover Library, queue/chat, initial photo/audio/video History, reanalysis photo/audio/video and background interruption. Their direct test owners, UI seeds, IdentificationHistory, Onboarding and AnalysisHistory are unchanged from ffa0 to 440. These paths do not open fieldNotesSession: the root overlay exists only for staged capture or notes, independent History fixtures use their own covers, and callback/combined occupancy are equivalent on the reused paths. This reuses selector-level results, not current rendered or live-device proof.",
+    "compiled_delta": [
+      {
+        "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b89c79d31c412a3bbbd899995f94bf3e0b338e29"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b959208662678e8158a4a1e5564dbe437066623f"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "832f654fa45cb52940422ab99547b5fa710e74ef"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "67dddc5e6ebcc0f42cdca43997d34bbec9fc9b25"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "6deba5f666544e1c0c6d54c3f471af6f9e0b2367"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "60102669f02a2577df5ea9e75c9261be92ec262d"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "docs/features-and-hardware/29-staged-capture-review.md",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "97c289b116dbbc8e64bb84df42dc84f3789cbf6a"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "44c2f3257536009e92c4d8b9fada7ef6c17926e0"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      }
+    ],
+    "reviewed_delta": [
+      {
+        "path": "apps/ios/Merian/Features/Capture/Shell/Modifiers/CaptureWorkspaceOrchestrationModifier.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b89c79d31c412a3bbbd899995f94bf3e0b338e29"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b959208662678e8158a4a1e5564dbe437066623f"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "apps/ios/Merian/Features/Capture/Shell/Views/CaptureFieldNotesOverlay.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "832f654fa45cb52940422ab99547b5fa710e74ef"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "67dddc5e6ebcc0f42cdca43997d34bbec9fc9b25"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "apps/ios/MerianTests/Features/Capture/Shell/CapturePhotoReviewTests.swift",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "6deba5f666544e1c0c6d54c3f471af6f9e0b2367"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "60102669f02a2577df5ea9e75c9261be92ec262d"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "docs/development-guides/08-testing-strategy.md",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b48210558f034680c642e3afbaf9fca6b078608e"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "ccb8b9e3671967d871cf87c3e7672e31ebe89b73"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "docs/development-guides/18-ios-runtime-quality-and-benchmarking.md",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "d30511b6905fd539921e99ab9a70dcf50114c3d4"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "9ef0e7689efcd9a41c95fa43605c017610bf773f"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "docs/features-and-hardware/29-staged-capture-review.md",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "97c289b116dbbc8e64bb84df42dc84f3789cbf6a"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "44c2f3257536009e92c4d8b9fada7ef6c17926e0"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "scripts/ios-consolidation-acceptance.py",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "025522d818be30fd47750a4781c4296cb04f16c2"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "0db89dc991dccccc12c3f2e25a336ab68632e09d"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "scripts/ios-focused-recovery.py",
+        "before": null,
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "2b33b98826a941203ce728e85eb6994749ff4f89"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "scripts/test-ios-consolidation-acceptance.py",
+        "before": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "b07ec81ad76447deae8574bb771e2ca35eea6c3e"
+        },
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "f966632510befb0a2c70a71ed2d10bc32813ba00"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      },
+      {
+        "path": "scripts/test-ios-focused-recovery.py",
+        "before": null,
+        "after": {
+          "mode": "100644",
+          "type": "blob",
+          "object": "4668cf40dd893fbaf559362db5f6e2d9cf708308"
+        },
+        "review_scope": "Independent focused_replay_harness_review and baseline_branch_reconciliation review: exact source/product/plan provenance, complete 26 replay plus 14 unchanged direct passes, no skipped assertions/deadline changes or release authority."
+      }
+    ]
+  }
 }

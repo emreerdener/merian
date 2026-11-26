@@ -625,8 +625,12 @@ The November 25 consolidation uses the existing XCResult acceptance parser and
 managed local build wrapper for its reviewed 40-method subset: the previously
 prepared 32 checks plus eight Field notes navigation, persistence and hosting
 regressions. The unexecuted 32-method plan is superseded before compilation so
-all checks run once on the integrated source. Its additional source, product,
-artifact-loss and operation boundaries are owned by the
+all checks are initially attempted on the integrated source. The reviewed
+Capture recovery route then permits one complete 26-method affected replay plus
+14 source-applicable direct passes from that completed original run, with exact
+compiled/verifier identity and raw-result checks. It retains original failures
+and does not accept a partial or selective affected replay. Its additional
+source, product, artifact-loss and operation boundaries are owned by the
 [testing strategy](08-testing-strategy.md#consolidation-evidence-recovery-and-proportionate-acceptance--november-25-2026)
 and `scripts/config/ios-consolidation-acceptance.json`. This candidate-specific
 selection does not replace the general runtime audit manifest or its performance

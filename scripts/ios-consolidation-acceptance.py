@@ -103,7 +103,7 @@ def focused_results(summary, tree, selectors):
         url = urllib.parse.urlsplit(node.get("nodeIdentifierURL", ""))
         require(url.scheme == "test" and not url.query and not url.fragment, "Missing/ambiguous test identity")
         parts = url.path.strip("/").split("/")
-        require(len(parts) == 4 and parts[0] == "Merian", "Unexpected compiled test target")
+        require(len(parts) == 4 and parts[0] in ("Merian", "merian"), "Unexpected compiled test target")
         actual.append("/".join(parts[1:]).removesuffix("()"))
     require(len(actual) == len(set(actual)) and set(actual) == set(selectors), "Focused method coverage mismatch")
     require(summary["totalTestCount"] == len(actual), "Focused summary/tree count mismatch")
@@ -208,6 +208,14 @@ def verify_focused(policy, directory, candidate):
             "product_tree_sha256": record["product_tree_sha256"], "verifier_source": candidate["source_sha"]}
 
 
+def verify_combined_evidence(policy, directory, candidate):
+    legacy, recovered = bool(policy.get("focused_evidence")), bool(policy.get("focused_recovery"))
+    require(legacy != recovered, "Exactly one reviewed focused evidence route is required")
+    if recovered:
+        return module("focused_recovery", "ios-focused-recovery.py").verify(policy, directory, candidate)
+    return verify_focused(policy, directory, candidate)
+
+
 def reviewed_records(policy, field, required, evidence, candidate):
     """Only policy-pinned, independently reviewed records can close a manual gate.
 
@@ -254,7 +262,7 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run):
     # cannot turn an uploaded, self-authored collection into trusted evidence.
     recovery.collect(policy, output / "recovery-input", client)
     coverage = recovery.verify(policy, output / "recovery-input", output / "recovery", candidate)
-    current = verify_focused(policy, focused, candidate)
+    current = verify_combined_evidence(policy, focused, candidate)
     surface_runs = {}
     for surface, run_id in policy["reused_workflows"].items():
         run = client.json(f"/actions/runs/{run_id}")

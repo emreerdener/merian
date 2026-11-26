@@ -193,7 +193,7 @@ class AcceptanceTests(unittest.TestCase):
             result = {"compiled_source": "a" * 40}
             acceptance.shards.write_json(output / "coverage.json", result)
             return result
-        with patch.object(acceptance, "source_identity", return_value=candidate), patch.object(acceptance, "validate_delta", return_value={}), patch.object(acceptance.recovery, "collect"), patch.object(acceptance.recovery, "verify", side_effect=recovered), patch.object(acceptance, "verify_focused", return_value={"cases": 25}):
+        with patch.object(acceptance, "source_identity", return_value=candidate), patch.object(acceptance, "validate_delta", return_value={}), patch.object(acceptance.recovery, "collect"), patch.object(acceptance.recovery, "verify", side_effect=recovered), patch.object(acceptance, "verify_combined_evidence", return_value={"cases": 40}):
             result = acceptance.assess(policy, self.root, self.root, self.root / "merge", "merge", Client(), 9)
             self.assertEqual(result["status"], "passed")
             self.assertFalse(result["satisfies_branch_protection"])
@@ -210,6 +210,26 @@ class AcceptanceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cannot grant"):
                 acceptance.assess(policy, self.root, self.root, self.root / "authority", "merge", Client(), 9)
 
+    def test_combined_evidence_route_is_explicit_and_exclusive(self):
+        for policy in ({}, {"focused_evidence": {"review": "yes"}, "focused_recovery": {"review": "yes"}}):
+            with self.assertRaisesRegex(ValueError, "Exactly one"):
+                acceptance.verify_combined_evidence(policy, self.root, {"source_sha": "b" * 40})
+        with patch.object(acceptance, "verify_focused", return_value={"cases": 40}) as ordinary:
+            self.assertEqual(acceptance.verify_combined_evidence({"focused_evidence": {"review": "yes"}}, self.root, {}), {"cases": 40})
+            ordinary.assert_called_once()
+
+    def test_literal_local_project_spelling_is_accepted_without_casefold(self):
+        for project in ("merian", "MERIAN", "MeRiAn", "%6derian"):
+            tree = fixtures.tree_for(self.selectors)
+            for node in acceptance.audit.nodes(tree):
+                if node.get("nodeType") == "Test Case":
+                    node["nodeIdentifierURL"] = node["nodeIdentifierURL"].replace("/Merian/", "/" + project + "/")
+            if project == "merian":
+                self.assertEqual(acceptance.focused_results(fixtures.summary_for(self.selectors), tree, self.selectors)["cases"], 2)
+            else:
+                with self.assertRaises(ValueError):
+                    acceptance.focused_results(fixtures.summary_for(self.selectors), tree, self.selectors)
+
     def test_recovery_workflow_is_read_only_and_cannot_cancel_or_run_native(self):
         workflow = (acceptance.ROOT / ".github/workflows/ios-evidence-recovery.yml").read_text()
         self.assertIn("actions: read", workflow)
@@ -218,6 +238,11 @@ class AcceptanceTests(unittest.TestCase):
         for forbidden in ("write", "pull_request_target", "xcodebuild", "secrets.", "workflow_run:"):
             self.assertNotIn(forbidden, workflow)
         self.assertIn("python3 -B scripts/ios-evidence-recovery.py", workflow)
+
+
+def load_tests(loader, standard_tests, pattern):
+    standard_tests.addTests(loader.loadTestsFromModule(module("focused_recovery_tests", "test-ios-focused-recovery.py")))
+    return standard_tests
 
 
 if __name__ == "__main__":
