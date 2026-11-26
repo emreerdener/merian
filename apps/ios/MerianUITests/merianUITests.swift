@@ -936,16 +936,11 @@ final class merianUITests: XCTestCase {
     @MainActor
     func testStagedProSlotOpensDefaultPaywallAndPreservesDraft() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
-            "-seedAudioFinishFlow", "-autoSubmitScans", "NO",
+            "-seedStagedAudioReviewFlow", "-mockCaptureReviewLocation", "-autoSubmitScans", "NO",
             "-captureModeOrder", "audio,visual,describe",
             "-hasShownCaptureNoteTip", "YES", "-themeMode", "Dark"
         ])
-        let finish = app.buttons["Finish recording"]
-        XCTAssertTrue(finish.waitForExistence(timeout: 8))
-            XCTAssertTrue(finish.isHittable)
-            XCTAssertGreaterThanOrEqual(finish.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(finish.frame.height, 44)
-        finish.tap()
+        // Seed the root tray directly: finishing a clip can enter its playback review.
         let upgrade = app.buttons["StagedMediaProPlaceholder"]
         let audio = app.buttons["StagedAudioBadge_0"]
         XCTAssertTrue(upgrade.waitForExistence(timeout: 8))
