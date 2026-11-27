@@ -244,9 +244,9 @@ changes. A version bump alone is not evidence that a dependency is compatible.
   centrally pinned Supabase SDK also needs a dedicated review even for a minor
   update because it serves authentication and database operations throughout the
   Edge fleet. Deferred proposals stay open and labelled rather than being merged
-  merely to empty the queue. The reviewed Gemini 2.24.0 integration uses
-  `models.generateContent`; do not introduce SDK retries or migrate to the
-  Interactions API as part of a version-only update.
+  merely to empty the queue. The Gemini 3.6.1 integration explicitly retains the
+  `v1beta` API and uses `models.generateContent`; do not introduce SDK retries
+  or migrate to the Interactions API as part of a version-only update.
 
 For web/admin updates, run the frozen install, blocking dependency audit, tests,
 type check, and production build from each affected package. Preserve security

@@ -132,6 +132,15 @@ owns dirty-source equivalence, parameter coverage and applicability checks. This
 validation archive does not replace the signed Organizer artifact or the
 TestFlight-stage backend/device prerequisites.
 
+The November 27 dependency successor uses the same assessed native evidence only
+while its native product tree remains unchanged. The
+[dependency successor contract](08-testing-strategy.md#november-27-dependency-successor-validation)
+requires fresh exact-commit backend, admin and deterministic Agent Quality
+checks, plus a new unsigned archive and signed Organizer artifact. A passing
+older signed archive does not qualify a different release commit. Existing
+target approval, backend cutover, site promotion and tester-assignment controls
+remain in force.
+
 ## Version and Build Policy
 
 `project.yml` is the repository source of truth:

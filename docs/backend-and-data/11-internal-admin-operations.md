@@ -182,7 +182,10 @@ Promote/direct manual promotion. Record and verify the external deployment
 control during initial setup and after changing GitHub or Vercel integration
 settings.
 
-The checked-in dependency graph, reviewed on 2026-10-07, is:
+The October 7 dependency review established the following security floors. The
+current graph pins Next.js 16.4.6, PostCSS 8.5.33, Sharp 0.35.5 and Supabase JS
+2.119.2; retain the frozen install/audit/test/typecheck/build gate for this
+updated graph. The original review covered:
 
 - Next.js 16.3.8, including the
   [October security patches](https://github.com/vercel/next.js/releases/tag/v16.3.8)

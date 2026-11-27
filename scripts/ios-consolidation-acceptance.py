@@ -23,6 +23,7 @@ def module(name, filename):
 
 recovery = module("recovery", "ios-evidence-recovery.py")
 audit = module("audit", "ios-runtime-audit.py")
+revalidated = module("revalidated", "ios-revalidated-surfaces.py")
 shards, ROOT, require = recovery.shards, recovery.ROOT, recovery.require
 RELEASE_OWNER_PATHS = {
     "project.yml", "Config.xcconfig", "Signing.xcconfig", "HistoryQualification.xcconfig",
@@ -108,10 +109,13 @@ def validate_delta(policy, candidate, *, whole_tree=True):
             replacement = b"scripts/config/ios-runtime-audit.json,scripts/config/ios-consolidation-acceptance.json,resources"
             require(before.count(anchor) == 1 and after == before.replace(anchor, replacement),
                     "Backend control change is not the single reviewed read grant")
+    # Compiled focused receipts establish native applicability only. Fresh
+    # non-native gates are required against the final candidate in assess().
+    surfaces = revalidated.validate(policy, candidate, recovery.git, tree_entries) if whole_tree else {}
     complete = validate_full_delta(policy, candidate) if whole_tree else {}
     return {**complete, "compiled_origin": origin, "candidate": candidate, "reviewed_delta": entries,
             "unchanged_surfaces": {k: v for k, v in policy["reused_surface_paths"].items() if not controls.get(k)},
-            "reviewed_surface_controls": controls}
+            "reviewed_surface_controls": controls, "revalidated_surfaces": surfaces}
 
 
 def focused_results(summary, tree, selectors):
@@ -306,7 +310,7 @@ def verify_current_backend(client, run_id, candidate):
             "complete_scope_executed": True}
 
 
-def assess(policy, focused, evidence, output, stage, client, recovery_run, archive_run=None, backend_run=None):
+def assess(policy, focused, evidence, output, stage, client, recovery_run, archive_run=None, backend_run=None, admin_run=None, agent_run=None, web_run=None):
     require(policy["authorization"] == {"merge": False, "testflight_upload_or_distribution": False, "backend_or_sites_deploy": False}, "Acceptance cannot grant operation authority")
     candidate = source_identity()
     impact = validate_delta(policy, candidate["source_sha"])
@@ -332,6 +336,16 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run, archi
         surface_runs[surface] = {k: run[k] for k in ("id", "head_sha", "run_attempt", "path", "conclusion")}
     journeys, missing = reviewed_records(policy, "journey_evidence", policy["required_journeys"], evidence, candidate["source_sha"])
     current_backend = None
+    current_surfaces = {}
+    if policy.get("revalidated_surfaces"):
+        run_ids = {"backend": backend_run, "admin": admin_run, "agent_quality": agent_run, "web": web_run}
+        absent_runs = [name for name, run_id in run_ids.items() if run_id is None]
+        missing += ["exact-candidate-" + name + "-validation" for name in absent_runs]
+        if not absent_runs:
+            current_surfaces = revalidated.verify_runs(policy, candidate, client, run_ids, verify_current_backend)
+            current_backend = current_surfaces["backend"]["backend_evidence"]
+    else:
+        require(admin_run is None and agent_run is None and web_run is None, "Unexpected non-native validation arguments")
     if policy.get("reviewed_surface_control_delta", {}).get("backend"):
         if backend_run is None:
             missing.append("exact-candidate-backend-validation")
@@ -354,7 +368,7 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run, archi
     result = {"schema_version": 1, "stage": stage, "status": "blocked" if missing else "passed",
               "candidate": candidate, "change_impact": impact, "native_origin": coverage["compiled_source"],
               "recovery_sha256": shards.digest(output / "recovery/coverage.json"), "combined_focused": current, "unsigned_release_archive": archive,
-              "recovery_workflow_run": recovery_run, "reused_surfaces": surface_runs, "current_backend_validation": current_backend,
+              "recovery_workflow_run": recovery_run, "reused_surfaces": surface_runs, "current_backend_validation": current_backend, "revalidated_surfaces": current_surfaces,
               "journeys": journeys, "testflight_prerequisites": prerequisites,
               "unresolved": missing, "authorization": policy["authorization"],
               "old_workflow_relabelled": False, "new_full_suite_required": False,
@@ -362,6 +376,7 @@ def assess(policy, focused, evidence, output, stage, client, recovery_run, archi
               "qa_upload_scope": "Organizer upload/processing preparation only; no tester assignment" if stage == "qa-upload" else None,
               "qa_assignment_prerequisites": ["completed consent distribution safety", "explicit named bounded migration-QA group authorization"] if stage == "qa-upload" else [],
               "operator_prerequisites": ["fresh repository and Vercel controls", "target-specific approval", "applicable backend cutover/activation controls"]}
+    require(source_identity() == candidate, "Candidate source changed during acceptance")
     shards.write_json(output / "acceptance.json", result)
     require(not missing, "Acceptance remains blocked: " + ", ".join(missing))
     return result
@@ -377,6 +392,9 @@ def main():
     acceptance.add_argument("--recovery-run", required=True, type=int)
     acceptance.add_argument("--archive-run", type=int)
     acceptance.add_argument("--backend-run", type=int)
+    acceptance.add_argument("--admin-run", type=int)
+    acceptance.add_argument("--agent-run", type=int)
+    acceptance.add_argument("--web-run", type=int)
     acceptance.add_argument("--focused", required=True, type=Path)
     acceptance.add_argument("--evidence", required=True, type=Path)
     acceptance.add_argument("--output", required=True, type=Path)
@@ -386,7 +404,7 @@ def main():
     if args.action == "run-focused":
         run_focused(policy, args.destination, args.output)
     else:
-        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run, args.archive_run, args.backend_run)
+        assess(policy, args.focused, args.evidence, args.output, args.stage, recovery.GitHub(policy["repository"]), args.recovery_run, args.archive_run, args.backend_run, args.admin_run, args.agent_run, args.web_run)
 
 
 if __name__ == "__main__":

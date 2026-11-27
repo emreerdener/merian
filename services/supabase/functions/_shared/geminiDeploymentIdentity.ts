@@ -2,48 +2,48 @@
 export const GEMINI_DEPLOYMENT_IDENTITIES = Object.freeze(
   {
     "analyze-observation":
-      "4b26a349e1074af687c067450f3a50cf3968b5473ed92688448ec22d654109b7",
+      "a1c128666a047e0d65f5e192ac23932454fed554626759322f98465d955bef1b",
     "analyze-observation-video":
-      "306f257aca07d8319e03143b89f0e93eccab5445b844d2724b3ea0ca2f4cb4b8",
+      "01d4e0fecb221ef23c5a4fdc9bff5ef38e59cb581889ad4cd2e9ad039b729f96",
     "audio-spec":
-      "db878b4e8762ccc068412deb9fd135ba4c66f16d2fcc49421b8af783c84b68c4",
+      "d60160f590fb34c66fbd17b1c2dd9b78ef6b48f1ee098b7afeb7b8d03d709b13",
     "backfill-explore-audio-spectrograms":
-      "c59449259e0549c7ace6a0df86ba8c2201848f61fd54e11155e3696cfb58eb95",
+      "7ee600cacc318b0a0c20acf33ac5bbed0ac7617ac44d5b5d04cb863930dca3b9",
     "copy-publication-photos":
-      "d15c90eee9a94dd71f3553b7577962cd364a495df0b63fb1a49128878e33955b",
+      "32e6e0fe2269ba507d33166cf6f98914bade573ee12bec2df9afaa6e48d3f3f3",
     "enrich-scan":
-      "610a9a870564313e9b45cdf7fa6894afb59110812f5ad66722a90a191e5c4b26",
+      "d0b7d3e1cc0f6cead18852fc671bd0fb4200e799037a146eebecbe6a0eb46b96",
     "erase-publication-photos":
-      "b6a92db7a35c99f2cb083309bf1971106f321b7e870554388383a91ff7569dcf",
+      "f652beea19c47f22a16ab502f3d0619dc5f05aa2a1400ac238cbe2bcbd0690d4",
     "explore-post-chat":
-      "92f2240a3fd35b605aa54888ca4d7832a86e04a1858202397c6c9db63edaa18f",
+      "8ba70cdd30e5744542bdc6a6bb7e42af52bf9b3a665d224c4eb5cfcfaa003d0b",
     "gemini-release-smoke":
-      "c056aa5dc400581a546786b05675dd77e94bfea9ecbca350596a925112d50fbd",
+      "8a83885e190d46f753e4ecb0fbc6da271f49c442619178c021337fdfd3f5289a",
     "identify":
-      "115a86f5b37eb2883d79bdbbe7d81b3a803adb3d6c4080351834e5fd0d41059f",
+      "747e393056f9adb4587d130888123d741aca77167ca4901b07287fc80981cb9c",
     "identify-describe":
-      "8c0252e2683ca142083ba547b0676c74eeafcc054866ab565e0e77305db2108b",
+      "dbc13fd87e8884a44330bf93a4504ffc9e30037efe417b96b43e121ced3ea976",
     "identify-multimodal":
-      "7470eb07874d45b87b2bb1d0ef5bbafbaf3cf5cd460cca1518890647639f2e7b",
+      "70dfcb7f42c94c5d42437d02d201ff390fef51e224705db700cafa71ad0d5f81",
     "insight-chat":
-      "ef4ac4712bb29960b508fd530ba2ef3064448f9dd0d632f105878ed58459e36f",
+      "3527669538e599b09fd931492cd534806ff58a056f624f9c8d849ebb21923634",
     "moderate-publication-photos":
-      "b1c252569c76b4971aa1d77b5a8183040d37ef20059de26e3a008653cbbc654f",
+      "24f4ba288c65799f0a1f37d0388301ad64b96f0aabf6206f367a6303506789d8",
     "recover-observation-analyses":
-      "3de6396e5edbf04a2383a1bd4ee2c0d63e074dfc0da9377794a6f43357e9b77b",
+      "52698f093b82dd52c63f66008e9a9470f8666e3876af3baaf1aa36cfaa444fde",
     "recover-observation-video-analyses":
-      "193631c0a18b4d795d2ef9517a425ceb224fb6abb3cab7f6529e2c1ecad3d8fa",
+      "dc9ff6ef94f635150dd436ca898e12d9bb405452e240a86131fbd3e4aa11d228",
     "refresh-species-model-content":
-      "fd1870558340a37ee512b957ca4a9c346212130711aa513e845d22f8c907f4f3",
+      "7cfd7f1e8e569ec5a1c3f7132e40354457ef868b8caa283d683a436ef1d8a285",
     "request-community-identification":
-      "ef4f63123600a27846cdd87784eb9f23d309d006b2e815f8b2ee462261e4e1c6",
+      "2fb6dd1a69278b9fda0cc17f029a17f46a932a3036ad41242403a3fff30226b1",
     "share-scan-to-explore":
-      "92b687a03b90851751369801c1e15bb09a135aee3e4c7c8eb69aeba05bad7824",
+      "094ed8f74c2cd81a5cd89b344d13a4dfdbc64bf61dd534486535c2d4c325b7c4",
     "species-dictionary-chat":
-      "d50a29d6a2403210ae876f0616448448b085b753f4701dbc0d5b9a1dfeb43896",
+      "819583b5cac0b29d032e298e5d0b4b4469c22d44390eb36980c0f8af1399fa08",
     "species-discovery-search":
-      "35abed0265553905edd00e89e9ab1d5bdcf372fe8dccab36c32d7742732c6ae7",
+      "3816195dc75ca0aa3e16264505c443eac4507a915df23336457b212a268ec629",
     "update-explore-field-notes":
-      "fb044d8c941b31e054fce0481c9ed768cfd00957d224791e7340289f554fb370",
+      "f6fd92b88ed62a0341447da836bcc074fb5b0fd1d36dbe887f5ad8d6e43179f0",
   } as const,
 );

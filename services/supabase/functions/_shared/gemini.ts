@@ -18,6 +18,8 @@ function getPaidGeminiClient(): GoogleGenAI {
   // failing closed before any Gemini request when the paid key is absent.
   paidGeminiClient = new GoogleGenAI({
     apiKey,
+    // SDK 3 defaults to v1; retain the qualified Developer API route.
+    apiVersion: "v1beta",
     httpOptions: {
       timeout: GEMINI_REQUEST_TIMEOUT_MS,
     },

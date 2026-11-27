@@ -2629,6 +2629,37 @@ regression checks, recovery provenance/archive adversarial cases,
 combined-method coverage, change-impact and reviewed-report tests. Keep the
 source policy and its review with the acceptance result.
 
+#### November 27 dependency successor validation
+
+The all-branches successor preserves the qualified native product tree while
+updating backend SDKs, both web applications and the pinned Codex Action. Its
+closed `revalidated_surfaces` policy replaces historical backend/web/admin reuse
+with fresh exact-commit validation. `ios-revalidated-surfaces.py` permits
+exactly backend, admin and deterministic Agent Quality ownership, with reviewed
+before/after Git objects for every changed file; native and public-web ownership
+cannot overlap. The full source/control manifest still binds the verifier and
+documentation.
+
+Supply `--backend-run`, `--web-run`, `--admin-run` and `--agent-run` to the
+acceptance command. Each must be a completed successful run of its expected
+workflow on the final candidate, with complete current-attempt job metadata and
+executed required steps. Backend validation retains the complete tooling,
+disposable database, Edge suite and exact-attempt C1 artifact checks. Admin
+requires frozen install, audit, unit tests, type-check and production build.
+Agent Quality requires its deterministic gate; existing optional live model
+evaluations remain nonblocking. Missing, skipped, stale, wrong-workflow or
+mixed-attempt evidence cannot pass.
+
+No backend or web surface is declared unchanged in this successor. Native
+compiled revisions remain explicitly distinct from the candidate verifier: their
+source applicability and retained method/parameter coverage are unchanged, while
+backend/admin results must belong to the successor. This does not require
+another full native suite for dependency-only changes. It does require a new
+exact-source unsigned archive, signed Organizer archive and refreshed applicable
+backend, consent, install-over and device evidence before the respective release
+stage. The old signed archive and its assessment remain historical. This route
+confers no merge, deployment, site promotion or Apple publication authority.
+
 #### November 26 Capture follow-up evidence
 
 The successor at `101c3208952e979179c5b9f6f33e0e79869260b4` adds the reviewed

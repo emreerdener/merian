@@ -1110,7 +1110,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.119.0` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.119.2` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -3071,27 +3071,30 @@ schema. After an intentional media-wire change, run
 `make validate-edge-dto-contract`.
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
-archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.119.0 version
+archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.119.2 version
 across the Edge fleet. Public web and internal admin own their pins in their
-package manifests. JOSE 6.2.15 uses the Deno WebCrypto runtime for Apple RS256
+package manifests. JOSE 6.2.18 uses the Deno WebCrypto runtime for Apple RS256
 identity verification and ES256 Apple client-secret/APNs signing. Real-crypto
 tests retain fixed algorithm, issuer, audience, signature, expiry, and
 safe-error behavior using only generated keys and synthetic JWKS responses.
-Google Gen AI 2.24.0 retains `models.generateContent` with the existing model
-choices, schemas, thinking budgets, 90-second HTTP timeout, and no SDK retry
-options. The real-SDK tests in `_shared/gemini_test.ts` intercept HTTP using
-synthetic input to check Field Chat JSON, image/audio parts, schema constraints,
-thought exclusion, safety, token usage, paid-key denial, single-attempt errors,
-and timeout cancellation. These tests do not make paid provider calls or
-establish live model quality. Hosted provider-comparison specifications accept
-the reviewed 2.23.0 and 2.24.0 SDKs, but staging, checking, and preparation
-require the complete exact source identity, including its SDK. A historical
-bundle therefore requires its original checkout and dependency graph; a new SDK
-requires a new reviewed bundle. The frozen audio-prompt execution, continuation,
-and successor protocols remain bound to their original 2.23.0 tooling. Use their
-original reviewed checkout; 2.24.0 audio trials require a separately versioned
-and reviewed protocol. Dependency validation does not authorize any paid run or
-requalify old evidence. See the
+Google Gen AI 3.6.1 explicitly selects `v1beta` and retains
+`models.generateContent` with the existing model choices, schemas, thinking
+budgets, 90-second HTTP timeout, and no SDK retry options. The explicit API
+version preserves the existing route despite SDK 3 defaulting to `v1`; upgrading
+the SDK does not activate a new API or model. The real-SDK tests in
+`_shared/gemini_test.ts` intercept HTTP using synthetic input to check Field
+Chat JSON, image/audio parts, schema constraints, thought exclusion, safety,
+token usage, paid-key denial, single-attempt errors, and timeout cancellation.
+These tests do not make paid provider calls or establish live model quality.
+Hosted provider-comparison specifications accept the reviewed 2.23.0 and 2.24.0
+SDKs, but staging, checking, and preparation require the complete exact source
+identity, including its SDK. A historical bundle therefore requires its original
+checkout and dependency graph; a new SDK requires a new reviewed bundle. The
+frozen audio-prompt execution, continuation, and successor protocols remain
+bound to their original 2.23.0 tooling. Use their original reviewed checkout;
+2.24.0 audio trials require a separately versioned and reviewed protocol.
+Dependency validation does not authorize any paid run or requalify old evidence.
+See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local

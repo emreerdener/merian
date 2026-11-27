@@ -1371,12 +1371,12 @@ Google Sign-In. The reviewed lockfile includes PostHog 3.69.0, RevenueCat
 5.83.0, Supabase Swift 2.54.1, and Google Sign-In 9.2.0, plus transitive
 packages.
 
-Key Edge Function dependencies include Supabase JS 2.117.2, JOSE 6.2.12,
-aws4fetch 1.0.20, Google Gen AI 2.24.0, and Deno standard library 0.224 imports.
-DwC-A production delivery uses the local streaming ZIP implementation and
-Resend's HTTP API; JSZip remains only an independent ZIP-reader test dependency.
-Versions are a snapshot, not a promise; upgrades require tests and security
-review.
+Key Edge Function dependencies include Supabase JS 2.119.2, JOSE 6.2.18,
+aws4fetch 1.0.20, Google Gen AI 3.6.1 (with the existing `v1beta` API retained),
+and Deno standard library 0.224 imports. DwC-A production delivery uses the
+local streaming ZIP implementation and Resend's HTTP API; JSZip remains only an
+independent ZIP-reader test dependency. Versions are a snapshot, not a promise;
+upgrades require tests and security review.
 
 TelemetryDeck is not a direct dependency in the current implementation.
 

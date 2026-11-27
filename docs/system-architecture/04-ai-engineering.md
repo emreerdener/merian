@@ -1742,19 +1742,20 @@ provider dispatch:
   Detailed failures remain observable in Supabase Edge Function logs without
   exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
-  from `@google/genai@2.24.0` is constructed lazily on the first provider call
-  and reused within a warm isolate through `_genAI.models`. A missing
-  `GEMINI_PAID_API_KEY` fails before dispatch. Identification, audio moderation,
-  biological enrichment, and all three Field Chat routes use this owner. Calls
-  retain the 90-second HTTP timeout and single-attempt transport; the durable
-  quota/replay layer owns retries. The Interactions API is not used. Scoped
-  identification and biological content use `_shared/ai/gemini.ts` for native
-  request projection and SDK response decoding. The unused `createFlashModel`
-  factory was removed after the content extraction. Content retains temperature
-  `0.1`, thinking budget `0`, task output limits of 1500/300/100, and no seed,
-  `topK`, or explicit safety override. Its legacy text/JSON parsing accepts
-  usable JSON on a non-STOP finish and adds no first-part fallback. Generation
-  config uses native SDK `config:`. `extractJson<unknown>(text)` centralises the
+  from `@google/genai@3.6.1` explicitly selects `v1beta` and is constructed
+  lazily on the first provider call and reused within a warm isolate through
+  `_genAI.models`. A missing `GEMINI_PAID_API_KEY` fails before dispatch.
+  Identification, audio moderation, biological enrichment, and all three Field
+  Chat routes use this owner. Calls retain the 90-second HTTP timeout and
+  single-attempt transport; the durable quota/replay layer owns retries. The
+  Interactions API is not used. Scoped identification and biological content use
+  `_shared/ai/gemini.ts` for native request projection and SDK response
+  decoding. The unused `createFlashModel` factory was removed after the content
+  extraction. Content retains temperature `0.1`, thinking budget `0`, task
+  output limits of 1500/300/100, and no seed, `topK`, or explicit safety
+  override. Its legacy text/JSON parsing accepts usable JSON on a non-STOP
+  finish and adds no first-part fallback. Generation config uses native SDK
+  `config:`. `extractJson<unknown>(text)` centralises the
   `indexOf`/`lastIndexOf` syntax-extraction pattern that Gemini occasionally
   requires even with `responseMimeType: "application/json"`. It does not
   establish a type. `_shared/identify/contract.ts` performs the model and final

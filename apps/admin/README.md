@@ -76,7 +76,7 @@ the fixed local destination.
 
 ### Supabase client compatibility
 
-Supabase JS is pinned to 2.117.2. The SSR adapter is pinned to 0.12.7. Keep the
+Supabase JS is pinned to 2.119.2. The SSR adapter is pinned to 0.12.7. Keep the
 request-scoped server client and the `getAll`/`setAll` cookie bridge;
 `getUser()` remains a routing check, while RPCs enforce authorization.
 `lib/supabase-ssr.test.ts` exercises missing sessions, refreshed-cookie reuse,
@@ -84,7 +84,7 @@ and invalid-refresh cleanup through the real SDK with synthetic transport
 fixtures.
 
 See the
-[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.117.2).
+[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.119.2).
 Dependency upgrades must preserve authentication, cookie, and request-transport
 behavior.
 
@@ -122,7 +122,7 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.4.6 and PostCSS 8.5.32 and overrides Next.js's private Sharp
+pins Next.js 16.4.6 and PostCSS 8.5.33 and overrides Next.js's private Sharp
 dependency to 0.35.5 for the
 [librsvg memory-safety fix](https://github.com/advisories/GHSA-wq5f-xc86-pv6w).
 `lib/dependency-security.test.ts` rejects a lockfile below those floors or a
@@ -148,7 +148,7 @@ Vercel Deployment Check so a production build is not promoted to the custom
 domain until the exact commit's check passed; never treat Force Promote or a
 direct manual deployment as routine bypass authority.
 
-Mantine core and hooks are pinned together at 9.7.5. Dependabot groups their
+Mantine core and hooks are pinned together at 9.8.0. Dependabot groups their
 minor and patch updates; keep their exact peer versions aligned. Node types
 remain on the supported Node 24 major. React and React DOM are paired at 19.3.1
 with matching 19.3 type declarations; Dependabot groups those packages and the

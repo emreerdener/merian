@@ -54,10 +54,14 @@ retry never represents a superseded revision as the current active release.
 ## Profiles and presentation
 
 `_shared/ai/geminiProfiles.ts` owns the versioned candidate settings. They
-retain `generateContent` and `@google/genai@2.24.0`. New profiles use an
-explicit thinking level and omit sampling parameters, numeric thinking budgets,
-seeds, and `candidateCount`. Both product tiers share the identification model
-and settings; quotas and entitlements are unchanged.
+retain `generateContent`. The original model-release packet used
+`@google/genai@2.24.0`; the subsequent dependency-maintenance graph uses 3.6.1
+with an explicit `v1beta` API version. That SDK change preserves these model
+profiles and does not replay or grant model activation. Historical evidence
+remains bound to its original SDK/source. New profiles use an explicit thinking
+level and omit sampling parameters, numeric thinking budgets, seeds, and
+`candidateCount`. Both product tiers share the identification model and
+settings; quotas and entitlements are unchanged.
 
 | Operation                     | Candidate model / thinking |    Old token ceiling | New ceiling |
 | ----------------------------- | -------------------------- | -------------------: | ----------: |

@@ -278,6 +278,19 @@ class AcceptanceTests(unittest.TestCase):
                 report = acceptance.assess(policy, self.root, self.root, self.root / "current-backend", "merge", Client(), 9, backend_run=10)
                 backend.assert_called_once()
                 self.assertEqual(report["current_backend_validation"], {"verified_run": 10})
+            policy.pop("reviewed_surface_control_delta")
+            policy["revalidated_surfaces"] = {name: {} for name in acceptance.revalidated.CONTRACTS}
+            with self.assertRaisesRegex(ValueError, "exact-candidate-admin-validation"):
+                acceptance.assess(policy, self.root, self.root, self.root / "missing-surfaces", "merge", Client(), 9, backend_run=10)
+            with patch.object(acceptance.revalidated, "verify_runs", return_value={"backend": {"backend_evidence": {"verified_run": 10}}, "admin": {}, "agent_quality": {}, "web": {}}) as surfaces:
+                report = acceptance.assess(policy, self.root, self.root, self.root / "fresh-surfaces", "merge", Client(), 9, backend_run=10, admin_run=20, agent_run=30, web_run=40)
+                self.assertEqual(surfaces.call_args.args[3], {"backend": 10, "admin": 20, "agent_quality": 30, "web": 40})
+                self.assertEqual(set(report["revalidated_surfaces"]), {"backend", "admin", "agent_quality", "web"})
+                self.assertFalse(report["authorization"]["merge"])
+            with patch.object(acceptance, "source_identity", side_effect=[candidate, {**candidate, "tree": "changed"}]), patch.object(acceptance.revalidated, "verify_runs", return_value={"backend": {"backend_evidence": {}}}):
+                with self.assertRaisesRegex(ValueError, "source changed"):
+                    acceptance.assess(policy, self.root, self.root, self.root / "source-race", "merge", Client(), 9, backend_run=10, admin_run=20, agent_run=30, web_run=40)
+                self.assertFalse((self.root / "source-race/acceptance.json").exists())
             policy["authorization"]["merge"] = True
             with self.assertRaisesRegex(ValueError, "cannot grant"):
                 acceptance.assess(policy, self.root, self.root, self.root / "authority", "merge", Client(), 9)
@@ -315,6 +328,7 @@ class AcceptanceTests(unittest.TestCase):
 def load_tests(loader, standard_tests, pattern):
     standard_tests.addTests(loader.loadTestsFromModule(module("focused_recovery_tests", "test-ios-focused-recovery.py")))
     standard_tests.addTests(loader.loadTestsFromModule(module("followup_tests", "test-ios-consolidation-followups.py")))
+    standard_tests.addTests(loader.loadTestsFromModule(module("surface_tests", "test-ios-revalidated-surfaces.py")))
     return standard_tests
 
 
