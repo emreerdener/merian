@@ -75,7 +75,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   opaque provider IDs, capabilities, URLs, prose, and raw exceptions collapse to
   a generic error kind instead of entering logs. Other handlers may retain
   private exception details only under their separately reviewed logging
-  contract.
+  contract. Nested wrappers retain the Field Chat deployment identity on
+  sanitized error responses only as a complete pair: `atomic-admission-v1` and a
+  lowercase, nonzero 64-hex bundle digest. Missing or invalid pairs and
+  unrelated custom headers are discarded. These headers are deployment
+  diagnostics, never an authentication or entitlement grant.
 - **`http.ts`**: CORS headers, JSON responses, parameter validation,
   constant-time comparison helpers, and the canonical bounded request readers.
   `parseJsonBody(...)` is the ordinary object API;

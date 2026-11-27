@@ -424,6 +424,17 @@ function safePublicErrorHeaders(response: Response): Record<string, string> {
     const value = response.headers.get(name);
     if (value) headers[name] = value;
   }
+  // A second public wrapper must retain the server-owned Field Chat identity
+  // added by withEdgeHandler, without forwarding arbitrary response headers.
+  const contract = response.headers.get("X-Merian-Field-Chat-Contract");
+  const bundle = response.headers.get("X-Merian-Field-Chat-Bundle-SHA256");
+  if (
+    contract === "atomic-admission-v1" && bundle !== null &&
+    /^[0-9a-f]{64}$/.test(bundle) && !/^0{64}$/.test(bundle)
+  ) {
+    headers["X-Merian-Field-Chat-Contract"] = contract;
+    headers["X-Merian-Field-Chat-Bundle-SHA256"] = bundle;
+  }
   return headers;
 }
 

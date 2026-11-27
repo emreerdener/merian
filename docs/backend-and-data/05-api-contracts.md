@@ -1535,6 +1535,14 @@ becomes `500 internal_error`; an ordinary returned `5xx` keeps its status but
 receives the generic status-derived code/message. Retryable public failures may
 additionally include `retry_after_seconds` and a bounded `Retry-After` header.
 
+Field Chat's fixed `X-Merian-Field-Chat-Contract: atomic-admission-v1` and
+`X-Merian-Field-Chat-Bundle-SHA256` pair survives nested error normalization,
+including missing-authentication `401` responses. The digest must be lowercase,
+nonzero 64-hex; incomplete or malformed pairs are not propagated. This narrow
+diagnostic allowlist does not permit arbitrary custom headers or authorize a
+request. Error sanitization and the server-owned handler/request-ID markers
+remain unchanged.
+
 The Next.js waitlist API uses the equivalent web envelope with `message` in
 place of `error`. Its 4 KiB request ceiling, CAPTCHA, database rate limits, and
 service-only pre-challenge and insertion RPCs are documented in the web README

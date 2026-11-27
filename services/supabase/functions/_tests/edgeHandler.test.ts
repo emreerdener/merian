@@ -394,6 +394,84 @@ Deno.test("withPublicEdgeHandler applies metadata without auth timing", async ()
   assertEquals(response.headers.get("Server-Timing"), null);
 });
 
+Deno.test("nested wrappers preserve the safe Field Chat identity on auth, validation and server errors", async () => {
+  for (const status of [401, 400, 503]) {
+    let called = false;
+    const response = await withPublicEdgeHandler(
+      new Request("https://test-project.supabase.co/functions/v1/test"),
+      () =>
+        invokeTestHandler(() => {
+          called = true;
+          return jsonResponse(
+            status === 503
+              ? { error: "private provider diagnostics", debug: "private" }
+              : { error: "Invalid field.", code: "invalid_field" },
+            status,
+          );
+        }, {
+          missingAuth: status === 401,
+          responseHeaders: {
+            "X-Merian-Field-Chat-Contract": "atomic-admission-v1",
+            "X-Merian-Field-Chat-Bundle-SHA256": "a".repeat(64),
+            "X-Private-Diagnostic": "must-not-escape",
+            "X-Merian-Handler": "0",
+          },
+        }),
+    );
+    assertEquals(response.status, status);
+    assertEquals(called, status !== 401);
+    assertEquals(
+      response.headers.get("X-Merian-Field-Chat-Contract"),
+      "atomic-admission-v1",
+    );
+    assertEquals(
+      response.headers.get("X-Merian-Field-Chat-Bundle-SHA256"),
+      "a".repeat(64),
+    );
+    assertEquals(response.headers.get("X-Merian-Handler"), "1");
+    assertEquals(response.headers.get("X-Private-Diagnostic"), null);
+    const body = await response.json();
+    assertEquals(
+      body.code,
+      status === 401
+        ? "unauthorized"
+        : status === 503
+        ? "service_unavailable"
+        : "invalid_field",
+    );
+    assertEquals(response.headers.get("X-Request-ID"), body.request_id);
+    assertEquals(JSON.stringify(body).includes("private"), false);
+  }
+});
+
+Deno.test("nested wrappers discard incomplete or unsafe Field Chat identity pairs", async () => {
+  const contract = "X-Merian-Field-Chat-Contract";
+  const digest = "X-Merian-Field-Chat-Bundle-SHA256";
+  const cases: Record<string, string>[] = [
+    { [contract]: "unreviewed-contract", [digest]: "a".repeat(64) },
+    { [contract]: "atomic-admission-v1", [digest]: "0".repeat(64) },
+    { [contract]: "atomic-admission-v1", [digest]: "A".repeat(64) },
+    { [contract]: "atomic-admission-v1", [digest]: "not-a-digest" },
+    { [contract]: "atomic-admission-v1" },
+    { [digest]: "a".repeat(64) },
+  ];
+  for (const responseHeaders of cases) {
+    const response = await withPublicEdgeHandler(
+      new Request("https://test-project.supabase.co/functions/v1/test"),
+      () =>
+        invokeTestHandler(() => jsonResponse({ ok: true }), {
+          missingAuth: true,
+          responseHeaders,
+        }),
+    );
+    assertEquals(response.status, 401);
+    assertEquals(response.headers.get(contract), null);
+    assertEquals(response.headers.get(digest), null);
+    assertEquals(response.headers.get("X-Merian-Handler"), "1");
+    await response.body?.cancel();
+  }
+});
+
 Deno.test("withPublicEdgeHandler sanitizes custom-handler exceptions", async () => {
   const originalError = console.error;
   console.error = () => {};
@@ -493,6 +571,7 @@ Deno.test("jsonResponse — malformed AI response shape matches contract", async
 
 async function invokeTestHandler(
   handler: () => Response | Promise<Response>,
+  options: { missingAuth?: boolean; responseHeaders?: HeadersInit } = {},
 ): Promise<Response> {
   const previousUrl = Deno.env.get("SUPABASE_URL");
   const previousKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -515,7 +594,8 @@ async function invokeTestHandler(
       }),
       async () => await handler(),
       {
-        authenticate: () =>
+        responseHeaders: options.responseHeaders,
+        authenticate: options.missingAuth ? undefined : () =>
           Promise.resolve({
             user: { id: "00000000-0000-0000-0000-000000000001" } as never,
             response: null,

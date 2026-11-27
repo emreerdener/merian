@@ -1061,6 +1061,20 @@
       "review_scope": "Reviewed dependency successor acceptance tooling/documentation. Closed exact-source four-surface checks replace changed-surface reuse; native source applicability, complete method coverage, assertions, archive/device requirements and operation authority remain unchanged."
     },
     {
+      "path": "docs/backend-and-data/05-api-contracts.md",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "82c68e7696ae6c1cb7709e92a52075781410cbf8"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "5114c5f68e7946a3b6f3dad62808d7f838b92b3c"
+      },
+      "review_scope": "Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
+    },
+    {
       "path": "docs/backend-and-data/06-supabase-deployment-runbook.md",
       "before": {
         "mode": "100644",
@@ -1554,9 +1568,23 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "7c2684edcd8e3e9df147706a288c5f6909bbdfce"
+        "object": "f83a540413c68ac35e85d0dc4f8e036c95a1427c"
       },
-      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
+    },
+    {
+      "path": "services/supabase/functions/_shared/edgeHandler.ts",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "c0a1096b2ce4b8c9757cb5385322cca9767f89a0"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "cb72ebb7f1edccf14c51da1aefe53523bf11096d"
+      },
+      "review_scope": "Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
     },
     {
       "path": "services/supabase/functions/_shared/fieldChatDeploymentIdentity.ts",
@@ -1568,9 +1596,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "6ded2a22f244d223889f55f664d770c505fb5948"
+        "object": "e7d53769b60012ad48e196009a9fee1968745584"
       },
-      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
     },
     {
       "path": "services/supabase/functions/_shared/gemini.ts",
@@ -1596,9 +1624,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "c86bc270738d111a04c1b7192d0d8c95c1416303"
+        "object": "62638d972dd0bc0f82034f03c5fbb7d877a38ffb"
       },
-      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
     },
     {
       "path": "services/supabase/functions/_tests/auth.test.ts",
@@ -1613,6 +1641,20 @@
         "object": "faf167607f88f7abf3789d19a84a7af4a2503762"
       },
       "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+    },
+    {
+      "path": "services/supabase/functions/_tests/edgeHandler.test.ts",
+      "before": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "e64f933e19460fbe37776fb649b50bcebda6f3fa"
+      },
+      "after": {
+        "mode": "100644",
+        "type": "blob",
+        "object": "40bf9c3a69e34c20355034c0e97b2f8476ab4ab5"
+      },
+      "review_scope": "Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
     },
     {
       "path": "services/supabase/functions/analyze-observation-video/deno.json",
@@ -2380,9 +2422,9 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "bcee0360ea70fb37c00fa2d3bec7954ef0edf4b4"
+        "object": "5592fdac1afe4f970ba9d25f31c778ac50a145a2"
       },
-      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+      "review_scope": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
     },
     {
       "path": "services/supabase/functions/identify/deno.json",
@@ -9878,9 +9920,23 @@
           "after": {
             "mode": "100644",
             "type": "blob",
-            "object": "7c2684edcd8e3e9df147706a288c5f6909bbdfce"
+            "object": "f83a540413c68ac35e85d0dc4f8e036c95a1427c"
           },
-          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
+        },
+        {
+          "path": "services/supabase/functions/_shared/edgeHandler.ts",
+          "before": {
+            "mode": "100644",
+            "type": "blob",
+            "object": "c0a1096b2ce4b8c9757cb5385322cca9767f89a0"
+          },
+          "after": {
+            "mode": "100644",
+            "type": "blob",
+            "object": "cb72ebb7f1edccf14c51da1aefe53523bf11096d"
+          },
+          "review": "Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
         },
         {
           "path": "services/supabase/functions/_shared/fieldChatDeploymentIdentity.ts",
@@ -9892,9 +9948,9 @@
           "after": {
             "mode": "100644",
             "type": "blob",
-            "object": "6ded2a22f244d223889f55f664d770c505fb5948"
+            "object": "e7d53769b60012ad48e196009a9fee1968745584"
           },
-          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
         },
         {
           "path": "services/supabase/functions/_shared/gemini.ts",
@@ -9920,9 +9976,9 @@
           "after": {
             "mode": "100644",
             "type": "blob",
-            "object": "c86bc270738d111a04c1b7192d0d8c95c1416303"
+            "object": "62638d972dd0bc0f82034f03c5fbb7d877a38ffb"
           },
-          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
         },
         {
           "path": "services/supabase/functions/_tests/auth.test.ts",
@@ -9937,6 +9993,20 @@
             "object": "faf167607f88f7abf3789d19a84a7af4a2503762"
           },
           "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+        },
+        {
+          "path": "services/supabase/functions/_tests/edgeHandler.test.ts",
+          "before": {
+            "mode": "100644",
+            "type": "blob",
+            "object": "e64f933e19460fbe37776fb649b50bcebda6f3fa"
+          },
+          "after": {
+            "mode": "100644",
+            "type": "blob",
+            "object": "40bf9c3a69e34c20355034c0e97b2f8476ab4ab5"
+          },
+          "review": "Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
         },
         {
           "path": "services/supabase/functions/analyze-observation-video/deno.json",
@@ -10704,9 +10774,9 @@
           "after": {
             "mode": "100644",
             "type": "blob",
-            "object": "bcee0360ea70fb37c00fa2d3bec7954ef0edf4b4"
+            "object": "5592fdac1afe4f970ba9d25f31c778ac50a145a2"
           },
-          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction."
+          "review": "Reviewed dependency successor: pinned Supabase JS 2.119.2, JOSE 6.2.18 and GenAI 3.6.1 with explicit v1beta; regenerated local configs, frozen graph and deployment identities; matching tests/docs and retained tooling read grant. Fresh complete exact-source backend database/Edge/C1 validation required; no SQL or assertion reduction. Narrow Field Chat nested-error identity repair: retain only valid atomic-admission-v1/nonzero lowercase SHA-256 header pair, preserve authentication/error sanitization, add nested/adversarial regressions, and regenerate dependent deployment identities. No iOS product, SQL, feature flags or workflow changes. Fresh exact-source backend validation is required; native evidence remains source-applicable."
         },
         {
           "path": "services/supabase/functions/identify/deno.json",
