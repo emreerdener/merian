@@ -56,7 +56,7 @@ struct CaptureMediaReviewView: View {
             if !$0 { session.historicalDescriptionID = nil }
         })) { historicalDescription }
         .preferredColorScheme(.dark)
-        .task(id: "\(session.selectedNodeID ?? "")-\(workspace.initialDraftResources?.id.uuidString ?? "legacy")") {
+        .task(id: "\(session.selectedNodeID)-\(workspace.initialDraftResources?.id.uuidString ?? "legacy")") {
             updateEditor()
             await loadVideoEditor()
         }
