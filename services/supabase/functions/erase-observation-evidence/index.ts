@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { PrivateEvidenceErasureStorage } from "./storage.ts";
 import { evidenceErasureRepository } from "./db.ts";
 import { eraseObservationEvidence } from "./handler.ts";
-import { evidenceWorkerReceipt } from "./receipt.ts";
+import { evidenceWorkerResponse } from "./receipt.ts";
 
 serveEdge(async (req: Request) => {
   const headers = { "Cache-Control": "no-store" };
@@ -23,28 +23,17 @@ serveEdge(async (req: Request) => {
       extraHeaders: headers,
     });
   }
-  try {
-    return await evidenceWorkerReceipt(req, async (dispatch) => {
-      const client = createServiceRoleClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        auth.serverApiKey,
-      );
-      const storage = new PrivateEvidenceErasureStorage();
-      // No caller body or key is consumed. Only the gated registry grants erasure.
-      const counts = await eraseObservationEvidence({
-        ...evidenceErasureRepository(client, dispatch),
-        erase: (object, signal, target) =>
-          storage.erase(object, signal, target),
-      }, req.signal);
-      return counts;
-    });
-  } catch {
-    return publicErrorResponse(
-      req,
-      503,
-      "private_evidence_erasure_unavailable",
-      "Private media cleanup is unavailable.",
-      { extraHeaders: headers },
+  return await evidenceWorkerResponse(req, async (dispatch) => {
+    const client = createServiceRoleClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      auth.serverApiKey,
     );
-  }
+    const storage = new PrivateEvidenceErasureStorage();
+    // No caller body or key is consumed. Only the gated registry grants erasure.
+    const counts = await eraseObservationEvidence({
+      ...evidenceErasureRepository(client, dispatch),
+      erase: (object, signal, target) => storage.erase(object, signal, target),
+    }, req.signal);
+    return counts;
+  });
 });

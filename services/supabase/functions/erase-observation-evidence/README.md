@@ -204,3 +204,25 @@ response retention or an elapsed timeout is not sufficient proof. This may
 require separately authorized inspection or maintenance; the health RPC and
 monitor deliberately cannot repair or clear it. Do not assume a pg_net TTL;
 verify the deployed extension and response retention before activation.
+
+## Failure-stage diagnostics
+
+The proposed diagnostic patch emits `private_evidence_rpc_failed` through the
+shared identity-safe logger. Its stage is one of `retire_history`,
+`retire_video`, `retire_composition`, `claim`, or `finish`. Its category
+distinguishes parent cancellation, the existing RPC deadline, four allowlisted
+database error classes, and otherwise generic database or transport/runtime
+failure. `database_query_cancelled` (SQLSTATE 57014) does not distinguish a
+statement timeout from another query cancellation, nor execution from lock
+waiting. A permission category does not distinguish dispatch-fence refusal from
+other authorization refusal. A malformed finish response emits only the fixed
+`rpc_invalid_response` category; its payload is never logged.
+
+The HTTP boundary also emits `private_evidence_worker_failed` with fixed
+`worker` / `worker_unavailable` tokens. No error messages, SQL text, response
+bodies, dispatch identifiers, object identifiers, claim tokens, backend digests,
+or request headers enter these events. Logging failure cannot replace the
+existing response or error. The patch changes no deadlines, retry policy, SQL
+locks, claim/settlement rules, terminal receipts, activation flags, or
+monitoring thresholds. It is diagnostic preparation, not proof of the November
+27 cause or permission to restart cleanup.

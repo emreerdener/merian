@@ -1,3 +1,7 @@
+import {
+  type IdentitySafeErrorDetails,
+  logIdentitySafeError,
+} from "../_shared/edgeHandler.ts";
 import { jsonResponse, publicErrorResponse } from "../_shared/http.ts";
 import type { eraseObservationEvidence } from "./handler.ts";
 
@@ -35,4 +39,30 @@ export async function evidenceWorkerReceipt(
     200,
     headers,
   );
+}
+
+/** The authenticated HTTP boundary; failures never become terminal receipts. */
+export async function evidenceWorkerResponse(
+  req: Request,
+  work: (dispatch: string) => Promise<Counts>,
+  report: (event: string, details: IdentitySafeErrorDetails) => void =
+    logIdentitySafeError,
+): Promise<Response> {
+  try {
+    return await evidenceWorkerReceipt(req, work);
+  } catch {
+    try {
+      report("private_evidence_worker_failed", {
+        stage: "worker",
+        code: "worker_unavailable",
+      });
+    } catch { /* Diagnostics must not change the unavailable response. */ }
+    return publicErrorResponse(
+      req,
+      503,
+      "private_evidence_erasure_unavailable",
+      "Private media cleanup is unavailable.",
+      { extraHeaders: { "Cache-Control": "no-store" } },
+    );
+  }
 }
