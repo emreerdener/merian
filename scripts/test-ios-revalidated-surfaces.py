@@ -149,6 +149,14 @@ class RevalidatedSurfacesTests(unittest.TestCase):
         self.jobs[30][0]["conclusion"] = "failure"
         with self.assertRaises(ValueError): self.verify_runs()
 
+    def test_live_matrix_all_and_nonexecuted_empty_matrix_are_classified(self):
+        self.jobs[30].append({**self.jobs[30][0], "id": 3999, "name": "Live evaluation (all)", "conclusion": "failure"})
+        self.assertIn("agent_quality", self.verify_runs())
+        self.jobs[30][-1].update(name="Live evaluation", conclusion="skipped")
+        self.assertIn("agent_quality", self.verify_runs())
+        self.jobs[30][-1]["conclusion"] = "success"
+        with self.assertRaises(ValueError): self.verify_runs()
+
     def test_existing_backend_verifier_failure_and_attempt_race_propagate(self):
         self.backend.side_effect = ValueError("Missing C1 evidence")
         with self.assertRaisesRegex(ValueError, "C1"): self.verify_runs()

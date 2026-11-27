@@ -1392,7 +1392,7 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "e31936b936dd8146d067b040b7691fb85dd0733f"
+        "object": "a264ba20ad7a01fb565cf65be6745e36ec8bbf54"
       },
       "review_scope": "Reviewed dependency successor acceptance tooling/documentation. Closed exact-source four-surface checks replace changed-surface reuse; native source applicability, complete method coverage, assertions, archive/device requirements and operation authority remain unchanged."
     },
@@ -1484,7 +1484,7 @@
       "after": {
         "mode": "100644",
         "type": "blob",
-        "object": "58d22b87955f86c15627755435dc2caf275090ec"
+        "object": "f258c33dbb2b38b50fde9de9932717ad0a53d6bf"
       },
       "review_scope": "Reviewed dependency successor acceptance tooling/documentation. Closed exact-source four-surface checks replace changed-surface reuse; native source applicability, complete method coverage, assertions, archive/device requirements and operation authority remain unchanged."
     },

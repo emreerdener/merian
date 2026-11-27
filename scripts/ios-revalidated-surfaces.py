@@ -29,9 +29,9 @@ CONTRACTS = {
         "steps": {"Deterministic validation": ["Check out exact source", "Set up pinned Deno", "Validate agent assets"]},
     },
 }
-OPTIONAL_AGENT_JOBS = {"Live evaluation scope"} | {
+OPTIONAL_AGENT_JOBS = {"Live evaluation scope", "Live evaluation"} | {
     "Live evaluation (" + suite + ")" for suite in
-    ("ios", "swiftdata", "supabase", "api-contracts", "docs", "incidents", "web-admin", "release", "agents")
+    ("all", "ios", "swiftdata", "supabase", "api-contracts", "docs", "incidents", "web-admin", "release", "agents")
 }
 
 
@@ -108,6 +108,7 @@ def verify_runs(policy, candidate, client, run_ids, backend_verifier):
                     and j["head_sha"] == candidate["source_sha"] and j["status"] == "completed" for j in jobs), "Unbound validation job")
         for job in jobs:
             if job["name"] not in contract["jobs"]:
+                require(job["name"] != "Live evaluation" or job["conclusion"] == "skipped", "Unexpanded live matrix executed")
                 continue  # Live model evaluations retain their existing nonblocking status.
             require(job["conclusion"] == "success", "Required validation job skipped or failed")
             for step_name in contract["steps"].get(job["name"], []):
