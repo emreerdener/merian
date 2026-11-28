@@ -32,6 +32,31 @@ def fixture(parameterized=False, failed=False):
 
 
 class FollowupTests(unittest.TestCase):
+    def test_swift_testing_empty_parentheses_are_exact_alias(self):
+        summary, tree, selectors = fixture()
+        result = f.inventory(summary, tree, [selectors[0] + '()'])
+        self.assertEqual(result['methods'], {selectors[0]: 'Passed'})
+        with self.assertRaises(ValueError):
+            f.inventory(summary, tree, [selectors[0], selectors[0] + '()'])
+        with self.assertRaises(ValueError):
+            f.inventory(summary, tree, [selectors[0] + '(other:)'])
+
+    def test_per_run_evidence_root_is_canonical_same_repository(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp).resolve()
+            root = parent / '.artifacts'
+            root.mkdir()
+            with patch.object(f.subprocess, 'check_output', return_value='/repository/.git\n'):
+                self.assertEqual(f.evidence_root(str(root)), root)
+                link = parent / 'linked'
+                link.symlink_to(root, target_is_directory=True)
+                for bad in (str(link), str(parent), '.artifacts', str(root / 'missing')):
+                    with self.subTest(path=bad), self.assertRaises(ValueError):
+                        f.evidence_root(bad)
+            with patch.object(f.subprocess, 'check_output', side_effect=['/foreign/.git\n', '/repository/.git\n']):
+                with self.assertRaises(ValueError):
+                    f.evidence_root(str(root))
+
     def test_exact_ordinary_and_parameter_methods(self):
         for parameterized in (False, True):
             summary, tree, selectors = fixture(parameterized)

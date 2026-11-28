@@ -2452,6 +2452,26 @@ activation/distribution requirements; the hosted result does not clear them.
 
 ### Consolidation evidence recovery and proportionate acceptance — November 25, 2026
 
+The November 28 native-recovery successor retains this route. Its four focused
+methods cover the corrected Debug architecture expectation, both video
+orientation parameters, offline-queue media cleanup and cleanup completion
+across batches. The original failures remain failures; a passing video replay
+does not establish the intermittent timeout's root cause. Removing the redundant
+nil fallback from the nonoptional review selection string does not change task
+identity, so earlier source-bound review UI evidence remains applicable after
+explicit delta review.
+
+Each successor execution may pin its original `.artifacts` directory in a
+separate worktree of the same Git repository. The verifier rejects foreign
+repositories and linked roots/files/bundles, retains the original absolute
+bundle path and command log, and verifies the complete compiled fingerprint
+against the historical execution source. Moving a checkout to a later
+policy-only commit does not rewrite that provenance. Swift Testing's empty `()`
+filter suffix is normalized only for method identity; parameter labels, argument
+leaves, deadlines and complete coverage remain mandatory. Exact-source
+non-native gates and the unsigned archive remain required; this extension does
+not authorize a merge, deployment, site promotion or TestFlight action.
+
 For the reviewed consolidated development baseline only, the owner approved an
 alternative native acceptance route for merging and TestFlight preparation. This
 supersedes the requirement to start another complete native run after each

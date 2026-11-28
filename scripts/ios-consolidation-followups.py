@@ -96,6 +96,10 @@ def verify_snapshot(pin, record, root, log):
 
 def inventory(summary, tree, selectors):
     require(selectors and len(set(selectors)) == len(selectors), 'Invalid selector plan')
+    # Swift Testing needs the empty parentheses in xcodebuild's filter, while
+    # XCResult method identities below canonicalize that same spelling.
+    selectors = [s.removesuffix('()') for s in selectors]
+    require(len(set(selectors)) == len(selectors), 'Duplicate canonical selector')
     cases, leaves = {}, {}
     for node in a.audit.nodes(tree):
         if node.get('nodeType') != 'Test Case':
@@ -174,6 +178,15 @@ def verify_run(pin, root):
             'original_failed_methods': failures, 'inventory': actual}
 
 
+def evidence_root(path):
+    root = Path(path)
+    require(root.is_absolute() and root.resolve() == root.absolute()
+            and root.name == '.artifacts' and root.is_dir(), 'Unsafe follow-up evidence root')
+    common = lambda p: subprocess.check_output(['git', '-C', str(p), 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip()
+    require(common(root.parent) == common(a.ROOT), 'Foreign follow-up evidence root')
+    return root
+
+
 def verify(policy, directory, candidate):
     follow = policy['successor_followups']
     base = follow['base_source']
@@ -198,11 +211,11 @@ def verify(policy, directory, candidate):
     target = follow['product_source']
     validate_applicability(a.tree_entries(base), a.tree_entries(target), follow['reviewed_delta'])
     require(a.product_tree(policy, target) == a.product_tree(policy, candidate['source_sha']), 'Unvalidated product changes after follow-ups')
-    root = Path(follow['evidence_root'])
-    require(root.resolve() == root.absolute() and root.name == '.artifacts' and common(root.parent) == common(a.ROOT), 'Foreign follow-up evidence root')
+    root = evidence_root(follow['evidence_root'])
     for pin in follow['runs']:
         validate_applicability(a.tree_entries(pin['canonical_source']), a.tree_entries(target), pin['later_delta'])
-    records = [verify_run(pin, root) for pin in follow['runs']]
+    records = [verify_run(pin, evidence_root(pin['evidence_root']) if 'evidence_root' in pin else root)
+               for pin in follow['runs']]
     require(len({r['id'] for r in records}) == len(records), 'Duplicate follow-up execution')
     union = sorted({m for r in records for m in r['accepted_methods']})
     require(union == follow['required_methods'], 'Follow-up coverage incomplete')
