@@ -470,11 +470,15 @@ extension CaptureWorkspaceViewModelRefinementTests {
         viewModel.requestDraftDiscard()
         let generation = try XCTUnwrap(viewModel.discardConfirmationGeneration)
         XCTAssertTrue(viewModel.confirmDraftDiscard(generation: generation))
-        let mediaDeleted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            !FileManager.default.fileExists(atPath: videoURL.path)
-                && !FileManager.default.fileExists(atPath: audioURL.path)
-        }, object: nil)
-        await fulfillment(of: [mediaDeleted], timeout: 5)
+        let mediaCleanupFinished = expectation(description: "Confirmed discard finishes owned media cleanup")
+        let cleanupObserver = Task { @MainActor in
+            await viewModel.operationState.awaitStagedMediaCleanup()
+            mediaCleanupFinished.fulfill()
+        }
+        defer { cleanupObserver.cancel() }
+        await fulfillment(of: [mediaCleanupFinished], timeout: 5)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: videoURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertTrue(viewModel.stagedCapture.isEmpty)
         XCTAssertEqual(try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).count, 0)
     }
